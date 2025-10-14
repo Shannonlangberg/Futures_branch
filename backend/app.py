@@ -11389,11 +11389,20 @@ def generate_any_time_frame_leadership_report(start_date: datetime, end_date: da
 @app.route('/<path:path>')
 def serve_react_app(path):
     """Serve React app for all non-API routes to support React Router"""
-    # Skip API routes and static files with extensions
-    if path.startswith('api/') or path.startswith('temp_audio/') or '.' in path.split('/')[-1]:
+    # Skip API routes
+    if path.startswith('api/') or path.startswith('temp_audio/'):
         return jsonify({"error": "Not found"}), 404
     
-    # Serve React app for all other routes
+    # If path has an extension (like .json, .png, .js, etc), try to serve as static file
+    if '.' in path.split('/')[-1]:
+        try:
+            # Try to serve the file from static folder
+            return send_from_directory('static', path)
+        except:
+            # If file not found, return 404
+            return jsonify({"error": "Not found"}), 404
+    
+    # For routes without extensions (React Router paths), serve the React app
     return send_from_directory('static', 'index.html')
 
 
