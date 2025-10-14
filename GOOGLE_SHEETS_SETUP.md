@@ -194,7 +194,7 @@ Your app expects these exact campus names:
 - `Mount Barker`
 - `Copper Coast`
 - `Clare Valley`
-- `Victor Harbour`
+- `Victor Harbor`
 
 ---
 

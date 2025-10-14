@@ -58,8 +58,8 @@
     },
     "victor_harbour": {
       "id": "victor_harbour",
-      "name": "Victor Harbour Campus",
-      "display_name": "Victor Harbour",
+      "name": "Victor Harbor Campus",
+      "display_name": "Victor Harbor",
       "active": true,
       "detection_patterns": ["victor harbour", "victor harbor", "victor"],
       "service_times": ["10:00 AM"]

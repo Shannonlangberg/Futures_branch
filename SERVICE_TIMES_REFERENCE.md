@@ -11,7 +11,7 @@
 | **Mount Barker** | 10:00 AM |
 | **Copper Coast** | 10:00 AM |
 | **Clare Valley** | 10:00 AM |
-| **Victor Harbour** | 10:00 AM |
+| **Victor Harbor** | 10:00 AM |
 
 ## How It Works
 

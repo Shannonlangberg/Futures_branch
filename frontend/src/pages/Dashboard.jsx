@@ -41,7 +41,7 @@ const Dashboard = () => {
     { id: 'south', name: 'South Campus' },
     { id: 'mt_barker', name: 'Mt Barker Campus' },
     { id: 'clare_valley', name: 'Clare Valley Campus' },
-    { id: 'victor_harbour', name: 'Victor Harbour Campus' },
+    { id: 'victor_harbour', name: 'Victor Harbor Campus' },
     { id: 'copper_coast', name: 'Copper Coast Campus' }
   ]);
   const [showPreviousYear, setShowPreviousYear] = useState(true);

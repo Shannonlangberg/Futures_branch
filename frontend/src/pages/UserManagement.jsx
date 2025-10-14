@@ -25,7 +25,7 @@ const UserManagement = () => {
     { id: 'Mount Barker', name: 'Mount Barker' },
     { id: 'Copper Coast', name: 'Copper Coast' },
     { id: 'Clare Valley', name: 'Clare Valley' },
-    { id: 'Victor Harbour', name: 'Victor Harbour' }
+    { id: 'Victor Harbor', name: 'Victor Harbor' }
   ];
 
   const roles = [

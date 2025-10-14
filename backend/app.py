@@ -114,7 +114,7 @@ DEFAULT_CAMPUS_SERVICE_TIMES = {
     'Mount Barker': ['10:00 AM'],
     'Copper Coast': ['10:00 AM'],
     'Clare Valley': ['10:00 AM'],
-    'Victor Harbour': ['10:00 AM'],
+    'Victor Harbor': ['10:00 AM'],
     'all_campuses': []  # Will be populated dynamically
 }
 
@@ -165,7 +165,7 @@ def get_campus_service_times(campus: str) -> list:
             'mount barker': 'mount_barker',
             'copper coast': 'copper_coast',
             'clare valley': 'clare_valley',
-            'victor harbour': 'victor_harbour'
+            'victor harbor': 'victor_harbour'
         }
         
         campus_id = campus_id_mapping.get(campus_normalized, campus_normalized)
@@ -185,7 +185,7 @@ def get_campus_service_times(campus: str) -> list:
         'mount barker': 'Mount Barker',
         'copper coast': 'Copper Coast',
         'clare valley': 'Clare Valley',
-        'victor harbour': 'Victor Harbour'
+        'victor harbor': 'Victor Harbor'
     }
     
     config_key = campus_mapping.get(campus_normalized, campus)
@@ -5462,7 +5462,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 'mount barker': 150,
                 'copper coast': 100,
                 'clare valley': 80,
-                'victor harbour': 70
+                'victor harbor': 70
             }
             campus_key = campus.lower().replace(' ', ' ').replace('_', ' ')
             period_stats['total_people'] = campus_defaults.get(campus_key, 100)
@@ -10006,9 +10006,8 @@ def normalize_campus(name):
         "adelaide": "adelaide city",
         "city": "adelaide city",
         "cbd": "adelaide city",
-        "victor harbour": "victor harbour",
-        "victor harbor": "victor harbour",
-        "victor": "victor harbour",
+        "victor harbor": "victor harbor",
+        "victor": "victor harbor",
         "copper coast": "copper coast",
         "kadina": "copper coast",
         "cc": "copper coast",
