@@ -68,7 +68,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
       });
 
       const cacheBuster = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const response = await fetch(`http://localhost:5002/api/dashboard_data_public?campus=${campusId}&date_filter=${dateFilter}&custom_start_date=${customStartDate}&custom_end_date=${customEndDate}&show_previous_year=${showPreviousYear}&_t=${cacheBuster}`);
+      const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=${dateFilter}&custom_start_date=${customStartDate}&custom_end_date=${customEndDate}&show_previous_year=${showPreviousYear}&_t=${cacheBuster}`);
       const result = await response.json();
       console.log('🔄 Fresh API response received:', result);
       console.log('🔄 Service breakdown in response:', result.service_breakdown);

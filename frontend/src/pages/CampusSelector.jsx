@@ -40,7 +40,7 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
 
   const fetchCampuses = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/campuses/public');
+      const response = await fetch('/api/campuses/public');
       const result = await response.json();
       const campusesList = result.campuses || [];
       

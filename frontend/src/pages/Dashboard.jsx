@@ -121,7 +121,7 @@ const Dashboard = () => {
 
   const fetchCampuses = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/campuses/public');
+      const response = await fetch('/api/campuses/public');
       const result = await response.json();
       const campusesList = result.campuses || [];
       
@@ -171,7 +171,7 @@ const Dashboard = () => {
         params.append('show_previous_year', 'true');
       }
       
-      const response = await fetch(`http://localhost:5002/api/dashboard_data_public?${params}`);
+      const response = await fetch(`/api/dashboard_data_public?${params}`);
       const result = await response.json();
       setData(result);
       setLastRefresh(new Date());
@@ -208,7 +208,7 @@ const Dashboard = () => {
     try {
       setAiLoading(true);
       const selectedCampus = campus === 'all_campuses' ? 'all_campuses' : campus;
-      const response = await fetch(`http://localhost:5002/api/dashboard_data_public?campus=${selectedCampus}&date_filter=last_7_days`);
+      const response = await fetch(`/api/dashboard_data_public?campus=${selectedCampus}&date_filter=last_7_days`);
       const data = await response.json();
       
       const campusName = campus === 'all_campuses' ? 'All Campuses' : (Array.isArray(campuses) ? campuses.find(c => c.id === campus)?.name : 'Selected Campus') || 'Selected Campus';
@@ -245,7 +245,7 @@ const Dashboard = () => {
     try {
       setAiLoading(true);
       const selectedCampus = campus === 'all_campuses' ? 'all_campuses' : campus;
-      const response = await fetch(`http://localhost:5002/api/dashboard_data_public?campus=${selectedCampus}&date_filter=last_12_months`);
+      const response = await fetch(`/api/dashboard_data_public?campus=${selectedCampus}&date_filter=last_12_months`);
 
       const data = await response.json();
       
@@ -289,7 +289,7 @@ const Dashboard = () => {
     try {
       setAiLoading(true);
       const selectedCampus = campus === 'all_campuses' ? 'all_campuses' : campus;
-      const response = await fetch(`http://localhost:5002/api/dashboard_data_public?campus=${selectedCampus}&date_filter=last_30_days`);
+      const response = await fetch(`/api/dashboard_data_public?campus=${selectedCampus}&date_filter=last_30_days`);
 
       const data = await response.json();
       
@@ -337,7 +337,7 @@ const Dashboard = () => {
     try {
       setAiLoading(true);
       const selectedCampus = campus === 'all_campuses' ? 'all_campuses' : campus;
-      const response = await fetch(`http://localhost:5002/api/dashboard_data_public?campus=${selectedCampus}&date_filter=year_to_date`);
+      const response = await fetch(`/api/dashboard_data_public?campus=${selectedCampus}&date_filter=year_to_date`);
       const data = await response.json();
       
       const campusName = campus === 'all_campuses' ? 'All Campuses' : (Array.isArray(campuses) ? campuses.find(c => c.id === campus)?.name : 'Selected Campus') || 'Selected Campus';
