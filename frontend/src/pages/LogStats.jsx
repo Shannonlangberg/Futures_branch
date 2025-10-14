@@ -388,7 +388,7 @@ const LogStats = () => {
                           'Total People in Campus': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                   </div>
@@ -402,9 +402,9 @@ const LogStats = () => {
                     </div>
                     <h4 className="text-xl font-bold text-white">Service Attendance</h4>
                   </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-semibold min-w-[150px]">
+                  <div className="space-y-3 sm:space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         9:00 AM:
                       </label>
                       <input
@@ -416,11 +416,11 @@ const LogStats = () => {
                           '9:00 AM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         10:00 AM:
                       </label>
                       <input
@@ -432,11 +432,11 @@ const LogStats = () => {
                           '10:00 AM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         11:00 AM:
                       </label>
                       <input
@@ -448,11 +448,11 @@ const LogStats = () => {
                           '11:00 AM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         5:00 PM:
                       </label>
                       <input
@@ -464,11 +464,11 @@ const LogStats = () => {
                           '5:00 PM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         5:30 PM:
                       </label>
                       <input
@@ -480,7 +480,7 @@ const LogStats = () => {
                           '5:30 PM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
 
@@ -499,8 +499,8 @@ const LogStats = () => {
                 <div className="bg-slate-700/30 rounded-lg p-4">
                   <h4 className="text-white font-semibold mb-3">New People</h4>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         First Time Visitors:
                       </label>
                       <input
@@ -512,11 +512,11 @@ const LogStats = () => {
                           'First Time': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Visitors:
                       </label>
                       <input
@@ -528,11 +528,11 @@ const LogStats = () => {
                           'Visitors': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Information Gathered:
                       </label>
                       <input
@@ -544,7 +544,7 @@ const LogStats = () => {
                           'Info Gathered': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                   </div>
@@ -554,8 +554,8 @@ const LogStats = () => {
                 <div className="bg-slate-700/30 rounded-lg p-4">
                   <h4 className="text-white font-semibold mb-3">Salvations</h4>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         First Time Decision:
                       </label>
                       <input
@@ -567,11 +567,11 @@ const LogStats = () => {
                           'First Time Decision': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Rededication:
                       </label>
                       <input
@@ -583,7 +583,7 @@ const LogStats = () => {
                           'Rededication': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                   </div>
@@ -611,7 +611,7 @@ const LogStats = () => {
                           'Kids 9:00 AM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                     <div className="flex items-center justify-between">
@@ -627,7 +627,7 @@ const LogStats = () => {
                           'Kids 10:00 AM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                     <div className="flex items-center justify-between">
@@ -643,7 +643,7 @@ const LogStats = () => {
                           'Kids 11:00 AM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                     <div className="flex items-center justify-between">
@@ -659,7 +659,7 @@ const LogStats = () => {
                           'Kids 5:00 PM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                     <div className="flex items-center justify-between">
@@ -675,7 +675,7 @@ const LogStats = () => {
                           'Kids 5:30 PM': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                     {totalKidsAttendance > 0 && (
@@ -698,7 +698,7 @@ const LogStats = () => {
                             'Kids Leaders': e.target.value
                           }))}
                           placeholder="0"
-                          className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                          className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                         />
                       </div>
                     </div>
@@ -715,7 +715,7 @@ const LogStats = () => {
                           'New Kids': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                     <div className="flex items-center justify-between">
@@ -731,7 +731,7 @@ const LogStats = () => {
                           'Kids Salvations': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                   </div>
@@ -741,8 +741,8 @@ const LogStats = () => {
                 <div className="bg-slate-700/30 rounded-lg p-4">
                   <h4 className="text-white font-semibold mb-3">Youth</h4>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Youth Attendance:
                       </label>
                       <input
@@ -754,11 +754,11 @@ const LogStats = () => {
                           'Youth Total': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Youth New People:
                       </label>
                       <input
@@ -770,11 +770,11 @@ const LogStats = () => {
                           'Youth NP': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Youth Salvations:
                       </label>
                       <input
@@ -786,7 +786,7 @@ const LogStats = () => {
                           'Youth Salvations': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                   </div>
@@ -796,8 +796,8 @@ const LogStats = () => {
                 <div className="bg-slate-700/30 rounded-lg p-4">
                   <h4 className="text-white font-semibold mb-3">Connect Groups & Ministry</h4>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Connect Groups:
                       </label>
                       <input
@@ -809,11 +809,11 @@ const LogStats = () => {
                           'Connect Groups': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Dream Team:
                       </label>
                       <input
@@ -825,7 +825,7 @@ const LogStats = () => {
                           'Dream Team': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                   </div>
@@ -835,8 +835,8 @@ const LogStats = () => {
                 <div className="bg-slate-700/30 rounded-lg p-4">
                   <h4 className="text-white font-semibold mb-3">Giving & Special Events</h4>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Tithe:
                       </label>
                       <input
@@ -848,11 +848,11 @@ const LogStats = () => {
                           'Tithe': e.target.value
                         }))}
                         placeholder="0.00"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Baptisms:
                       </label>
                       <input
@@ -864,11 +864,11 @@ const LogStats = () => {
                           'Baptisms': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-medium min-w-[150px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Child Dedications:
                       </label>
                       <input
@@ -880,7 +880,7 @@ const LogStats = () => {
                           'Child Dedications': e.target.value
                         }))}
                         placeholder="0"
-                        className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
                   </div>
