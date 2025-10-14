@@ -9927,31 +9927,44 @@ def create_user_api():
     """API endpoint for creating a new user"""
     try:
         data = request.get_json()
-        users_data = load_users_database()
         
-        # Generate new user ID
-        new_id = str(len(users_data.get('users', {})) + 1)
+        username = data.get('username')
+        password = data.get('password')
         
-        # Create new user
-        new_user = {
-            'id': new_id,
-            'username': data.get('username'),
-            'email': data.get('email', f"{data.get('username')}@futures.church"),
-            'full_name': data.get('full_name', data.get('username')),
-            'password_hash': generate_password_hash(data.get('password')),
-            'role': data.get('role', 'campus_pastor'),
-            'campus': data.get('campus', 'all_campuses'),
-            'active': True,
-            'created_date': datetime.now().strftime('%Y-%m-%d'),
-            'last_login': None
-        }
+        if not username or not password:
+            return jsonify({"error": "Username and password required"}), 400
         
-        users_data['users'][new_id] = new_user
-        save_users_database(users_data)
+        # Insert into database
+        conn = get_db()
+        cursor = conn.cursor()
         
+        # Check if username already exists
+        cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "Username already exists"}), 400
+        
+        # Insert new user
+        cursor.execute('''
+            INSERT INTO users (username, password_hash, full_name, email, role, campus, active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            username,
+            generate_password_hash(password),
+            data.get('full_name', username),
+            data.get('email', f"{username}@futures.church"),
+            data.get('role', 'campus_pastor'),
+            data.get('campus', 'all_campuses'),
+            1
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Created new user: {username}")
         return jsonify({"success": True, "message": "User created successfully"})
     except Exception as e:
-        logger.error(f"Create user API error: {e}")
+        logger.error(f"Create user API error: {e}", exc_info=True)
         return jsonify({"error": "Failed to create user"}), 500
 
 @app.route('/api/users/<user_id>/edit', methods=['POST'])
@@ -9960,27 +9973,59 @@ def edit_user_api(user_id):
     """API endpoint for editing a user"""
     try:
         data = request.get_json()
-        users_data = load_users_database()
         
-        # Find user by ID
-        user = users_data.get('users', {}).get(user_id)
-        if not user:
+        # Update in database
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Check if user exists
+        cursor.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
+        existing_user = cursor.fetchone()
+        
+        if not existing_user:
+            conn.close()
             return jsonify({"error": "User not found"}), 404
         
-        # Update user data
-        user['username'] = data.get('username', user['username'])
+        # Build update query
+        update_fields = []
+        params = []
+        
+        if data.get('username'):
+            update_fields.append('username = ?')
+            params.append(data['username'])
+        
         if data.get('password'):
-            user['password_hash'] = generate_password_hash(data['password'])
-        user['role'] = data.get('role', user['role'])
-        user['campus'] = data.get('campus', user.get('campus', 'all_campuses'))
-        user['full_name'] = data.get('full_name', user.get('full_name', user['username']))
-        user['email'] = data.get('email', user.get('email', f"{user['username']}@futures.church"))
+            update_fields.append('password_hash = ?')
+            params.append(generate_password_hash(data['password']))
         
-        save_users_database(users_data)
+        if data.get('full_name') is not None:
+            update_fields.append('full_name = ?')
+            params.append(data['full_name'])
         
+        if data.get('email') is not None:
+            update_fields.append('email = ?')
+            params.append(data['email'])
+        
+        if data.get('role'):
+            update_fields.append('role = ?')
+            params.append(data['role'])
+        
+        if data.get('campus') is not None:
+            update_fields.append('campus = ?')
+            params.append(data['campus'])
+        
+        if update_fields:
+            params.append(user_id)
+            query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+        
+        conn.close()
+        
+        logger.info(f"Updated user ID: {user_id}")
         return jsonify({"success": True, "message": "User updated successfully"})
     except Exception as e:
-        logger.error(f"Edit user API error: {e}")
+        logger.error(f"Edit user API error: {e}", exc_info=True)
         return jsonify({"error": "Failed to update user"}), 500
 
 @app.route('/api/users/<user_id>/delete', methods=['POST'])
@@ -9988,19 +10033,25 @@ def edit_user_api(user_id):
 def delete_user_api(user_id):
     """API endpoint for deleting a user"""
     try:
-        users_data = load_users_database()
+        # Delete from database (soft delete by setting active = 0)
+        conn = get_db()
+        cursor = conn.cursor()
         
         # Check if user exists
-        if user_id not in users_data.get('users', {}):
+        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
+        if not cursor.fetchone():
+            conn.close()
             return jsonify({"error": "User not found"}), 404
         
-        # Remove user
-        del users_data['users'][user_id]
-        save_users_database(users_data)
+        # Soft delete (set active = 0)
+        cursor.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id,))
+        conn.commit()
+        conn.close()
         
+        logger.info(f"Deleted user ID: {user_id}")
         return jsonify({"success": True, "message": "User deleted successfully"})
     except Exception as e:
-        logger.error(f"Delete user API error: {e}")
+        logger.error(f"Delete user API error: {e}", exc_info=True)
         return jsonify({"error": "Failed to delete user"}), 500
 
 # PROFILE MANAGEMENT ROUTES
