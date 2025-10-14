@@ -1016,13 +1016,13 @@ class User(UserMixin):
                 'view_all_campuses': True
             },
             'senior_leadership': {
-                'log_stats': False,
+                'log_stats': True,
                 'recall_stats': True,
                 'dashboard_access': True,
                 'query_access': True,
                 'finance_access': True,
-                'manage_users': False,
-                'manage_campuses': False,
+                'manage_users': True,
+                'manage_campuses': True,
                 'view_all_campuses': True
             },
             'finance': {

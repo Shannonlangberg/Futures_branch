@@ -27,23 +27,24 @@ roles:
 
   senior_leadership:
     name: "Senior Leadership"
-    description: "Church leadership with broad access"
+    description: "Church leadership with full access (same as admin)"
     permissions:
-      # Core system permissions
-      users: ["view", "edit"]
-      campuses: ["view", "edit"]
+      # Core system permissions - FULL ACCESS
+      users: ["*"]
+      campuses: ["*"]
+      system: ["*"]
       
-      # New resources - read-only access
-      devotions_admin: ["view"]
-      groups: ["view"]
-      beacons: []  # No access
+      # New resources - FULL ACCESS
+      devotions_admin: ["*"]
+      groups: ["*"]
+      beacons: ["*"]
       
-      # Existing resources
+      # Existing resources - FULL ACCESS
       serving: ["*"]
       communications: ["*"]
       prayer_requests: ["*"]
       events: ["*"]
-      finance: ["view"]
+      finance: ["*"]
       heartbeat: ["*"]
       passport: ["*"]
 
