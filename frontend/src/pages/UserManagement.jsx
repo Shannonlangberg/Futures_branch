@@ -3,6 +3,7 @@ import { UserGroupIcon, PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from '@hero
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
+  const [campuses, setCampuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -16,18 +17,6 @@ const UserManagement = () => {
     campus: 'all_campuses'
   });
 
-  const campuses = [
-    { id: 'all_campuses', name: 'All Campuses' },
-    { id: 'Paradise', name: 'Paradise' },
-    { id: 'South', name: 'South' },
-    { id: 'Salisbury', name: 'Salisbury' },
-    { id: 'Adelaide City', name: 'Adelaide City' },
-    { id: 'Mount Barker', name: 'Mount Barker' },
-    { id: 'Copper Coast', name: 'Copper Coast' },
-    { id: 'Clare Valley', name: 'Clare Valley' },
-    { id: 'Victor Harbor', name: 'Victor Harbor' }
-  ];
-
   const roles = [
     { value: 'admin', label: 'Administrator' },
     { value: 'senior_leadership', label: 'Senior Leadership' },
@@ -38,7 +27,20 @@ const UserManagement = () => {
 
   useEffect(() => {
     loadUsers();
+    loadCampuses();
   }, []);
+
+  const loadCampuses = async () => {
+    try {
+      const response = await fetch('/api/campuses/public');
+      if (response.ok) {
+        const data = await response.json();
+        setCampuses(data.campuses || []);
+      }
+    } catch (err) {
+      console.error('Error loading campuses:', err);
+    }
+  };
 
   const loadUsers = async () => {
     try {

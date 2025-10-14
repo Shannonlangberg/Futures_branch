@@ -820,10 +820,19 @@ print("[DEBUG] Seeding database with campus data")
 try:
     from seed_campuses import seed_campuses
     seed_campuses()
-    print("[DEBUG] Database seeding completed")
+    print("[DEBUG] Campus seeding completed")
 except Exception as e:
-    logger.warning(f"Failed to seed database: {e}")
-    print(f"[DEBUG] Database seeding skipped: {e}")
+    logger.warning(f"Failed to seed campuses: {e}")
+    print(f"[DEBUG] Campus seeding skipped: {e}")
+
+print("[DEBUG] Seeding database with user data")
+try:
+    from seed_users import seed_users
+    seed_users()
+    print("[DEBUG] User seeding completed")
+except Exception as e:
+    logger.warning(f"Failed to seed users: {e}")
+    print(f"[DEBUG] User seeding skipped: {e}")
 
 # Configure Flask-Login
 print("[DEBUG] Starting Flask-Login setup")
@@ -836,26 +845,41 @@ print("[DEBUG] Flask-Login configured")
 
 # User management functions
 def load_users_database():
-    """Load users from JSON file"""
+    """Load users from database"""
     try:
-        # Try multiple possible locations for the users.json file
-        possible_paths = [
-            os.path.join(os.path.dirname(__file__), 'users.json'),
-            'users.json',
-            '/app/backend/users.json',
-            '/app/users.json'
-        ]
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active
+            FROM users
+            WHERE active = 1
+        ''')
         
-        for path in possible_paths:
-            try:
-                if os.path.exists(path):
-                    with open(path, 'r') as f:
-                        return json.load(f)
-            except Exception as e:
-                print(f"[DEBUG] Failed to load from {path}: {e}")
-                continue
+        users = {}
+        for row in cursor.fetchall():
+            username = row[1]
+            users[username] = {
+                'id': row[0],
+                'username': row[1],
+                'password_hash': row[2],
+                'full_name': row[3] or username,
+                'email': row[4] or '',
+                'role': row[5],
+                'campus': row[6] or '',
+                'active': bool(row[7])
+            }
         
-        # If no file found, create default users
+        conn.close()
+        
+        if not users:
+            print("[DEBUG] No users found in database")
+            return {'users': {}}
+        
+        return {'users': users}
+        
+    except Exception as e:
+        print(f"[DEBUG] Failed to load users from database: {e}")
+        # If no database, create default users
         print("[DEBUG] No users.json found, creating default users")
         default_users = {
             "users": {
@@ -892,17 +916,55 @@ def load_users_database():
         return {"users": {}, "roles": {}}
     
 def save_users_database(data):
-    """Save users to JSON file"""
+    """Save users to database (legacy function for compatibility)"""
+    # This function is kept for compatibility but now saves to database
+    # Individual user operations should use direct SQL instead
     try:
-        # Try to save to the backend directory first
-        save_path = os.path.join(os.path.dirname(__file__), 'users.json')
-        with open(save_path, 'w') as f:
-            json.dump(data, f, indent=2)
-        print(f"[DEBUG] Saved users database to {save_path}")
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        for username, user_data in data.get('users', {}).items():
+            # Check if user exists
+            cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing user
+                cursor.execute('''
+                    UPDATE users 
+                    SET password_hash = ?, full_name = ?, email = ?, role = ?, campus = ?, active = ?
+                    WHERE username = ?
+                ''', (
+                    user_data.get('password_hash', ''),
+                    user_data.get('full_name', username),
+                    user_data.get('email', ''),
+                    user_data.get('role', 'campus_pastor'),
+                    user_data.get('campus', ''),
+                    1 if user_data.get('active', True) else 0,
+                    username
+                ))
+            else:
+                # Insert new user
+                cursor.execute('''
+                    INSERT INTO users (username, password_hash, full_name, email, role, campus, active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    username,
+                    user_data.get('password_hash', ''),
+                    user_data.get('full_name', username),
+                    user_data.get('email', ''),
+                    user_data.get('role', 'campus_pastor'),
+                    user_data.get('campus', ''),
+                    1 if user_data.get('active', True) else 0
+                ))
+        
+        conn.commit()
+        conn.close()
+        print(f"[DEBUG] Saved users to database")
         return True
     except Exception as e:
-        logger.error(f"Failed to save users database: {e}")
-        print(f"[DEBUG] Failed to save users database: {e}")
+        logger.error(f"Failed to save users to database: {e}")
+        print(f"[DEBUG] Failed to save users to database: {e}")
         return False
 
 # User class for Flask-Login
