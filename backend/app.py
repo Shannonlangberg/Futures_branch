@@ -1347,12 +1347,12 @@ def require_permission(permission_type):
     return decorator
 
 def admin_required(f):
-    """Decorator to require admin access"""
+    """Decorator to require admin or senior leadership access"""
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
-        if current_user.role != 'admin':
-            flash('Administrator access required.', 'error')
+        if current_user.role not in ['admin', 'senior_leadership']:
+            flash('Administrator or Senior Leadership access required.', 'error')
             return redirect(url_for('serve_index'))
         return f(*args, **kwargs)
     return decorated_function
