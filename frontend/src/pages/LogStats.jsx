@@ -257,22 +257,16 @@ const LogStats = () => {
             </div>
             
             {/* Quick Input Section */}
-            <div className="text-center space-y-6">
-              <div className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 backdrop-blur-sm rounded-2xl p-8 border border-blue-400/20 shadow-xl">
-                <h3 className="text-xl font-bold text-white mb-4">Start Data Entry</h3>
-                <p className="text-slate-300 text-base mb-8">
-                  Click below to input your church statistics with our organized form
-                </p>
-                <button
-                  onClick={() => setShowQuickInput(true)}
-                  onMouseEnter={() => setIsHovered(true)}
-                  onMouseLeave={() => setIsHovered(false)}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-10 py-4 rounded-2xl flex items-center space-x-3 transition-all duration-300 shadow-lg hover:shadow-xl text-lg font-semibold mx-auto transform hover:scale-105"
-                >
-                  <PlusIcon className="w-6 h-6" />
-                  <span>Start Quick Input</span>
-                </button>
-              </div>
+            <div className="text-center">
+              <button
+                onClick={() => setShowQuickInput(true)}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className="relative bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-12 py-5 rounded-2xl text-xl font-bold transition-all duration-300 shadow-2xl hover:shadow-purple-500/50 transform hover:scale-105 overflow-hidden group"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="relative z-10">Start Input</span>
+              </button>
             </div>
           </div>
         </div>
