@@ -33,7 +33,6 @@ const LogStats = () => {
     'Youth Salvations': '',
     'Connect Groups': '',
     'Dream Team': '',
-    'Tithe': '',
     'Baptisms': '',
     'Child Dedications': ''
   });
@@ -134,7 +133,6 @@ const LogStats = () => {
         'Youth Salvations': 'Youth Salvations',
         'Connect Groups': 'Connect Groups',
         'Dream Team': 'Dream Team',
-        'Tithe': 'Tithe',
         'Baptisms': 'Baptisms',
         'Child Dedications': 'Child Dedications'
       };
@@ -199,7 +197,6 @@ const LogStats = () => {
           'Youth Salvations': '',
           'Connect Groups': '',
           'Dream Team': '',
-          'Tithe': '',
           'Baptisms': '',
           'Child Dedications': ''
         });
@@ -831,26 +828,10 @@ const LogStats = () => {
                   </div>
                 </div>
 
-                {/* Giving & Special Events - Updated */}
+                {/* Special Events */}
                 <div className="bg-slate-700/30 rounded-lg p-4">
-                  <h4 className="text-white font-semibold mb-3">Giving & Special Events</h4>
+                  <h4 className="text-white font-semibold mb-3">Special Events</h4>
                   <div className="space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        Tithe:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Tithe']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Tithe': e.target.value
-                        }))}
-                        placeholder="0.00"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
                         Baptisms:
