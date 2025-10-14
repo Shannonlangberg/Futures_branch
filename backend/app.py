@@ -731,6 +731,77 @@ def get_db():
     import sqlite3
     return sqlite3.connect(CHURCH_VOICE_DB_PATH)
 
+def run_migrations():
+    """Run SQL migrations on startup"""
+    import sqlite3
+    try:
+        # Ensure instance directory exists
+        os.makedirs(os.path.dirname(CHURCH_VOICE_DB_PATH), exist_ok=True)
+        
+        # Get migrations directory
+        migrations_dir = os.path.join(os.path.dirname(__file__), 'migrations')
+        
+        if not os.path.exists(migrations_dir):
+            logger.warning(f"Migrations directory not found: {migrations_dir}")
+            return
+        
+        # Get all SQL files in migrations directory
+        migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith('.sql')])
+        
+        if not migration_files:
+            logger.info("No migration files found")
+            return
+        
+        conn = sqlite3.connect(CHURCH_VOICE_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Create migrations tracking table if it doesn't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT NOT NULL UNIQUE,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
+        
+        # Get list of already applied migrations
+        cursor.execute('SELECT filename FROM schema_migrations')
+        applied_migrations = set(row[0] for row in cursor.fetchall())
+        
+        # Run pending migrations
+        for migration_file in migration_files:
+            if migration_file in applied_migrations:
+                logger.info(f"Migration {migration_file} already applied, skipping")
+                continue
+            
+            migration_path = os.path.join(migrations_dir, migration_file)
+            logger.info(f"Running migration: {migration_file}")
+            
+            try:
+                with open(migration_path, 'r') as f:
+                    migration_sql = f.read()
+                
+                # Execute the migration
+                cursor.executescript(migration_sql)
+                
+                # Mark migration as applied
+                cursor.execute('INSERT INTO schema_migrations (filename) VALUES (?)', (migration_file,))
+                conn.commit()
+                
+                logger.info(f"Successfully applied migration: {migration_file}")
+            except Exception as e:
+                logger.error(f"Failed to apply migration {migration_file}: {e}")
+                conn.rollback()
+                raise
+        
+        conn.close()
+        logger.info("All migrations completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Migration error: {e}", exc_info=True)
+        raise
+
 CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"], allow_headers=["Content-Type", "Authorization"])
 print("[DEBUG] Flask app instance created and CORS enabled")
 
@@ -738,6 +809,11 @@ print("[DEBUG] Flask app instance created and CORS enabled")
 print("[DEBUG] Initializing database")
 init_db(app)
 print("[DEBUG] Database initialized")
+
+# Run migrations
+print("[DEBUG] Running database migrations")
+run_migrations()
+print("[DEBUG] Migrations completed")
 
 # Configure Flask-Login
 print("[DEBUG] Starting Flask-Login setup")

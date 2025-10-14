@@ -31,7 +31,8 @@ RUN echo "=== Verifying files ===" && \
     ls -la backend/*.json && \
     echo "users.json:" && ls -lh backend/users.json && \
     echo "campuses.json:" && ls -lh backend/campuses.json && \
-    echo "static files:" && ls -lh backend/static/*.json backend/static/*.png 2>/dev/null || echo "Some static files missing"
+    echo "static files:" && ls -lh backend/static/*.json backend/static/*.png 2>/dev/null || echo "Some static files missing" && \
+    echo "migrations:" && ls -lh backend/migrations/*.sql 2>/dev/null || echo "No migrations found"
 
 # Set environment variable for Railway
 ENV PORT=5002
