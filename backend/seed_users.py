@@ -44,9 +44,9 @@ def seed_users():
         existing_count = cursor.fetchone()[0]
         print(f"[SEED] Currently {existing_count} users in database")
         
-        # Only skip if we have at least 2 users (not just the default admin)
-        if existing_count >= 2:
-            print(f"[SEED] Found {existing_count} users, skipping seed")
+        # Only skip if we have at least 5 users (all expected users)
+        if existing_count >= 5:
+            print(f"[SEED] Found {existing_count} users, all users already seeded")
             return True
         
         # If no users in JSON, create default admin
@@ -54,7 +54,7 @@ def seed_users():
             print("[SEED] No users.json found, creating default admin")
             from werkzeug.security import generate_password_hash
             cursor.execute('''
-                INSERT INTO users (username, password_hash, full_name, email, role, active)
+                INSERT OR IGNORE INTO users (username, password_hash, full_name, email, role, active)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', (
                 'admin',
@@ -68,11 +68,11 @@ def seed_users():
             print("[SEED] Created default admin user (username: admin, password: futures2025)")
             return True
         
-        # Insert each user
+        # Insert each user (INSERT OR IGNORE to avoid duplicates)
         inserted = 0
         for username, user_data in users.items():
             cursor.execute('''
-                INSERT INTO users 
+                INSERT OR IGNORE INTO users 
                 (username, password_hash, full_name, email, role, campus, active)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
