@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist-python/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Flask
+instance/*.db
+*.db
+
+# Logs
+backend/logs/
+*.log
+
+# Uploads and temp files
+backend/uploads/
+backend/temp_audio/
+backend/exports/
+backend/data/
+
+# Credentials (will be injected via env vars)
+backend/credentials.json
+backend/users.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Frontend build (we build it in Dockerfile)
+frontend/dist/
+frontend/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+*.md
+!README.md
+
+# Temp files
+*.tmp
+.env
+

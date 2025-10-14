@@ -22,12 +22,16 @@ COPY backend/ ./backend/
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/frontend/dist ./backend/static
 
+# Create necessary directories
+RUN mkdir -p backend/instance backend/logs backend/uploads backend/temp_audio backend/exports backend/data
+
 # Set environment variable for Railway
 ENV PORT=5002
+ENV PYTHONUNBUFFERED=1
 
 # Expose port (Railway will override PORT env var)
 EXPOSE ${PORT}
 
 # Start the application
-CMD ["python", "backend/app.py"]
+CMD ["python", "-u", "backend/app.py"]
 
