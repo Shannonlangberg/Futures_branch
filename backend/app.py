@@ -12233,9 +12233,9 @@ app.register_blueprint(webhooks_bp)
 @app.route('/api/users', methods=['GET'])
 @login_required
 def get_users():
-    """Get all users (admin only)"""
+    """Get all users (admin and leadership roles only)"""
     try:
-        if current_user.role != 'admin':
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         users_db = load_users_database()
