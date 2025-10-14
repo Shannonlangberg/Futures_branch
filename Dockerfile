@@ -1,4 +1,5 @@
 # Multi-stage build for Futures Link
+# Force rebuild: 2025-10-14
 
 # Stage 1: Build Frontend
 FROM node:18 AS frontend-builder
