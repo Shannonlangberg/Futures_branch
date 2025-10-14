@@ -3,12 +3,14 @@ nixPkgs = ["python310", "nodejs-18_x"]
 
 [phases.install]
 cmds = [
-    "cd frontend && npm install && npm run build",
-    "cd backend && pip install -r requirements.txt"
+    "python -m pip install --upgrade pip",
+    "python -m pip install -r backend/requirements.txt"
 ]
 
 [phases.build]
-cmds = ["echo 'Build complete'"]
+cmds = [
+    "cd frontend && npm install && npm run build"
+]
 
 [start]
 cmd = "cd backend && python app.py"
