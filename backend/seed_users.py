@@ -44,8 +44,9 @@ def seed_users():
         existing_count = cursor.fetchone()[0]
         print(f"[SEED] Currently {existing_count} users in database")
         
-        if existing_count > 0:
-            print("[SEED] Users already exist, skipping seed")
+        # Only skip if we have at least 2 users (not just the default admin)
+        if existing_count >= 2:
+            print(f"[SEED] Found {existing_count} users, skipping seed")
             return True
         
         # If no users in JSON, create default admin
