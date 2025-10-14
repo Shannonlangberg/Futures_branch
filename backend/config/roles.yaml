@@ -1,0 +1,169 @@
+# RBAC Configuration
+# Defines roles, permissions, and resource access control
+
+roles:
+  admin:
+    name: "Administrator"
+    description: "Full system access and control"
+    permissions:
+      # Core system permissions
+      users: ["*"]
+      campuses: ["*"]
+      system: ["*"]
+      
+      # New resources
+      devotions_admin: ["*"]
+      groups: ["*"]
+      beacons: ["*"]
+      
+      # Existing resources
+      serving: ["*"]
+      communications: ["*"]
+      prayer_requests: ["*"]
+      events: ["*"]
+      finance: ["*"]
+      heartbeat: ["*"]
+      passport: ["*"]
+
+  senior_leadership:
+    name: "Senior Leadership"
+    description: "Church leadership with broad access"
+    permissions:
+      # Core system permissions
+      users: ["view", "edit"]
+      campuses: ["view", "edit"]
+      
+      # New resources - read-only access
+      devotions_admin: ["view"]
+      groups: ["view"]
+      beacons: []  # No access
+      
+      # Existing resources
+      serving: ["*"]
+      communications: ["*"]
+      prayer_requests: ["*"]
+      events: ["*"]
+      finance: ["view"]
+      heartbeat: ["*"]
+      passport: ["*"]
+
+  campus_pastor:
+    name: "Campus Pastor"
+    description: "Campus-specific leadership and management"
+    permissions:
+      # Campus-scoped permissions
+      users: ["view", "edit"]
+      campuses: ["view", "edit"]
+      
+      # New resources - campus-scoped
+      devotions_admin: ["view", "edit", "publish"]
+      groups: ["view", "edit"]
+      beacons: []  # No access
+      
+      # Existing resources
+      serving: ["*"]
+      communications: ["*"]
+      prayer_requests: ["*"]
+      events: ["*"]
+      finance: ["view"]
+      heartbeat: ["*"]
+      passport: ["*"]
+
+  staff:
+    name: "Staff Member"
+    description: "Church staff with limited administrative access"
+    permissions:
+      # Limited system access
+      users: ["view"]
+      campuses: ["view"]
+      
+      # New resources - limited access
+      devotions_admin: ["view", "edit"]
+      groups: ["view", "edit"]
+      beacons: []  # No access
+      
+      # Existing resources
+      serving: ["view", "edit"]
+      communications: ["view", "edit"]
+      prayer_requests: ["view", "edit"]
+      events: ["view", "edit"]
+      finance: []
+      heartbeat: ["view"]
+      passport: ["view"]
+
+  dream_team_leader:
+    name: "Dream Team Leader"
+    description: "Volunteer team leadership"
+    permissions:
+      # Very limited access
+      users: []
+      campuses: ["view"]
+      
+      # New resources - minimal access
+      devotions_admin: ["view"]
+      groups: ["view"]
+      beacons: []
+      
+      # Existing resources
+      serving: ["view", "edit"]
+      communications: []
+      prayer_requests: ["view"]
+      events: ["view"]
+      finance: []
+      heartbeat: ["view"]
+      passport: ["view"]
+
+  member:
+    name: "Church Member"
+    description: "Regular church member"
+    permissions:
+      # No system access
+      users: []
+      campuses: []
+      
+      # New resources - self-only access
+      devotions_admin: []
+      groups: ["view_self_groups"]
+      beacons: []
+      
+      # Existing resources
+      serving: ["view_self"]
+      communications: []
+      prayer_requests: ["view_own", "create"]
+      events: ["view"]
+      finance: []
+      heartbeat: ["view_own"]
+      passport: ["view_own", "edit_own"]
+
+# Resource definitions
+resources:
+  devotions_admin:
+    name: "Devotions Administration"
+    description: "Manage devotional plans and content"
+    actions: ["view", "edit", "publish", "delete"]
+    
+  groups:
+    name: "Connect Groups"
+    description: "Manage connect groups and memberships"
+    actions: ["view", "edit", "create", "delete", "view_self_groups"]
+    
+  beacons:
+    name: "Beacon Management"
+    description: "Manage Bluetooth beacons and zones"
+    actions: ["view", "edit", "create", "delete", "assign"]
+
+# Campus scoping rules
+campus_scoping:
+  enabled: true
+  resources:
+    - "groups"
+    - "devotions_admin"
+    - "serving"
+    - "events"
+    - "prayer_requests"
+  
+  # Roles that can see all campuses
+  cross_campus_roles:
+    - "admin"
+    - "senior_leadership"
+    - "finance"

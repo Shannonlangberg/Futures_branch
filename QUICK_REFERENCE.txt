@@ -1,0 +1,61 @@
+═══════════════════════════════════════════════════════════════
+    FUTURES LINK v5.1 - QUICK REFERENCE
+═══════════════════════════════════════════════════════════════
+
+📍 LOCATION
+   /Users/shannonlangberg/Documents/futures-link/
+
+📚 START HERE
+   Read: START_HERE.md
+
+🚀 QUICK START (Local Testing)
+   
+   Terminal 1 (Backend):
+   cd /Users/shannonlangberg/Documents/futures-link/backend
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   python app.py
+   → http://localhost:5002
+
+   Terminal 2 (Frontend):
+   cd /Users/shannonlangberg/Documents/futures-link/frontend
+   npm install
+   npm run dev
+   → http://localhost:5173
+
+🔐 DEFAULT LOGIN
+   Username: admin
+   Password: futures2025
+
+✅ INCLUDED FEATURES
+   1. Dashboard (campus-specific + national overview)
+   2. Input Page (stats logging)
+   3. Finance (tithe tracking)
+   4. Settings (campus management)
+
+📦 SIZE
+   Total: ~50MB (down from 500MB)
+   Files: 113 (down from 200+)
+
+💾 BACKUP
+   Original project backed up at:
+   /Users/shannonlangberg/Documents/church-voice-assistant/backups/v5.1/
+
+📖 DOCUMENTATION
+   1. START_HERE.md          - Quick start & overview
+   2. SETUP_GUIDE.md          - Complete setup instructions
+   3. DEPLOYMENT.md           - Railway deployment guide
+   4. DEPLOYMENT_CHECKLIST.md - Pre-flight checklist
+   5. CLEAN_BUILD_SUMMARY.md  - What's included/excluded
+   6. README.md               - General overview
+
+🚀 DEPLOYMENT
+   Ready for Railway deployment NOW!
+   See: DEPLOYMENT.md
+
+🆘 HELP
+   Questions? Check documentation first!
+   All guides are in this directory.
+
+═══════════════════════════════════════════════════════════════
