@@ -1035,6 +1035,26 @@ class User(UserMixin):
                 'manage_campuses': True,
                 'view_all_campuses': True
             },
+            'senior_pastor': {
+                'log_stats': True,
+                'recall_stats': True,
+                'dashboard_access': True,
+                'query_access': True,
+                'finance_access': True,
+                'manage_users': True,
+                'manage_campuses': True,
+                'view_all_campuses': True
+            },
+            'lead_pastor': {
+                'log_stats': True,
+                'recall_stats': True,
+                'dashboard_access': True,
+                'query_access': True,
+                'finance_access': True,
+                'manage_users': True,
+                'manage_campuses': True,
+                'view_all_campuses': True
+            },
             'finance': {
                 'log_stats': False,
                 'recall_stats': False,  # Cannot view dashboards
@@ -1361,7 +1381,7 @@ def admin_required(f):
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
-        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader']:
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
             flash('Administrator or Senior Leadership access required.', 'error')
             return redirect(url_for('serve_index'))
         return f(*args, **kwargs)

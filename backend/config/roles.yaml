@@ -48,6 +48,42 @@ roles:
       heartbeat: ["*"]
       passport: ["*"]
 
+  senior_pastor:
+    name: "Senior Pastor"
+    description: "Senior Pastor with full access to everything"
+    permissions:
+      users: ["*"]
+      campuses: ["*"]
+      system: ["*"]
+      devotions_admin: ["*"]
+      groups: ["*"]
+      beacons: ["*"]
+      serving: ["*"]
+      communications: ["*"]
+      prayer_requests: ["*"]
+      events: ["*"]
+      finance: ["*"]
+      heartbeat: ["*"]
+      passport: ["*"]
+
+  lead_pastor:
+    name: "Lead Pastor"
+    description: "Lead Pastor with full access to everything"
+    permissions:
+      users: ["*"]
+      campuses: ["*"]
+      system: ["*"]
+      devotions_admin: ["*"]
+      groups: ["*"]
+      beacons: ["*"]
+      serving: ["*"]
+      communications: ["*"]
+      prayer_requests: ["*"]
+      events: ["*"]
+      finance: ["*"]
+      heartbeat: ["*"]
+      passport: ["*"]
+
   campus_pastor:
     name: "Campus Pastor"
     description: "Campus-specific leadership and management"
@@ -167,4 +203,6 @@ campus_scoping:
   cross_campus_roles:
     - "admin"
     - "senior_leadership"
+    - "senior_pastor"
+    - "lead_pastor"
     - "finance"

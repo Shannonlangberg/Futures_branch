@@ -19,6 +19,8 @@ const UserManagement = () => {
 
   const roles = [
     { value: 'admin', label: 'Administrator' },
+    { value: 'senior_pastor', label: 'Senior Pastor' },
+    { value: 'lead_pastor', label: 'Lead Pastor' },
     { value: 'senior_leadership', label: 'Senior Leadership' },
     { value: 'campus_pastor', label: 'Campus Pastor' },
     { value: 'pastor', label: 'Pastor' },
