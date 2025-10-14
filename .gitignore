@@ -18,7 +18,7 @@ instance/
 
 # Sensitive files
 backend/credentials.json
-backend/users.json
+# users.json is now tracked in git for Railway deployments
 backend/data/conversation_memory.json
 
 # Logs
