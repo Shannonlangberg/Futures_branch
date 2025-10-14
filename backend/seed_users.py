@@ -39,15 +39,27 @@ def seed_users():
     cursor = conn.cursor()
     
     try:
-        # Check how many users already exist
+        # Always ensure we have the expected users from users.json
         cursor.execute("SELECT COUNT(*) FROM users")
         existing_count = cursor.fetchone()[0]
         print(f"[SEED] Currently {existing_count} users in database")
         
-        # Only skip if we have at least 5 users (all expected users)
+        # If we have 5+ users, verify they're the correct ones
         if existing_count >= 5:
-            print(f"[SEED] Found {existing_count} users, all users already seeded")
-            return True
+            cursor.execute("SELECT username FROM users ORDER BY id LIMIT 5")
+            existing_usernames = [row[0] for row in cursor.fetchall()]
+            expected_usernames = list(users.keys()) if users else []
+            
+            # Check if we have the right users
+            has_correct_users = any(users[key].get('username', key) in existing_usernames for key in expected_usernames[:3])
+            
+            if has_correct_users:
+                print(f"[SEED] Found {existing_count} users with correct data, skipping seed")
+                return True
+            else:
+                print(f"[SEED] Found {existing_count} users but they appear to be wrong, re-seeding")
+                cursor.execute("DELETE FROM users")
+                conn.commit()
         
         # If no users in JSON, create default admin
         if not users:
