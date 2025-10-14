@@ -29,7 +29,7 @@ backend/data/
 
 # Credentials (will be injected via env vars)
 backend/credentials.json
-backend/users.json
+# NOTE: users.json IS included in Docker build for initial user setup
 
 # Node
 node_modules/
