@@ -392,21 +392,26 @@ def initialize_from_railway():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     sheet_name = os.getenv("GOOGLE_SHEET_NAME", "Stats")  # Default to "Stats" instead of "SHEETS"
-    print(f"[DEBUG] Railway: Opening sheet '{sheet_name}'")
+    print(f"[DEBUG] Railway: Opening spreadsheet '{sheet_name}'")
     
     # Open the main Google Sheet file
     spreadsheet = client.open(sheet_name)
+    print(f"[DEBUG] Railway: Spreadsheet opened successfully")
+    print(f"[DEBUG] Railway: Available worksheets: {[ws.title for ws in spreadsheet.worksheets()]}")
+    
+    # Open the Stats worksheet
     sheet = spreadsheet.worksheet("Stats")  # Stats tab
+    print(f"[DEBUG] Railway: Successfully opened 'Stats' worksheet")
     
     # Try to open the Tithe tab
     try:
         finance_sheet = spreadsheet.worksheet("Tithe")
-        print(f"[DEBUG] Railway: Successfully opened 'Tithe' tab")
-    except:
-        print(f"[WARNING] Railway: 'Tithe' tab not found - finance features will be disabled")
+        print(f"[DEBUG] Railway: Successfully opened 'Tithe' worksheet")
+    except Exception as e:
+        print(f"[WARNING] Railway: 'Tithe' worksheet not found - finance features will be disabled: {e}")
         finance_sheet = None
     
-    print(f"[DEBUG] Railway: Successfully opened sheet '{sheet_name}'")
+    print(f"[DEBUG] Railway: Google Sheets initialization complete")
     return True
 
 def initialize_from_local_file():
