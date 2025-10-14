@@ -815,6 +815,16 @@ print("[DEBUG] Running database migrations")
 run_migrations()
 print("[DEBUG] Migrations completed")
 
+# Seed database with initial data
+print("[DEBUG] Seeding database with campus data")
+try:
+    from seed_campuses import seed_campuses
+    seed_campuses()
+    print("[DEBUG] Database seeding completed")
+except Exception as e:
+    logger.warning(f"Failed to seed database: {e}")
+    print(f"[DEBUG] Database seeding skipped: {e}")
+
 # Configure Flask-Login
 print("[DEBUG] Starting Flask-Login setup")
 login_manager = LoginManager()
@@ -1044,19 +1054,52 @@ def save_campuses_database(data):
 
 def get_active_campuses():
     """Get list of active campuses for dropdowns"""
-    campuses_db = load_campuses_database()
     active_campuses = []
     
-    for campus_id, campus_data in campuses_db.get('campuses', {}).items():
-        if campus_data.get('active', False):
+    try:
+        # Try to load from database first
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT campus_id, name, display_name 
+            FROM campuses_new 
+            WHERE active = 1
+            ORDER BY display_name
+        ''')
+        
+        for row in cursor.fetchall():
             active_campuses.append({
-                'id': campus_id,
-                'name': campus_data.get('display_name', campus_data.get('name', campus_id)),
-                'full_name': campus_data.get('name', campus_id)
+                'id': row[0],
+                'name': row[2],  # display_name
+                'full_name': row[1]  # name
             })
+        
+        conn.close()
+        
+        # Add "All Campuses" option at the top
+        if active_campuses:
+            active_campuses.insert(0, {
+                'id': 'all_campuses',
+                'name': 'All Campuses',
+                'full_name': 'All Campuses'
+            })
+        
+    except Exception as e:
+        logger.warning(f"Failed to load campuses from database, falling back to JSON: {e}")
+        # Fallback to JSON file
+        campuses_db = load_campuses_database()
+        
+        for campus_id, campus_data in campuses_db.get('campuses', {}).items():
+            if campus_data.get('active', False):
+                active_campuses.append({
+                    'id': campus_id,
+                    'name': campus_data.get('display_name', campus_data.get('name', campus_id)),
+                    'full_name': campus_data.get('name', campus_id)
+                })
+        
+        # Sort by name, but put "All Campuses" first if it exists
+        active_campuses.sort(key=lambda x: (x['id'] != 'all_campuses', x['name']))
     
-    # Sort by name, but put "All Campuses" first if it exists
-    active_campuses.sort(key=lambda x: (x['id'] != 'all_campuses', x['name']))
     return active_campuses
 
 def get_campuses_for_user():
