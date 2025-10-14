@@ -192,10 +192,10 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   <span className="text-2xl">⛪</span>
                 </div>
                 <div>
-                  <h1 className="text-4xl lg:text-5xl font-bold text-white tracking-tight">
+                  <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-white tracking-tight leading-tight">
                     {isRollup ? 'Australia' : campusName}
                   </h1>
-                  <p className="text-white/80 text-lg font-medium">
+                  <p className="text-white/80 text-sm sm:text-base lg:text-lg font-medium mt-1">
                     {isRollup ? 'National Ministry Overview' : 'Campus Ministry Dashboard'}
                   </p>
                 </div>
