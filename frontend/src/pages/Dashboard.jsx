@@ -65,16 +65,20 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    // Show campus selector for senior leadership or if no campus is selected
-    if (userRole && (userRole === 'senior_leader' || userRole === 'admin')) {
-      setShowCampusSelector(true);
-    } else if (userRole && userCampus && userCampus !== 'all_campuses') {
-      // Auto-select campus for campus pastors
-      setSelectedCampus({
-        id: userCampus,
-        name: (Array.isArray(campuses) ? campuses.find(c => c.id === userCampus)?.name : userCampus) || userCampus,
-        isRollup: false
-      });
+    // Auto-select campus for campus pastors (not admins or senior leaders)
+    if (userRole && userRole !== 'admin' && userRole !== 'senior_leader' && userRole !== 'senior_leadership') {
+      if (userCampus && userCampus !== 'all_campuses') {
+        setSelectedCampus({
+          id: userCampus,
+          name: (Array.isArray(campuses) ? campuses.find(c => c.id === userCampus)?.name : userCampus) || userCampus,
+          isRollup: false
+        });
+      }
+    } else if (userRole && (userRole === 'admin' || userRole === 'senior_leader' || userRole === 'senior_leadership')) {
+      // Admin and senior leaders should see the main dashboard with all campuses
+      if (!campus) {
+        setCampus('all_campuses');
+      }
     }
   }, [userRole, userCampus, campuses]);
 
