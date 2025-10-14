@@ -1002,52 +1002,92 @@ class User(UserMixin):
         return check_password_hash(self.password_hash, password)
         
     def has_permission(self, permission_type, campus=None):
-        """Check if user has specific permission"""
-        users_db = load_users_database()
-        role_permissions = users_db.get('roles', {}).get(self.role, {}).get('permissions', {})
+        """Check if user has specific permission based on role"""
+        # Define permissions for each role
+        role_permissions = {
+            'admin': {
+                'log_stats': True,
+                'recall_stats': True,
+                'dashboard_access': True,
+                'query_access': True,
+                'finance_access': True,
+                'manage_users': True,
+                'manage_campuses': True,
+                'view_all_campuses': True
+            },
+            'senior_leadership': {
+                'log_stats': False,
+                'recall_stats': True,
+                'dashboard_access': True,
+                'query_access': True,
+                'finance_access': True,
+                'manage_users': False,
+                'manage_campuses': False,
+                'view_all_campuses': True
+            },
+            'finance': {
+                'log_stats': False,
+                'recall_stats': True,
+                'dashboard_access': True,
+                'query_access': False,
+                'finance_access': True,
+                'manage_users': False,
+                'manage_campuses': False,
+                'view_all_campuses': True
+            },
+            'campus_pastor': {
+                'log_stats': True,  # Can log stats for their campus
+                'recall_stats': 'own_campus',  # Can only see their own campus
+                'dashboard_access': 'own_campus',
+                'query_access': True,
+                'finance_access': False,
+                'manage_users': False,
+                'manage_campuses': False,
+                'view_all_campuses': False
+            },
+            'pastor': {
+                'log_stats': True,  # Can log stats
+                'recall_stats': 'own_campus',
+                'dashboard_access': 'own_campus',
+                'query_access': True,
+                'finance_access': False,
+                'manage_users': False,
+                'manage_campuses': False,
+                'view_all_campuses': False
+            }
+        }
         
+        perms = role_permissions.get(self.role, {})
+        perm_value = perms.get(permission_type, False)
+        
+        # Handle campus-specific permissions
         if permission_type == 'log_stats':
-            return role_permissions.get('log_stats') == 'all'
+            if perm_value is True:
+                return True
+            elif perm_value == 'own_campus':
+                return campus is None or campus == self.campus
+            return False
+            
         elif permission_type == 'recall_stats':
-            recall_perm = role_permissions.get('recall_stats')
-            if recall_perm == 'all':
+            if perm_value is True:
                 return True
-            elif recall_perm == 'assigned_campus':
+            elif perm_value == 'own_campus':
                 return campus is None or campus == self.campus or self.campus == 'all_campuses'
-            elif recall_perm == 'none':
-                return False
-            else:
-                return False
+            return False
+            
         elif permission_type == 'dashboard_access':
-            dashboard_perm = role_permissions.get('dashboard_access')
-            if dashboard_perm == 'all':
+            if perm_value is True:
                 return True
-            elif dashboard_perm == 'assigned_campus':
+            elif perm_value == 'own_campus':
                 return campus is None or campus == self.campus or self.campus == 'all_campuses'
-            elif dashboard_perm == 'none':
-                return False
-            else:
-                return True  # Default to allow if not specified
+            return perm_value
+            
         elif permission_type == 'query_access':
-            query_perm = role_permissions.get('query_access')
-            if query_perm == 'all':
-                return True
-            elif query_perm == 'assigned_campus':
-                return campus is None or campus == self.campus or self.campus == 'all_campuses'
-            elif query_perm == 'none':
-                return False
-            else:
-                return True  # Default to allow if not specified
-        elif permission_type == 'manage_users':
-            return role_permissions.get('manage_users', False)
-        elif permission_type == 'system_settings':
-            return role_permissions.get('system_settings', False)
-        elif permission_type == 'finance_access':
-            return role_permissions.get('finance_access', False)
-        elif permission_type == 'cross_location_comparison':
-            return role_permissions.get('cross_location_comparison', False)
-        
-        return False
+            return perm_value is True
+            
+        # For all other permissions, just return the boolean value
+        else:
+            return perm_value is True
         
     def get_accessible_campuses(self):
         """Get list of campuses this user can access for data recall"""
