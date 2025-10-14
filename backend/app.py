@@ -1057,26 +1057,74 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(user_id):
     """Load user by ID for Flask-Login"""
-    users_db = load_users_database()
-    user_data = users_db.get('users', {}).get(user_id)
-    if user_data:
-        return User(user_data)
-    return None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active
+            FROM users
+            WHERE id = ? AND active = 1
+        ''', (user_id,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            user_data = {
+                'id': str(row[0]),  # Flask-Login expects string ID
+                'username': row[1],
+                'password_hash': row[2],
+                'full_name': row[3] or row[1],
+                'email': row[4] or '',
+                'role': row[5],
+                'campus': row[6] or '',
+                'active': bool(row[7])
+            }
+            return User(user_data)
+        return None
+    except Exception as e:
+        logger.error(f"Error loading user {user_id}: {e}")
+        return None
 
 def authenticate_user(username, password):
     """Authenticate user and return User object if valid"""
-    users_db = load_users_database()
-    
-    # Find user by username
-    for user_id, user_data in users_db.get('users', {}).items():
-        if user_data['username'] == username and user_data['active']:
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active
+            FROM users
+            WHERE username = ? AND active = 1
+        ''', (username,))
+        
+        row = cursor.fetchone()
+        
+        if row:
+            user_data = {
+                'id': str(row[0]),
+                'username': row[1],
+                'password_hash': row[2],
+                'full_name': row[3] or row[1],
+                'email': row[4] or '',
+                'role': row[5],
+                'campus': row[6] or '',
+                'active': bool(row[7])
+            }
+            
             user = User(user_data)
             if user.check_password(password):
                 # Update last login
-                user_data['last_login'] = datetime.now().isoformat()
-                save_users_database(users_db)
+                cursor.execute('UPDATE users SET last_login = ? WHERE id = ?', 
+                             (datetime.now(), row[0]))
+                conn.commit()
+                conn.close()
                 return user
-    return None
+        
+        conn.close()
+        return None
+    except Exception as e:
+        logger.error(f"Authentication error for user {username}: {e}")
+        return None
 
 print("[DEBUG] User management functions and classes defined")
 
