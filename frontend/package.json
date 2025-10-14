@@ -1,7 +1,7 @@
 {
-  "name": "futures-link",
+  "name": "futures-pulse",
   "version": "5.1.0",
-  "description": "Futures LINK - Modern Church Management Dashboard",
+  "description": "Futures PULSE - Modern Church Management Dashboard",
   "type": "module",
   "scripts": {
     "dev": "vite",

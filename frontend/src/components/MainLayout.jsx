@@ -198,10 +198,10 @@ const MainLayout = ({ children }) => {
             <div className="flex items-center space-x-3">
               <img 
                 src="/static/assets/logo.png" 
-                alt="Futures LINK Logo" 
+                alt="Futures PULSE Logo" 
                 className="h-8 w-auto object-contain"
               />
-              <span className="text-white font-semibold text-lg">Futures LINK</span>
+              <span className="text-white font-semibold text-lg">Futures PULSE</span>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -326,10 +326,10 @@ const MainLayout = ({ children }) => {
           <div className="flex items-center space-x-2">
             <img 
               src="/static/assets/logo.png" 
-              alt="Futures LINK Logo" 
+              alt="Futures PULSE Logo" 
               className="h-6 w-auto object-contain"
             />
-            <span className="text-white font-semibold">Futures LINK</span>
+            <span className="text-white font-semibold">Futures PULSE</span>
           </div>
           <button
             onClick={handleLogout}

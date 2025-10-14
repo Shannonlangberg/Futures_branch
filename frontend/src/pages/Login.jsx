@@ -73,12 +73,12 @@ const Login = ({ onLogin }) => {
           <div className="mx-auto w-20 h-20 mb-6">
             <img 
               src="/static/assets/logo.png" 
-              alt="Futures LINK Logo" 
+              alt="Futures PULSE Logo" 
               className="w-full h-full object-contain"
             />
           </div>
-                  <h1 className="text-4xl font-bold text-white mb-3">Futures LINK</h1>
-        <p className="text-slate-400 text-lg">Futures LINK</p>
+                  <h1 className="text-4xl font-bold text-white mb-3">Futures PULSE</h1>
+        <p className="text-slate-400 text-lg">Futures PULSE</p>
         </div>
 
         {/* Login Form */}
