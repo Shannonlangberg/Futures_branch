@@ -1027,13 +1027,13 @@ class User(UserMixin):
             },
             'finance': {
                 'log_stats': False,
-                'recall_stats': True,
-                'dashboard_access': True,
+                'recall_stats': False,  # Cannot view dashboards
+                'dashboard_access': False,  # No dashboard access
                 'query_access': False,
-                'finance_access': True,
+                'finance_access': True,  # Can ONLY submit finance data
                 'manage_users': False,
                 'manage_campuses': False,
-                'view_all_campuses': True
+                'view_all_campuses': False
             },
             'campus_pastor': {
                 'log_stats': True,  # Can log stats for their campus
