@@ -190,7 +190,7 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
         {selectedRegion && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Australia National Overview for senior leadership */}
-            {selectedRegion.code === 'AU' && (userRole === 'senior_leader' || userRole === 'admin') && (
+            {selectedRegion.code === 'AU' && (userRole === 'senior_leader' || userRole === 'admin' || userRole === 'senior_pastor' || userRole === 'lead_pastor') && (
               <div
                 onClick={() => onCampusSelect({ id: 'australia', name: 'Australia', description: 'National Overview', icon: '🇦🇺', isRollup: true })}
                 className="group relative bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-2xl hover:shadow-purple-500/25 transition-all duration-500 hover:scale-105 cursor-pointer"
