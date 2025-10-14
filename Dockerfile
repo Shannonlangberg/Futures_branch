@@ -25,6 +25,13 @@ COPY --from=frontend-builder /app/frontend/dist ./backend/static
 # Create necessary directories
 RUN mkdir -p backend/instance backend/logs backend/uploads backend/temp_audio backend/exports backend/data
 
+# Verify critical files exist and list them
+RUN echo "=== Verifying files ===" && \
+    ls -la backend/*.json && \
+    echo "users.json:" && ls -lh backend/users.json && \
+    echo "campuses.json:" && ls -lh backend/campuses.json && \
+    echo "static files:" && ls -lh backend/static/*.json backend/static/*.png 2>/dev/null || echo "Some static files missing"
+
 # Set environment variable for Railway
 ENV PORT=5002
 ENV PYTHONUNBUFFERED=1
@@ -32,6 +39,10 @@ ENV PYTHONUNBUFFERED=1
 # Expose port (Railway will override PORT env var)
 EXPOSE ${PORT}
 
+# Copy and setup startup script
+COPY start.sh ./
+RUN chmod +x start.sh
+
 # Start the application
-CMD ["python", "-u", "backend/app.py"]
+CMD ["./start.sh"]
 
