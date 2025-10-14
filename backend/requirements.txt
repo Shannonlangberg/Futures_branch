@@ -1,6 +1,7 @@
 # Flask Framework
 Flask==3.0.0
 Flask-CORS==4.0.0
+Flask-Login==0.6.3
 Werkzeug==3.0.1
 
 # Database
@@ -18,6 +19,7 @@ google-auth-httplib2==0.1.1
 python-dotenv==1.0.0
 PyYAML==6.0.1
 python-dateutil==2.8.2
+requests==2.31.0
 
 # Security
 bcrypt==4.1.1
