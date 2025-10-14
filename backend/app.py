@@ -37,8 +37,9 @@ try:
     import anthropic
     print("[DEBUG] Imported anthropic")
 except Exception as e:
-    print(f"[ERROR] Failed to import anthropic: {e}")
-    raise
+    print(f"[WARNING] Failed to import anthropic: {e}")
+    print("[WARNING] Claude features will be disabled")
+    anthropic = None
 
 try:
     print("[DEBUG] Starting import: oauth2client.service_account")
