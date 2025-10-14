@@ -9997,38 +9997,6 @@ def get_dashboard_api_data():
         logger.error(f"Dashboard API error: {e}")
         return jsonify({"error": "Failed to load dashboard data"}), 500
 
-@app.route('/api/users')
-@admin_required
-def get_users_api():
-    """API endpoint for getting all users"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, username, full_name, email, role, campus, active
-            FROM users
-            WHERE active = 1
-            ORDER BY username
-        ''')
-        
-        users_list = []
-        for row in cursor.fetchall():
-            users_list.append({
-                'id': row[0],  # This is the database ID
-                'username': row[1],
-                'full_name': row[2] or row[1],
-                'email': row[3] or '',
-                'role': row[4],
-                'campus': row[5] or '',
-                'active': bool(row[6])
-            })
-        
-        conn.close()
-        return jsonify({"users": users_list})
-    except Exception as e:
-        logger.error(f"Users API error: {e}", exc_info=True)
-        return jsonify({"error": "Failed to load users"}), 500
-
 @app.route('/api/users/create', methods=['POST'])
 @admin_required
 def create_user_api():

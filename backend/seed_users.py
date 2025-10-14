@@ -70,15 +70,17 @@ def seed_users():
         
         # Insert each user (INSERT OR IGNORE to avoid duplicates)
         inserted = 0
-        for username, user_data in users.items():
+        for user_key, user_data in users.items():
+            # Use the actual username from user_data, not the dictionary key
+            actual_username = user_data.get('username', user_key)
             cursor.execute('''
                 INSERT OR IGNORE INTO users 
                 (username, password_hash, full_name, email, role, campus, active)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
-                username,
+                actual_username,
                 user_data.get('password_hash', ''),
-                user_data.get('full_name', username),
+                user_data.get('full_name', actual_username),
                 user_data.get('email', ''),
                 user_data.get('role', 'campus_pastor'),
                 user_data.get('campus', ''),
@@ -86,7 +88,7 @@ def seed_users():
             ))
             
             inserted += 1
-            print(f"[SEED] Inserted user: {username} ({user_data.get('role', 'campus_pastor')})")
+            print(f"[SEED] Inserted user: {actual_username} ({user_data.get('role', 'campus_pastor')})")
         
         conn.commit()
         print(f"[SEED] Successfully inserted {inserted} users")
