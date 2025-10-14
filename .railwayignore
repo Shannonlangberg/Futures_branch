@@ -1,0 +1,4 @@
+# Don't include local database in deployments
+backend/instance/*.db
+backend/instance/*.db-journal
+
