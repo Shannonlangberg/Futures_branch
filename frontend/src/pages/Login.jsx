@@ -167,25 +167,6 @@ const Login = ({ onLogin }) => {
               )}
             </button>
           </form>
-
-          {/* Test Accounts Info */}
-          <div className="mt-8 p-6 bg-slate-700/30 rounded-xl border border-slate-600/50">
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">Test Accounts</h3>
-            <div className="space-y-2 text-xs text-slate-400">
-              <div className="flex justify-between">
-                <span>testuser</span>
-                <span className="text-slate-500">futures2025</span>
-              </div>
-              <div className="flex justify-between">
-                <span>admin</span>
-                <span className="text-slate-500">futures2025</span>
-              </div>
-              <div className="flex justify-between">
-                <span>ps_ashley</span>
-                <span className="text-slate-500">futures2025</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
