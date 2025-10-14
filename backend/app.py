@@ -7264,18 +7264,51 @@ def save_users(data):
         logger.error(f"Error saving users: {e}")
 
 @app.route('/api/logout', methods=['POST'])
-@login_required
 def logout():
     """Logout user and clear session"""
     try:
-        user_id = current_user.id if hasattr(current_user, 'id') else session.get('user_id')
+        # Get user ID before logout
+        user_id = None
+        if hasattr(current_user, 'id') and current_user.is_authenticated:
+            user_id = current_user.id
+        elif 'user_id' in session:
+            user_id = session.get('user_id')
+        
+        # Remove Flask-Login user session data
+        if '_user_id' in session:
+            session.pop('_user_id', None)
+        if 'user_id' in session:
+            session.pop('user_id', None)
+        if '_fresh' in session:
+            session.pop('_fresh', None)
+            
+        # Call Flask-Login logout
         logout_user()
-        session.clear()
+        
+        # Force clear the entire session
+        for key in list(session.keys()):
+            session.pop(key, None)
+        
+        # Modify session to force save
+        session.modified = True
+        
         logger.info(f"User {user_id} logged out successfully")
-        return jsonify({"success": True, "message": "Logged out successfully"})
+        
+        # Return response with clear cookie headers
+        response = jsonify({"success": True, "message": "Logged out successfully"})
+        response.set_cookie('session', '', expires=0, samesite='Lax', path='/')
+        response.set_cookie('remember_token', '', expires=0, path='/')
+        
+        return response
     except Exception as e:
-        logger.error(f"Logout error: {e}")
-        return jsonify({"error": "Logout failed"}), 500
+        logger.error(f"Logout error: {e}", exc_info=True)
+        # Even if there's an error, try to clear everything
+        for key in list(session.keys()):
+            session.pop(key, None)
+        session.modified = True
+        response = jsonify({"success": True, "message": "Logged out"})
+        response.set_cookie('session', '', expires=0, path='/')
+        return response
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
