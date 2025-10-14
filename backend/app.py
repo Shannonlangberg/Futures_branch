@@ -10002,15 +10002,31 @@ def get_dashboard_api_data():
 def get_users_api():
     """API endpoint for getting all users"""
     try:
-        users_data = load_users_database()
-        # Convert dictionary to list for frontend compatibility
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, full_name, email, role, campus, active
+            FROM users
+            WHERE active = 1
+            ORDER BY username
+        ''')
+        
         users_list = []
-        for user_id, user_data in users_data.get('users', {}).items():
-            user_data['id'] = user_id  # Ensure ID is included
-            users_list.append(user_data)
+        for row in cursor.fetchall():
+            users_list.append({
+                'id': row[0],  # This is the database ID
+                'username': row[1],
+                'full_name': row[2] or row[1],
+                'email': row[3] or '',
+                'role': row[4],
+                'campus': row[5] or '',
+                'active': bool(row[6])
+            })
+        
+        conn.close()
         return jsonify({"users": users_list})
     except Exception as e:
-        logger.error(f"Users API error: {e}")
+        logger.error(f"Users API error: {e}", exc_info=True)
         return jsonify({"error": "Failed to load users"}), 500
 
 @app.route('/api/users/create', methods=['POST'])
