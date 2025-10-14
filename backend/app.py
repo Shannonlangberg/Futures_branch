@@ -7263,13 +7263,19 @@ def save_users(data):
     except Exception as e:
         logger.error(f"Error saving users: {e}")
 
-# @app.route('/logout')
-# @login_required
-# def logout():
-#     """Logout and redirect to login page - React app handles this now"""
-#     logout_user()
-#     flash('You have been logged out successfully.', 'info')
-#     return redirect(url_for('login'))
+@app.route('/api/logout', methods=['POST'])
+@login_required
+def logout():
+    """Logout user and clear session"""
+    try:
+        user_id = current_user.id if hasattr(current_user, 'id') else session.get('user_id')
+        logout_user()
+        session.clear()
+        logger.info(f"User {user_id} logged out successfully")
+        return jsonify({"success": True, "message": "Logged out successfully"})
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        return jsonify({"error": "Logout failed"}), 500
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):

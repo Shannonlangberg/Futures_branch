@@ -164,13 +164,14 @@ const MainLayout = ({ children }) => {
 
   const handleLogout = async () => {
     try {
-      await fetch('/logout', {
-        method: 'GET',
+      await fetch('/api/logout', {
+        method: 'POST',
         credentials: 'include',
       });
       window.location.href = '/login';
     } catch (error) {
       console.error('Logout error:', error);
+      // Force logout on client side even if server fails
       window.location.href = '/login';
     }
   };
