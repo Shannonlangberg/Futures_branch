@@ -175,27 +175,27 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
       <div className="relative bg-gradient-to-r from-blue-600/90 via-purple-600/90 to-pink-600/90 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-            <div className="flex-1">
-              <div className="flex items-center gap-4 mb-4">
-                {onBackToSelector && (
-                  <button
-                    onClick={onBackToSelector}
-                    className="group relative bg-gradient-to-r from-slate-600 to-slate-700 text-white px-6 py-3 rounded-2xl font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 overflow-hidden"
-                  >
-                    <div className="relative flex items-center gap-3">
-                      <span className="text-xl">←</span>
-                      <span>Back to Campuses</span>
-                    </div>
-                  </button>
-                )}
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+            <div className="flex-1 w-full">
+              {onBackToSelector && (
+                <button
+                  onClick={onBackToSelector}
+                  className="group relative bg-gradient-to-r from-slate-600 to-slate-700 text-white px-6 py-3 rounded-2xl font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 overflow-hidden mb-4"
+                >
+                  <div className="relative flex items-center gap-3">
+                    <span className="text-xl">←</span>
+                    <span>Back to Campuses</span>
+                  </div>
+                </button>
+              )}
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 flex-shrink-0 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
                   <span className="text-2xl">⛪</span>
                 </div>
-                <div>
-                  <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-white tracking-tight leading-tight">
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-xl sm:text-2xl lg:text-5xl font-bold text-white tracking-tight leading-tight break-words">
                     {isRollup ? 'Australia' : campusName}
                   </h1>
-                  <p className="text-white/80 text-sm sm:text-base lg:text-lg font-medium mt-1">
+                  <p className="text-white/80 text-xs sm:text-sm lg:text-lg font-medium mt-0.5 lg:mt-1">
                     {isRollup ? 'National Ministry Overview' : 'Campus Ministry Dashboard'}
                   </p>
                 </div>
