@@ -5,6 +5,7 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
   const [campuses, setCampuses] = useState([]);
   const [selectedRegion, setSelectedRegion] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showAIModal, setShowAIModal] = useState(false);
   
   // Check if user has full access (admin, senior leader, senior pastor, lead pastor)
   const hasFullAccess = userRole === 'admin' || userRole === 'senior_leader' || userRole === 'senior_pastor' || userRole === 'lead_pastor';
@@ -80,8 +81,8 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
       {/* Header */}
       <div className="relative bg-gradient-to-r from-blue-600/90 via-purple-600/90 to-pink-600/90 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 flex-1 justify-center">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                 <span className="text-4xl">⛪</span>
               </div>
@@ -94,6 +95,17 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
                 </p>
               </div>
             </div>
+            
+            {/* AI Assistant Button - Only for leadership roles */}
+            {hasFullAccess && (
+              <button
+                onClick={() => setShowAIModal(true)}
+                className="flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white px-6 py-3 rounded-2xl font-semibold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-emerald-500/25"
+              >
+                <span className="text-xl">🤖</span>
+                <span>AI Assistant</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -262,6 +274,85 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
           </div>
         </div>
       </div>
+
+      {/* AI Assistant Modal */}
+      {showAIModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 py-6 rounded-t-3xl border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-2xl">🤖</span>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">AI Assistant</h2>
+                    <p className="text-white/80 text-sm">Get insights about your campuses and ministry data</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAIModal(false)}
+                  className="text-white/80 hover:text-white text-3xl font-light transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-8">
+              <div className="text-center space-y-6">
+                <div className="w-20 h-20 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto">
+                  <span className="text-5xl">🚀</span>
+                </div>
+                <h3 className="text-2xl font-bold text-white">AI Assistant Available in Campus Dashboards</h3>
+                <p className="text-white/60 text-lg max-w-2xl mx-auto">
+                  Once you select a campus, you'll have access to the AI Assistant that can:
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">📊</div>
+                    <h4 className="text-white font-semibold mb-2">Generate Reports</h4>
+                    <p className="text-white/60 text-sm">Weekend, monthly, and annual ministry reports</p>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">📈</div>
+                    <h4 className="text-white font-semibold mb-2">Analyze Trends</h4>
+                    <p className="text-white/60 text-sm">Identify growth patterns and attendance trends</p>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">💡</div>
+                    <h4 className="text-white font-semibold mb-2">Get Insights</h4>
+                    <p className="text-white/60 text-sm">Ask questions about your ministry data</p>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">🎯</div>
+                    <h4 className="text-white font-semibold mb-2">Compare Performance</h4>
+                    <p className="text-white/60 text-sm">Benchmark across different time periods</p>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-white/10">
+                  <p className="text-white/80 text-lg font-semibold mb-4">
+                    👉 Select a campus or region to access the AI Assistant
+                  </p>
+                  <button
+                    onClick={() => setShowAIModal(false)}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-2xl font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-blue-500/25"
+                  >
+                    Got it!
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
