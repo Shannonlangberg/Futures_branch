@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, CalendarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import DynamicBackground from '../components/DynamicBackground';
-import ThreeParticleEffect from '../components/ThreeParticleEffect';
 
 const LogStats = () => {
   const [selectedCampus, setSelectedCampus] = useState('');
@@ -37,7 +36,6 @@ const LogStats = () => {
     'Child Dedications': ''
   });
   const [isSubmittingQuickInput, setIsSubmittingQuickInput] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [sessionStats, setSessionStats] = useState([]);
 
   // Calculate total attendance from service times
@@ -215,12 +213,11 @@ const LogStats = () => {
   };
 
   return (
-    <ThreeParticleEffect isRecording={false} isHovered={isHovered}>
-      <div className="relative">
-        <DynamicBackground />
-        
-        {/* Header */}
-        <div className="text-center mb-8">
+    <div className="relative">
+      <DynamicBackground />
+      
+      {/* Header */}
+      <div className="text-center mb-8">
           <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
             <span className="text-4xl">📊</span>
           </div>
@@ -242,8 +239,6 @@ const LogStats = () => {
                   <select
                     value={selectedCampus}
                     onChange={(e) => setSelectedCampus(e.target.value)}
-                    onMouseEnter={() => setIsHovered(true)}
-                    onMouseLeave={() => setIsHovered(false)}
                     className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                   >
                     {campuses.map(campus => (
@@ -260,8 +255,6 @@ const LogStats = () => {
             <div className="text-center">
               <button
                 onClick={() => setShowQuickInput(true)}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
                 className="relative bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-12 py-5 rounded-2xl text-xl font-bold transition-all duration-300 shadow-2xl hover:shadow-purple-500/50 transform hover:scale-105 overflow-hidden group"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -887,8 +880,7 @@ const LogStats = () => {
             </div>
           </div>
         )}
-      </div>
-    </ThreeParticleEffect>
+    </div>
   );
 };
 

@@ -131,8 +131,9 @@ const UserManagement = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // Reload users first, then close modal and show success
+        await loadUsers();
         handleCloseModal();
-        loadUsers();
         alert(data.message || 'User saved successfully');
       } else {
         alert(data.error || 'Failed to save user');
