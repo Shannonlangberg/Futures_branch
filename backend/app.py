@@ -998,9 +998,8 @@ class User(UserMixin):
         
     def check_password(self, password):
         """Check if the provided password is correct"""
-        # For now, use simple comparison with default password
-        # In production, this would use proper password hashing
-        return password == "futures2025"
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
         
     def has_permission(self, permission_type, campus=None):
         """Check if user has specific permission"""
