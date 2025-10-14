@@ -22,8 +22,11 @@ COPY backend/ ./backend/
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/frontend/dist ./backend/static
 
-# Expose port (Railway will set PORT env var)
-EXPOSE 5002
+# Set environment variable for Railway
+ENV PORT=5002
+
+# Expose port (Railway will override PORT env var)
+EXPOSE ${PORT}
 
 # Start the application
 CMD ["python", "backend/app.py"]
