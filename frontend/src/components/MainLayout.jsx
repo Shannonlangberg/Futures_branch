@@ -94,9 +94,9 @@ const MainLayout = ({ children }) => {
   const getNavigationItems = () => {
     const allItems = [
       // Core navigation - simplified to only show essential items
-      { name: 'Dashboard', href: '/dashboard', icon: DocumentChartBarIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'pastor', 'user'] },
-      { name: 'Input', href: '/stats', icon: ClipboardIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'pastor', 'user'] },
-      { name: 'Finance', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance', 'senior_leadership'] },
+      { name: 'Dashboard', href: '/dashboard', icon: DocumentChartBarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'campus_pastor', 'pastor', 'user'] },
+      { name: 'Input', href: '/stats', icon: ClipboardIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'campus_pastor', 'pastor', 'user'] },
+      { name: 'Finance', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance', 'senior_leadership', 'senior_leader'] },
       
       // Hidden items - commented out for now
       // { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'finance'] },
@@ -151,7 +151,7 @@ const MainLayout = ({ children }) => {
     );
 
     // Admin-only items - only show fully functional pages
-    if (userRole === 'admin' || userRole === 'senior_leadership') {
+    if (userRole === 'admin' || userRole === 'senior_leadership' || userRole === 'senior_leader') {
       items.push(
         { name: 'Data Export', href: '/export', icon: DocumentChartBarIcon, show: true },
         { name: 'Users', href: '/users', icon: UserGroupIcon, show: true },
