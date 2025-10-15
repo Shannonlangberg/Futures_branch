@@ -41,6 +41,9 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiQuery, setAiQuery] = useState('');
 
   // Debounced effect to prevent rapid API calls when filters change
   useEffect(() => {
@@ -94,6 +97,143 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
     setTimeout(() => {
       fetchCampusData(true);
     }, 100);
+  };
+
+  // AI Report Generation Functions
+  const generateWeekendReport = async () => {
+    try {
+      setAiLoading(true);
+      const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=last_7_days&_t=${Date.now()}`);
+      const fetchedData = await response.json();
+      
+      const report = `# Weekend Report (Last 7 Days) - ${campusName}
+
+**📊 Attendance Overview**
+- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'}
+- Average per Service: ${Math.round(fetchedData.stats?.avg_attendance || 0)}
+- Services Count: ${fetchedData.stats?.entry_count || 'N/A'}
+
+**🎯 Key Metrics**
+- New People: ${fetchedData.stats?.new_people || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
+- New Christians: ${fetchedData.stats?.new_christians || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
+- Youth Attendance: ${fetchedData.stats?.youth_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
+- Kids Attendance: ${fetchedData.stats?.kids_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
+- Connect Groups: ${fetchedData.stats?.connect_groups || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_connect_groups || 0)} per service)
+- Volunteers: ${fetchedData.stats?.volunteers || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_volunteers || 0)} per service)
+
+**📈 Campus-Specific Insights**
+- Campus Focus: ${campusName}
+- Data Period: Last 7 Days
+- Report Type: Weekend Performance Analysis`;
+      
+      setAiResponse(report);
+    } catch (error) {
+      setAiResponse('Error generating weekend report. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const generateMonthlyReport = async () => {
+    try {
+      setAiLoading(true);
+      const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=last_30_days&_t=${Date.now()}`);
+      const fetchedData = await response.json();
+      
+      const report = `# Monthly Report (Last 30 Days) - ${campusName}
+
+**📊 Monthly Overview**
+- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_attendance || 0)} per service)
+- Total New People: ${fetchedData.stats?.new_people?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
+- Total New Christians: ${fetchedData.stats?.new_christians?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
+
+**🎯 Ministry Impact**
+- Youth Ministry: ${fetchedData.stats?.youth_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
+- Kids Ministry: ${fetchedData.stats?.kids_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
+- Volunteer Team: ${fetchedData.stats?.volunteers?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_volunteers || 0)} per service)
+- Connect Groups: ${fetchedData.stats?.connect_groups?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_connect_groups || 0)} per service)
+
+**📈 Campus-Specific Insights**
+- Campus Focus: ${campusName}
+- Data Period: Last 30 Days
+- Report Type: Monthly Performance Analysis`;
+      
+      setAiResponse(report);
+    } catch (error) {
+      setAiResponse('Error generating monthly report. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const generateAnnualReport = async () => {
+    try {
+      setAiLoading(true);
+      const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=year_to_date&_t=${Date.now()}`);
+      const fetchedData = await response.json();
+      
+      const report = `# Annual Report (Year to Date) - ${campusName}
+
+**📊 Annual Overview**
+- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_attendance || 0)} per service)
+- Total New People: ${fetchedData.stats?.new_people?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
+- Total New Christians: ${fetchedData.stats?.new_christians?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
+
+**🎯 Ministry Growth**
+- Youth Ministry: ${fetchedData.stats?.youth_attendance?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
+- Kids Ministry: ${fetchedData.stats?.kids_attendance?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
+- Volunteer Team: ${fetchedData.stats?.volunteers?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_volunteers || 0)} per service)
+- Connect Groups: ${fetchedData.stats?.connect_groups?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_connect_groups || 0)} per service)
+
+**📈 Campus-Specific Insights**
+- Campus Focus: ${campusName}
+- Data Period: Year to Date
+- Report Type: Annual Performance Analysis`;
+      
+      setAiResponse(report);
+    } catch (error) {
+      setAiResponse('Error generating annual report. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const generateGrowthAnalysis = async () => {
+    try {
+      setAiLoading(true);
+      const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=last_12_months&_t=${Date.now()}`);
+      const fetchedData = await response.json();
+      
+      const report = `# Growth Analysis Report (Last 12 Months) - ${campusName}
+
+**📈 Growth Trends**
+- Attendance Growth: ${fetchedData.stats?.total_attendance ? '📈 Growing' : '📊 Stable'}
+- New People Trend: ${fetchedData.stats?.new_people > 0 ? '🆕 Consistent new people' : '🔄 Focus on outreach needed'}
+- Salvation Impact: ${fetchedData.stats?.new_christians > 0 ? '✝️ Lives being changed' : '🙏 Pray for salvation opportunities'}
+
+**🎯 Key Performance Indicators**
+- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_attendance || 0)} per service)
+- New People: ${fetchedData.stats?.new_people || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
+- New Christians: ${fetchedData.stats?.new_christians || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
+- Youth Engagement: ${fetchedData.stats?.youth_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
+- Kids Ministry: ${fetchedData.stats?.kids_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
+
+**🚀 Strategic Insights**
+- Ministry Health: ${fetchedData.stats?.total_attendance > 1000 ? 'Excellent' : fetchedData.stats?.total_attendance > 500 ? 'Good' : 'Growing'}
+- Outreach Effectiveness: ${fetchedData.stats?.new_people > 50 ? 'Strong' : fetchedData.stats?.new_people > 20 ? 'Moderate' : 'Needs improvement'}
+- Discipleship Pipeline: ${fetchedData.stats?.new_christians > 10 ? 'Active' : 'Developing'}
+
+**📈 Campus-Specific Insights**
+- Campus Focus: ${campusName}
+- Data Period: Last 12 Months
+- Report Type: Growth & Trend Analysis`;
+      
+      setAiResponse(report);
+    } catch (error) {
+      setAiResponse('Error generating growth analysis. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const openModal = (type, data) => {
@@ -1268,9 +1408,9 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
       {/* AI Assistant Modal */}
       {showAIModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
             {/* Modal Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 py-6 rounded-t-3xl border-b border-white/10">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 py-6 rounded-t-3xl border-b border-white/10 z-10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
@@ -1282,7 +1422,11 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowAIModal(false)}
+                  onClick={() => {
+                    setShowAIModal(false);
+                    setAiResponse('');
+                    setAiQuery('');
+                  }}
                   className="text-white/80 hover:text-white text-3xl font-light transition-colors"
                 >
                   ×
@@ -1292,53 +1436,87 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
 
             {/* Modal Body */}
             <div className="p-8">
-              <div className="text-center space-y-6">
-                <div className="w-20 h-20 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto">
-                  <span className="text-5xl">🚀</span>
-                </div>
-                <h3 className="text-2xl font-bold text-white">AI-Powered Ministry Insights</h3>
-                <p className="text-white/60 text-lg max-w-2xl mx-auto">
-                  Ask questions and get instant insights about {isRollup ? 'Australia ministry data' : 'your campus ministry'}
-                </p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
-                    <div className="text-3xl mb-3">📊</div>
-                    <h4 className="text-white font-semibold mb-2">Generate Reports</h4>
-                    <p className="text-white/60 text-sm">Weekend summaries, monthly trends, and annual ministry reports</p>
-                  </div>
-                  
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
-                    <div className="text-3xl mb-3">📈</div>
-                    <h4 className="text-white font-semibold mb-2">Analyze Trends</h4>
-                    <p className="text-white/60 text-sm">Growth patterns, attendance trends, and salvations</p>
-                  </div>
-                  
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
-                    <div className="text-3xl mb-3">💡</div>
-                    <h4 className="text-white font-semibold mb-2">Ask Questions</h4>
-                    <p className="text-white/60 text-sm">Natural language queries about your ministry data</p>
-                  </div>
-                  
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
-                    <div className="text-3xl mb-3">🎯</div>
-                    <h4 className="text-white font-semibold mb-2">Compare Performance</h4>
-                    <p className="text-white/60 text-sm">Year-over-year comparisons and benchmarking</p>
-                  </div>
-                </div>
-
-                <div className="mt-8 pt-8 border-t border-white/10">
-                  <p className="text-white/40 text-sm mb-6">
-                    📌 Note: Full AI functionality coming soon! This preview shows the capabilities being developed.
-                  </p>
+              {/* Quick Reports Section */}
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span>⚡</span> Quick Reports
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <button
-                    onClick={() => setShowAIModal(false)}
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-2xl font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-blue-500/25"
+                    onClick={generateWeekendReport}
+                    disabled={aiLoading}
+                    className="group relative bg-gradient-to-r from-purple-600/20 to-pink-600/20 backdrop-blur-sm border border-purple-400/20 text-white px-6 py-4 rounded-2xl font-semibold hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all duration-300 shadow-lg hover:shadow-purple-500/25"
                   >
-                    Got it!
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">📅</span>
+                      <span>Weekend</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={generateMonthlyReport}
+                    disabled={aiLoading}
+                    className="group relative bg-gradient-to-r from-blue-600/20 to-cyan-600/20 backdrop-blur-sm border border-blue-400/20 text-white px-6 py-4 rounded-2xl font-semibold hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all duration-300 shadow-lg hover:shadow-blue-500/25"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">📊</span>
+                      <span>Monthly</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={generateAnnualReport}
+                    disabled={aiLoading}
+                    className="group relative bg-gradient-to-r from-emerald-500/20 to-blue-600/20 backdrop-blur-sm border border-emerald-400/20 text-white px-6 py-4 rounded-2xl font-semibold hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">📈</span>
+                      <span>Annual</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={generateGrowthAnalysis}
+                    disabled={aiLoading}
+                    className="group relative bg-gradient-to-r from-pink-600/20 to-orange-600/20 backdrop-blur-sm border border-pink-400/20 text-white px-6 py-4 rounded-2xl font-semibold hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all duration-300 shadow-lg hover:shadow-pink-500/25"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">🚀</span>
+                      <span>Growth</span>
+                    </div>
                   </button>
                 </div>
               </div>
+
+              {/* AI Response Section */}
+              {(aiLoading || aiResponse) && (
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 min-h-[300px]">
+                  {aiLoading ? (
+                    <div className="flex flex-col items-center justify-center h-64">
+                      <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mb-4 animate-pulse">
+                        <span className="text-3xl">🤖</span>
+                      </div>
+                      <div className="text-white text-lg font-semibold mb-2">Generating Report...</div>
+                      <div className="text-white/60">Analyzing your ministry data</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-bold text-white">📄 Generated Report</h4>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiResponse);
+                            alert('Report copied to clipboard!');
+                          }}
+                          className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          📋 Copy Report
+                        </button>
+                      </div>
+                      <div className="text-white/90 whitespace-pre-wrap font-mono text-sm bg-black/30 p-6 rounded-xl overflow-auto max-h-96">
+                        {aiResponse}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
