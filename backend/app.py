@@ -500,7 +500,7 @@ def get_cached_sheets_data(cache_key):
             return cache_entry['data']
     return None
 
-def safe_sheets_request(func, *args, **kwargs):
+def safe_sheets_request(func, *args, force_refresh=False, **kwargs):
     """Make a request to Google Sheets with rate limiting and caching"""
     global last_sheets_call
     
@@ -511,10 +511,11 @@ def safe_sheets_request(func, *args, **kwargs):
     except:
         cache_key = f"{func.__name__}_default"
     
-    # Check cache first
-    cached = get_cached_sheets_data(cache_key)
-    if cached:
-        return cached
+    # Check cache first (unless force_refresh is True)
+    if not force_refresh:
+        cached = get_cached_sheets_data(cache_key)
+        if cached:
+            return cached
     
     # Rate limiting: ensure minimum time between calls
     current_time = time.time()
@@ -9016,8 +9017,8 @@ def get_weekly_submission_status():
         if not sheet:
             return jsonify({'error': 'Google Sheets not connected'}), 500
         
-        # Get all records from the sheet
-        all_records = safe_sheets_request(sheet.get_all_records)
+        # Get all records from the sheet with force_refresh to ensure real-time data
+        all_records = safe_sheets_request(sheet.get_all_records, force_refresh=True)
         if not all_records:
             return jsonify({'campuses': []})
         
