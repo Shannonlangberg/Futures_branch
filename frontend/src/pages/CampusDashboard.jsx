@@ -44,8 +44,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
   const [aiQuery, setAiQuery] = useState('');
-  const [submissionStatus, setSubmissionStatus] = useState(null);
-  const [loadingStatus, setLoadingStatus] = useState(false);
 
   // Debounced effect to prevent rapid API calls when filters change
   useEffect(() => {
@@ -55,13 +53,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
 
     return () => clearTimeout(timeoutId);
   }, [campusId, dateFilter, customStartDate, customEndDate, showPreviousYear]);
-
-  // Fetch submission status for Australia rollup
-  useEffect(() => {
-    if (isRollup) {
-      fetchSubmissionStatus();
-    }
-  }, [isRollup]);
 
   const fetchCampusData = async (isRefresh = false) => {
     try {
@@ -106,23 +97,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
     setTimeout(() => {
       fetchCampusData(true);
     }, 100);
-  };
-
-  const fetchSubmissionStatus = async () => {
-    try {
-      setLoadingStatus(true);
-      const response = await fetch('/api/weekly-submission-status', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSubmissionStatus(data);
-      }
-    } catch (error) {
-      console.error('Error fetching submission status:', error);
-    } finally {
-      setLoadingStatus(false);
-    }
   };
 
   // AI Report Generation Functions
@@ -428,128 +402,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
       </div>
 
       <div className="relative max-w-7xl mx-auto px-6 py-8">
-        {/* Sunday Report Submission Tracker - Only for Australia rollup */}
-        {isRollup && submissionStatus && (
-          <div className="mb-12 bg-gradient-to-br from-slate-800/50 via-slate-900/50 to-black/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-                  <span className="text-4xl">📊</span>
-                  <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                    Sunday Report Status
-                  </span>
-                </h3>
-                <p className="text-white/60 text-lg ml-1">
-                  Week of {submissionStatus.week_start}
-                </p>
-              </div>
-              <div className="text-right bg-white/5 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/10">
-                <div className="text-white/60 text-sm uppercase tracking-wider mb-1">Progress</div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                  {submissionStatus.campuses?.filter(c => c.status === 'submitted').length || 0} / {submissionStatus.campuses?.length || 0}
-                </div>
-              </div>
-            </div>
-            
-            {/* Indicator Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-              {submissionStatus.campuses?.map((campus) => (
-                <div
-                  key={campus.id}
-                  className={`group relative overflow-hidden rounded-2xl transition-all duration-500 hover:scale-105 cursor-pointer ${
-                    campus.status === 'submitted'
-                      ? 'bg-gradient-to-br from-emerald-500/30 via-green-500/20 to-teal-500/10 hover:from-emerald-500/40 hover:via-green-500/30 hover:to-teal-500/20'
-                      : 'bg-gradient-to-br from-red-500/30 via-rose-500/20 to-pink-500/10 hover:from-red-500/40 hover:via-rose-500/30 hover:to-pink-500/20'
-                  }`}
-                >
-                  {/* Animated border glow */}
-                  <div className={`absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
-                    campus.status === 'submitted'
-                      ? 'shadow-[0_0_20px_rgba(52,211,153,0.4)]'
-                      : 'shadow-[0_0_20px_rgba(239,68,68,0.4)]'
-                  }`}></div>
-                  
-                  {/* Content */}
-                  <div className="relative p-5 backdrop-blur-sm">
-                    <div className="flex items-start justify-between mb-3">
-                      {/* Status indicator with glow */}
-                      <div className="relative">
-                        <div className={`w-4 h-4 rounded-full ${
-                          campus.status === 'submitted' 
-                            ? 'bg-gradient-to-r from-emerald-400 to-green-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' 
-                            : 'bg-gradient-to-r from-red-400 to-rose-400 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
-                        } animate-pulse`}></div>
-                        {/* Ripple effect */}
-                        <div className={`absolute inset-0 w-4 h-4 rounded-full animate-ping opacity-75 ${
-                          campus.status === 'submitted' ? 'bg-emerald-400' : 'bg-red-400'
-                        }`}></div>
-                      </div>
-                      
-                      {/* Status icon */}
-                      <div className={`text-2xl transition-transform duration-300 group-hover:scale-110 ${
-                        campus.status === 'submitted' ? 'opacity-100' : 'opacity-50'
-                      }`}>
-                        {campus.status === 'submitted' ? '✓' : '○'}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <div className="text-white font-bold text-lg leading-tight">
-                        {campus.name}
-                      </div>
-                      {campus.last_submitted && (
-                        <div className="text-white/70 text-sm font-medium flex items-center gap-1">
-                          <span className="text-emerald-400">●</span>
-                          {campus.last_submitted}
-                        </div>
-                      )}
-                      {!campus.last_submitted && (
-                        <div className="text-white/50 text-sm italic">
-                          Awaiting submission
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Hover tooltip */}
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 hidden group-hover:block z-10 pointer-events-none">
-                    <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white text-sm rounded-xl px-4 py-3 whitespace-nowrap shadow-2xl border border-white/20 backdrop-blur-xl">
-                      <div className="font-semibold mb-1">{campus.name}</div>
-                      <div className="text-white/80">
-                        {campus.last_submitted 
-                          ? `Submitted ${campus.last_submitted}`
-                          : 'No submission yet this week'}
-                      </div>
-                    </div>
-                    {/* Tooltip arrow */}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                      <div className="w-3 h-3 bg-slate-800 border-r border-b border-white/20 rotate-45"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {/* Modern Legend */}
-            <div className="flex items-center justify-center gap-8 mt-8 pt-6 border-t border-white/10">
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/10">
-                <div className="relative">
-                  <div className="w-4 h-4 rounded-full bg-gradient-to-r from-emerald-400 to-green-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]"></div>
-                  <div className="absolute inset-0 w-4 h-4 rounded-full bg-emerald-400 animate-ping opacity-75"></div>
-                </div>
-                <span className="text-white/90 font-semibold">Submitted</span>
-              </div>
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/10">
-                <div className="relative">
-                  <div className="w-4 h-4 rounded-full bg-gradient-to-r from-red-400 to-rose-400 shadow-[0_0_12px_rgba(239,68,68,0.6)]"></div>
-                  <div className="absolute inset-0 w-4 h-4 rounded-full bg-red-400 animate-ping opacity-75"></div>
-                </div>
-                <span className="text-white/90 font-semibold">Not Yet Submitted</span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Campus Cards Grid */}
         <div className="mb-12">
           <div className="flex items-center gap-4 mb-8">
