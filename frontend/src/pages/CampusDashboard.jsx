@@ -40,6 +40,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const [showPreviousYear, setShowPreviousYear] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
 
   // Debounced effect to prevent rapid API calls when filters change
   useEffect(() => {
@@ -239,6 +240,15 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 )}
 
               </div>
+
+              {/* AI Assistant Button */}
+              <button
+                onClick={() => setShowAIModal(true)}
+                className="flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white px-6 py-3 rounded-2xl font-semibold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-emerald-500/25 whitespace-nowrap"
+              >
+                <span className="text-xl">🤖</span>
+                <span>AI Assistant</span>
+              </button>
 
               <div className="text-right">
                 <div className="text-white/60 text-sm">Last Updated</div>
@@ -1250,6 +1260,85 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               )}
 
               {/* Add more modal types as needed */}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Assistant Modal */}
+      {showAIModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 py-6 rounded-t-3xl border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-2xl">🤖</span>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">AI Assistant</h2>
+                    <p className="text-white/80 text-sm">Get insights about {isRollup ? 'all Australia campuses' : campusName}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAIModal(false)}
+                  className="text-white/80 hover:text-white text-3xl font-light transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-8">
+              <div className="text-center space-y-6">
+                <div className="w-20 h-20 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto">
+                  <span className="text-5xl">🚀</span>
+                </div>
+                <h3 className="text-2xl font-bold text-white">AI-Powered Ministry Insights</h3>
+                <p className="text-white/60 text-lg max-w-2xl mx-auto">
+                  Ask questions and get instant insights about {isRollup ? 'Australia ministry data' : 'your campus ministry'}
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">📊</div>
+                    <h4 className="text-white font-semibold mb-2">Generate Reports</h4>
+                    <p className="text-white/60 text-sm">Weekend summaries, monthly trends, and annual ministry reports</p>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">📈</div>
+                    <h4 className="text-white font-semibold mb-2">Analyze Trends</h4>
+                    <p className="text-white/60 text-sm">Growth patterns, attendance trends, and salvations</p>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">💡</div>
+                    <h4 className="text-white font-semibold mb-2">Ask Questions</h4>
+                    <p className="text-white/60 text-sm">Natural language queries about your ministry data</p>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-left">
+                    <div className="text-3xl mb-3">🎯</div>
+                    <h4 className="text-white font-semibold mb-2">Compare Performance</h4>
+                    <p className="text-white/60 text-sm">Year-over-year comparisons and benchmarking</p>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-white/10">
+                  <p className="text-white/40 text-sm mb-6">
+                    📌 Note: Full AI functionality coming soon! This preview shows the capabilities being developed.
+                  </p>
+                  <button
+                    onClick={() => setShowAIModal(false)}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-2xl font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-blue-500/25"
+                  >
+                    Got it!
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
