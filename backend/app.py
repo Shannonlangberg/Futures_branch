@@ -8377,7 +8377,10 @@ def process_voice():
     # Log to Google Sheet if available
     if sheet:
         try:
-            now = datetime.now(timezone.utc)
+            # Use Adelaide timezone for Australian campuses
+            from zoneinfo import ZoneInfo
+            adelaide_tz = ZoneInfo('Australia/Adelaide')
+            now = datetime.now(adelaide_tz)
             timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
             
             # Calculate Sunday date (the Sunday that just passed)
@@ -9638,8 +9641,13 @@ def quick_input():
                     return ''
                 return safe_int(val)
             
+            # Use Adelaide timezone for Australian campuses
+            from zoneinfo import ZoneInfo
+            adelaide_tz = ZoneInfo('Australia/Adelaide')
+            now_adelaide = datetime.now(adelaide_tz)
+            
             row_data = {
-                'Timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'Timestamp': now_adelaide.strftime('%Y-%m-%d %H:%M:%S'),
                 'Date': date_str,
                 'Campus': campus,
                 'Total People in Campus': safe_value('Total People in Campus'),
