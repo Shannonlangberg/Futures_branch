@@ -5,14 +5,9 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
   const [campuses, setCampuses] = useState([]);
   const [selectedRegion, setSelectedRegion] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [submissionStatus, setSubmissionStatus] = useState(null);
-  const [loadingStatus, setLoadingStatus] = useState(false);
   
   // Check if user has full access (admin, senior leader, senior pastor, lead pastor)
   const hasFullAccess = userRole === 'admin' || userRole === 'senior_leader' || userRole === 'senior_pastor' || userRole === 'lead_pastor';
-  
-  // Check if user should see submission tracker
-  const canSeeTracker = userRole === 'admin' || userRole === 'lead_pastor' || userRole === 'senior_pastor' || userRole === 'senior_leader';
   
   // Filter campuses based on user role and assigned campus
   const getAccessibleCampuses = () => {
@@ -29,10 +24,7 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
   useEffect(() => {
     fetchRegions();
     fetchCampuses();
-    if (canSeeTracker) {
-      fetchSubmissionStatus();
-    }
-  }, [canSeeTracker]);
+  }, []);
 
   const fetchRegions = async () => {
     try {
@@ -59,23 +51,6 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
       console.error('Error fetching campuses:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchSubmissionStatus = async () => {
-    try {
-      setLoadingStatus(true);
-      const response = await fetch('/api/weekly-submission-status', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSubmissionStatus(data);
-      }
-    } catch (error) {
-      console.error('Error fetching submission status:', error);
-    } finally {
-      setLoadingStatus(false);
     }
   };
 
@@ -124,77 +99,6 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-6 py-12">
-        {/* Sunday Report Submission Tracker */}
-        {canSeeTracker && submissionStatus && !selectedRegion && (
-          <div className="mb-12 bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
-                  <span className="text-3xl">📊</span>
-                  Sunday Report Status
-                </h3>
-                <p className="text-white/60">
-                  Week of {submissionStatus.week_start}
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-white/60 text-sm">Submitted</div>
-                <div className="text-2xl font-bold text-white">
-                  {submissionStatus.campuses?.filter(c => c.status === 'submitted').length || 0} / {submissionStatus.campuses?.length || 0}
-                </div>
-              </div>
-            </div>
-            
-            {/* Indicator Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {submissionStatus.campuses?.map((campus) => (
-                <div
-                  key={campus.id}
-                  className={`group relative bg-gradient-to-br ${
-                    campus.status === 'submitted'
-                      ? 'from-emerald-500/20 to-green-500/10 border-emerald-400/30'
-                      : 'from-red-500/20 to-rose-500/10 border-red-400/30'
-                  } backdrop-blur-sm rounded-xl p-4 border transition-all duration-300 hover:scale-105 cursor-pointer`}
-                  title={campus.last_submitted ? `Last submitted: ${campus.last_submitted}` : 'No submission yet this week'}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full animate-pulse ${
-                      campus.status === 'submitted' ? 'bg-emerald-400' : 'bg-red-400'
-                    }`}></div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-semibold truncate">{campus.name}</div>
-                      {campus.last_submitted && (
-                        <div className="text-white/60 text-xs">{campus.last_submitted}</div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Tooltip on hover */}
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10">
-                    <div className="bg-slate-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl border border-white/10">
-                      {campus.last_submitted 
-                        ? `Submitted ${campus.last_submitted}`
-                        : 'Awaiting submission'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {/* Legend */}
-            <div className="flex items-center justify-center gap-6 mt-6 pt-6 border-t border-white/10">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
-                <span className="text-white/80 text-sm">Submitted</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                <span className="text-white/80 text-sm">Not Yet Submitted</span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Back Button */}
         {selectedRegion && (
           <button
