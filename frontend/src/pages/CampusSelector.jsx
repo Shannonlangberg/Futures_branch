@@ -12,16 +12,26 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
   const hasFullAccess = userRole === 'admin' || userRole === 'senior_leader' || userRole === 'senior_pastor' || userRole === 'lead_pastor';
   const canSeeTracker = userRole === 'admin' || userRole === 'lead_pastor' || userRole === 'senior_pastor' || userRole === 'senior_leader';
   
-  // Filter campuses based on user role and assigned campus
+  // Filter campuses based on user role, assigned campus, and selected region
   const getAccessibleCampuses = () => {
-    if (hasFullAccess) {
-      return campuses; // Show all campuses
+    let accessibleCampuses = campuses;
+    
+    // First, filter by user role and assigned campus
+    if (!hasFullAccess) {
+      // For campus pastors, only show their assigned campus
+      if (userCampus && userCampus !== 'all_campuses') {
+        accessibleCampuses = campuses.filter(c => c.id === userCampus || c.id === userCampus.toLowerCase().replace(' ', '_'));
+      } else {
+        return []; // No access
+      }
     }
-    // For campus pastors, only show their assigned campus
-    if (userCampus && userCampus !== 'all_campuses') {
-      return campuses.filter(c => c.id === userCampus || c.id === userCampus.toLowerCase().replace(' ', '_'));
+    
+    // Then, filter by selected region if one is selected
+    if (selectedRegion) {
+      accessibleCampuses = accessibleCampuses.filter(c => c.region_id === selectedRegion.id);
     }
-    return []; // No access
+    
+    return accessibleCampuses;
   };
 
   useEffect(() => {
@@ -77,12 +87,24 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
 
   const fetchCampuses = async () => {
     try {
-      const response = await fetch('/api/campuses/public');
+      const response = await fetch('/api/v2/campuses', {
+        credentials: 'include',
+      });
       const result = await response.json();
       const campusesList = result.campuses || [];
       
       if (Array.isArray(campusesList)) {
-        setCampuses(campusesList.filter(c => c.id !== 'all_campuses'));
+        // Map v2 API response to the format expected by the component
+        const formattedCampuses = campusesList
+          .filter(c => c.campus_id !== 'all_campuses' && c.active)
+          .map(c => ({
+            id: c.campus_id,
+            name: c.display_name,
+            region_id: c.region_id,
+            description: c.notes || 'Campus Ministry Dashboard',
+            icon: '⛪'
+          }));
+        setCampuses(formattedCampuses);
       }
     } catch (error) {
       console.error('Error fetching campuses:', error);
@@ -149,12 +171,12 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
 
         {/* Sunday Report Submission Tracker - Only for Australia campus selection */}
         {selectedRegion?.code === 'AU' && canSeeTracker && submissionStatus && (
-          <div className="mb-8 bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📊</span>
+          <div className="mb-8 bg-white/5 backdrop-blur-sm rounded-xl p-4 md:p-5 border border-white/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-xl sm:text-2xl">📊</span>
                 <div>
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-base sm:text-lg font-bold text-white">
                     Weekly Report Status
                   </h3>
                   <p className="text-white/50 text-xs">
@@ -162,7 +184,7 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button
                   onClick={fetchSubmissionStatus}
                   disabled={loadingStatus}
@@ -171,37 +193,37 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
                 >
                   <span className={`text-sm ${loadingStatus ? 'animate-spin' : ''}`}>🔄</span>
                 </button>
-                <div className="text-right bg-white/5 rounded-lg px-4 py-2 border border-white/10">
+                <div className="text-right bg-white/5 rounded-lg px-3 sm:px-4 py-2 border border-white/10">
                   <div className="text-white/50 text-xs uppercase tracking-wider">Progress</div>
-                  <div className="text-xl font-bold text-white">
+                  <div className="text-lg sm:text-xl font-bold text-white">
                     {submissionStatus.campuses?.filter(c => c.status === 'submitted').length || 0} / {submissionStatus.campuses?.length || 0}
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2">
               {submissionStatus.campuses?.map((campus) => (
                 <div
                   key={campus.id}
                   className="group relative"
                   title={campus.last_submitted ? `${campus.name} - Submitted ${campus.last_submitted}` : `${campus.name} - Awaiting submission`}
                 >
-                  <div className={`relative overflow-hidden rounded-lg p-3 transition-all duration-300 hover:scale-105 cursor-pointer ${
+                  <div className={`relative overflow-hidden rounded-lg p-2 sm:p-3 transition-all duration-300 hover:scale-105 cursor-pointer ${
                     campus.status === 'submitted'
                       ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30'
                       : 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/30'
                   }`}>
-                    <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center gap-1.5 sm:gap-2">
                       <div className="relative">
-                        <div className={`w-3 h-3 rounded-full ${
+                        <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${
                           campus.status === 'submitted' 
                             ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' 
                             : 'bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
                         } animate-pulse`}></div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-white text-xs font-semibold leading-tight truncate max-w-full">
+                      <div className="text-center w-full">
+                        <div className="text-white text-[10px] sm:text-xs font-semibold leading-tight truncate px-1">
                           {campus.name}
                         </div>
                       </div>
@@ -287,7 +309,7 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
                   ) : (
                     <div>
                       <p className="text-white/60 text-lg mb-6">
-                        {getAccessibleCampuses().length} {hasFullAccess ? 'Active' : 'Assigned'} Campus{getAccessibleCampuses().length !== 1 ? 'es' : ''}
+                        {campuses.filter(c => c.region_id === region.id).length} {hasFullAccess ? 'Active' : 'Assigned'} Campus{campuses.filter(c => c.region_id === region.id).length !== 1 ? 'es' : ''}
                       </p>
                       <div className="flex items-center justify-center gap-2 text-blue-400 font-semibold">
                         <span>View Campuses</span>
