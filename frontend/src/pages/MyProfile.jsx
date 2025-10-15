@@ -133,6 +133,9 @@ const MyProfile = () => {
     const names = {
       'admin': 'Administrator',
       'senior_leadership': 'Senior Leadership',
+      'senior_leader': 'Senior Leader',
+      'senior_pastor': 'Senior Pastor',
+      'lead_pastor': 'Lead Pastor',
       'campus_pastor': 'Campus Pastor',
       'pastor': 'Pastor',
       'finance': 'Finance'
