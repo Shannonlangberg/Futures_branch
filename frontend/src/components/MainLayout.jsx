@@ -162,6 +162,20 @@ const MainLayout = ({ children }) => {
     return items.filter(item => item.show);
   };
 
+  const getRoleDisplayName = (role) => {
+    const names = {
+      'admin': 'Administrator',
+      'senior_leadership': 'Senior Leadership',
+      'senior_leader': 'Senior Leader',
+      'senior_pastor': 'Senior Pastor',
+      'lead_pastor': 'Lead Pastor',
+      'campus_pastor': 'Campus Pastor',
+      'pastor': 'Pastor',
+      'finance': 'Finance'
+    };
+    return names[role] || role;
+  };
+
   const handleLogout = async () => {
     try {
       await fetch('/api/logout', {
@@ -299,7 +313,7 @@ const MainLayout = ({ children }) => {
             {/* User Info */}
             <div className="px-4 py-2 bg-slate-800/50 rounded-lg">
               <div className="text-sm text-slate-300 font-medium">{userName}</div>
-              <div className="text-xs text-slate-500 capitalize">{userRole}</div>
+              <div className="text-xs text-slate-500">{getRoleDisplayName(userRole)}</div>
             </div>
             
             <button
