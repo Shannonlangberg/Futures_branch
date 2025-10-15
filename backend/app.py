@@ -9054,6 +9054,10 @@ def get_weekly_submission_status():
                     row_campus = row.get('Campus', '').lower().strip().replace(' ', '_')
                     date_str = row.get('Date', '')
                     
+                    # Debug logging for Salisbury
+                    if 'salisbury' in row_campus or campus_id == 'salisbury':
+                        logger.info(f"Salisbury debug - Row campus: '{row.get('Campus', '')}' -> normalized: '{row_campus}', looking for: '{campus_id}', date: '{date_str}'")
+                    
                     if not date_str or row_campus != campus_id:
                         continue
                     

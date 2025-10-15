@@ -33,17 +33,27 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
   useEffect(() => {
     if (selectedRegion?.code === 'AU' && canSeeTracker) {
       fetchSubmissionStatus();
+      
+      // Auto-refresh every 30 seconds
+      const interval = setInterval(() => {
+        fetchSubmissionStatus();
+      }, 30000);
+      
+      return () => clearInterval(interval);
     }
   }, [selectedRegion, canSeeTracker]);
 
   const fetchSubmissionStatus = async () => {
     try {
       setLoadingStatus(true);
-      const response = await fetch('/api/weekly-submission-status', {
-        credentials: 'include'
+      // Add cache buster to ensure fresh data
+      const response = await fetch(`/api/weekly-submission-status?_t=${Date.now()}`, {
+        credentials: 'include',
+        cache: 'no-cache'
       });
       if (response.ok) {
         const data = await response.json();
+        console.log('Submission status updated:', data);
         setSubmissionStatus(data);
       }
     } catch (error) {
@@ -152,10 +162,21 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
                   Week of {submissionStatus.week_start}
                 </p>
               </div>
-              <div className="text-right bg-white/5 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/10">
-                <div className="text-white/60 text-sm uppercase tracking-wider mb-1">Progress</div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                  {submissionStatus.campuses?.filter(c => c.status === 'submitted').length || 0} / {submissionStatus.campuses?.length || 0}
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={fetchSubmissionStatus}
+                  disabled={loadingStatus}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                  title="Refresh status"
+                >
+                  <span className={loadingStatus ? 'animate-spin' : ''}>🔄</span>
+                  <span className="text-sm">Refresh</span>
+                </button>
+                <div className="text-right bg-white/5 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/10">
+                  <div className="text-white/60 text-sm uppercase tracking-wider mb-1">Progress</div>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                    {submissionStatus.campuses?.filter(c => c.status === 'submitted').length || 0} / {submissionStatus.campuses?.length || 0}
+                  </div>
                 </div>
               </div>
             </div>
