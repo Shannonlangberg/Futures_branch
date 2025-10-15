@@ -206,3 +206,45 @@ campus_scoping:
     - "senior_pastor"
     - "lead_pastor"
     - "finance"
+
+# Region scoping rules
+region_scoping:
+  enabled: true
+  description: "Region-level access control for multi-national expansion"
+  
+  # Resources that respect region boundaries
+  resources:
+    - "campuses"
+    - "groups"
+    - "devotions_admin"
+    - "serving"
+    - "events"
+    - "prayer_requests"
+    - "finance"
+    - "heartbeat"
+  
+  # Roles that can see ALL regions (global access)
+  global_roles:
+    - "admin"
+    - "senior_leadership"
+    - "senior_pastor"
+    - "lead_pastor"
+  
+  # Region-specific leadership role
+  # Users can be assigned: region_id in their user profile to limit to that region
+  region_leader:
+    name: "Regional Leader"
+    description: "Leadership access to all campuses within assigned region"
+    permissions:
+      users: ["view", "edit"]  # Within region only
+      campuses: ["view", "edit"]  # Within region only
+      devotions_admin: ["*"]
+      groups: ["*"]
+      beacons: ["view"]
+      serving: ["*"]
+      communications: ["*"]
+      prayer_requests: ["*"]
+      events: ["*"]
+      finance: ["view", "export"]
+      heartbeat: ["*"]
+      passport: ["*"]

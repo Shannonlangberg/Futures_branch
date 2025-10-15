@@ -511,14 +511,24 @@ const CampusManagement = () => {
                 <label className="block text-sm font-medium text-white/80 mb-2">
                   Country
                 </label>
-                <input
-                  type="text"
+                <select
                   name="country"
                   value={formData.country}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                  placeholder="Australia"
-                />
+                >
+                  <option value="" className="bg-slate-800">Select a country...</option>
+                  <option value="Australia" className="bg-slate-800">Australia</option>
+                  <option value="United States" className="bg-slate-800">United States</option>
+                  <option value="Brazil" className="bg-slate-800">Brazil</option>
+                  <option value="Indonesia" className="bg-slate-800">Indonesia</option>
+                  <option value="Canada" className="bg-slate-800">Canada</option>
+                  <option value="United Kingdom" className="bg-slate-800">United Kingdom</option>
+                  <option value="New Zealand" className="bg-slate-800">New Zealand</option>
+                  <option value="South Africa" className="bg-slate-800">South Africa</option>
+                  <option value="Singapore" className="bg-slate-800">Singapore</option>
+                  <option value="Philippines" className="bg-slate-800">Philippines</option>
+                </select>
               </div>
 
               {/* Service Times */}

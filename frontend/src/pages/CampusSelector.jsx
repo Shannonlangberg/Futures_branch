@@ -75,7 +75,8 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
 
   const fetchRegions = async () => {
     try {
-      const response = await fetch('/api/v2/regions');
+      // Add cache buster to ensure fresh data
+      const response = await fetch(`/api/v2/regions?_t=${Date.now()}`);
       if (response.ok) {
         const data = await response.json();
         setRegions(data.regions || []);

@@ -1246,17 +1246,20 @@ def get_active_campuses():
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT campus_id, name, display_name 
-            FROM campuses_new 
-            WHERE active = 1
-            ORDER BY display_name
+            SELECT c.campus_id, c.name, c.display_name, c.region_id, r.code as region_code
+            FROM campuses_new c
+            LEFT JOIN regions r ON c.region_id = r.id
+            WHERE c.active = 1
+            ORDER BY c.display_name
         ''')
         
         for row in cursor.fetchall():
             active_campuses.append({
                 'id': row[0],
                 'name': row[2],  # display_name
-                'full_name': row[1]  # name
+                'full_name': row[1],  # name
+                'region_id': row[3],  # region_id
+                'region_code': row[4]  # region_code (AU, US, etc.)
             })
         
         conn.close()
@@ -1266,7 +1269,9 @@ def get_active_campuses():
             active_campuses.insert(0, {
                 'id': 'all_campuses',
                 'name': 'All Campuses',
-                'full_name': 'All Campuses'
+                'full_name': 'All Campuses',
+                'region_id': None,
+                'region_code': None
             })
         
     except Exception as e:
@@ -8514,7 +8519,12 @@ def get_campuses_public():
     try:
         active_campuses = get_active_campuses()
         return jsonify({
-            "campuses": [{'id': c['id'], 'name': c['name']} for c in active_campuses],
+            "campuses": [{
+                'id': c['id'], 
+                'name': c['name'],
+                'region_id': c.get('region_id'),
+                'region_code': c.get('region_code')
+            } for c in active_campuses],
             "default": "all_campuses"
         })
     except Exception as e:
