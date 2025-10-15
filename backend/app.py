@@ -9053,21 +9053,31 @@ def get_weekly_submission_status():
             for row in all_records:
                 try:
                     row_campus = row.get('Campus', '').lower().strip().replace(' ', '_')
+                    
+                    # Try to get timestamp - could be in 'Timestamp', first column, or 'Date'
+                    timestamp_str = row.get('Timestamp', '') or row.get('timestamp', '') or list(row.values())[0] if row else ''
                     date_str = row.get('Date', '')
                     
-                    # Debug logging for Salisbury
-                    if 'salisbury' in row_campus or campus_id == 'salisbury':
-                        logger.info(f"Salisbury debug - Row campus: '{row.get('Campus', '')}' -> normalized: '{row_campus}', looking for: '{campus_id}', date: '{date_str}'")
+                    # Use timestamp if available, otherwise fall back to date
+                    date_to_parse = timestamp_str if timestamp_str else date_str
                     
-                    if not date_str or row_campus != campus_id:
+                    if not date_to_parse or row_campus != campus_id:
                         continue
                     
-                    # Parse date
+                    # Parse date/timestamp with more formats
                     row_date = None
-                    date_formats = ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S']
+                    date_formats = [
+                        '%Y-%m-%d %H:%M:%S',  # 2025-10-15 00:46:43
+                        '%Y-%m-%d %H:%M',     # 2025-10-15 00:46
+                        '%m/%d/%Y %H:%M:%S',  # 10/15/2025 00:46:43
+                        '%d/%m/%Y %H:%M:%S',  # 15/10/2025 00:46:43
+                        '%Y-%m-%d',           # 2025-10-15
+                        '%m/%d/%Y',           # 10/15/2025
+                        '%d/%m/%Y'            # 15/10/2025
+                    ]
                     for date_format in date_formats:
                         try:
-                            row_date = datetime.strptime(date_str, date_format)
+                            row_date = datetime.strptime(date_to_parse.strip(), date_format)
                             break
                         except ValueError:
                             continue
@@ -9077,6 +9087,7 @@ def get_weekly_submission_status():
                             latest_date = row_date
                             latest_submission = row
                 except Exception as e:
+                    logger.error(f"Error parsing row for {campus_id}: {e}")
                     continue
             
             # Determine status
