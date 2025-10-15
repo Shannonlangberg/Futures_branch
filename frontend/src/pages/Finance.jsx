@@ -71,8 +71,8 @@ const Finance = () => {
     const general = parseFloat(campus.general || 0);
     const trust = parseFloat(campus.trust || 0);
     const online = parseFloat(campus.online || 0);
-    const building = parseFloat(campus.building || 0);
-    return general + trust + online + building;
+    const text = parseFloat(campus.text || 0);
+    return general + trust + online + text;
   };
 
   const handleSubmit = async () => {
@@ -200,7 +200,7 @@ const Finance = () => {
                 )}
               </div>
               
-              {/* Tithe Breakdown Fields */}
+              {/* Tithe Breakdown Fields - Order matches Google Sheets: General, Trust, Online, Text */}
               <div className="grid grid-cols-2 gap-3">
                 {/* General */}
                 <div>
@@ -240,10 +240,10 @@ const Finance = () => {
                   </div>
                 </div>
 
-                {/* Online Giving */}
+                {/* Online */}
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">
-                    Online Giving
+                    Online
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500">$</span>
@@ -259,10 +259,10 @@ const Finance = () => {
                   </div>
                 </div>
 
-                {/* Building Campus */}
+                {/* Text */}
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">
-                    Building Fund
+                    Text
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500">$</span>
@@ -270,8 +270,8 @@ const Finance = () => {
                       type="number"
                       step="0.01"
                       min="0"
-                      value={titheData[campus.id]?.building || ''}
-                      onChange={(e) => handleTitheChange(campus.id, 'building', e.target.value)}
+                      value={titheData[campus.id]?.text || ''}
+                      onChange={(e) => handleTitheChange(campus.id, 'text', e.target.value)}
                       placeholder="0.00"
                       className="w-full pl-6 pr-3 py-2 text-sm bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />

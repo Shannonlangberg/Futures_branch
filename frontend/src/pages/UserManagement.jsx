@@ -186,10 +186,12 @@ const UserManagement = () => {
     const names = {
       'admin': 'Administrator',
       'senior_leadership': 'Senior Leadership',
+      'senior_leader': 'Senior Leader',
+      'senior_pastor': 'Senior Pastor',
+      'lead_pastor': 'Lead Pastor',
       'campus_pastor': 'Campus Pastor',
       'pastor': 'Pastor',
-      'finance': 'Finance',
-      'senior_pastor': 'Senior Pastor'
+      'finance': 'Finance'
     };
     return names[role] || role;
   };

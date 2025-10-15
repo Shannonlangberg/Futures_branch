@@ -7086,19 +7086,19 @@ def submit_finance_data():
         # Process each campus's tithe data
         for campus_id, campus_data in tithe_data.items():
             if campus_data:
-                # campus_data is now a dict with {general, trust, online, building}
+                # campus_data is now a dict with {general, trust, online, text}
                 general = float(campus_data.get('general', 0))
                 trust = float(campus_data.get('trust', 0))
                 online = float(campus_data.get('online', 0))
-                building = float(campus_data.get('building', 0))
-                total = general + trust + online + building
+                text = float(campus_data.get('text', 0))
+                total = general + trust + online + text
                 
                 if total > 0:
                     breakdown = {
                         'general': general,
                         'trust': trust,
                         'online': online,
-                        'building': building,
+                        'text': text,
                         'total': total
                     }
                     result = update_tithe_for_campus(campus_id, selected_date, breakdown)
@@ -7156,34 +7156,40 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
                 except:
                     continue
         
-        # tithe_amount is now a dict with breakdown: {general, trust, online, building, total}
+        # tithe_amount is now a dict with breakdown: {general, trust, online, text, total}
         general = tithe_amount.get('general', 0) if isinstance(tithe_amount, dict) else 0
         trust = tithe_amount.get('trust', 0) if isinstance(tithe_amount, dict) else 0
         online = tithe_amount.get('online', 0) if isinstance(tithe_amount, dict) else 0
-        building = tithe_amount.get('building', 0) if isinstance(tithe_amount, dict) else 0
+        text = tithe_amount.get('text', 0) if isinstance(tithe_amount, dict) else 0
         total = tithe_amount.get('total', 0) if isinstance(tithe_amount, dict) else tithe_amount
         
         if existing_row_index:
             # Update existing row - update all tithe breakdown columns (D-H)
-            finance_sheet.update(f'D{existing_row_index}:H{existing_row_index}', [[general, trust, online, building, total]])
-            logger.info(f"Updated tithe for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, B:{building})")
+            # D=General, E=Trust, F=Online Giving, G=Text, H=Total
+            finance_sheet.update(f'D{existing_row_index}:H{existing_row_index}', [[general, trust, online, text, total]])
+            logger.info(f"Updated tithe for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, Tx:{text})")
             return {'success': True, 'message': f'Updated existing entry for {campus_id}'}
         else:
             # Create new row in Tithe tab with breakdown
-            # Tithe tab columns: A=Timestamp, B=Date, C=Campus, D=General, E=Trust, F=Online, G=Building, H=Total
+            # Tithe tab columns: A=Timestamp, B=Date, C=Campus, D=General, E=Trust, F=Online Giving, G=Text, H=Total
+            # Use Adelaide timezone for timestamp
+            from zoneinfo import ZoneInfo
+            adelaide_tz = ZoneInfo('Australia/Adelaide')
+            now_adelaide = datetime.now(adelaide_tz)
+            
             new_row = [
-                datetime.now().isoformat(),  # A: Timestamp
+                now_adelaide.strftime('%Y-%m-%d %H:%M:%S'),  # A: Timestamp
                 date_str,                    # B: Date
                 campus_id.replace('_', ' ').title(),  # C: Campus
                 general,                     # D: General
                 trust,                       # E: Trust
                 online,                      # F: Online Giving
-                building,                    # G: Building Fund
+                text,                        # G: Text
                 total                        # H: Total
             ]
             
             finance_sheet.append_row(new_row)
-            logger.info(f"Created new tithe entry for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, B:{building})")
+            logger.info(f"Created new tithe entry for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, Tx:{text})")
             return {'success': True, 'message': f'Created new entry for {campus_id}'}
             
     except Exception as e:
