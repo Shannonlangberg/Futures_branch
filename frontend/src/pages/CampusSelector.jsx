@@ -149,124 +149,78 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
 
         {/* Sunday Report Submission Tracker - Only for Australia campus selection */}
         {selectedRegion?.code === 'AU' && canSeeTracker && submissionStatus && (
-          <div className="mb-12 bg-gradient-to-br from-slate-800/50 via-slate-900/50 to-black/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-                  <span className="text-4xl">📊</span>
-                  <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                    Sunday Report Status
-                  </span>
-                </h3>
-                <p className="text-white/60 text-lg ml-1">
-                  Week of {submissionStatus.week_start}
-                </p>
+          <div className="mb-8 bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📊</span>
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    Weekly Report Status
+                  </h3>
+                  <p className="text-white/50 text-xs">
+                    Week of {submissionStatus.week_start}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={fetchSubmissionStatus}
                   disabled={loadingStatus}
-                  className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                  className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-all disabled:opacity-50"
                   title="Refresh status"
                 >
-                  <span className={loadingStatus ? 'animate-spin' : ''}>🔄</span>
-                  <span className="text-sm">Refresh</span>
+                  <span className={`text-sm ${loadingStatus ? 'animate-spin' : ''}`}>🔄</span>
                 </button>
-                <div className="text-right bg-white/5 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/10">
-                  <div className="text-white/60 text-sm uppercase tracking-wider mb-1">Progress</div>
-                  <div className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                <div className="text-right bg-white/5 rounded-lg px-4 py-2 border border-white/10">
+                  <div className="text-white/50 text-xs uppercase tracking-wider">Progress</div>
+                  <div className="text-xl font-bold text-white">
                     {submissionStatus.campuses?.filter(c => c.status === 'submitted').length || 0} / {submissionStatus.campuses?.length || 0}
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
               {submissionStatus.campuses?.map((campus) => (
                 <div
                   key={campus.id}
-                  className={`group relative overflow-hidden rounded-2xl transition-all duration-500 hover:scale-105 cursor-pointer ${
-                    campus.status === 'submitted'
-                      ? 'bg-gradient-to-br from-emerald-500/30 via-green-500/20 to-teal-500/10 hover:from-emerald-500/40 hover:via-green-500/30 hover:to-teal-500/20'
-                      : 'bg-gradient-to-br from-red-500/30 via-rose-500/20 to-pink-500/10 hover:from-red-500/40 hover:via-rose-500/30 hover:to-pink-500/20'
-                  }`}
+                  className="group relative"
+                  title={campus.last_submitted ? `${campus.name} - Submitted ${campus.last_submitted}` : `${campus.name} - Awaiting submission`}
                 >
-                  <div className={`absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+                  <div className={`relative overflow-hidden rounded-lg p-3 transition-all duration-300 hover:scale-105 cursor-pointer ${
                     campus.status === 'submitted'
-                      ? 'shadow-[0_0_20px_rgba(52,211,153,0.4)]'
-                      : 'shadow-[0_0_20px_rgba(239,68,68,0.4)]'
-                  }`}></div>
-                  
-                  <div className="relative p-5 backdrop-blur-sm">
-                    <div className="flex items-start justify-between mb-3">
+                      ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30'
+                      : 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/30'
+                  }`}>
+                    <div className="flex flex-col items-center gap-2">
                       <div className="relative">
-                        <div className={`w-4 h-4 rounded-full ${
+                        <div className={`w-3 h-3 rounded-full ${
                           campus.status === 'submitted' 
-                            ? 'bg-gradient-to-r from-emerald-400 to-green-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' 
-                            : 'bg-gradient-to-r from-red-400 to-rose-400 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' 
+                            : 'bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
                         } animate-pulse`}></div>
-                        <div className={`absolute inset-0 w-4 h-4 rounded-full animate-ping opacity-75 ${
-                          campus.status === 'submitted' ? 'bg-emerald-400' : 'bg-red-400'
-                        }`}></div>
                       </div>
-                      
-                      <div className={`text-2xl transition-transform duration-300 group-hover:scale-110 ${
-                        campus.status === 'submitted' ? 'opacity-100' : 'opacity-50'
-                      }`}>
-                        {campus.status === 'submitted' ? '✓' : '○'}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <div className="text-white font-bold text-lg leading-tight">
-                        {campus.name}
-                      </div>
-                      {campus.last_submitted && (
-                        <div className="text-white/70 text-sm font-medium flex items-center gap-1">
-                          <span className="text-emerald-400">●</span>
-                          {campus.last_submitted}
+                      <div className="text-center">
+                        <div className="text-white text-xs font-semibold leading-tight truncate max-w-full">
+                          {campus.name}
                         </div>
-                      )}
-                      {!campus.last_submitted && (
-                        <div className="text-white/50 text-sm italic">
-                          Awaiting submission
-                        </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 hidden group-hover:block z-10 pointer-events-none">
-                    <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white text-sm rounded-xl px-4 py-3 whitespace-nowrap shadow-2xl border border-white/20 backdrop-blur-xl">
-                      <div className="font-semibold mb-1">{campus.name}</div>
-                      <div className="text-white/80">
-                        {campus.last_submitted 
-                          ? `Submitted ${campus.last_submitted}`
-                          : 'No submission yet this week'}
-                      </div>
-                    </div>
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                      <div className="w-3 h-3 bg-slate-800 border-r border-b border-white/20 rotate-45"></div>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none whitespace-nowrap">
+                    <div className="bg-slate-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl border border-white/20">
+                      <div className="font-semibold">{campus.name}</div>
+                      {campus.last_submitted && (
+                        <div className="text-white/70">{campus.last_submitted}</div>
+                      )}
+                      {!campus.last_submitted && (
+                        <div className="text-white/50 italic">Not yet submitted</div>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
-            </div>
-            
-            <div className="flex items-center justify-center gap-8 mt-8 pt-6 border-t border-white/10">
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/10">
-                <div className="relative">
-                  <div className="w-4 h-4 rounded-full bg-gradient-to-r from-emerald-400 to-green-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]"></div>
-                  <div className="absolute inset-0 w-4 h-4 rounded-full bg-emerald-400 animate-ping opacity-75"></div>
-                </div>
-                <span className="text-white/90 font-semibold">Submitted</span>
-              </div>
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/10">
-                <div className="relative">
-                  <div className="w-4 h-4 rounded-full bg-gradient-to-r from-red-400 to-rose-400 shadow-[0_0_12px_rgba(239,68,68,0.6)]"></div>
-                  <div className="absolute inset-0 w-4 h-4 rounded-full bg-red-400 animate-ping opacity-75"></div>
-                </div>
-                <span className="text-white/90 font-semibold">Not Yet Submitted</span>
-              </div>
             </div>
           </div>
         )}
