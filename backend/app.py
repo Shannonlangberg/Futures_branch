@@ -9004,6 +9004,97 @@ def delete_campus(campus_name):
 # NEW REGION-AWARE CAMPUS MANAGEMENT API
 # ============================================================================
 
+@app.route('/api/weekly-submission-status', methods=['GET'])
+@login_required
+def get_weekly_submission_status():
+    """Get submission status for all campuses for the current week (Sunday)"""
+    try:
+        # Only admins and lead pastors can see this
+        if current_user.role not in ['admin', 'lead_pastor', 'senior_pastor', 'senior_leader']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        if not sheet:
+            return jsonify({'error': 'Google Sheets not connected'}), 500
+        
+        # Get all records from the sheet
+        all_records = safe_sheets_request(sheet.get_all_records)
+        if not all_records:
+            return jsonify({'campuses': []})
+        
+        # Get the most recent Sunday (or today if it's Sunday)
+        today = datetime.now()
+        days_since_sunday = (today.weekday() + 1) % 7  # Monday is 0, Sunday is 6
+        most_recent_sunday = today - timedelta(days=days_since_sunday)
+        most_recent_sunday = most_recent_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Define campus list
+        campus_list = [
+            {'id': 'paradise', 'name': 'Paradise'},
+            {'id': 'adelaide_city', 'name': 'Adelaide City'},
+            {'id': 'salisbury', 'name': 'Salisbury'},
+            {'id': 'south', 'name': 'South'},
+            {'id': 'mt_barker', 'name': 'Mt Barker'},
+            {'id': 'clare_valley', 'name': 'Clare Valley'},
+            {'id': 'victor_harbour', 'name': 'Victor Harbor'},
+            {'id': 'copper_coast', 'name': 'Copper Coast'}
+        ]
+        
+        # Check submission status for each campus
+        campus_status = []
+        for campus_info in campus_list:
+            campus_id = campus_info['id']
+            campus_name = campus_info['name']
+            
+            # Find the most recent submission for this campus
+            latest_submission = None
+            latest_date = None
+            
+            for row in all_records:
+                try:
+                    row_campus = row.get('Campus', '').lower().strip().replace(' ', '_')
+                    date_str = row.get('Date', '')
+                    
+                    if not date_str or row_campus != campus_id:
+                        continue
+                    
+                    # Parse date
+                    row_date = None
+                    date_formats = ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S']
+                    for date_format in date_formats:
+                        try:
+                            row_date = datetime.strptime(date_str, date_format)
+                            break
+                        except ValueError:
+                            continue
+                    
+                    if row_date and row_date >= most_recent_sunday:
+                        if latest_date is None or row_date > latest_date:
+                            latest_date = row_date
+                            latest_submission = row
+                except Exception as e:
+                    continue
+            
+            # Determine status
+            status = 'submitted' if latest_submission else 'not_submitted'
+            last_submitted = latest_date.strftime('%A, %I:%M %p') if latest_date else None
+            
+            campus_status.append({
+                'id': campus_id,
+                'name': campus_name,
+                'status': status,
+                'last_submitted': last_submitted,
+                'week_start': most_recent_sunday.strftime('%B %d, %Y')
+            })
+        
+        return jsonify({
+            'campuses': campus_status,
+            'week_start': most_recent_sunday.strftime('%B %d, %Y')
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting weekly submission status: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/v2/regions', methods=['GET'])
 def get_regions():
     """Get all regions"""
