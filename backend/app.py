@@ -5312,10 +5312,10 @@ def get_tithe_breakdown(campus, start_date, end_date):
     """Get tithe breakdown from the Tithe tab for a specific campus and date range"""
     try:
         if not finance_sheet:
-            return {'general': 0, 'trust': 0, 'online': 0, 'building': 0, 'total': 0}
+            return {'general': 0, 'trust': 0, 'online': 0, 'text': 0, 'total': 0}
         
         rows = safe_sheets_request(finance_sheet.get_all_records)
-        breakdown = {'general': 0, 'trust': 0, 'online': 0, 'building': 0, 'total': 0, 'count': 0}
+        breakdown = {'general': 0, 'trust': 0, 'online': 0, 'text': 0, 'total': 0, 'count': 0}
         
         # Convert datetime to date if necessary
         if isinstance(start_date, datetime):
@@ -5354,11 +5354,11 @@ def get_tithe_breakdown(campus, start_date, end_date):
                     if row_campus != campus_normalized:
                         continue
                 
-                # Accumulate breakdown
+                # Accumulate breakdown (column names match Google Sheets exactly)
                 breakdown['general'] += float(row.get('General', 0) or 0)
                 breakdown['trust'] += float(row.get('Trust', 0) or 0)
                 breakdown['online'] += float(row.get('Online Giving', 0) or 0)
-                breakdown['building'] += float(row.get('Building Fund', 0) or 0)
+                breakdown['text'] += float(row.get('Text', 0) or 0)
                 breakdown['total'] += float(row.get('Total', 0) or 0)
                 breakdown['count'] += 1
             except Exception as e:
@@ -5366,13 +5366,13 @@ def get_tithe_breakdown(campus, start_date, end_date):
         
         # Calculate averages
         if breakdown['count'] > 0:
-            for key in ['general', 'trust', 'online', 'building', 'total']:
+            for key in ['general', 'trust', 'online', 'text', 'total']:
                 breakdown[key] = round(breakdown[key] / breakdown['count'], 2)
         
         return breakdown
     except Exception as e:
         logger.error(f"Error fetching tithe breakdown: {str(e)}")
-        return {'general': 0, 'trust': 0, 'online': 0, 'building': 0, 'total': 0}
+        return {'general': 0, 'trust': 0, 'online': 0, 'text': 0, 'total': 0}
 
 def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='', custom_end_date='', show_previous_year=False):
     """

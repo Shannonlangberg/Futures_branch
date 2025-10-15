@@ -630,7 +630,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               onClick={() => openModal('giving', { 
                 total: data.stats?.tithe || 0,
                 average: data.stats?.avg_tithe || 0,
-                breakdown: data.tithe_breakdown || {general: 0, trust: 0, online: 0, building: 0},
+                breakdown: data.tithe_breakdown || {general: 0, trust: 0, online: 0, text: 0},
                 campus: campusName 
               })}
             >
@@ -1361,9 +1361,9 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                     <h3 className="text-xl font-bold text-white mb-4">Giving Overview</h3>
                     <div className="text-4xl font-bold text-yellow-400 mb-2">
-                      ${((modalData.breakdown?.general || 0) + (modalData.breakdown?.trust || 0) + (modalData.breakdown?.online || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                      ${((modalData.breakdown?.general || 0) + (modalData.breakdown?.trust || 0) + (modalData.breakdown?.online || 0) + (modalData.breakdown?.text || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </div>
-                    <p className="text-white/60">Average weekly giving for this period (excludes Building Fund)</p>
+                    <p className="text-white/60">Average weekly giving for this period</p>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1382,18 +1382,18 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                       <p className="text-white/60">Trust fund giving</p>
                     </div>
                     <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                      <h3 className="text-xl font-bold text-white mb-4">Online Giving</h3>
+                      <h3 className="text-xl font-bold text-white mb-4">Online</h3>
                       <div className="text-4xl font-bold text-purple-400 mb-2">
                         ${(modalData.breakdown?.online || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </div>
                       <p className="text-white/60">Online contributions</p>
                     </div>
                     <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                      <h3 className="text-xl font-bold text-white mb-4">Building Fund</h3>
+                      <h3 className="text-xl font-bold text-white mb-4">Text</h3>
                       <div className="text-4xl font-bold text-orange-400 mb-2">
-                        ${(modalData.breakdown?.building || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        ${(modalData.breakdown?.text || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </div>
-                      <p className="text-white/60">Building fund contributions</p>
+                      <p className="text-white/60">Text giving</p>
                     </div>
                   </div>
                 </div>
