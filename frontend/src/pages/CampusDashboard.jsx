@@ -34,7 +34,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [modalData, setModalData] = useState(null);
-  const [dateFilter, setDateFilter] = useState('last_12_months');
+  const [dateFilter, setDateFilter] = useState('last_7_days');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showPreviousYear, setShowPreviousYear] = useState(false);

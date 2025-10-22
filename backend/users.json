@@ -15,7 +15,7 @@
     "ps_ashley": {
       "id": "ps_ashley",
       "username": "Ashley Evans ",
-      "password_hash": "placeholder",
+      "password_hash": "scrypt:32768:8:1$d3xtpVdWTLPZqQF2$535e36239cdee7325bf91cfe6a5945b7eeff5b89f82fbf11d8b5434cac2d2f873ee2002bdb861711cf2accb8876c832e4843b864b7a001b257f7261a14477d3a",
       "email": "ashley@futures.church",
       "full_name": "Ashley Evans ",
       "role": "senior_leader",
@@ -53,7 +53,7 @@
       "username": "Shannon Langberg",
       "email": "shannon.langberg@futures.church",
       "full_name": "Shannon Langberg",
-      "password_hash": "placeholder",
+      "password_hash": "scrypt:32768:8:1$d3xtpVdWTLPZqQF2$535e36239cdee7325bf91cfe6a5945b7eeff5b89f82fbf11d8b5434cac2d2f873ee2002bdb861711cf2accb8876c832e4843b864b7a001b257f7261a14477d3a",
       "role": "senior_pastor",
       "campus": "all_campuses",
       "active": true,
