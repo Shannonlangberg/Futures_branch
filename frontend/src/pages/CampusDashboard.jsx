@@ -586,12 +586,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   </div>
                   <div className="text-pink-400 text-sm font-semibold">Kids</div>
                 </div>
-                <h3 className="text-white/80 text-sm font-medium mb-2">Kids Attendance</h3>
+                <h3 className="text-white/80 text-sm font-medium mb-2">Kids Ministry Overview</h3>
                 <div className="text-4xl font-bold text-white mb-2">
-                  {(shouldShowAverages ? Math.round(data.stats?.avg_kids_attendance || 0) : (data.stats?.kids_attendance || 0)).toLocaleString()}
+                  {((shouldShowAverages ? Math.round(data.stats?.avg_kids_attendance || 0) : (data.stats?.kids_attendance || 0)) + Math.round(data.stats?.avg_kids_leaders || 0)).toLocaleString()}
                 </div>
                 <p className="text-pink-200/80 text-sm">
-                  {Math.round(data.stats?.avg_kids_leaders || 0)} leaders serving
+                  {(shouldShowAverages ? Math.round(data.stats?.avg_kids_attendance || 0) : (data.stats?.kids_attendance || 0))} kids + {Math.round(data.stats?.avg_kids_leaders || 0)} leaders
                 </p>
               </div>
             </div>
