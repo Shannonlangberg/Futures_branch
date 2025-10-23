@@ -586,7 +586,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   </div>
                   <div className="text-pink-400 text-sm font-semibold">Kids</div>
                 </div>
-                <h3 className="text-white/80 text-sm font-medium mb-2">Kids Attendance</h3>
+                <h3 className="text-white/80 text-sm font-medium mb-2">Kids Church</h3>
                 <div className="text-4xl font-bold text-white mb-2">
                   {((shouldShowAverages ? Math.round(data.stats?.avg_kids_attendance || 0) : (data.stats?.kids_attendance || 0)) + Math.round(data.stats?.avg_kids_leaders || 0)).toLocaleString()}
                 </div>
@@ -1261,9 +1261,9 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                     <h3 className="text-xl font-bold text-white mb-4">Kids Ministry Overview</h3>
                     <div className="text-4xl font-bold text-pink-400 mb-2">
-                      {modalData.attendance.toLocaleString()}
+                      {(modalData.attendance + modalData.leaders).toLocaleString()}
                     </div>
-                    <p className="text-white/60">Average kids attendance this period</p>
+                    <p className="text-white/60">{modalData.attendance} kids + {modalData.leaders} leaders</p>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
