@@ -201,19 +201,15 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
     );
   }
 
-  // Determine if we should show averages or totals based on date range
-  // For short periods (7 days, 30 days): show totals
-  // For longer periods (3 months, 12 months, year, all time): show averages
-  const shouldShowAverages = ['last_3_months', 'last_12_months', 'this_year', 'last_year', 'all_time'].includes(dateFilter);
+  // ATTENDANCE: ALWAYS show AVERAGES (per service) - regardless of date filter
+  // NEW PEOPLE / SALVATIONS: ALWAYS show TOTALS - regardless of date filter
+  // This ensures consistent reporting across all date ranges
   
   // Calculate percentages and metrics
   const totalPeople = data.stats?.total_people || 0;
-  const sundayAttendance = shouldShowAverages 
-    ? Math.round(data.stats?.avg_attendance || 0) 
-    : (data.stats?.total_attendance || 0); // Average or Total Sunday attendance
-  const youthAttendance = shouldShowAverages 
-    ? Math.round(data.stats?.avg_youth_attendance || 0) 
-    : (data.stats?.youth_attendance || 0); // Average or Total youth attendance
+  const sundayAttendance = Math.round(data.stats?.avg_attendance || 0); // ALWAYS average
+  const youthAttendance = Math.round(data.stats?.avg_youth_attendance || 0); // ALWAYS average
+  const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // ALWAYS average
   const totalAttendance = sundayAttendance + youthAttendance; // Weekend = Sunday + Youth
   const attendancePercentage = totalPeople > 0 ? Math.round((totalAttendance / totalPeople) * 100) : 0;
   const connectGroupPercentage = sundayAttendance > 0 ? Math.round((data.stats?.avg_connect_groups || 0) / sundayAttendance * 100) : 0;
@@ -396,7 +392,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   {totalAttendance.toLocaleString()}
                 </div>
                 <p className="text-[#AC9B25]/80 text-sm">
-                  {shouldShowAverages ? 'Average weekly' : 'Total this period'}
+                  Average per service
                 </p>
               </div>
             </div>
@@ -428,7 +424,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   {sundayAttendance.toLocaleString()}
                 </div>
                 <p className="text-purple-200/80 text-sm">
-                  {shouldShowAverages ? 'Average weekly (adults only)' : (services.length > 1 ? `${services.length} services` : 'Total this period')}
+                  {services.length > 1 ? `${services.length} services • Average per service` : 'Average per service (adults only)'}
                 </p>
               </div>
             </div>
@@ -496,7 +492,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
             <div 
               className="group relative bg-gradient-to-br from-pink-500/20 to-pink-600/20 backdrop-blur-sm rounded-2xl p-6 border border-pink-400/20 shadow-2xl hover:shadow-pink-500/25 transition-all duration-500 hover:scale-105 cursor-pointer"
               onClick={() => openModal('kids', { 
-                attendance: shouldShowAverages ? Math.round(data.stats?.avg_kids_attendance || 0) : (data.stats?.kids_attendance || 0),
+                attendance: kidsAttendance,
                 leaders: Math.round(data.stats?.avg_kids_leaders || 0),
                 newKids: data.stats?.new_kids || 0,
                 salvations: data.stats?.new_kids_salvations || 0,
@@ -514,10 +510,10 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 </div>
                 <h3 className="text-white/80 text-sm font-medium mb-2">Kids Church</h3>
                 <div className="text-4xl font-bold text-white mb-2">
-                  {((shouldShowAverages ? Math.round(data.stats?.avg_kids_attendance || 0) : (data.stats?.kids_attendance || 0)) + Math.round(data.stats?.avg_kids_leaders || 0)).toLocaleString()}
+                  {(kidsAttendance + Math.round(data.stats?.avg_kids_leaders || 0)).toLocaleString()}
                 </div>
                 <p className="text-pink-200/80 text-sm">
-                  {(shouldShowAverages ? Math.round(data.stats?.avg_kids_attendance || 0) : (data.stats?.kids_attendance || 0))} kids + {Math.round(data.stats?.avg_kids_leaders || 0)} leaders
+                  {kidsAttendance} kids + {Math.round(data.stats?.avg_kids_leaders || 0)} leaders
                 </p>
               </div>
             </div>
@@ -526,7 +522,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
             <div 
               className="group relative bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 backdrop-blur-sm rounded-2xl p-6 border border-indigo-400/20 shadow-2xl hover:shadow-indigo-500/25 transition-all duration-500 hover:scale-105 cursor-pointer"
               onClick={() => openModal('youth', { 
-                attendance: shouldShowAverages ? Math.round(data.stats?.avg_youth_attendance || 0) : (data.stats?.youth_attendance || 0),
+                attendance: youthAttendance,
                 salvations: data.stats?.youth_salvations || 0,
                 newPeople: data.stats?.youth_new_people || 0,
                 campus: campusName 
@@ -542,10 +538,10 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 </div>
                 <h3 className="text-white/80 text-sm font-medium mb-2">Youth Ministry</h3>
                 <div className="text-4xl font-bold text-white mb-2">
-                  {(shouldShowAverages ? Math.round(data.stats?.avg_youth_attendance || 0) : (data.stats?.youth_attendance || 0)).toLocaleString()}
+                  {youthAttendance.toLocaleString()}
                 </div>
                 <p className="text-indigo-200/80 text-sm">
-                  {data.stats?.youth_salvations || 0} salvations
+                  {data.stats?.youth_salvations || 0} salvations (total)
                 </p>
               </div>
             </div>
