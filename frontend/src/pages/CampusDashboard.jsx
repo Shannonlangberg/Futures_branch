@@ -42,8 +42,8 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiResponse, setAiResponse] = useState('');
-  const [aiQuery, setAiQuery] = useState('');
+  const [aiReportData, setAiReportData] = useState(null);
+  const [aiReportType, setAiReportType] = useState('');
 
   // Debounced effect to prevent rapid API calls when filters change
   useEffect(() => {
@@ -103,32 +103,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const generateWeekendReport = async () => {
     try {
       setAiLoading(true);
+      setAiReportType('weekend');
       const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=last_7_days&_t=${Date.now()}`);
       const fetchedData = await response.json();
-      
-      const report = `# Weekend Report (Last 7 Days) - ${campusName}
-
-**📊 Attendance Overview**
-- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'}
-- Average per Service: ${Math.round(fetchedData.stats?.avg_attendance || 0)}
-- Services Count: ${fetchedData.stats?.entry_count || 'N/A'}
-
-**🎯 Key Metrics**
-- New People: ${fetchedData.stats?.new_people || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
-- New Christians: ${fetchedData.stats?.new_christians || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
-- Youth Attendance: ${fetchedData.stats?.youth_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
-- Kids Attendance: ${fetchedData.stats?.kids_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
-- Connect Groups: ${fetchedData.stats?.connect_groups || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_connect_groups || 0)} per service)
-- Volunteers: ${fetchedData.stats?.volunteers || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_volunteers || 0)} per service)
-
-**📈 Campus-Specific Insights**
-- Campus Focus: ${campusName}
-- Data Period: Last 7 Days
-- Report Type: Weekend Performance Analysis`;
-      
-      setAiResponse(report);
+      setAiReportData(fetchedData);
     } catch (error) {
-      setAiResponse('Error generating weekend report. Please try again.');
+      setAiReportData({ error: 'Error generating weekend report. Please try again.' });
     } finally {
       setAiLoading(false);
     }
@@ -137,30 +117,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const generateMonthlyReport = async () => {
     try {
       setAiLoading(true);
+      setAiReportType('monthly');
       const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=last_30_days&_t=${Date.now()}`);
       const fetchedData = await response.json();
-      
-      const report = `# Monthly Report (Last 30 Days) - ${campusName}
-
-**📊 Monthly Overview**
-- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_attendance || 0)} per service)
-- Total New People: ${fetchedData.stats?.new_people?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
-- Total New Christians: ${fetchedData.stats?.new_christians?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
-
-**🎯 Ministry Impact**
-- Youth Ministry: ${fetchedData.stats?.youth_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
-- Kids Ministry: ${fetchedData.stats?.kids_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
-- Volunteer Team: ${fetchedData.stats?.volunteers?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_volunteers || 0)} per service)
-- Connect Groups: ${fetchedData.stats?.connect_groups?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_connect_groups || 0)} per service)
-
-**📈 Campus-Specific Insights**
-- Campus Focus: ${campusName}
-- Data Period: Last 30 Days
-- Report Type: Monthly Performance Analysis`;
-      
-      setAiResponse(report);
+      setAiReportData(fetchedData);
     } catch (error) {
-      setAiResponse('Error generating monthly report. Please try again.');
+      setAiReportData({ error: 'Error generating monthly report. Please try again.' });
     } finally {
       setAiLoading(false);
     }
@@ -169,30 +131,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const generateAnnualReport = async () => {
     try {
       setAiLoading(true);
+      setAiReportType('annual');
       const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=year_to_date&_t=${Date.now()}`);
       const fetchedData = await response.json();
-      
-      const report = `# Annual Report (Year to Date) - ${campusName}
-
-**📊 Annual Overview**
-- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_attendance || 0)} per service)
-- Total New People: ${fetchedData.stats?.new_people?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
-- Total New Christians: ${fetchedData.stats?.new_christians?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
-
-**🎯 Ministry Growth**
-- Youth Ministry: ${fetchedData.stats?.youth_attendance?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
-- Kids Ministry: ${fetchedData.stats?.kids_attendance?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
-- Volunteer Team: ${fetchedData.stats?.volunteers?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_volunteers || 0)} per service)
-- Connect Groups: ${fetchedData.stats?.connect_groups?.toLocaleString() || 'N/A'} total (Avg: ${Math.round(fetchedData.stats?.avg_connect_groups || 0)} per service)
-
-**📈 Campus-Specific Insights**
-- Campus Focus: ${campusName}
-- Data Period: Year to Date
-- Report Type: Annual Performance Analysis`;
-      
-      setAiResponse(report);
+      setAiReportData(fetchedData);
     } catch (error) {
-      setAiResponse('Error generating annual report. Please try again.');
+      setAiReportData({ error: 'Error generating annual report. Please try again.' });
     } finally {
       setAiLoading(false);
     }
@@ -201,36 +145,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const generateGrowthAnalysis = async () => {
     try {
       setAiLoading(true);
+      setAiReportType('growth');
       const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=last_12_months&_t=${Date.now()}`);
       const fetchedData = await response.json();
-      
-      const report = `# Growth Analysis Report (Last 12 Months) - ${campusName}
-
-**📈 Growth Trends**
-- Attendance Growth: ${fetchedData.stats?.total_attendance ? '📈 Growing' : '📊 Stable'}
-- New People Trend: ${fetchedData.stats?.new_people > 0 ? '🆕 Consistent new people' : '🔄 Focus on outreach needed'}
-- Salvation Impact: ${fetchedData.stats?.new_christians > 0 ? '✝️ Lives being changed' : '🙏 Pray for salvation opportunities'}
-
-**🎯 Key Performance Indicators**
-- Total Attendance: ${fetchedData.stats?.total_attendance?.toLocaleString() || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_attendance || 0)} per service)
-- New People: ${fetchedData.stats?.new_people || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_people || 0)} per service)
-- New Christians: ${fetchedData.stats?.new_christians || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_new_christians || 0)} per service)
-- Youth Engagement: ${fetchedData.stats?.youth_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_youth_attendance || 0)} per service)
-- Kids Ministry: ${fetchedData.stats?.kids_attendance || 'N/A'} (Avg: ${Math.round(fetchedData.stats?.avg_kids_attendance || 0)} per service)
-
-**🚀 Strategic Insights**
-- Ministry Health: ${fetchedData.stats?.total_attendance > 1000 ? 'Excellent' : fetchedData.stats?.total_attendance > 500 ? 'Good' : 'Growing'}
-- Outreach Effectiveness: ${fetchedData.stats?.new_people > 50 ? 'Strong' : fetchedData.stats?.new_people > 20 ? 'Moderate' : 'Needs improvement'}
-- Discipleship Pipeline: ${fetchedData.stats?.new_christians > 10 ? 'Active' : 'Developing'}
-
-**📈 Campus-Specific Insights**
-- Campus Focus: ${campusName}
-- Data Period: Last 12 Months
-- Report Type: Growth & Trend Analysis`;
-      
-      setAiResponse(report);
+      setAiReportData(fetchedData);
     } catch (error) {
-      setAiResponse('Error generating growth analysis. Please try again.');
+      setAiReportData({ error: 'Error generating growth analysis. Please try again.' });
     } finally {
       setAiLoading(false);
     }
@@ -1424,8 +1344,8 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 <button
                   onClick={() => {
                     setShowAIModal(false);
-                    setAiResponse('');
-                    setAiQuery('');
+                    setAiReportData(null);
+                    setAiReportType('');
                   }}
                   className="text-white/80 hover:text-white text-3xl font-light transition-colors"
                 >
@@ -1485,35 +1405,247 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 </div>
               </div>
 
-              {/* AI Response Section */}
-              {(aiLoading || aiResponse) && (
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 min-h-[300px]">
+              {/* AI Report Section */}
+              {(aiLoading || aiReportData) && (
+                <div className="space-y-6">
                   {aiLoading ? (
+                    <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 min-h-[300px]">
                     <div className="flex flex-col items-center justify-center h-64">
                       <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mb-4 animate-pulse">
                         <span className="text-3xl">🤖</span>
                       </div>
                       <div className="text-white text-lg font-semibold mb-2">Generating Report...</div>
                       <div className="text-white/60">Analyzing your ministry data</div>
+                      </div>
+                    </div>
+                  ) : aiReportData?.error ? (
+                    <div className="bg-red-500/10 backdrop-blur-sm rounded-2xl p-6 border border-red-400/20">
+                      <div className="text-red-400 text-lg font-semibold">{aiReportData.error}</div>
                     </div>
                   ) : (
+                    <>
+                      {/* Report Header */}
+                      <div className="bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                        <div className="flex items-center justify-between">
                     <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-lg font-bold text-white">📄 Generated Report</h4>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(aiResponse);
-                            alert('Report copied to clipboard!');
-                          }}
-                          className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                        >
-                          📋 Copy Report
-                        </button>
+                            <h3 className="text-2xl font-bold text-white mb-2">
+                              {aiReportType === 'weekend' && '📅 Weekend Report (Last 7 Days)'}
+                              {aiReportType === 'monthly' && '📊 Monthly Report (Last 30 Days)'}
+                              {aiReportType === 'annual' && '📈 Annual Report (Year to Date)'}
+                              {aiReportType === 'growth' && '🚀 Growth Analysis (Last 12 Months)'}
+                            </h3>
+                            <p className="text-white/60">{campusName} - {new Date().toLocaleDateString()}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm text-white/60">Services Logged</div>
+                            <div className="text-3xl font-bold text-white">{aiReportData?.stats?.entry_count || 0}</div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-white/90 whitespace-pre-wrap font-mono text-sm bg-black/30 p-6 rounded-xl overflow-auto max-h-96">
-                        {aiResponse}
+
+                      {/* Key Metrics Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm rounded-xl p-6 border border-blue-400/20">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                              <span className="text-xl">👥</span>
+                            </div>
+                            <h4 className="text-white/80 text-sm font-medium">Total Attendance</h4>
+                          </div>
+                          <div className="text-3xl font-bold text-white mb-1">
+                            {(aiReportData?.stats?.total_attendance || 0).toLocaleString()}
+                          </div>
+                          <p className="text-blue-200/60 text-sm">
+                            Avg: {Math.round(aiReportData?.stats?.avg_attendance || 0)} per service
+                          </p>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-sm rounded-xl p-6 border border-orange-400/20">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                              <span className="text-xl">🆕</span>
+                            </div>
+                            <h4 className="text-white/80 text-sm font-medium">New People</h4>
+                          </div>
+                          <div className="text-3xl font-bold text-white mb-1">
+                            {(aiReportData?.stats?.new_people || 0).toLocaleString()}
+                          </div>
+                          <p className="text-orange-200/60 text-sm">
+                            Avg: {Math.round(aiReportData?.stats?.avg_new_people || 0)} per service
+                          </p>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-red-500/20 to-red-600/20 backdrop-blur-sm rounded-xl p-6 border border-red-400/20">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
+                              <span className="text-xl">✝️</span>
+                            </div>
+                            <h4 className="text-white/80 text-sm font-medium">Salvations</h4>
+                          </div>
+                          <div className="text-3xl font-bold text-white mb-1">
+                            {(aiReportData?.stats?.first_time_christians || 0).toLocaleString()}
+                          </div>
+                          <p className="text-red-200/60 text-sm">
+                            Avg: {Math.round(aiReportData?.stats?.avg_first_time_christians || 0)} per service
+                          </p>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-sm rounded-xl p-6 border border-green-400/20">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                              <span className="text-xl">🤝</span>
+                            </div>
+                            <h4 className="text-white/80 text-sm font-medium">Volunteers</h4>
+                          </div>
+                          <div className="text-3xl font-bold text-white mb-1">
+                            {Math.round(aiReportData?.stats?.avg_volunteers || aiReportData?.stats?.avg_dream_team || 0).toLocaleString()}
+                          </div>
+                          <p className="text-green-200/60 text-sm">
+                            Average serving
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Ministry Breakdown Charts */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Ministry Distribution Doughnut Chart */}
+                        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                          <h4 className="text-xl font-bold text-white mb-4">Ministry Distribution</h4>
+                          <div className="h-64">
+                            <Doughnut
+                              data={{
+                                labels: ['Adults', 'Youth', 'Kids', 'Leaders'],
+                                datasets: [{
+                                  data: [
+                                    Math.round(aiReportData?.stats?.avg_attendance || 0),
+                                    Math.round(aiReportData?.stats?.avg_youth_attendance || 0),
+                                    Math.round(aiReportData?.stats?.avg_kids_attendance || 0),
+                                    Math.round(aiReportData?.stats?.avg_kids_leaders || 0) + Math.round(aiReportData?.stats?.avg_volunteers || 0)
+                                  ],
+                                  backgroundColor: [
+                                    'rgba(59, 130, 246, 0.8)',
+                                    'rgba(139, 92, 246, 0.8)',
+                                    'rgba(236, 72, 153, 0.8)',
+                                    'rgba(34, 197, 94, 0.8)'
+                                  ],
+                                  borderColor: [
+                                    'rgba(59, 130, 246, 1)',
+                                    'rgba(139, 92, 246, 1)',
+                                    'rgba(236, 72, 153, 1)',
+                                    'rgba(34, 197, 94, 1)'
+                                  ],
+                                  borderWidth: 2
+                                }]
+                              }}
+                              options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                  legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                      color: 'rgba(255, 255, 255, 0.8)',
+                                      padding: 15,
+                                      font: { size: 12 }
+                                    }
+                                  }
+                                }
+                              }}
+                            />
+                      </div>
+                      </div>
+
+                        {/* Key Metrics Comparison Bar Chart */}
+                        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                          <h4 className="text-xl font-bold text-white mb-4">Average Per Service</h4>
+                          <div className="h-64">
+                            <Bar
+                              data={{
+                                labels: ['Attendance', 'New People', 'Salvations', 'Youth', 'Kids', 'Leaders'],
+                                datasets: [{
+                                  label: 'Average',
+                                  data: [
+                                    Math.round(aiReportData?.stats?.avg_attendance || 0),
+                                    Math.round(aiReportData?.stats?.avg_new_people || 0),
+                                    Math.round(aiReportData?.stats?.avg_first_time_christians || 0),
+                                    Math.round(aiReportData?.stats?.avg_youth_attendance || 0),
+                                    Math.round(aiReportData?.stats?.avg_kids_attendance || 0),
+                                    Math.round(aiReportData?.stats?.avg_kids_leaders || 0)
+                                  ],
+                                  backgroundColor: [
+                                    'rgba(59, 130, 246, 0.8)',
+                                    'rgba(251, 146, 60, 0.8)',
+                                    'rgba(239, 68, 68, 0.8)',
+                                    'rgba(139, 92, 246, 0.8)',
+                                    'rgba(236, 72, 153, 0.8)',
+                                    'rgba(34, 197, 94, 0.8)'
+                                  ],
+                                  borderColor: [
+                                    'rgba(59, 130, 246, 1)',
+                                    'rgba(251, 146, 60, 1)',
+                                    'rgba(239, 68, 68, 1)',
+                                    'rgba(139, 92, 246, 1)',
+                                    'rgba(236, 72, 153, 1)',
+                                    'rgba(34, 197, 94, 1)'
+                                  ],
+                                  borderWidth: 2
+                                }]
+                              }}
+                              options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                  legend: { display: false }
+                                },
+                                scales: {
+                                  x: {
+                                    ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                  },
+                                  y: {
+                                    ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                  }
+                                }
+                              }}
+                            />
                     </div>
+                        </div>
+                      </div>
+
+                      {/* Additional Stats */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                          <div className="text-sm text-white/60 mb-2">Youth Ministry</div>
+                          <div className="text-2xl font-bold text-purple-400">
+                            {(aiReportData?.stats?.youth_attendance || 0).toLocaleString()}
+                          </div>
+                          <div className="text-sm text-white/60 mt-1">
+                            {Math.round(aiReportData?.stats?.avg_youth_attendance || 0)} avg per service
+                          </div>
+                        </div>
+
+                        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                          <div className="text-sm text-white/60 mb-2">Kids Ministry</div>
+                          <div className="text-2xl font-bold text-pink-400">
+                            {(aiReportData?.stats?.kids_attendance || 0).toLocaleString()}
+                          </div>
+                          <div className="text-sm text-white/60 mt-1">
+                            {Math.round(aiReportData?.stats?.avg_kids_attendance || 0)} avg per service
+                          </div>
+                        </div>
+
+                        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                          <div className="text-sm text-white/60 mb-2">Connect Groups</div>
+                          <div className="text-2xl font-bold text-cyan-400">
+                            {Math.round(aiReportData?.stats?.avg_connect_groups || 0).toLocaleString()}
+                          </div>
+                          <div className="text-sm text-white/60 mt-1">
+                            Average attendance
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
