@@ -5850,11 +5850,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 youth_attendance = get_stat_value(row, ['Youth Attendance', 'youth_attendance'])
                 kids_attendance = calculate_kids_attendance(row)
                 
-                # Debug kids attendance
-                if kids_attendance > 0:
-                    print(f"[DEBUG KIDS] Found kids attendance: {kids_attendance} for {month_key}")
-                    print(f"[DEBUG KIDS] Row data: Kids 9:00={row.get('Kids 9:00 AM', 0)}, Kids 10:00={row.get('Kids 10:00 AM', 0)}, Kids 11:00={row.get('Kids 11:00 AM', 0)}")
-                
                 ytd_monthly_trends[month_key]['attendance'] += attendance
                 ytd_monthly_trends[month_key]['count'] += 1
                 ytd_monthly_trends[month_key]['new_people'] += new_people
@@ -5941,11 +5936,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         print(f"[DEBUG] Total new people calculated: {period_stats['new_people']}")
         print(f"[DEBUG] Total new christians calculated: {period_stats['new_christians']}")
         print(f"[DEBUG] Monthly averages: {monthly_averages}")
-        
-        # Debug kids data in monthly averages
-        for month_key, month_data in monthly_averages.items():
-            if month_data.get('avg_kids_attendance', 0) > 0:
-                print(f"[DEBUG KIDS MONTHLY] {month_key}: avg={month_data.get('avg_kids_attendance', 0)}, total={month_data.get('total_kids_attendance', 0)}")
         
         # Prepare chart data with monthly averages
         # Chart data will be generated later with complete month range
@@ -6264,10 +6254,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 chart_data['youth'].append(youth_val)
                 chart_data['kids'].append(kids_val)
                 chart_data['tithe_ytd'].append(tithe_val)
-                
-                # Debug kids chart data
-                if kids_val > 0:
-                    print(f"[DEBUG KIDS CHART] {month_name}: kids_val={kids_val}")
                 
                 # Add previous year data (always add when available)
                 # Find corresponding month in previous year
