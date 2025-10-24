@@ -417,12 +417,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   </div>
                   <div className="text-purple-400 text-sm font-semibold">Sunday</div>
                 </div>
-                <h3 className="text-white/80 text-sm font-medium mb-2">Sunday Attendance</h3>
+                <h3 className="text-white/80 text-sm font-medium mb-2">Adult Attendance</h3>
                 <div className="text-4xl font-bold text-white mb-2">
                   {sundayAttendance.toLocaleString()}
                 </div>
                 <p className="text-purple-200/80 text-sm">
-                  {shouldShowAverages ? 'Average weekly' : (services.length > 1 ? `${services.length} services` : 'Total this period')}
+                  {shouldShowAverages ? 'Average weekly (adults only)' : (services.length > 1 ? `${services.length} services` : 'Total this period')}
                 </p>
               </div>
             </div>
@@ -943,14 +943,14 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               {modalType === 'sunday-attendance' && (
                 <div className="space-y-6">
                   <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                    <h3 className="text-xl font-bold text-white mb-4">Sunday Service Breakdown</h3>
+                    <h3 className="text-xl font-bold text-white mb-4">Sunday Adult Attendance</h3>
                     <div className="text-4xl font-bold text-purple-400 mb-2">
                       {modalData.total.toLocaleString()}
                     </div>
                     <p className="text-white/60">
                       {isRollup 
-                        ? 'Average Sunday attendance across all campuses (excluding youth)' 
-                        : 'Total Sunday attendance (excluding youth)'}
+                        ? 'Average adult attendance across all campuses (excluding kids & youth)' 
+                        : 'Average adult attendance only (excluding kids & youth)'}
                     </p>
                   </div>
                   
@@ -972,7 +972,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                     if (allServiceTimes.size > 0) {
                       return (
                         <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                          <h3 className="text-xl font-bold text-white mb-4">Service Breakdown</h3>
+                          <h3 className="text-xl font-bold text-white mb-4">Service Breakdown (Adults + Kids)</h3>
                           <div className="space-y-4">
                             {Array.from(allServiceTimes).sort().map((serviceTime, index) => {
                               const adultData = adultBreakdown[serviceTime] || { average: 0, count: 0 };

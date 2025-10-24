@@ -5680,7 +5680,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     # Campus database size
                     total_people = get_stat_value(row, ['Total People in Campus', 'total_people_in_campus'])
                     if total_people > 0:
-                        print(f"[DEBUG TOTAL PEOPLE] Found {total_people} for {row.get('Campus', 'Unknown')} on {row.get('Date', 'Unknown')}")
+                        print(f"[DEBUG TOTAL PEOPLE] *** FOUND NON-ZERO VALUE: {total_people} for campus '{row.get('Campus', 'Unknown')}' on date '{row.get('Date', 'Unknown')}' ***")
+                        print(f"[DEBUG TOTAL PEOPLE] Raw row value: {row.get('Total People in Campus', 'NOT_FOUND')}")
                     period_stats['total_people'] = max(period_stats['total_people'], total_people)  # Use max value (most recent)
                     
                                          # Service time processing removed
