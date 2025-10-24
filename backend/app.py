@@ -5679,6 +5679,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     
                     # Campus database size
                     total_people = get_stat_value(row, ['Total People in Campus', 'total_people_in_campus'])
+                    if total_people > 0:
+                        print(f"[DEBUG TOTAL PEOPLE] Found {total_people} for {row.get('Campus', 'Unknown')} on {row.get('Date', 'Unknown')}")
                     period_stats['total_people'] = max(period_stats['total_people'], total_people)  # Use max value (most recent)
                     
                                          # Service time processing removed
@@ -5932,7 +5934,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 current_date = (current_date.replace(day=28) + timedelta(days=4)).replace(day=1)
         
         print(f"[DEBUG] Total attendance calculated: {period_stats['total_attendance']}")
-        print(f"[DEBUG] Total people in campus: {period_stats['total_people']}")
+        print(f"[DEBUG] Total people in campus: {period_stats['total_people']} (from Google Sheet 'Total People in Campus' column)")
         print(f"[DEBUG] Total new people calculated: {period_stats['new_people']}")
         print(f"[DEBUG] Total new christians calculated: {period_stats['new_christians']}")
         print(f"[DEBUG] Monthly averages: {monthly_averages}")
