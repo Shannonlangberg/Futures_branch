@@ -6166,7 +6166,17 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                         'tithe': 0
                     }
                 
-                attendance = get_stat_value(row, ['Total Attendance', 'total_attendance'])
+                # Calculate attendance by summing service time columns
+                service_times = ['9:00 AM', '10:00 AM', '11:00 AM', '5:00 PM', '5:30 PM']
+                attendance = 0
+                for service_time in service_times:
+                    value = row.get(service_time, '')
+                    if value is not None and value != '' and str(value).strip() != '':
+                        try:
+                            attendance += int(str(value).replace(',', '').strip())
+                        except (ValueError, TypeError):
+                            continue
+                
                 first_time_visitors = get_stat_value(row, ['First Time Visitors', 'first_time_visitors'])
                 visitors = get_stat_value(row, ['Visitors', 'visitors'])
                 new_people = first_time_visitors + visitors
