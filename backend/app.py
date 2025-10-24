@@ -5912,25 +5912,23 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         # Calculate averages per WEEK, not per entry
         for month_key, month_data in ytd_monthly_trends.items():
             if month_data['count'] > 0:
-                # Calculate number of weeks in this month that have data
-                # Approximate as entries / average entries per week across all campuses
-                # For simplicity: assume ~4.3 weeks per month on average
-                weeks_in_month = 4.3
+                # Use actual service count for more accurate averages
+                services_count = month_data['count']
                 
                 # Get tithe from Tithe tab instead of Stats tab
                 tithe_from_finance_tab = monthly_tithe_from_finance.get(month_key, 0)
                 
                 monthly_averages[month_key] = {
-                    'avg_attendance': round(month_data['attendance'] / weeks_in_month, 1),
+                    'avg_attendance': round(month_data['attendance'] / services_count, 1),
                     'total_attendance': month_data['attendance'],
-                    'services_count': month_data['count'],
-                    'avg_new_people': round(month_data['new_people'] / month_data['count'], 1),
+                    'services_count': services_count,
+                    'avg_new_people': round(month_data['new_people'] / services_count, 1),
                     'total_new_people': month_data['new_people'],
-                    'avg_new_christians': round(month_data['new_christians'] / month_data['count'], 1),
+                    'avg_new_christians': round(month_data['new_christians'] / services_count, 1),
                     'total_new_christians': month_data['new_christians'],
-                    'avg_youth_attendance': round(month_data['youth_attendance'] / weeks_in_month, 1),
+                    'avg_youth_attendance': round(month_data['youth_attendance'] / services_count, 1),
                     'total_youth_attendance': month_data['youth_attendance'],
-                    'avg_kids_attendance': round(month_data['kids_attendance'] / weeks_in_month, 1),
+                    'avg_kids_attendance': round(month_data['kids_attendance'] / services_count, 1),
                     'total_kids_attendance': month_data['kids_attendance'],
                     'total_tithe': tithe_from_finance_tab  # Use Tithe tab data, not Stats tab
                 }
