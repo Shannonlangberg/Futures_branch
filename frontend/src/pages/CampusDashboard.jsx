@@ -47,6 +47,11 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
 
   // Debounced effect to prevent rapid API calls when filters change
   useEffect(() => {
+    // Clear data immediately when filter changes to prevent showing stale data
+    setData(null);
+    setCampusData(null);
+    setLoading(true);
+    
     const timeoutId = setTimeout(() => {
       fetchCampusData();
     }, 500); // 500ms debounce
@@ -276,6 +281,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   <option value="last_3_months" className="bg-slate-800 text-white">Last 3 Months</option>
                   <option value="last_6_months" className="bg-slate-800 text-white">Last 6 Months</option>
                   <option value="last_12_months" className="bg-slate-800 text-white">Last 12 Months</option>
+                  <option value="year_to_date" className="bg-slate-800 text-white">YTD</option>
                   <option value="last_2_years" className="bg-slate-800 text-white">Last 2 Years</option>
                   <option value="custom" className="bg-slate-800 text-white">Custom Range</option>
                 </select>
