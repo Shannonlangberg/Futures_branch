@@ -6093,7 +6093,9 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         prev_start_date = start_date.replace(year=start_date.year - 1)
         prev_end_date = end_date.replace(year=end_date.year - 1)
         
-        print(f"[DEBUG] Calculating previous year data for range: {prev_start_date.strftime('%Y-%m-%d')} to {prev_end_date.strftime('%Y-%m-%d')}")
+        print(f"[DEBUG PREV YEAR] Calculating previous year data for range: {prev_start_date.strftime('%Y-%m-%d')} to {prev_end_date.strftime('%Y-%m-%d')}")
+        print(f"[DEBUG PREV YEAR] Campus filter: '{campus}'")
+        print(f"[DEBUG PREV YEAR] Total rows available: {len(rows)}")
         
         # Filter rows for previous year
         prev_filtered_rows = []
@@ -6122,10 +6124,13 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             except Exception:
                 continue
         
-        print(f"[DEBUG] Found {len(prev_filtered_rows)} rows for previous year")
+        print(f"[DEBUG PREV YEAR] Found {len(prev_filtered_rows)} rows for previous year")
+        if len(prev_filtered_rows) > 0:
+            print(f"[DEBUG PREV YEAR] Sample row: {prev_filtered_rows[0]}")
         
         # Calculate monthly trends for previous year
         prev_monthly_trends = {}
+        prev_rows_matched_campus = 0
         for row in prev_filtered_rows:
             try:
                 row_date = None
@@ -6147,6 +6152,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     campus_normalized = normalize_campus(campus)
                     if row_campus != campus_normalized:
                         continue
+                
+                prev_rows_matched_campus += 1
                 
                 # Calculate monthly trends
                 month_key = row_date.strftime('%Y-%m')
@@ -6212,7 +6219,9 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             # Move to next month
             prev_current_date = (prev_current_date.replace(day=28) + timedelta(days=4)).replace(day=1)
         
-        print(f"[DEBUG] Previous year averages: {previous_year_averages}")
+        print(f"[DEBUG PREV YEAR] Rows matched campus filter: {prev_rows_matched_campus}")
+        print(f"[DEBUG PREV YEAR] Previous year monthly trends: {list(prev_monthly_trends.keys())}")
+        print(f"[DEBUG PREV YEAR] Previous year averages: {previous_year_averages}")
         
         # Get current month to exclude from charts
         current_month = datetime.now().strftime('%Y-%m')
