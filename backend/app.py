@@ -6101,9 +6101,10 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     continue
                 
                 # Filter by campus if not all_campuses
-                if campus != 'all_campuses':
-                    row_campus = row.get('Campus', '').lower().replace(' ', '_')
-                    if row_campus != campus:
+                if campus not in ['all_campuses', 'australia']:
+                    row_campus = normalize_campus(row.get('Campus', ''))
+                    campus_normalized = normalize_campus(campus)
+                    if row_campus != campus_normalized:
                         continue
                 
                 # Calculate monthly trends
