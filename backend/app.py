@@ -538,8 +538,51 @@ def safe_sheets_request(func, *args, force_refresh=False, **kwargs):
         print(f"[CACHE] Stored {len(result) if result else 0} rows for '{cache_key}'")
         return result
     except Exception as e:
-        logger.error(f"Google Sheets API error: {e}")
-        raise e
+        error_msg = str(e).lower()
+        
+        # Handle empty header cells error specifically
+        if 'empty cell' in error_msg and 'header' in error_msg:
+            logger.warning(f"Detected empty headers in sheet, attempting manual fetch")
+            try:
+                # Try to get data manually by fetching all values and building records
+                worksheet = func.__self__
+                all_values = worksheet.get_all_values()
+                
+                if len(all_values) < 2:
+                    return []
+                
+                # Get headers and filter out empty ones
+                headers = all_values[0]
+                valid_headers = []
+                valid_indices = []
+                
+                for i, header in enumerate(headers):
+                    if header and header.strip():
+                        valid_headers.append(header.strip())
+                        valid_indices.append(i)
+                
+                # Build records using only valid headers
+                records = []
+                for row in all_values[1:]:
+                    record = {}
+                    for i, col_index in enumerate(valid_indices):
+                        if col_index < len(row):
+                            record[valid_headers[i]] = row[col_index]
+                    records.append(record)
+                
+                # Cache and return
+                sheets_cache[cache_key] = {
+                    'data': records,
+                    'timestamp': time.time()
+                }
+                print(f"[CACHE] Stored {len(records)} rows for '{cache_key}' (manual fetch)")
+                return records
+            except Exception as manual_error:
+                logger.error(f"Manual fetch also failed: {manual_error}")
+                raise e
+        else:
+            logger.error(f"Google Sheets API error: {e}")
+            raise e
 print("[DEBUG] Finished Google Sheets client initialization")
 
 print("[DEBUG] Starting Claude setup")
