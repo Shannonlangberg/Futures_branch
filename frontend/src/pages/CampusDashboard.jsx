@@ -1427,12 +1427,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                       {/* Report Header */}
                       <div className="bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
                         <div className="flex items-center justify-between">
-                    <div>
+                          <div>
                             <h3 className="text-2xl font-bold text-white mb-2">
                               {aiReportType === 'weekend' && '📅 Weekend Report (Last 7 Days)'}
                               {aiReportType === 'monthly' && '📊 Monthly Report (Last 30 Days)'}
                               {aiReportType === 'annual' && '📈 Annual Report (Year to Date)'}
-                              {aiReportType === 'growth' && '🚀 Growth Analysis (Last 12 Months)'}
+                              {aiReportType === 'growth' && '🚀 Growth Trends (Last 12 Months)'}
                             </h3>
                             <p className="text-white/60">{campusName} - {new Date().toLocaleDateString()}</p>
                           </div>
@@ -1443,8 +1443,342 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         </div>
                       </div>
 
-                      {/* Key Metrics Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Growth Report - Special Layout with Trend Charts */}
+                      {aiReportType === 'growth' ? (
+                        <>
+                          {/* Growth Trend Charts */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Attendance Growth Trend */}
+                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                                  <span className="text-xl">👥</span>
+                                </div>
+                                <h4 className="text-xl font-bold text-white">Attendance Growth</h4>
+                              </div>
+                              <div className="h-64">
+                                <Line
+                                  data={{
+                                    labels: aiReportData?.chart_data?.labels || [],
+                                    datasets: [{
+                                      label: 'Attendance',
+                                      data: aiReportData?.chart_data?.attendance || [],
+                                      borderColor: '#3b82f6',
+                                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                      borderWidth: 3,
+                                      tension: 0.4,
+                                      fill: true,
+                                      pointRadius: 5,
+                                      pointBackgroundColor: '#3b82f6',
+                                      pointBorderColor: '#fff',
+                                      pointBorderWidth: 2
+                                    }]
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: { display: false }
+                                    },
+                                    scales: {
+                                      x: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      },
+                                      y: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-4 text-center">
+                                <div className="text-sm text-white/60">Total: <span className="text-white font-semibold">{(aiReportData?.stats?.total_attendance || 0).toLocaleString()}</span></div>
+                              </div>
+                            </div>
+
+                            {/* New People Growth Trend */}
+                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                                  <span className="text-xl">🆕</span>
+                                </div>
+                                <h4 className="text-xl font-bold text-white">New People Growth</h4>
+                              </div>
+                              <div className="h-64">
+                                <Line
+                                  data={{
+                                    labels: aiReportData?.chart_data?.labels || [],
+                                    datasets: [{
+                                      label: 'New People',
+                                      data: aiReportData?.chart_data?.new_people || [],
+                                      borderColor: '#fb923c',
+                                      backgroundColor: 'rgba(251, 146, 60, 0.1)',
+                                      borderWidth: 3,
+                                      tension: 0.4,
+                                      fill: true,
+                                      pointRadius: 5,
+                                      pointBackgroundColor: '#fb923c',
+                                      pointBorderColor: '#fff',
+                                      pointBorderWidth: 2
+                                    }]
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: { display: false }
+                                    },
+                                    scales: {
+                                      x: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      },
+                                      y: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-4 text-center">
+                                <div className="text-sm text-white/60">Total: <span className="text-white font-semibold">{(aiReportData?.stats?.new_people || 0).toLocaleString()}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Salvations Growth Trend */}
+                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
+                                  <span className="text-xl">✝️</span>
+                                </div>
+                                <h4 className="text-xl font-bold text-white">Salvations Growth</h4>
+                              </div>
+                              <div className="h-64">
+                                <Line
+                                  data={{
+                                    labels: aiReportData?.chart_data?.labels || [],
+                                    datasets: [{
+                                      label: 'New Christians',
+                                      data: aiReportData?.chart_data?.new_christians || [],
+                                      borderColor: '#ef4444',
+                                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                      borderWidth: 3,
+                                      tension: 0.4,
+                                      fill: true,
+                                      pointRadius: 5,
+                                      pointBackgroundColor: '#ef4444',
+                                      pointBorderColor: '#fff',
+                                      pointBorderWidth: 2
+                                    }]
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: { display: false }
+                                    },
+                                    scales: {
+                                      x: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      },
+                                      y: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-4 text-center">
+                                <div className="text-sm text-white/60">Total: <span className="text-white font-semibold">{(aiReportData?.stats?.first_time_christians || 0).toLocaleString()}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Youth Growth Trend */}
+                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                                  <span className="text-xl">🎯</span>
+                                </div>
+                                <h4 className="text-xl font-bold text-white">Youth Growth</h4>
+                              </div>
+                              <div className="h-64">
+                                <Line
+                                  data={{
+                                    labels: aiReportData?.chart_data?.labels || [],
+                                    datasets: [{
+                                      label: 'Youth',
+                                      data: aiReportData?.chart_data?.youth || [],
+                                      borderColor: '#8b5cf6',
+                                      backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                                      borderWidth: 3,
+                                      tension: 0.4,
+                                      fill: true,
+                                      pointRadius: 5,
+                                      pointBackgroundColor: '#8b5cf6',
+                                      pointBorderColor: '#fff',
+                                      pointBorderWidth: 2
+                                    }]
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: { display: false }
+                                    },
+                                    scales: {
+                                      x: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      },
+                                      y: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-4 text-center">
+                                <div className="text-sm text-white/60">Total: <span className="text-white font-semibold">{(aiReportData?.stats?.youth_attendance || 0).toLocaleString()}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Kids Growth Trend */}
+                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-pink-500/20 rounded-lg flex items-center justify-center">
+                                  <span className="text-xl">🧒</span>
+                                </div>
+                                <h4 className="text-xl font-bold text-white">Kids Growth</h4>
+                              </div>
+                              <div className="h-64">
+                                <Line
+                                  data={{
+                                    labels: aiReportData?.chart_data?.labels || [],
+                                    datasets: [{
+                                      label: 'Kids',
+                                      data: aiReportData?.chart_data?.kids || [],
+                                      borderColor: '#ec4899',
+                                      backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                                      borderWidth: 3,
+                                      tension: 0.4,
+                                      fill: true,
+                                      pointRadius: 5,
+                                      pointBackgroundColor: '#ec4899',
+                                      pointBorderColor: '#fff',
+                                      pointBorderWidth: 2
+                                    }]
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: { display: false }
+                                    },
+                                    scales: {
+                                      x: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      },
+                                      y: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-4 text-center">
+                                <div className="text-sm text-white/60">Total: <span className="text-white font-semibold">{(aiReportData?.stats?.kids_attendance || 0).toLocaleString()}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Tithe Growth Trend */}
+                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                                  <span className="text-xl">💰</span>
+                                </div>
+                                <h4 className="text-xl font-bold text-white">Giving Growth</h4>
+                              </div>
+                              <div className="h-64">
+                                <Line
+                                  data={{
+                                    labels: aiReportData?.chart_data?.tithe_labels || [],
+                                    datasets: [{
+                                      label: 'Tithe',
+                                      data: aiReportData?.chart_data?.tithe_ytd || [],
+                                      borderColor: '#10b981',
+                                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                      borderWidth: 3,
+                                      tension: 0.4,
+                                      fill: true,
+                                      pointRadius: 5,
+                                      pointBackgroundColor: '#10b981',
+                                      pointBorderColor: '#fff',
+                                      pointBorderWidth: 2
+                                    }]
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: { display: false }
+                                    },
+                                    scales: {
+                                      x: {
+                                        ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      },
+                                      y: {
+                                        ticks: {
+                                          color: 'rgba(255, 255, 255, 0.6)',
+                                          callback: function(value) {
+                                            return '$' + value.toLocaleString();
+                                          }
+                                        },
+                                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-4 text-center">
+                                <div className="text-sm text-white/60">YTD Total: <span className="text-white font-semibold">${(aiReportData?.stats?.tithe_ytd || 0).toLocaleString()}</span></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Growth Summary Cards */}
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm rounded-xl p-4 border border-blue-400/20">
+                              <div className="text-sm text-white/60 mb-1">Avg Attendance</div>
+                              <div className="text-2xl font-bold text-white">{Math.round(aiReportData?.stats?.avg_attendance || 0)}</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-sm rounded-xl p-4 border border-orange-400/20">
+                              <div className="text-sm text-white/60 mb-1">Avg New People</div>
+                              <div className="text-2xl font-bold text-white">{Math.round(aiReportData?.stats?.avg_new_people || 0)}</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-red-500/20 to-red-600/20 backdrop-blur-sm rounded-xl p-4 border border-red-400/20">
+                              <div className="text-sm text-white/60 mb-1">Avg Salvations</div>
+                              <div className="text-2xl font-bold text-white">{Math.round(aiReportData?.stats?.avg_first_time_christians || 0)}</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-sm rounded-xl p-4 border border-green-400/20">
+                              <div className="text-sm text-white/60 mb-1">Avg Giving</div>
+                              <div className="text-2xl font-bold text-white">${Math.round(aiReportData?.stats?.avg_tithe || 0).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Standard Report Layout for Weekend, Monthly, Annual */}
+                          {/* Key Metrics Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm rounded-xl p-6 border border-blue-400/20">
                           <div className="flex items-center gap-3 mb-3">
                             <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
@@ -1645,6 +1979,8 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                           </div>
                         </div>
                       </div>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
