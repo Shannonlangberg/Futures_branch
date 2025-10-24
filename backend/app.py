@@ -6125,8 +6125,17 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 continue
         
         print(f"[DEBUG PREV YEAR] Found {len(prev_filtered_rows)} rows for previous year")
+        print(f"[DEBUG PREV YEAR] Looking for campus: {campus} (normalized: {normalize_campus(campus)})")
         if len(prev_filtered_rows) > 0:
             print(f"[DEBUG PREV YEAR] Sample row: {prev_filtered_rows[0]}")
+        
+        # Debug: Show unique campuses in previous year data
+        prev_year_campuses = set()
+        for row in prev_filtered_rows:
+            row_campus = row.get('Campus', '')
+            if row_campus:
+                prev_year_campuses.add(f"{row_campus} -> {normalize_campus(row_campus)}")
+        print(f"[DEBUG PREV YEAR] Unique campuses found: {prev_year_campuses}")
         
         # Calculate monthly trends for previous year
         prev_monthly_trends = {}
@@ -6201,6 +6210,9 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 
             except Exception as e:
                 continue
+        
+        print(f"[DEBUG PREV YEAR] Rows matched campus filter: {prev_rows_matched_campus}")
+        print(f"[DEBUG PREV YEAR] Monthly trends found: {list(prev_monthly_trends.keys())}")
         
         # Calculate previous year monthly averages - include ALL months
         for month_key, month_data in prev_monthly_trends.items():
