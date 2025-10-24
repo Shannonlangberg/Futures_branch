@@ -5679,9 +5679,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     
                     # Campus database size
                     total_people = get_stat_value(row, ['Total People in Campus', 'total_people_in_campus'])
-                    if total_people > 0:
-                        print(f"[DEBUG TOTAL PEOPLE] *** FOUND NON-ZERO VALUE: {total_people} for campus '{row.get('Campus', 'Unknown')}' on date '{row.get('Date', 'Unknown')}' ***")
-                        print(f"[DEBUG TOTAL PEOPLE] Raw row value: {row.get('Total People in Campus', 'NOT_FOUND')}")
                     period_stats['total_people'] = max(period_stats['total_people'], total_people)  # Use max value (most recent)
                     
                                          # Service time processing removed
@@ -5764,21 +5761,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         period_stats['new_people'] = period_stats['first_time_visitors'] + period_stats['visitors']
         period_stats['new_christians'] = period_stats['first_time_christians'] + period_stats['rededications']
         
-        # Ensure total_people is always included (fallback to a reasonable default if 0)
-        if period_stats['total_people'] == 0:
-            # Use a reasonable default based on campus size
-            campus_defaults = {
-                'paradise': 500,
-                'south': 300,
-                'salisbury': 250,
-                'adelaide city': 200,
-                'mount barker': 150,
-                'copper coast': 100,
-                'clare valley': 80,
-                'victor harbor': 70
-            }
-            campus_key = campus.lower().replace(' ', ' ').replace('_', ' ')
-            period_stats['total_people'] = campus_defaults.get(campus_key, 100)
+        # Total people comes from Google Sheet only - no hardcoded defaults
         
         # Calculate tithe YTD totals from Tithe tab (not Stats tab)
         # YTD = Year-To-Date (January 1 to current date of current year)
@@ -5935,7 +5918,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 current_date = (current_date.replace(day=28) + timedelta(days=4)).replace(day=1)
         
         print(f"[DEBUG] Total attendance calculated: {period_stats['total_attendance']}")
-        print(f"[DEBUG] Total people in campus: {period_stats['total_people']} (from Google Sheet 'Total People in Campus' column)")
+        print(f"[DEBUG] Total people in campus: {period_stats['total_people']}")
         print(f"[DEBUG] Total new people calculated: {period_stats['new_people']}")
         print(f"[DEBUG] Total new christians calculated: {period_stats['new_christians']}")
         print(f"[DEBUG] Monthly averages: {monthly_averages}")
