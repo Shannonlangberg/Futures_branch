@@ -5835,7 +5835,9 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                         'count': 0,
                         'new_people': 0,
                         'new_christians': 0,
-                        'tithe': 0
+                        'tithe': 0,
+                        'youth_attendance': 0,
+                        'kids_attendance': 0
                     }
                 
                 attendance = calculate_total_attendance(row)
@@ -5845,11 +5847,15 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 first_time_christians = get_stat_value(row, ['First Time Christians', 'first_time_christians'])
                 rededications = get_stat_value(row, ['Rededications', 'rededications'])
                 new_christians = first_time_christians + rededications
+                youth_attendance = get_stat_value(row, ['Youth Attendance', 'youth_attendance'])
+                kids_attendance = get_stat_value(row, ['Kids Attendance', 'kids_attendance'])
                 
                 ytd_monthly_trends[month_key]['attendance'] += attendance
                 ytd_monthly_trends[month_key]['count'] += 1
                 ytd_monthly_trends[month_key]['new_people'] += new_people
                 ytd_monthly_trends[month_key]['new_christians'] += new_christians
+                ytd_monthly_trends[month_key]['youth_attendance'] += youth_attendance
+                ytd_monthly_trends[month_key]['kids_attendance'] += kids_attendance
                 
                 tithe_value = row.get('Tithe', '')
                 if tithe_value and str(tithe_value).strip() != '':
@@ -5893,6 +5899,10 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     'total_new_people': month_data['new_people'],
                     'avg_new_christians': round(month_data['new_christians'] / month_data['count'], 1),
                     'total_new_christians': month_data['new_christians'],
+                    'avg_youth_attendance': round(month_data['youth_attendance'] / weeks_in_month, 1),
+                    'total_youth_attendance': month_data['youth_attendance'],
+                    'avg_kids_attendance': round(month_data['kids_attendance'] / weeks_in_month, 1),
+                    'total_kids_attendance': month_data['kids_attendance'],
                     'total_tithe': tithe_from_finance_tab  # Use Tithe tab data, not Stats tab
                 }
         
@@ -5910,6 +5920,10 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                         'services_count': 0,
                         'avg_new_people': 0,
                         'total_new_people': 0,
+                        'avg_youth_attendance': 0,
+                        'total_youth_attendance': 0,
+                        'avg_kids_attendance': 0,
+                        'total_kids_attendance': 0,
                         'avg_new_christians': 0,
                         'total_new_christians': 0
                     }
@@ -6029,6 +6043,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             'attendance': [],
             'new_people': [],
             'new_christians': [],
+            'youth': [],
+            'kids': [],
             'tithe_ytd': [],
             'tithe_previous_year': [],
             'attendance_previous_year': [],
@@ -6199,6 +6215,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 attendance_val = month_data.get('avg_attendance', 0)
                 new_people_val = month_data.get('avg_new_people', 0)
                 new_christians_val = month_data.get('avg_new_christians', 0)
+                youth_val = month_data.get('avg_youth_attendance', 0)
+                kids_val = month_data.get('avg_kids_attendance', 0)
                 tithe_val = month_data.get('total_tithe', 0)
                 
                 # For current month, show average based on number of actual entries
@@ -6215,11 +6233,15 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                         total_attendance = month_data.get('total_attendance', 0)
                         total_new_people = month_data.get('total_new_people', 0)
                         total_new_christians = month_data.get('total_new_christians', 0)
+                        total_youth = month_data.get('total_youth_attendance', 0)
+                        total_kids = month_data.get('total_kids_attendance', 0)
                         
                         # Divide by number of actual entries to get average
                         attendance_val = total_attendance / num_entries if total_attendance > 0 else attendance_val
                         new_people_val = total_new_people / num_entries if total_new_people > 0 else new_people_val
                         new_christians_val = total_new_christians / num_entries if total_new_christians > 0 else new_christians_val
+                        youth_val = total_youth / num_entries if total_youth > 0 else youth_val
+                        kids_val = total_kids / num_entries if total_kids > 0 else kids_val
                         tithe_val = tithe_val / num_entries if tithe_val > 0 else tithe_val
                         
                         print(f"[DEBUG] Current month {month_key}: {num_entries} entries - showing average (total÷{num_entries})")
@@ -6229,6 +6251,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 chart_data['attendance'].append(attendance_val)
                 chart_data['new_people'].append(new_people_val)
                 chart_data['new_christians'].append(new_christians_val)
+                chart_data['youth'].append(youth_val)
+                chart_data['kids'].append(kids_val)
                 chart_data['tithe_ytd'].append(tithe_val)
                 
                 # Add previous year data (always add when available)
