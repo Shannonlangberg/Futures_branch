@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusIcon, CalendarIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, XMarkIcon, PencilIcon } from '@heroicons/react/24/outline';
 import DynamicBackground from '../components/DynamicBackground';
 
 const LogStats = () => {
@@ -7,6 +7,8 @@ const LogStats = () => {
   const [campuses, setCampuses] = useState([]);
   const [showQuickInput, setShowQuickInput] = useState(false);
   const [quickInputDate, setQuickInputDate] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [quickInputStats, setQuickInputStats] = useState({
     'Total People in Campus': '',
     '9:00 AM': '',
@@ -145,7 +147,8 @@ const LogStats = () => {
       // Note: Total Attendance and Kids Attendance are NOT sent to backend
       // The backend calculates these from the individual service time columns
 
-      const response = await fetch('/api/quick_input', {
+      const endpoint = isEditMode ? '/api/quick_input/update' : '/api/quick_input';
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -154,20 +157,43 @@ const LogStats = () => {
         body: JSON.stringify({
           campus: selectedCampus,
           date: quickInputDate,
-          stats: backendStats
+          stats: backendStats,
+          ...(isEditMode && editingEntry && { originalDate: editingEntry.date, originalCampus: editingEntry.campusId })
         })
       });
 
       if (response.ok) {
         const result = await response.json();
         
-        // Add to session stats
         const campusName = campuses.find(c => c.id === selectedCampus)?.name || selectedCampus;
-        setSessionStats(prev => [{
-          campus: campusName,
-          text: `Quick input: ${Object.keys(nonEmptyStats).join(', ')}`,
-          timestamp: new Date().toISOString()
-        }, ...prev.slice(0, 9)]); // Keep last 10 entries
+        
+        if (isEditMode) {
+          // Update the existing entry in session stats
+          setSessionStats(prev => prev.map(stat => 
+            stat.timestamp === editingEntry.timestamp
+              ? {
+                  ...stat,
+                  campus: campusName,
+                  campusId: selectedCampus,
+                  date: quickInputDate,
+                  stats: {...quickInputStats},
+                  text: `Quick input: ${Object.keys(nonEmptyStats).join(', ')}`
+                }
+              : stat
+          ));
+          alert('Stats updated successfully!');
+        } else {
+          // Add to session stats with full data for editing
+          setSessionStats(prev => [{
+            campus: campusName,
+            campusId: selectedCampus,
+            date: quickInputDate,
+            stats: {...quickInputStats}, // Store complete stats
+            text: `Quick input: ${Object.keys(nonEmptyStats).join(', ')}`,
+            timestamp: new Date().toISOString()
+          }, ...prev.slice(0, 9)]); // Keep last 10 entries
+          alert('Stats logged successfully!');
+        }
 
         // Reset form
         setQuickInputStats({
@@ -199,10 +225,11 @@ const LogStats = () => {
           'Child Dedications': ''
         });
         setShowQuickInput(false);
-        alert('Stats logged successfully!');
+        setIsEditMode(false);
+        setEditingEntry(null);
       } else {
         const errorData = await response.json();
-        alert(`Error: ${errorData.error || 'Failed to log stats'}`);
+        alert(`Error: ${errorData.error || (isEditMode ? 'Failed to update stats' : 'Failed to log stats')}`);
       }
     } catch (error) {
       console.error('Error submitting quick input:', error);
@@ -271,14 +298,27 @@ const LogStats = () => {
             {sessionStats.length > 0 ? (
               <div className="space-y-4">
                 {sessionStats.map((stat, index) => (
-                  <div key={index} className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+                  <div key={index} className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl hover:border-blue-500/50 transition-all duration-300 cursor-pointer group" onClick={() => {
+                    // Populate form with entry data for editing
+                    setIsEditMode(true);
+                    setEditingEntry(stat);
+                    setSelectedCampus(stat.campusId);
+                    setQuickInputDate(stat.date);
+                    setQuickInputStats(stat.stats);
+                    setShowQuickInput(true);
+                  }}>
                     <div className="flex items-center justify-between">
-                      <div>
+                      <div className="flex-1">
                         <div className="text-sm text-blue-400 font-semibold mb-2">{stat.campus}</div>
                         <div className="text-white text-base font-medium">{stat.text}</div>
                       </div>
-                      <div className="text-xs text-slate-400 bg-white/10 rounded-lg px-3 py-1">
-                        {new Date(stat.timestamp).toLocaleTimeString()}
+                      <div className="flex items-center space-x-3">
+                        <div className="text-xs text-slate-400 bg-white/10 rounded-lg px-3 py-1">
+                          {new Date(stat.timestamp).toLocaleTimeString()}
+                        </div>
+                        <div className="bg-blue-500/20 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                          <PencilIcon className="w-5 h-5 text-blue-400" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -302,11 +342,15 @@ const LogStats = () => {
             <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-white/20 rounded-3xl p-8 max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="flex justify-between items-start mb-8">
                 <div>
-                  <h3 className="text-3xl font-bold text-white mb-2">Quick Stats Input</h3>
-                  <p className="text-slate-300">Enter your church statistics in organized sections</p>
+                  <h3 className="text-3xl font-bold text-white mb-2">{isEditMode ? 'Edit Stats Entry' : 'Quick Stats Input'}</h3>
+                  <p className="text-slate-300">{isEditMode ? 'Update your church statistics' : 'Enter your church statistics in organized sections'}</p>
                 </div>
                 <button
-                  onClick={() => setShowQuickInput(false)}
+                  onClick={() => {
+                    setShowQuickInput(false);
+                    setIsEditMode(false);
+                    setEditingEntry(null);
+                  }}
                   className="text-slate-400 hover:text-white transition-colors duration-200 p-2 hover:bg-white/10 rounded-xl"
                 >
                   <XMarkIcon className="w-6 h-6" />
@@ -871,10 +915,12 @@ const LogStats = () => {
                 >
                   {isSubmittingQuickInput ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : isEditMode ? (
+                    <PencilIcon className="w-5 h-5" />
                   ) : (
                     <PlusIcon className="w-5 h-5" />
                   )}
-                  <span>{isSubmittingQuickInput ? 'Submitting...' : 'Submit Stats'}</span>
+                  <span>{isSubmittingQuickInput ? (isEditMode ? 'Updating...' : 'Submitting...') : (isEditMode ? 'Update Stats' : 'Submit Stats')}</span>
                 </button>
               </div>
             </div>
