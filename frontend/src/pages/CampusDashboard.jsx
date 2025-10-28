@@ -225,7 +225,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const sundayAttendance = Math.round(sundayAttendanceFromServices || data.stats?.avg_attendance || 0);
   const youthAttendance = Math.round(data.stats?.avg_youth_attendance || 0); // ALWAYS average
   const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // ALWAYS average
-  const totalAttendance = sundayAttendance + youthAttendance; // Weekend = Sunday + Youth
+  const totalAttendance = sundayAttendance + youthAttendance + kidsAttendance; // Weekend = Sunday + Youth + Kids
   const attendancePercentage = totalPeople > 0 ? Math.round((totalAttendance / totalPeople) * 100) : 0;
   const connectGroupPercentage = sundayAttendance > 0 ? Math.round((data.stats?.avg_connect_groups || 0) / sundayAttendance * 100) : 0;
 
@@ -1030,7 +1030,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 <div className="space-y-6">
                   <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                     <h3 className="text-xl font-bold text-white mb-4">Weekend Attendance Breakdown</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="bg-purple-500/10 rounded-xl p-4 border border-purple-400/20">
                         <h4 className="text-lg font-semibold text-purple-300 mb-2">Sunday Services</h4>
                         <div className="text-3xl font-bold text-purple-400 mb-1">
@@ -1044,6 +1044,13 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                           {youthAttendance.toLocaleString()}
                         </div>
                         <p className="text-blue-200/80 text-sm">Average youth attendance</p>
+                      </div>
+                      <div className="bg-pink-500/10 rounded-xl p-4 border border-pink-400/20">
+                        <h4 className="text-lg font-semibold text-pink-300 mb-2">Kids Ministry</h4>
+                        <div className="text-3xl font-bold text-pink-400 mb-1">
+                          {kidsAttendance.toLocaleString()}
+                        </div>
+                        <p className="text-pink-200/80 text-sm">Average kids attendance</p>
                       </div>
                     </div>
                     <div className="mt-6 pt-4 border-t border-white/10">
