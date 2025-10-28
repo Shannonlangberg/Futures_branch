@@ -123,7 +123,7 @@ const LogStats = () => {
         'Kids Salvations': 'New Kids Salvations',
         'First Time': 'First Time Visitors',
         'Visitors': 'Visitors',
-        'Info Gathered': 'Information Gathered',
+        'Info Gathered': 'Cards Back',
         'First Time Decision': 'First Time Christians',
         'Rededication': 'Rededications',
         'Youth Total': 'Youth Attendance',
@@ -517,7 +517,7 @@ const LogStats = () => {
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        Information Gathered:
+                        Cards Back:
                       </label>
                       <input
                         type="text"

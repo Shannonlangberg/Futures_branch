@@ -1071,17 +1071,26 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                           <h3 className="text-xl font-bold text-white mb-4">Service Breakdown</h3>
                           <div className="space-y-4">
-                            {servicesToShow.map((service, index) => (
-                              <div key={index} className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
-                                <div>
-                                  <div className="text-lg font-semibold text-white">{service.name}</div>
-                                  <div className="text-sm text-white/60">{service.count} services</div>
+                            {servicesToShow.map((service, index) => {
+                              const avgPerService = Math.round(service.attendance);
+                              const totalForTimeSlot = Math.round(service.attendance * service.count);
+                              return (
+                                <div key={index} className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
+                                  <div>
+                                    <div className="text-lg font-semibold text-white">{service.name}</div>
+                                    <div className="text-sm text-white/60">
+                                      {service.count} {service.count === 1 ? 'service' : 'services'} · Avg: {avgPerService.toLocaleString()} per service
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-2xl font-bold text-purple-400">
+                                      {totalForTimeSlot.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-white/50">Total for time slot</div>
+                                  </div>
                                 </div>
-                                <div className="text-2xl font-bold text-purple-400">
-                                  {Math.round(service.attendance).toLocaleString()}
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       );

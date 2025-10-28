@@ -1859,7 +1859,7 @@ def extract_stats_with_context(text: str, campus: str) -> Dict[str, Any]:
                 "Total Attendance": "Total Attendance",
                 "First Time Visitors": "First Time Visitors", 
                 "Visitors": "Visitors",
-                "Information Gathered": "Information Gathered",
+                "Cards Back": "Cards Back",
                 "First Time Christians": "First Time Christians",
                 "Rededications": "Rededications",
                 "Youth Attendance": "Youth Attendance",
@@ -2492,7 +2492,7 @@ def handle_cross_location_comparison(question: str, campuses: list, year: int, s
             ("total_tithe", "Tithe"),
             ("total_baptisms", "Baptisms"),
             ("total_child_dedications", "Child Dedications"),
-            ("total_information_gathered", "Information Gathered")
+            ("total_information_gathered", "Cards Back")
         ]
         
         # If specific stat requested, only include that stat
@@ -2790,7 +2790,7 @@ def query_data_internal(data: Dict[str, Any]) -> Dict[str, Any]:
             stat_mappings = [
                 ("total_attendance", "Total Attendance", "attendance"),
                 ("total_first_time_visitors", "First Time Visitors", "first_time_visitors"),
-                ("total_information_gathered", "Information Gathered", "information_gathered"),
+                ("total_information_gathered", "Cards Back", "information_gathered"),
                 ("total_new_christians", "New Christians", "new_christians"),
                 ("total_rededications", "Rededications", "rededications"),
                 ("total_youth_attendance", "Youth Attendance", "youth_attendance"),
@@ -3813,7 +3813,7 @@ def generate_monthly_report(campus: str, year: int, month: int) -> dict:
                 'total_attendance': safe_int_stat(entry.get('Total Attendance')),
                 'first_time_visitors': safe_int_stat(entry.get('First Time Visitors')),
                 'visitors': safe_int_stat(entry.get('Visitors')),
-                'information_gathered': safe_int_stat(entry.get('Information Gathered')),
+                'information_gathered': safe_int_stat(entry.get('Cards Back')),
                 'first_time_christians': safe_int_stat(entry.get('First Time Christians')),
                 'rededications': safe_int_stat(entry.get('Rededications')),
                 'youth_attendance': safe_int_stat(entry.get('Youth Attendance')),
@@ -3849,7 +3849,7 @@ def generate_monthly_report(campus: str, year: int, month: int) -> dict:
         ('first_time_visitors', 'First Time Visitors'),
         ('visitors', 'Visitors'),
         ('new_people', 'New People'),  # Calculated field
-        ('information_gathered', 'Information Gathered'),
+        ('information_gathered', 'Cards Back'),
         ('first_time_christians', 'First Time Christians'),
         ('rededications', 'Rededications'),
         ('new_christians', 'New Christians'),  # Calculated field
@@ -4092,7 +4092,7 @@ def generate_full_stat_report(campus: str, years: list) -> dict:
     stat_types = [
         ('attendance', 'Total Attendance', 'attendance'),
         ('first_time_visitors', 'First Time Visitors', 'first_time_visitors'),
-        ('information_gathered', 'Information Gathered', 'information_gathered'),
+        ('information_gathered', 'Cards Back', 'information_gathered'),
         ('new_christians', 'New Christians', 'new_christians'),
         ('rededications', 'Rededications', 'rededications'),
         ('youth_attendance', 'Youth Attendance', 'youth_attendance'),
@@ -4215,7 +4215,7 @@ def generate_single_year_report(campus: str, year: int) -> dict:
     stat_types = [
         ('attendance', 'Total Attendance', 'attendance'),
         ('first_time_visitors', 'First Time Visitors', 'first_time_visitors'),
-        ('information_gathered', 'Information Gathered', 'information_gathered'),
+        ('information_gathered', 'Cards Back', 'information_gathered'),
         ('new_christians', 'New Christians', 'new_christians'),
         ('rededications', 'Rededications', 'rededications'),
         ('youth_attendance', 'Youth Attendance', 'youth_attendance'),
@@ -4709,7 +4709,7 @@ def calculate_stats_from_filtered_rows(filtered_rows: List[dict]) -> dict:
                 'attendance': get_stat_value(['Total Attendance', 'attendance']),
                 'first_time_visitors': get_stat_value(['First Time Visitors', 'ft_visitors']),
                 'visitors': get_stat_value(['Visitors', 'visitors']),
-                'information_gathered': get_stat_value(['Information Gathered', 'info_collected']),
+                'information_gathered': get_stat_value(['Cards Back', 'info_collected']),
                 'first_time_christians': get_stat_value(['First Time Christians', 'salvations']),
                 'rededications': get_stat_value(['Rededications', 'rededications']),
                 'youth_attendance': get_stat_value(['Youth Attendance', 'youth']),
@@ -5731,10 +5731,10 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     visitors = get_stat_value(row, ['Visitors', 'visitors'])
                     period_stats['first_time_visitors'] += first_time
                     period_stats['visitors'] += visitors
-                    info_gathered_value = get_stat_value(row, ['Information Gathered', 'information_gathered'])
+                    info_gathered_value = get_stat_value(row, ['Cards Back', 'information_gathered'])
                     if row.get('Campus') == 'Adelaide City' and row.get('Date') == '2025-10-05':
                         print(f"[DEBUG] Adelaide City 2025-10-05 - Raw row data: {row}")
-                        print(f"[DEBUG] Information Gathered value: {info_gathered_value}")
+                        print(f"[DEBUG] Cards Back value: {info_gathered_value}")
                         print(f"[DEBUG] Row keys: {list(row.keys())}")
                     period_stats['information_gathered'] += info_gathered_value
                     
@@ -7276,7 +7276,7 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
                 total                        # H: Total
             ]
             
-            finance_sheet.append_row(new_row)
+            finance_sheet.append_row(new_row, value_input_option='USER_ENTERED', table_range='A1')
             logger.info(f"Created new tithe entry for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, Tx:{text})")
             return {'success': True, 'message': f'Created new entry for {campus_id}'}
             
@@ -8485,7 +8485,7 @@ def process_voice():
             date = sunday_date
             
             # Create row in exact column order matching full structure:
-            # A=Timestamp, B=Date, C=Campus, D=Total Attendance, E=First Time Visitors, F=Visitors, G=Information Gathered,
+            # A=Timestamp, B=Date, C=Campus, D=Total Attendance, E=First Time Visitors, F=Visitors, G=Cards Back,
             # H=First Time Christians, I=Rededications, J=Youth Attendance, K=Youth Salvations, L=Youth New People,
             # M=Kids Attendance, N=Kids Leaders, O=New Kids, P=New Kids Salvations, Q=Connect Groups, R=Dream Team, S=Tithe, T=Baptisms, U=Child Dedications
             row = [
@@ -8495,7 +8495,7 @@ def process_voice():
                 result.get("Total Attendance", ""),  # D - Total Attendance
                 result.get("First Time Visitors", ""),  # E - First Time Visitors
                 result.get("Visitors", ""),  # F - Visitors
-                result.get("Information Gathered", ""),  # G - Information Gathered
+                result.get("Cards Back", ""),  # G - Cards Back
                 result.get("First Time Christians", ""),  # H - First Time Christians
                 result.get("Rededications", ""),  # I - Rededications
                 result.get("Youth Attendance", ""),  # J - Youth Attendance
@@ -8511,7 +8511,7 @@ def process_voice():
                 result.get("Baptisms", ""),  # T - Baptisms
                 result.get("Child Dedications", "")  # U - Child Dedications
             ]
-            sheet.append_row(row)
+            sheet.append_row(row, value_input_option='USER_ENTERED', table_range='A1')
         except Exception as e:
             logger.error(f"Failed to log to Google Sheets: {e}")
 
@@ -9767,7 +9767,7 @@ def quick_input():
                 'New Kids Salvations': safe_value('New Kids Salvations'),
                 'First Time Visitors': safe_value('First Time Visitors'),
                 'Visitors': safe_value('Visitors'),
-                'Information Gathered': safe_value('Information Gathered'),
+                'Cards Back': safe_value('Cards Back'),
                 'First Time Christians': safe_value('First Time Christians'),
                 'Rededications': safe_value('Rededications'),
                 'Youth Attendance': safe_value('Youth Attendance'),
@@ -9793,8 +9793,9 @@ def quick_input():
                 value = row_data.get(header, '')
                 row_values.append(value)
             
-            # Append the row using the sheet's append_row method
-            sheet.append_row(row_values)
+            # Append the row using the sheet's append_row method with explicit parameters
+            # This ensures data starts at column A and appends to the next available row
+            sheet.append_row(row_values, value_input_option='USER_ENTERED', table_range='A1')
             
             # Generate response text
             total_stats = len([v for v in stats.values() if v and v != 0])
@@ -9924,7 +9925,7 @@ def get_sheets_headers():
                 'available_headers': headers,
                 'expected_headers': [
                     'Timestamp', 'Date', 'Campus', 'Total Attendance', 'First Time Visitors', 
-                    'Visitors', 'Information Gathered', 'First Time Christians', 'Rededications',
+                    'Visitors', 'Cards Back', 'First Time Christians', 'Rededications',
                     'Youth Attendance', 'Youth Salvations', 'Youth New People', 'Kids Attendance',
                     'Kids Leaders', 'New Kids', 'New Kids Salvations', 'Connect Groups', 
                     'Dream Team', 'Tithe', 'Baptisms', 'Child Dedications'
@@ -11090,7 +11091,7 @@ def generate_cross_campus_report(review_type: str, date_range: str) -> dict:
     stat_mappings = [
         ("total_attendance", "attendance", "Total Attendance"),
         ("total_first_time_visitors", "first_time_visitors", "First Time Visitors"),
-        ("total_information_gathered", "information_gathered", "Information Gathered"),
+        ("total_information_gathered", "information_gathered", "Cards Back"),
         ("total_new_christians", "new_christians", "New Christians"),
         ("total_rededications", "rededications", "Rededications"),
         ("total_youth_attendance", "youth_attendance", "Youth Attendance"),
@@ -11113,7 +11114,7 @@ def generate_cross_campus_report(review_type: str, date_range: str) -> dict:
         average = analysis_data.get("averages", {}).get(avg_key, 0)
         
         # Include all stats that have data or are important to show (including tithe)
-        if total > 0 or label in ["Total Attendance", "First Time Visitors", "New People", "New Christians", "Rededications", "Youth Attendance", "Youth Salvations", "Youth New People", "Kids Attendance", "Kids Leaders", "New Kids", "New Kids Salvations", "Connect Groups", "Dream Team", "Tithe", "Baptisms", "Child Dedications", "Information Gathered"]:
+        if total > 0 or label in ["Total Attendance", "First Time Visitors", "New People", "New Christians", "Rededications", "Youth Attendance", "Youth Salvations", "Youth New People", "Kids Attendance", "Kids Leaders", "New Kids", "New Kids Salvations", "Connect Groups", "Dream Team", "Tithe", "Baptisms", "Child Dedications", "Cards Back"]:
             comprehensive_stats[avg_key] = {
                 "total": total,
                 "average": round(average, 1),
@@ -11235,7 +11236,7 @@ def generate_weekend_report(campus: str, date_str: str = None) -> dict:
                 stats['kids_leaders'] += safe_int_stat(row.get('Kids Leaders', 0))
                 stats['new_kids'] += safe_int_stat(row.get('New Kids', 0))
                 stats['new_kids_salvations'] += safe_int_stat(row.get('New Kids Salvations', 0))
-                stats['information_gathered'] += safe_int_stat(row.get('Information Gathered', 0))
+                stats['information_gathered'] += safe_int_stat(row.get('Cards Back', 0))
                 
                 # Service breakdown
                 service_time = row.get('Date', 'Unknown')
