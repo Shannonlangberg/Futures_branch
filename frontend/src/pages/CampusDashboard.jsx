@@ -1905,39 +1905,20 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                       </div>
                       </div>
 
-                        {/* Key Metrics Comparison Bar Chart */}
+                        {/* Monthly Giving/Tithe Chart */}
                         <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-                          <h4 className="text-xl font-bold text-white mb-4">Average Per Service</h4>
+                          <h4 className="text-xl font-bold text-white mb-4">Monthly Giving</h4>
                           <div className="h-64">
                             <Bar
                               data={{
-                                labels: ['Attendance', 'New People', 'Salvations', 'Youth', 'Kids', 'Leaders'],
+                                labels: aiReportData?.chart_data?.labels || ['Current Period'],
                                 datasets: [{
-                                  label: 'Average',
-                                  data: [
-                                    Math.round(aiReportData?.stats?.avg_attendance || 0),
-                                    Math.round(aiReportData?.stats?.avg_new_people || 0),
-                                    Math.round(aiReportData?.stats?.avg_first_time_christians || 0),
-                                    Math.round(aiReportData?.stats?.avg_youth_attendance || 0),
-                                    Math.round(aiReportData?.stats?.avg_kids_attendance || 0),
-                                    Math.round(aiReportData?.stats?.avg_kids_leaders || 0)
-                                  ],
-                                  backgroundColor: [
-                                    'rgba(59, 130, 246, 0.8)',
-                                    'rgba(251, 146, 60, 0.8)',
-                                    'rgba(239, 68, 68, 0.8)',
-                                    'rgba(139, 92, 246, 0.8)',
-                                    'rgba(236, 72, 153, 0.8)',
-                                    'rgba(34, 197, 94, 0.8)'
-                                  ],
-                                  borderColor: [
-                                    'rgba(59, 130, 246, 1)',
-                                    'rgba(251, 146, 60, 1)',
-                                    'rgba(239, 68, 68, 1)',
-                                    'rgba(139, 92, 246, 1)',
-                                    'rgba(236, 72, 153, 1)',
-                                    'rgba(34, 197, 94, 1)'
-                                  ],
+                                  label: 'Giving ($)',
+                                  data: aiReportData?.chart_data?.tithe_ytd?.length > 0 
+                                    ? aiReportData.chart_data.tithe_ytd 
+                                    : [aiReportData?.stats?.tithe || 0],
+                                  backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                                  borderColor: 'rgba(34, 197, 94, 1)',
                                   borderWidth: 2
                                 }]
                               }}
@@ -1945,7 +1926,21 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 plugins: {
-                                  legend: { display: false }
+                                  legend: { display: false },
+                                  tooltip: {
+                                    callbacks: {
+                                      label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                          label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                          label += '$' + context.parsed.y.toLocaleString();
+                                        }
+                                        return label;
+                                      }
+                                    }
+                                  }
                                 },
                                 scales: {
                                   x: {
@@ -1953,7 +1948,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                                     grid: { color: 'rgba(255, 255, 255, 0.1)' }
                                   },
                                   y: {
-                                    ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                    ticks: { 
+                                      color: 'rgba(255, 255, 255, 0.6)',
+                                      callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                      }
+                                    },
                                     grid: { color: 'rgba(255, 255, 255, 0.1)' }
                                   }
                                 }
