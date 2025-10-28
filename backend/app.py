@@ -4764,7 +4764,12 @@ def calculate_stats_from_filtered_rows(filtered_rows: List[dict]) -> dict:
 
 def calculate_service_breakdown(filtered_rows: List[dict], campus: str) -> dict:
     """Calculate attendance breakdown by service times for a campus using actual Google Sheets columns"""
+    print(f"\n[DEBUG SERVICE BREAKDOWN] ========== Starting for campus: {campus} ==========")
+    print(f"[DEBUG SERVICE BREAKDOWN] Processing {len(filtered_rows)} rows")
+    for idx, row in enumerate(filtered_rows[:5]):  # Show first 5 rows
+        print(f"[DEBUG ROW {idx+1}] Date: {row.get('Date')}, Campus: {row.get('Campus')}, 9AM: {row.get('9:00 AM')}, 11AM: {row.get('11:00 AM')}, 5PM: {row.get('5:00 PM')}")
     service_times = get_campus_service_times(campus)
+    print(f"[DEBUG SERVICE BREAKDOWN] Service times for {campus}: {service_times}")
     service_breakdown = {}
     kids_service_breakdown = {}
     
@@ -4902,6 +4907,11 @@ def calculate_service_breakdown(filtered_rows: List[dict], campus: str) -> dict:
             kids_service_breakdown[service_time]['average'] = round(
                 kids_service_breakdown[service_time]['total'] / kids_service_breakdown[service_time]['count'], 1
             )
+    
+    print(f"[DEBUG SERVICE BREAKDOWN] Final results for {campus}:")
+    for service_time, data in service_breakdown.items():
+        print(f"  {service_time}: total={data['total']}, count={data['count']}, avg={data['average']}")
+    print(f"[DEBUG SERVICE BREAKDOWN] ========== End for campus: {campus} ==========\n")
     
     return {
         'adult': service_breakdown,
