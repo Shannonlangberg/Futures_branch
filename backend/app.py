@@ -4766,8 +4766,8 @@ def calculate_service_breakdown(filtered_rows: List[dict], campus: str) -> dict:
     """Calculate attendance breakdown by service times for a campus using actual Google Sheets columns"""
     print(f"\n[DEBUG SERVICE BREAKDOWN] ========== Starting for campus: {campus} ==========")
     print(f"[DEBUG SERVICE BREAKDOWN] Processing {len(filtered_rows)} rows")
-    for idx, row in enumerate(filtered_rows[:5]):  # Show first 5 rows
-        print(f"[DEBUG ROW {idx+1}] Date: {row.get('Date')}, Campus: {row.get('Campus')}, 9AM: {row.get('9:00 AM')}, 11AM: {row.get('11:00 AM')}, 5PM: {row.get('5:00 PM')}")
+    for idx, row in enumerate(filtered_rows):  # Show ALL rows now
+        print(f"[DEBUG ROW {idx+1}] Date: {row.get('Date')}, Campus: {row.get('Campus')}, 9AM: {row.get('9:00 AM')}, 10AM: {row.get('10:00 AM')}, 11AM: {row.get('11:00 AM')}, 5PM: {row.get('5:00 PM')}, 5:30PM: {row.get('5:30 PM')}")
     service_times = get_campus_service_times(campus)
     print(f"[DEBUG SERVICE BREAKDOWN] Service times for {campus}: {service_times}")
     service_breakdown = {}
