@@ -205,24 +205,29 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   // NEW PEOPLE / SALVATIONS: ALWAYS show TOTALS - regardless of date filter
   // This ensures consistent reporting across all date ranges
   
+  // Get service breakdown from the data FIRST (needed for Sunday attendance calculation)
+  const serviceBreakdown = data.service_breakdown || {};
+  const services = Object.keys(serviceBreakdown).map(service => ({
+    name: service,
+    attendance: serviceBreakdown[service]?.average || 0,
+    count: serviceBreakdown[service]?.count || 0,
+    total: serviceBreakdown[service]?.total || 0
+  }));
+  
+  // Calculate Sunday attendance from service breakdown totals (more accurate)
+  // This ensures the number matches the sum of service breakdown items
+  const sundayAttendanceFromServices = services.reduce((sum, service) => {
+    return sum + (service.total || (service.attendance * service.count));
+  }, 0);
+  
   // Calculate percentages and metrics
   const totalPeople = data.stats?.total_people || 0;
-  const sundayAttendance = Math.round(data.stats?.avg_attendance || 0); // ALWAYS average
+  const sundayAttendance = Math.round(sundayAttendanceFromServices || data.stats?.avg_attendance || 0);
   const youthAttendance = Math.round(data.stats?.avg_youth_attendance || 0); // ALWAYS average
   const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // ALWAYS average
   const totalAttendance = sundayAttendance + youthAttendance; // Weekend = Sunday + Youth
   const attendancePercentage = totalPeople > 0 ? Math.round((totalAttendance / totalPeople) * 100) : 0;
   const connectGroupPercentage = sundayAttendance > 0 ? Math.round((data.stats?.avg_connect_groups || 0) / sundayAttendance * 100) : 0;
-  
-  // Get service breakdown from the data
-  const serviceBreakdown = data.service_breakdown || {};
-  console.log('🔍 Service breakdown from API:', serviceBreakdown);
-  const services = Object.keys(serviceBreakdown).map(service => ({
-    name: service,
-    attendance: serviceBreakdown[service]?.average || 0,
-    count: serviceBreakdown[service]?.count || 0
-  }));
-  console.log('🔍 Processed services array:', services);
 
   return (
     <div key={`campus-dashboard-${campusId}-${lastRefresh.getTime()}`} className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -1798,10 +1803,10 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                             <h4 className="text-white/80 text-sm font-medium">Total Attendance</h4>
                           </div>
                           <div className="text-3xl font-bold text-white mb-1">
-                            {(aiReportData?.stats?.total_attendance || 0).toLocaleString()}
+                            {Math.round(aiReportData?.stats?.avg_attendance || 0).toLocaleString()}
                           </div>
                           <p className="text-blue-200/60 text-sm">
-                            Avg: {Math.round(aiReportData?.stats?.avg_attendance || 0)} per service
+                            {Math.round(aiReportData?.stats?.avg_attendance || 0)} avg per service
                           </p>
                         </div>
 
@@ -1963,7 +1968,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
                           <div className="text-sm text-white/60 mb-2">Youth Ministry</div>
                           <div className="text-2xl font-bold text-purple-400">
-                            {(aiReportData?.stats?.youth_attendance || 0).toLocaleString()}
+                            {Math.round(aiReportData?.stats?.avg_youth_attendance || 0).toLocaleString()}
                           </div>
                           <div className="text-sm text-white/60 mt-1">
                             {Math.round(aiReportData?.stats?.avg_youth_attendance || 0)} avg per service
@@ -1973,7 +1978,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
                           <div className="text-sm text-white/60 mb-2">Kids Ministry</div>
                           <div className="text-2xl font-bold text-pink-400">
-                            {(aiReportData?.stats?.kids_attendance || 0).toLocaleString()}
+                            {Math.round(aiReportData?.stats?.avg_kids_attendance || 0).toLocaleString()}
                           </div>
                           <div className="text-sm text-white/60 mt-1">
                             {Math.round(aiReportData?.stats?.avg_kids_attendance || 0)} avg per service

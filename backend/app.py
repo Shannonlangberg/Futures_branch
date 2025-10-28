@@ -5973,8 +5973,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         num_weeks = max(1, date_range_days / 7)  # At least 1 week
         
         if period_stats['entry_count'] > 0:
-            # Main metrics - average per WEEK for attendance
-            period_stats['avg_attendance'] = period_stats['total_attendance'] / num_weeks
+            # Main metrics - average per SERVICE for attendance (for monthly/period reports)
+            period_stats['avg_attendance'] = period_stats['total_attendance'] / period_stats['entry_count']
             period_stats['avg_total_people'] = period_stats['total_people']  # This is a single value per campus, not averaged
             
             # New people breakdown - use entry_count (these are totals, not averages)
@@ -5988,23 +5988,23 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             period_stats['avg_rededications'] = period_stats['rededications'] / period_stats['entry_count']
             period_stats['avg_new_christians'] = period_stats['new_christians'] / period_stats['entry_count']
             
-            # Youth breakdown - average per WEEK for attendance
-            period_stats['avg_youth_attendance'] = period_stats['youth_attendance'] / num_weeks
+            # Youth breakdown - average per SERVICE for attendance
+            period_stats['avg_youth_attendance'] = period_stats['youth_attendance'] / period_stats['entry_count']
             period_stats['avg_youth_salvations'] = period_stats['youth_salvations'] / period_stats['entry_count']
             period_stats['avg_youth_new_people'] = period_stats['youth_new_people'] / period_stats['entry_count']
             
-            # Kids breakdown - average per WEEK for attendance
-            period_stats['avg_kids_attendance'] = period_stats['kids_attendance'] / num_weeks
-            period_stats['avg_kids_leaders'] = period_stats['kids_leaders'] / num_weeks
+            # Kids breakdown - average per SERVICE for attendance
+            period_stats['avg_kids_attendance'] = period_stats['kids_attendance'] / period_stats['entry_count']
+            period_stats['avg_kids_leaders'] = period_stats['kids_leaders'] / period_stats['entry_count']
             period_stats['avg_new_kids'] = period_stats['new_kids'] / period_stats['entry_count']
             period_stats['avg_new_kids_salvations'] = period_stats['new_kids_salvations'] / period_stats['entry_count']
             
-            # Ministry metrics - average per WEEK
-            period_stats['avg_connect_groups'] = period_stats['connect_groups'] / num_weeks
-            period_stats['avg_dream_team'] = period_stats['dream_team'] / num_weeks
+            # Ministry metrics - average per SERVICE
+            period_stats['avg_connect_groups'] = period_stats['connect_groups'] / period_stats['entry_count']
+            period_stats['avg_dream_team'] = period_stats['dream_team'] / period_stats['entry_count']
             
-            # Financial data - average per WEEK
-            period_stats['avg_tithe'] = period_stats['tithe'] / num_weeks
+            # Financial data - average per SERVICE
+            period_stats['avg_tithe'] = period_stats['tithe'] / period_stats['entry_count']
             
             # Special events - use entry_count
             period_stats['avg_baptisms'] = period_stats['baptisms'] / period_stats['entry_count']
@@ -6013,8 +6013,8 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     # Service time averages removed
             
             # Backward compatibility
-            period_stats['avg_kids_total'] = period_stats['kids_total'] / num_weeks
-            period_stats['avg_volunteers'] = period_stats['volunteers'] / num_weeks
+            period_stats['avg_kids_total'] = period_stats['kids_total'] / period_stats['entry_count']
+            period_stats['avg_volunteers'] = period_stats['volunteers'] / period_stats['entry_count']
         else:
             # Zero out all averages if no entries
             period_stats['avg_attendance'] = 0
