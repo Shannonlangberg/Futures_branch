@@ -9930,7 +9930,17 @@ def quick_input_update():
             
             # Update the specific row
             # Column range: A to the last column based on headers
-            last_col_letter = chr(64 + len(headers))  # A=65, so 64+1=A, 64+2=B, etc.
+            # Convert column number to letter (handles AA, AB, etc.)
+            def col_num_to_letter(n):
+                """Convert column number to Excel-style letter (1=A, 27=AA, etc.)"""
+                result = ""
+                while n > 0:
+                    n -= 1
+                    result = chr(65 + (n % 26)) + result
+                    n //= 26
+                return result
+            
+            last_col_letter = col_num_to_letter(len(headers))
             range_notation = f'A{row_index}:{last_col_letter}{row_index}'
             
             sheet.update(range_notation, [row_values], value_input_option='USER_ENTERED')
