@@ -9867,23 +9867,42 @@ def quick_input_update():
                 
                 # Find the row index (add 2 because: 1 for header, 1 for 1-indexed)
                 search_campus_norm = normalize_campus(original_campus)
-                logger.info(f"[Attempt {attempt + 1}] Searching for: campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
+                search_campus_variants = [
+                    original_campus,
+                    original_campus.lower(),
+                    original_campus.replace('_', ' '),
+                    original_campus.replace('_', ' ').title(),
+                    search_campus_norm
+                ]
+                logger.info(f"[Attempt {attempt + 1}] Searching for date='{original_date}', campus variants: {search_campus_variants}")
                 
+                # First, try to find the most recent entry with matching date (more forgiving)
+                matching_date_entries = []
                 for idx, record in enumerate(all_records):
+                    record_date = str(record.get('Date', ''))
+                    if record_date == original_date:
+                        matching_date_entries.append((idx, record))
+                
+                logger.info(f"Found {len(matching_date_entries)} entries with date {original_date}")
+                
+                for idx, record in matching_date_entries:
                     record_campus_raw = str(record.get('Campus', ''))
                     record_campus = normalize_campus(record_campus_raw)
-                    record_date = str(record.get('Date', ''))
                     
-                    # Match if dates match AND campus names match (very flexible matching)
-                    campus_match = (
-                        search_campus_norm in record_campus or 
-                        record_campus in search_campus_norm or 
-                        search_campus_norm == record_campus or
-                        # Also try case-insensitive exact match on raw names
-                        original_campus.lower() == record_campus_raw.lower()
-                    )
+                    # Very flexible campus matching - try multiple variants
+                    campus_match = False
+                    for variant in search_campus_variants:
+                        variant_norm = normalize_campus(variant)
+                        if (variant_norm in record_campus or 
+                            record_campus in variant_norm or 
+                            variant_norm == record_campus or
+                            variant.lower() == record_campus_raw.lower() or
+                            variant.lower().replace('_', ' ') == record_campus_raw.lower().replace('_', ' ')):
+                            campus_match = True
+                            logger.info(f"Matched using variant '{variant}' against '{record_campus_raw}'")
+                            break
                     
-                    if record_date == original_date and campus_match:
+                    if campus_match:
                         row_index = idx + 2  # +1 for header, +1 for 1-indexed
                         logger.info(f"✓ Found row to update at index {row_index}: '{record_campus_raw}' on {record_date}")
                         break
