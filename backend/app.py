@@ -9862,12 +9862,21 @@ def quick_input_update():
                 record_date = str(record.get('Date', ''))
                 search_campus = normalize_campus(original_campus)
                 
-                if record_date == original_date and search_campus in record_campus:
+                # Match if dates match AND campus names match (either direction, for flexibility)
+                campus_match = (
+                    search_campus in record_campus or 
+                    record_campus in search_campus or 
+                    search_campus == record_campus
+                )
+                
+                if record_date == original_date and campus_match:
                     row_index = idx + 2  # +1 for header, +1 for 1-indexed
                     logger.info(f"Found row to update at index {row_index}: {record_campus} on {record_date}")
                     break
             
             if not row_index:
+                logger.error(f"Entry not found. Looking for: campus='{original_campus}' (normalized: '{normalize_campus(original_campus)}'), date='{original_date}'")
+                logger.error(f"Available entries: {[(r.get('Campus'), r.get('Date')) for r in all_records[-5:]]}")
                 return jsonify({"error": f"Entry not found for {original_campus} on {original_date}"}), 404
             
             # Prepare the row data
