@@ -9848,36 +9848,59 @@ def quick_input_update():
             if not sheet:
                 return jsonify({"error": "Google Sheets not connected"}), 500
             
-            # Get all records to find the row to update
-            all_records = safe_sheets_request(sheet.get_all_records)
-            if not all_records:
-                return jsonify({"error": "No data available"}), 404
-            
-            headers = list(all_records[0].keys()) if all_records else []
-            
-            # Find the row index (add 2 because: 1 for header, 1 for 1-indexed)
+            # Try multiple times to find the entry (in case of API caching)
             row_index = None
-            for idx, record in enumerate(all_records):
-                record_campus = normalize_campus(str(record.get('Campus', '')))
-                record_date = str(record.get('Date', ''))
-                search_campus = normalize_campus(original_campus)
+            headers = []
+            all_records = []
+            
+            for attempt in range(3):  # Try up to 3 times
+                # Get all records to find the row to update
+                all_records = safe_sheets_request(sheet.get_all_records)
+                if not all_records:
+                    if attempt < 2:
+                        import time
+                        time.sleep(1)  # Wait 1 second before retrying
+                        continue
+                    return jsonify({"error": "No data available"}), 404
                 
-                # Match if dates match AND campus names match (either direction, for flexibility)
-                campus_match = (
-                    search_campus in record_campus or 
-                    record_campus in search_campus or 
-                    search_campus == record_campus
-                )
+                headers = list(all_records[0].keys()) if all_records else []
                 
-                if record_date == original_date and campus_match:
-                    row_index = idx + 2  # +1 for header, +1 for 1-indexed
-                    logger.info(f"Found row to update at index {row_index}: {record_campus} on {record_date}")
-                    break
+                # Find the row index (add 2 because: 1 for header, 1 for 1-indexed)
+                search_campus_norm = normalize_campus(original_campus)
+                logger.info(f"[Attempt {attempt + 1}] Searching for: campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
+                
+                for idx, record in enumerate(all_records):
+                    record_campus_raw = str(record.get('Campus', ''))
+                    record_campus = normalize_campus(record_campus_raw)
+                    record_date = str(record.get('Date', ''))
+                    
+                    # Match if dates match AND campus names match (very flexible matching)
+                    campus_match = (
+                        search_campus_norm in record_campus or 
+                        record_campus in search_campus_norm or 
+                        search_campus_norm == record_campus or
+                        # Also try case-insensitive exact match on raw names
+                        original_campus.lower() == record_campus_raw.lower()
+                    )
+                    
+                    if record_date == original_date and campus_match:
+                        row_index = idx + 2  # +1 for header, +1 for 1-indexed
+                        logger.info(f"✓ Found row to update at index {row_index}: '{record_campus_raw}' on {record_date}")
+                        break
+                
+                if row_index:
+                    break  # Found it!
+                    
+                # Not found, wait and retry
+                if attempt < 2:
+                    logger.warning(f"Entry not found on attempt {attempt + 1}, retrying...")
+                    import time
+                    time.sleep(1)
             
             if not row_index:
-                logger.error(f"Entry not found. Looking for: campus='{original_campus}' (normalized: '{normalize_campus(original_campus)}'), date='{original_date}'")
-                logger.error(f"Available entries: {[(r.get('Campus'), r.get('Date')) for r in all_records[-5:]]}")
-                return jsonify({"error": f"Entry not found for {original_campus} on {original_date}"}), 404
+                logger.error(f"Entry not found after 3 attempts. Looking for: campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
+                logger.error(f"Last 10 entries: {[(r.get('Campus'), r.get('Date')) for r in all_records[-10:]]}")
+                return jsonify({"error": f"Entry not found for {original_campus} on {original_date}. The entry may not be synced yet - please wait a few seconds and try again."}), 404
             
             # Prepare the row data
             def safe_value(key, default=0):
