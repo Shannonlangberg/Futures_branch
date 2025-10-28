@@ -140,5 +140,14 @@
       "ip_address": "127.0.0.1",
       "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
     }
+  ],
+  "5": [
+    {
+      "timestamp": "2025-10-28T10:45:57.414333",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+    }
   ]
 }

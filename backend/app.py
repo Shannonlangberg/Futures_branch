@@ -5720,6 +5720,11 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     # Main attendance
                     period_stats['total_attendance'] += attendance
                     
+                    # Debug logging for attendance calculation
+                    if campus != 'all_campuses':
+                        print(f"[DEBUG ATTENDANCE] Campus: {campus}, Date: {row.get('Date')}, Calculated attendance: {attendance}, Running total: {period_stats['total_attendance']}")
+                        print(f"[DEBUG ATTENDANCE] Service times - 9AM: {row.get('9:00 AM')}, 11AM: {row.get('11:00 AM')}")
+                    
                     # Campus database size
                     total_people = get_stat_value(row, ['Total People in Campus', 'total_people_in_campus'])
                     period_stats['total_people'] = max(period_stats['total_people'], total_people)  # Use max value (most recent)
