@@ -10272,6 +10272,7 @@ def quick_input_update():
                     row_index = most_recent_idx + 2
                     
                     logger.warning(f"Using fallback: most recent entry at index {row_index} for campus '{most_recent_entry.get('Campus')}' on {original_date}")
+                    logger.warning(f"This will UPDATE the existing entry instead of creating a new one")
                 else:
                     # No entries on this date at all
                     logger.error(f"No entries found on {original_date} at all. Recent entries:")
