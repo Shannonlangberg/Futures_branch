@@ -9972,10 +9972,18 @@ def get_recent_entries():
                             if total_attendance == 0:
                                 total_attendance = safe_int(record.get('Total Attendance', 0))
                             
+                            # Calculate Kids Attendance from kids service times
+                            kids_service_times = ['Kids 9:00 AM', 'Kids 10:00 AM', 'Kids 11:00 AM', 'Kids 5:00 PM', 'Kids 5:30 PM']
+                            kids_attendance = sum(safe_int(record.get(service, 0)) for service in kids_service_times)
+                            
+                            # If no kids service time data, try the stored Kids Attendance field
+                            if kids_attendance == 0:
+                                kids_attendance = safe_int(record.get('Kids Attendance', 0))
+                            
                             # Ensure we have the required stats fields
                             stats = {
                                 'Total Attendance': total_attendance,
-                                'Kids Attendance': safe_int(record.get('Kids Attendance', 0)),
+                                'Kids Attendance': kids_attendance,
                                 'Youth Attendance': safe_int(record.get('Youth Attendance', 0)),
                                 'New People': new_people,
                                 'New Christians': new_christians,
