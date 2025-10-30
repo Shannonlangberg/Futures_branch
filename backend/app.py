@@ -10170,7 +10170,6 @@ def quick_input_update():
                 all_records = safe_sheets_request(sheet.get_all_records)
                 if not all_records:
                     if attempt < 2:
-                        import time
                         time.sleep(2)  # Wait 2 seconds before retrying (increased from 1)
                         continue
                     return jsonify({"error": "No data available"}), 404
@@ -10238,10 +10237,9 @@ def quick_input_update():
                 if attempt < 2:
                     wait_time = 2 if attempt == 0 else 3  # 2 seconds first retry, 3 seconds second retry
                     logger.warning(f"Entry not found on attempt {attempt + 1}, waiting {wait_time}s before retry...")
-                    import time
                     time.sleep(wait_time)
             
-                if not row_index:
+            if not row_index:
                 # Entry not found - try one more fallback: use the most recent entry on this date
                 logger.warning(f"Exact campus match not found. Trying fallback: most recent entry on {original_date}")
                 
