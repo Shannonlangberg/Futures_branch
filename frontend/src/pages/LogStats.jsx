@@ -163,7 +163,7 @@ const LogStats = () => {
     setQuickInputDate(entry.date);
     setIsEditMode(true);
     setEditingEntry({
-      originalCampus: entry.campus,
+      originalCampus: entry.stats.Campus || entry.campus, // Use original campus name from stats data
       originalDate: entry.date
     });
     setShowQuickInput(true);

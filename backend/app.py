@@ -10200,9 +10200,15 @@ def quick_input_update():
                 
                 logger.info(f"Found {len(matching_date_entries)} entries with date {original_date}")
                 
+                # Log all entries on this date for debugging
+                for idx, record in matching_date_entries:
+                    logger.info(f"  Entry {idx}: Campus='{record.get('Campus')}', Total='{record.get('Total Attendance')}', 9AM='{record.get('9:00 AM')}'")
+                
                 for idx, record in matching_date_entries:
                     record_campus_raw = str(record.get('Campus', ''))
                     record_campus = normalize_campus(record_campus_raw)
+                    
+                    logger.info(f"Trying to match '{original_campus}' (normalized: '{search_campus_norm}') against '{record_campus_raw}' (normalized: '{record_campus}')")
                     
                     # Very flexible campus matching - try multiple variants
                     campus_match = False
@@ -10222,8 +10228,10 @@ def quick_input_update():
                             any(word in record_lower.split() for word in variant_lower.split() if len(word) > 2) or
                             any(word in variant_lower.split() for word in record_lower.split() if len(word) > 2)):
                             campus_match = True
-                            logger.info(f"Matched using variant '{variant}' against '{record_campus_raw}' (normalized: '{record_campus}')")
+                            logger.info(f"✓ MATCHED using variant '{variant}' against '{record_campus_raw}' (normalized: '{record_campus}')")
                             break
+                        else:
+                            logger.debug(f"  No match: variant '{variant}' (norm: '{variant_norm}') vs record '{record_campus_raw}' (norm: '{record_campus}')")
                     
                     if campus_match:
                         row_index = idx + 2  # +1 for header, +1 for 1-indexed
