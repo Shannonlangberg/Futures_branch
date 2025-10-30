@@ -9953,13 +9953,22 @@ def get_recent_entries():
                                 continue
                         
                         if record_date and start_date <= record_date <= end_date:
+                            # Calculate New People and New Christians from the actual field names
+                            first_time_visitors = safe_int(record.get('First Time Visitors', 0))
+                            visitors = safe_int(record.get('Visitors', 0))
+                            new_people = first_time_visitors + visitors
+                            
+                            first_time_christians = safe_int(record.get('First Time Christians', 0))
+                            rededications = safe_int(record.get('Rededications', 0))
+                            new_christians = first_time_christians + rededications
+                            
                             # Ensure we have the required stats fields
                             stats = {
                                 'Total Attendance': safe_int(record.get('Total Attendance', 0)),
                                 'Kids Attendance': safe_int(record.get('Kids Attendance', 0)),
                                 'Youth Attendance': safe_int(record.get('Youth Attendance', 0)),
-                                'New People': safe_int(record.get('New People', 0)),
-                                'New Christians': safe_int(record.get('New Christians', 0)),
+                                'New People': new_people,
+                                'New Christians': new_christians,
                                 # Include all other fields from the record
                                 **record
                             }
