@@ -512,6 +512,21 @@ def get_cached_sheets_data(cache_key):
             return cache_entry['data']
     return None
 
+def clear_sheets_cache(worksheet_title=None):
+    """Clear cache for a specific worksheet or all worksheets"""
+    global sheets_cache
+    if worksheet_title:
+        # Clear cache for specific worksheet
+        cache_key_pattern = f"{worksheet_title}_"
+        keys_to_remove = [key for key in sheets_cache.keys() if key.startswith(cache_key_pattern)]
+        for key in keys_to_remove:
+            del sheets_cache[key]
+        print(f"[CACHE] Cleared cache for '{worksheet_title}' worksheet")
+    else:
+        # Clear all cache
+        sheets_cache = {}
+        print(f"[CACHE] Cleared all cache")
+
 def safe_sheets_request(func, *args, force_refresh=False, **kwargs):
     """Make a request to Google Sheets with rate limiting and caching"""
     global last_sheets_call
@@ -9954,6 +9969,9 @@ def quick_input():
             # This ensures data starts at column A and appends to the next available row
             sheet.append_row(row_values, value_input_option='USER_ENTERED', table_range='A1')
             
+            # Clear cache so new entry shows up immediately
+            clear_sheets_cache('Stats')
+            
             # Generate response text
             total_stats = len([v for v in stats.values() if v and v != 0])
             response_text = f"Successfully input {total_stats} stats for {campus} campus on {date_str}!"
@@ -10174,6 +10192,9 @@ def quick_input_update():
             range_notation = f'A{row_index}:{last_col_letter}{row_index}'
             
             sheet.update(range_notation, [row_values], value_input_option='USER_ENTERED')
+            
+            # Clear cache so updated entry shows up immediately
+            clear_sheets_cache('Stats')
             logger.info(f"Updated row {row_index} for {campus} on {date_str}")
             
             total_stats = len([v for v in stats.values() if v and v != 0])
