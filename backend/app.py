@@ -7677,25 +7677,49 @@ def get_all_users():
         if not current_user.has_permission('manage_users'):
             return jsonify({"error": "Access denied"}), 403
         
-        users_data = load_users()
-        users_list = []
+        # Get users from database instead of JSON file
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, email, full_name, role, campus, active, created_at, last_login
+            FROM users
+            ORDER BY full_name
+        ''')
         
-        for user_id, user_data in users_data['users'].items():
-            # Remove sensitive information
+        users_list = []
+        users_data = load_users()  # Still need this for role names
+        
+        for row in cursor.fetchall():
+            user_id, username, email, full_name, role, campus, active, created_at, last_login = row
+            
+            # Format last login for display
+            last_login_display = "Never"
+            if last_login:
+                try:
+                    # Convert to readable format
+                    if isinstance(last_login, str):
+                        last_login_dt = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
+                    else:
+                        last_login_dt = last_login
+                    last_login_display = last_login_dt.strftime('%Y-%m-%d %H:%M')
+                except:
+                    last_login_display = "Unknown"
+            
             user_info = {
-                'id': user_data.get('id'),
-                'username': user_data.get('username'),
-                'email': user_data.get('email'),
-                'full_name': user_data.get('full_name'),
-                'role': user_data.get('role'),
-                'campus': user_data.get('campus'),
-                'active': user_data.get('active'),
-                'created_date': user_data.get('created_date'),
-                'last_login': user_data.get('last_login'),
-                'role_name': users_data['roles'].get(user_data.get('role', ''), {}).get('name', 'Unknown')
+                'id': str(user_id),
+                'username': username,
+                'email': email or 'N/A',
+                'full_name': full_name or username,
+                'role': role,
+                'campus': campus or '',
+                'active': bool(active),
+                'created_date': created_at.strftime('%Y-%m-%d') if created_at else 'Unknown',
+                'last_login': last_login_display,
+                'role_name': users_data['roles'].get(role, {}).get('name', 'Unknown')
             }
             users_list.append(user_info)
         
+        conn.close()
         return jsonify({'users': users_list}), 200
         
     except Exception as e:
@@ -7718,21 +7742,70 @@ def manage_user(user_id):
         if request.method == 'PUT':
             # Update user
             data = request.get_json()
-            user_data = users_data['users'][user_id]
             
-            # Update allowed fields
+            # Update database
+            conn = get_db()
+            cursor = conn.cursor()
+            
+            # Build update query dynamically
+            update_fields = []
+            update_values = []
+            
             if 'active' in data:
-                user_data['active'] = data['active']
+                update_fields.append('active = ?')
+                update_values.append(data['active'])
             if 'role' in data:
-                user_data['role'] = data['role']
+                update_fields.append('role = ?')
+                update_values.append(data['role'])
             if 'campus' in data:
-                user_data['campus'] = data['campus']
+                update_fields.append('campus = ?')
+                update_values.append(data['campus'])
+                
+                # Auto-assign role based on campus
+                if data['campus'] and data['campus'] != 'all_campuses':
+                    # If assigned to specific campus, make them campus_pastor
+                    if 'role' not in data or data.get('role') == 'admin':
+                        update_fields.append('role = ?')
+                        update_values.append('campus_pastor')
+                elif data['campus'] == 'all_campuses':
+                    # If assigned to all campuses, make them senior_leader (unless they're admin)
+                    if 'role' not in data or data.get('role') == 'campus_pastor':
+                        update_fields.append('role = ?')
+                        update_values.append('senior_leader')
             if 'email' in data:
-                user_data['email'] = data['email']
+                update_fields.append('email = ?')
+                update_values.append(data['email'])
             if 'full_name' in data:
-                user_data['full_name'] = data['full_name']
+                update_fields.append('full_name = ?')
+                update_values.append(data['full_name'])
             
-            save_users(users_data)
+            if update_fields:
+                update_values.append(user_id)
+                cursor.execute(f'''
+                    UPDATE users 
+                    SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', update_values)
+                conn.commit()
+            
+            conn.close()
+            
+            # Also update JSON file for backward compatibility
+            if user_id in users_data['users']:
+                user_data = users_data['users'][user_id]
+                if 'active' in data:
+                    user_data['active'] = data['active']
+                if 'role' in data:
+                    user_data['role'] = data['role']
+                if 'campus' in data:
+                    user_data['campus'] = data['campus']
+                if 'email' in data:
+                    user_data['email'] = data['email']
+                if 'full_name' in data:
+                    user_data['full_name'] = data['full_name']
+                
+                save_users(users_data)
+            
             log_security_event(current_user.id, 'user_updated', f'Updated user {user_id}')
             
             return jsonify({"message": "User updated successfully"}), 200
