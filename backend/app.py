@@ -9983,9 +9983,10 @@ def get_recent_entries():
                             
                             entries.append({
                                 'date': record_date_str,
-                                'campus': record_campus_str,  # Always show actual campus name
+                                'campus': record_campus_str,  # Always show actual campus name from data
                                 'stats': stats
                             })
+                            print(f"[RECENT_ENTRIES] Added entry: {record_date_str} for campus '{record_campus_str}'")
                             logger.debug(f"[RECENT_ENTRIES] Added entry: {record_date_str} for {record_campus_str}")
                     except Exception as e:
                         logger.debug(f"[RECENT_ENTRIES] Error parsing date '{record_date_str}': {e}")
