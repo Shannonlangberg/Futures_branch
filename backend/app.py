@@ -9918,6 +9918,8 @@ def get_recent_entries():
                 # Handle "all_campuses" - show entries from all campuses
                 show_all_campuses = campus.lower() in ['all_campuses', 'all', 'australia']
                 
+                print(f"[RECENT_ENTRIES] Requested campus: '{campus}', show_all_campuses: {show_all_campuses}")
+                
                 if not show_all_campuses:
                     campus_normalized = normalize_campus(campus)
                     logger.info(f"[RECENT_ENTRIES] Processing {len(all_records)} total records, filtering by campus: '{campus_normalized}'")
