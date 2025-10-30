@@ -39,6 +39,8 @@ const LogStats = () => {
   });
   const [isSubmittingQuickInput, setIsSubmittingQuickInput] = useState(false);
   const [sessionStats, setSessionStats] = useState([]);
+  const [recentEntries, setRecentEntries] = useState([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
 
   // Calculate total attendance from service times
   const calculateTotalAttendance = () => {
@@ -87,6 +89,81 @@ const LogStats = () => {
     const day = String(today.getDate()).padStart(2, '0');
     setQuickInputDate(`${year}-${month}-${day}`);
   }, []);
+
+  // Load recent entries when campus changes
+  useEffect(() => {
+    if (selectedCampus) {
+      loadRecentEntries();
+    }
+  }, [selectedCampus]);
+
+  const loadRecentEntries = async () => {
+    if (!selectedCampus) return;
+    
+    setLoadingRecent(true);
+    try {
+      const response = await fetch(`/api/recent_entries?campus=${selectedCampus}`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (data.entries) {
+        setRecentEntries(data.entries);
+      }
+    } catch (err) {
+      console.error('Error loading recent entries:', err);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  const handleEditFromRecent = (entry) => {
+    // Map backend field names to frontend field names
+    const fieldMapping = {
+      'Total People in Campus': 'Total People in Campus',
+      '9:00 AM': '9:00 AM',
+      '10:00 AM': '10:00 AM',
+      '11:00 AM': '11:00 AM',
+      '5:00 PM': '5:00 PM',
+      '5:30 PM': '5:30 PM',
+      'Kids 9:00 AM': 'Kids 9:00 AM',
+      'Kids 10:00 AM': 'Kids 10:00 AM',
+      'Kids 11:00 AM': 'Kids 11:00 AM',
+      'Kids 5:00 PM': 'Kids 5:00 PM',
+      'Kids 5:30 PM': 'Kids 5:30 PM',
+      'Kids Leaders': 'Kids Leaders',
+      'New Kids': 'New Kids',
+      'New Kids Salvations': 'Kids Salvations',
+      'First Time Visitors': 'First Time',
+      'Visitors': 'Visitors',
+      'Cards Back': 'Info Gathered',
+      'First Time Christians': 'First Time Decision',
+      'Rededications': 'Rededication',
+      'Youth Attendance': 'Youth Total',
+      'Youth New People': 'Youth NP',
+      'Youth Salvations': 'Youth Salvations',
+      'Connect Groups': 'Connect Groups',
+      'Dream Team': 'Dream Team',
+      'Baptisms': 'Baptisms',
+      'Child Dedications': 'Child Dedications'
+    };
+
+    // Load stats from entry
+    const newStats = {};
+    Object.keys(quickInputStats).forEach(key => {
+      const backendKey = Object.keys(fieldMapping).find(k => fieldMapping[k] === key) || key;
+      const value = entry.stats[backendKey];
+      newStats[key] = value !== undefined && value !== null && value !== '' ? String(value) : '';
+    });
+
+    setQuickInputStats(newStats);
+    setQuickInputDate(entry.date);
+    setIsEditMode(true);
+    setEditingEntry({
+      originalCampus: entry.campus,
+      originalDate: entry.date
+    });
+    setShowQuickInput(true);
+  };
 
   const handleQuickInputSubmit = async () => {
     if (!selectedCampus || !quickInputDate) {
@@ -227,6 +304,9 @@ const LogStats = () => {
         setShowQuickInput(false);
         setIsEditMode(false);
         setEditingEntry(null);
+        
+        // Reload recent entries to show the updated/new entry
+        loadRecentEntries();
       } else {
         const errorData = await response.json();
         alert(`Error: ${errorData.error || (isEditMode ? 'Failed to update stats' : 'Failed to log stats')}`);
@@ -291,46 +371,66 @@ const LogStats = () => {
           </div>
         </div>
 
-        {/* Session Stats */}
+        {/* Recent Entries from Last 7 Days */}
         <div className="max-w-6xl mx-auto mt-8">
           <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm rounded-3xl p-8 border border-white/20 shadow-2xl">
-            <h3 className="text-2xl font-bold text-white mb-6">Recent Entries</h3>
-            {sessionStats.length > 0 ? (
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white">Recent Entries (Last 7 Days)</h3>
+              {loadingRecent && (
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+              )}
+            </div>
+            {recentEntries.length > 0 ? (
               <div className="space-y-4">
-                {sessionStats.map((stat, index) => (
-                  <div key={index} className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl hover:border-blue-500/50 transition-all duration-300 cursor-pointer group" onClick={() => {
-                    // Populate form with entry data for editing
-                    setIsEditMode(true);
-                    setEditingEntry(stat);
-                    setSelectedCampus(stat.campusId);
-                    setQuickInputDate(stat.date);
-                    setQuickInputStats(stat.stats);
-                    setShowQuickInput(true);
-                  }}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="text-sm text-blue-400 font-semibold mb-2">{stat.campus}</div>
-                        <div className="text-white text-base font-medium">{stat.text}</div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <div className="text-xs text-slate-400 bg-white/10 rounded-lg px-3 py-1">
-                          {new Date(stat.timestamp).toLocaleTimeString()}
+                {recentEntries.map((entry, index) => {
+                  const totalAtt = (entry.stats['Total Attendance'] || 0);
+                  const kidsAtt = (entry.stats['Kids Attendance'] || 0);
+                  const youthAtt = (entry.stats['Youth Attendance'] || 0);
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl hover:border-blue-500/50 transition-all duration-300 cursor-pointer group" 
+                      onClick={() => handleEditFromRecent(entry)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-3">
+                            <div className="text-lg text-blue-400 font-bold">{entry.date}</div>
+                            <div className="text-sm text-slate-400 bg-white/10 rounded-lg px-3 py-1">
+                              {entry.campus}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <div className="text-xs text-slate-400 mb-1">Total Attendance</div>
+                              <div className="text-white text-xl font-semibold">{totalAtt.toLocaleString()}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-400 mb-1">Youth</div>
+                              <div className="text-purple-400 text-xl font-semibold">{youthAtt.toLocaleString()}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-400 mb-1">Kids</div>
+                              <div className="text-pink-400 text-xl font-semibold">{kidsAtt.toLocaleString()}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-blue-500/20 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                          <PencilIcon className="w-5 h-5 text-blue-400" />
+                        <div className="bg-blue-500/20 p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity ml-4">
+                          <PencilIcon className="w-6 h-6 text-blue-400" />
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12">
                 <div className="w-16 h-16 bg-gradient-to-r from-slate-500 to-slate-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">📝</span>
                 </div>
-                <div className="text-slate-300 text-lg font-semibold mb-2">No stats logged yet</div>
-                <p className="text-slate-400 text-sm">Start by using quick input above</p>
+                <div className="text-slate-300 text-lg font-semibold mb-2">No recent entries found</div>
+                <p className="text-slate-400 text-sm">Start by using quick input above to log stats</p>
               </div>
             )}
           </div>

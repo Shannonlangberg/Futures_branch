@@ -403,13 +403,17 @@ def initialize_from_railway():
     sheet = spreadsheet.worksheet("Stats")  # Stats tab
     print(f"[DEBUG] Railway: Successfully opened 'Stats' worksheet")
     
-    # Try to open the Tithe tab
+    # Try to open the Tithe tab (try both "Tithe" and "tithe")
     try:
         finance_sheet = spreadsheet.worksheet("Tithe")
         print(f"[DEBUG] Railway: Successfully opened 'Tithe' worksheet")
     except Exception as e:
-        print(f"[WARNING] Railway: 'Tithe' worksheet not found - finance features will be disabled: {e}")
-        finance_sheet = None
+        try:
+            finance_sheet = spreadsheet.worksheet("tithe")
+            print(f"[DEBUG] Railway: Successfully opened 'tithe' worksheet")
+        except Exception as e2:
+            print(f"[WARNING] Railway: 'Tithe'/'tithe' worksheet not found - finance features will be disabled: {e}")
+            finance_sheet = None
     
     print(f"[DEBUG] Railway: Google Sheets initialization complete")
     return True
@@ -427,13 +431,17 @@ def initialize_from_local_file():
     spreadsheet = client.open("Stats")
     sheet = spreadsheet.worksheet("Stats")  # Stats tab
     
-    # Try to open the Tithe tab
+    # Try to open the Tithe tab (try both "Tithe" and "tithe")
     try:
         finance_sheet = spreadsheet.worksheet("Tithe")
         print(f"[DEBUG] Local: Successfully opened 'Tithe' tab")
     except:
-        print(f"[WARNING] Local: 'Tithe' tab not found - finance features will be disabled")
-        finance_sheet = None
+        try:
+            finance_sheet = spreadsheet.worksheet("tithe")
+            print(f"[DEBUG] Local: Successfully opened 'tithe' tab")
+        except:
+            print(f"[WARNING] Local: 'Tithe'/'tithe' tab not found - finance features will be disabled")
+            finance_sheet = None
     
     return True
 
@@ -451,13 +459,17 @@ def initialize_from_backend_file():
     spreadsheet = client.open("Stats")
     sheet = spreadsheet.worksheet("Stats")  # Stats tab
     
-    # Try to open the Tithe tab
+    # Try to open the Tithe tab (try both "Tithe" and "tithe")
     try:
         finance_sheet = spreadsheet.worksheet("Tithe")
         print(f"[DEBUG] Backend: Successfully opened 'Tithe' tab")
     except:
-        print(f"[WARNING] Backend: 'Tithe' tab not found - finance features will be disabled")
-        finance_sheet = None
+        try:
+            finance_sheet = spreadsheet.worksheet("tithe")
+            print(f"[DEBUG] Backend: Successfully opened 'tithe' tab")
+        except:
+            print(f"[WARNING] Backend: 'Tithe'/'tithe' tab not found - finance features will be disabled")
+            finance_sheet = None
     
     return True
 
