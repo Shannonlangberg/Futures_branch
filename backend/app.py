@@ -5676,6 +5676,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             'kids_leaders': 0,
             'new_kids': 0,
             'new_kids_salvations': 0,
+            'salvation_cards_returned': 0,
             
             # Ministry metrics
             'connect_groups': 0,
@@ -5865,6 +5866,9 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     period_stats['kids_leaders'] += get_stat_value(row, ['Kids Leaders', 'kids_leaders'])
                     period_stats['new_kids'] += get_stat_value(row, ['New Kids', 'new_kids'])
                     period_stats['new_kids_salvations'] += get_stat_value(row, ['New Kids Salvations', 'new_kids_salvations'])
+                    
+                    # Salvation Cards Returned
+                    period_stats['salvation_cards_returned'] += get_stat_value(row, ['Salvation Cards Returned', 'salvation_cards_returned'])
                     
                     # Ministry metrics
                     period_stats['connect_groups'] += get_stat_value(row, ['Connect Groups', 'connect_groups'])

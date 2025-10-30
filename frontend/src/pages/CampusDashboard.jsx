@@ -445,6 +445,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 adults: data.stats?.first_time_christians || 0,
                 rededications: data.stats?.rededications || 0,
                 kids: data.stats?.new_kids_salvations || 0,
+                salvationCardsReturned: data.stats?.salvation_cards_returned || 0,
                 campus: campusName 
               })}
             >
@@ -1161,6 +1162,13 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 {modalData.rededications.toLocaleString()}
               </div>
               <p className="text-white/60">People recommitting</p>
+            </div>
+            <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+              <h3 className="text-xl font-bold text-white mb-4">Salvation Cards Returned</h3>
+              <div className="text-4xl font-bold text-teal-400 mb-2">
+                {modalData.salvationCardsReturned?.toLocaleString() || 0}
+              </div>
+              <p className="text-white/60">Salvation cards collected</p>
             </div>
           </div>
                 </div>
