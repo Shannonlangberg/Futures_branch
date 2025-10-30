@@ -9187,7 +9187,10 @@ def get_weekly_submission_status():
             
             for row in all_records:
                 try:
-                    row_campus = row.get('Campus', '').lower().strip().replace(' ', '_')
+                    # Normalize both campus names for proper comparison
+                    row_campus_raw = row.get('Campus', '')
+                    row_campus_normalized = normalize_campus(row_campus_raw)
+                    campus_id_normalized = normalize_campus(campus_id)
                     
                     # Try to get timestamp - could be in 'Timestamp', first column, or 'Date'
                     timestamp_str = row.get('Timestamp', '') or row.get('timestamp', '') or list(row.values())[0] if row else ''
@@ -9196,7 +9199,7 @@ def get_weekly_submission_status():
                     # Use timestamp if available, otherwise fall back to date
                     date_to_parse = timestamp_str if timestamp_str else date_str
                     
-                    if not date_to_parse or row_campus != campus_id:
+                    if not date_to_parse or row_campus_normalized != campus_id_normalized:
                         continue
                     
                     # Parse date/timestamp with more formats
