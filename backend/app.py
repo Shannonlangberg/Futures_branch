@@ -7265,15 +7265,8 @@ def submit_finance_data():
             }), 500
             
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
         logger.error(f"Error submitting finance data: {str(e)}")
-        logger.error(f"Error traceback: {error_details}")
-        return jsonify({
-            'success': False, 
-            'error': f'An error occurred: {str(e)}',
-            'details': str(e) if logger.level <= 10 else None
-        }), 500
+        return jsonify({'success': False, 'error': f'An error occurred: {str(e)}'}), 500
 
 def update_tithe_for_campus(campus_id, date_str, tithe_amount):
     """Update or add tithe data for a specific campus and date to the Tithe tab"""
@@ -7364,11 +7357,8 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
                 return {'success': False, 'message': f'Error creating entry: {str(e)}'}
             
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
         logger.error(f"Error updating tithe for {campus_id}: {str(e)}")
-        logger.error(f"Error traceback: {error_details}")
-        return {'success': False, 'message': f'Error: {str(e)}'}
+        return {'success': False, 'message': str(e)}
 
 @app.route('/')
 def serve_index():
@@ -9802,9 +9792,11 @@ def get_recent_entries():
         if not campus:
             return jsonify({"entries": []}), 200
         
-        # Calculate date range (last 7 days)
-        end_date = datetime.now()
+        # Calculate date range (last 7 days) - use date objects for comparison
+        end_date = datetime.now().date()
         start_date = end_date - timedelta(days=7)
+        
+        logger.info(f"[RECENT_ENTRIES] Looking for entries from {start_date} to {end_date} for campus '{campus}'")
         
         # Get data from Google Sheets
         entries = []
@@ -9813,29 +9805,46 @@ def get_recent_entries():
                 all_records = safe_sheets_request(sheet.get_all_records)
                 campus_normalized = normalize_campus(campus)
                 
+                logger.info(f"[RECENT_ENTRIES] Processing {len(all_records)} total records, campus_normalized: '{campus_normalized}'")
+                
                 for record in all_records:
                     record_campus = normalize_campus(record.get('Campus', ''))
                     record_date_str = record.get('Date', '')
                     
                     # Check if campus matches
-                    if record_campus == campus_normalized or campus_normalized in record_campus:
+                    campus_match = (record_campus == campus_normalized or 
+                                   campus_normalized in record_campus or
+                                   record_campus in campus_normalized)
+                    
+                    if campus_match:
                         # Check if date is within last 7 days
                         try:
-                            record_date = datetime.strptime(record_date_str, '%Y-%m-%d')
-                            if start_date <= record_date <= end_date:
+                            # Try different date formats
+                            record_date = None
+                            for date_format in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y']:
+                                try:
+                                    record_date = datetime.strptime(record_date_str, date_format).date()
+                                    break
+                                except:
+                                    continue
+                            
+                            if record_date and start_date <= record_date <= end_date:
                                 entries.append({
                                     'date': record_date_str,
                                     'campus': record.get('Campus', ''),
                                     'stats': record
                                 })
-                        except:
+                                logger.debug(f"[RECENT_ENTRIES] Added entry: {record_date_str} for {record.get('Campus', '')}")
+                        except Exception as e:
+                            logger.debug(f"[RECENT_ENTRIES] Error parsing date '{record_date_str}': {e}")
                             continue
                 
                 # Sort by date descending (most recent first)
                 entries.sort(key=lambda x: x['date'], reverse=True)
+                logger.info(f"[RECENT_ENTRIES] Found {len(entries)} matching entries")
                 
             except Exception as e:
-                logger.error(f"Error fetching recent entries: {e}")
+                logger.error(f"Error fetching recent entries: {e}", exc_info=True)
                 return jsonify({"entries": []}), 200
         
         return jsonify({"entries": entries}), 200

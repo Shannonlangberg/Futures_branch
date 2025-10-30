@@ -106,11 +106,15 @@ const LogStats = () => {
         credentials: 'include'
       });
       const data = await response.json();
+      console.log(`[Recent Entries] Loaded ${data.entries?.length || 0} entries for campus: ${selectedCampus}`, data.entries);
       if (data.entries) {
         setRecentEntries(data.entries);
+      } else {
+        setRecentEntries([]);
       }
     } catch (err) {
       console.error('Error loading recent entries:', err);
+      setRecentEntries([]);
     } finally {
       setLoadingRecent(false);
     }
