@@ -7091,10 +7091,18 @@ def get_existing_tithe_data(selected_date):
                     # If dates match, collect tithe data
                     if row_date == target_date:
                         campus = row.get('Campus', '')
-                        tithe_amount = row.get('Tithe', 0)
-                        if campus and tithe_amount:
+                        general = row.get('General', 0)
+                        trust = row.get('Trust', 0)
+                        online = row.get('Online Giving', 0)
+                        text = row.get('Text', 0)
+                        total = row.get('Total', 0)
+                        if campus:
                             existing_data[campus.lower()] = {
-                                'amount': safe_int(tithe_amount),
+                                'general': safe_int(general) if general else 0,
+                                'trust': safe_int(trust) if trust else 0,
+                                'online': safe_int(online) if online else 0,
+                                'text': safe_int(text) if text else 0,
+                                'total': safe_int(total) if total else 0,
                                 'row_index': rows.index(row) + 2  # +2 because sheets are 1-indexed and have header
                             }
                 except Exception as e:
