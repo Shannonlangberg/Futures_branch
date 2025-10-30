@@ -9140,7 +9140,7 @@ def delete_campus(campus_name):
 @app.route('/api/weekly-submission-status', methods=['GET'])
 @login_required
 def get_weekly_submission_status():
-    """Get submission status for all campuses for the current week (Sunday)"""
+    """Get submission status for all campuses for the current week (Saturday-Sunday weekend)"""
     try:
         # Only admins and lead pastors can see this
         if current_user.role not in ['admin', 'lead_pastor', 'senior_pastor', 'senior_leader']:
@@ -9159,6 +9159,9 @@ def get_weekly_submission_status():
         days_since_sunday = (today.weekday() + 1) % 7  # Monday is 0, Sunday is 6
         most_recent_sunday = today - timedelta(days=days_since_sunday)
         most_recent_sunday = most_recent_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Also check for Saturday submissions (many campuses submit Saturday evening)
+        most_recent_saturday = most_recent_sunday - timedelta(days=1)
         
         # Define campus list
         campus_list = [
@@ -9214,7 +9217,8 @@ def get_weekly_submission_status():
                         except ValueError:
                             continue
                     
-                    if row_date and row_date >= most_recent_sunday:
+                    # Accept data from Saturday onwards (not just Sunday)
+                    if row_date and row_date >= most_recent_saturday:
                         if latest_date is None or row_date > latest_date:
                             latest_date = row_date
                             latest_submission = row
@@ -9231,12 +9235,12 @@ def get_weekly_submission_status():
                 'name': campus_name,
                 'status': status,
                 'last_submitted': last_submitted,
-                'week_start': most_recent_sunday.strftime('%B %d, %Y')
+                'week_start': most_recent_saturday.strftime('%B %d, %Y')  # Show Saturday as week start
             })
         
         return jsonify({
             'campuses': campus_status,
-            'week_start': most_recent_sunday.strftime('%B %d, %Y')
+            'week_start': most_recent_saturday.strftime('%B %d, %Y')  # Show Saturday as week start
         })
         
     except Exception as e:
