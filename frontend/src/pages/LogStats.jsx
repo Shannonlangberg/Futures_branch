@@ -404,11 +404,21 @@ const LogStats = () => {
                   const campusName = entry.campus === 'All Campuses' ? 'All Campuses' : 
                     entry.campus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                   
+                  // Create unique key for each entry
+                  const uniqueKey = `${entry.date}-${entry.campus}-${index}`;
+                  
                   return (
                     <div 
-                      key={index} 
+                      key={uniqueKey} 
                       className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl hover:border-blue-500/50 transition-all duration-300 cursor-pointer group" 
-                      onClick={() => handleEditFromRecent(entry)}
+                      onClick={() => {
+                        console.log('[CLICK] Clicked on entry:', {
+                          'entry.campus': entry.campus,
+                          'entry.date': entry.date,
+                          'campusName': campusName
+                        });
+                        handleEditFromRecent(entry);
+                      }}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
