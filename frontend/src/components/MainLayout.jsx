@@ -49,8 +49,6 @@ const MainLayout = ({ children }) => {
             role: data.role || 'user',
             campus: data.campus || 'all_campuses'
           });
-          console.log('User session data:', data); // Debug log
-          console.log('Setting user role to:', data.role || 'user'); // Debug log
         }
       } catch (error) {
         console.error('Error fetching session data:', error);
@@ -113,10 +111,6 @@ const MainLayout = ({ children }) => {
       // { name: 'Finance Dashboard', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance'] },
     ];
 
-    // Debug logging
-    console.log('Current user role:', userRole);
-    console.log('All navigation items:', allItems);
-    
     // Filter items based on user role and feature flags
     const filteredItems = allItems.filter(item => {
       // Check role permission
@@ -128,13 +122,10 @@ const MainLayout = ({ children }) => {
       if (item.featureFlag) {
         // For now, we'll assume all feature flags are enabled
         // In a real implementation, you'd fetch this from the API
-        console.log(`Feature flag check for ${item.featureFlag}: enabled`);
       }
       
       return true;
     });
-    
-    console.log('Filtered navigation items:', filteredItems);
     
     return filteredItems;
   };

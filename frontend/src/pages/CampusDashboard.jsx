@@ -79,8 +79,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
       const cacheBuster = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const response = await fetch(`/api/dashboard_data_public?campus=${campusId}&date_filter=${dateFilter}&custom_start_date=${customStartDate}&custom_end_date=${customEndDate}&show_previous_year=${showPreviousYear}&_t=${cacheBuster}`);
       const result = await response.json();
-      console.log('🔄 Fresh API response received:', result);
-      console.log('🔄 Service breakdown in response:', result.service_breakdown);
       setData(result);
       setCampusData(result);
       setLastRefresh(new Date());
@@ -94,7 +92,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
 
   const handleRefresh = () => {
     // Force clear any cached data
-    console.log('🔄 Force refresh triggered');
     setData({});
     setCampusData({});
     
@@ -408,8 +405,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
             <div 
               className="group relative bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm rounded-2xl p-6 border border-purple-400/20 shadow-2xl hover:shadow-purple-500/25 transition-all duration-500 hover:scale-105 cursor-pointer"
               onClick={() => {
-                console.log('Sunday Attendance clicked - services data:', services);
-                console.log('Service breakdown from data:', data.service_breakdown);
                 openModal('sunday-attendance', { 
                   total: sundayAttendance, 
                   services: services,
@@ -969,9 +964,6 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                     // Get service breakdowns from data
                     const adultBreakdown = data.service_breakdown || {};
                     const kidsBreakdown = data.kids_service_breakdown || {};
-                    
-                    console.log('Adult breakdown:', adultBreakdown);
-                    console.log('Kids breakdown:', kidsBreakdown);
                     
                     // Get all service times from both breakdowns
                     const allServiceTimes = new Set([

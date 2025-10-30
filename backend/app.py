@@ -1,108 +1,59 @@
 # app.py
 
-print("[DEBUG] Starting import: Flask")
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
-print("[DEBUG] Imported Flask")
-
-print("[DEBUG] Starting import: Flask-Cors")
 from flask_cors import CORS
-print("[DEBUG] Imported Flask-Cors")
-
-print("[DEBUG] Starting import: SQLAlchemy models")
+from flask_compress import Compress
 from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement
-print("[DEBUG] Imported SQLAlchemy models")
-
-print("[DEBUG] Starting import: datetime")
 from datetime import datetime, timezone, timedelta
-print("[DEBUG] Imported datetime")
-
-print("[DEBUG] Starting import: os")
 import os
-print("[DEBUG] Imported os")
-
-print("[DEBUG] Starting import: re")
 import re
-print("[DEBUG] Imported re")
 
 try:
-    print("[DEBUG] Starting import: gspread")
     import gspread
-    print("[DEBUG] Imported gspread")
 except Exception as e:
     print(f"[ERROR] Failed to import gspread: {e}")
     raise
 
 try:
-    print("[DEBUG] Starting import: anthropic")
     import anthropic
-    print("[DEBUG] Imported anthropic")
 except Exception as e:
-    print(f"[WARNING] Failed to import anthropic: {e}")
-    print("[WARNING] Claude features will be disabled")
     anthropic = None
 
 try:
-    print("[DEBUG] Starting import: oauth2client.service_account")
     from oauth2client.service_account import ServiceAccountCredentials
-    print("[DEBUG] Imported oauth2client.service_account")
 except Exception as e:
     print(f"[ERROR] Failed to import oauth2client.service_account: {e}")
     raise
 
-print("[DEBUG] Starting import: json")
 import json
-print("[DEBUG] Imported json")
-
-print("[DEBUG] Starting import: typing")
 from typing import Dict, List, Optional, Any
-print("[DEBUG] Imported typing")
-
-print("[DEBUG] Starting import: logging")
 import logging
-print("[DEBUG] Imported logging")
 
 try:
-    print("[DEBUG] Starting import: dotenv")
     from dotenv import load_dotenv
-    print("[DEBUG] Imported dotenv")
 except Exception as e:
     print(f"[ERROR] Failed to import dotenv: {e}")
     raise
 
 try:
-    print("[DEBUG] Starting import: Flask-Login")
     from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-    print("[DEBUG] Imported Flask-Login")
 except Exception as e:
     print(f"[ERROR] Failed to import Flask-Login: {e}")
     raise
 
 try:
-    print("[DEBUG] Starting import: werkzeug.security")
     from werkzeug.security import generate_password_hash, check_password_hash
-    print("[DEBUG] Imported werkzeug.security")
 except Exception as e:
     print(f"[ERROR] Failed to import werkzeug.security: {e}")
     raise
 
-print("[DEBUG] Starting import: requests")
 import requests
-print("[DEBUG] Imported requests")
-
-print("[DEBUG] Starting import: uuid")
 import uuid
-print("[DEBUG] Imported uuid")
-
-print("[DEBUG] Starting import: functools")
 from functools import wraps
-print("[DEBUG] Imported functools")
 
 try:
-    print("[DEBUG] Starting import: num2words")
     from num2words import num2words
-    print("[DEBUG] Imported num2words")
 except ImportError:
-    print("[WARNING] num2words not installed, using fallback")
     def num2words(n):
         return str(n)
 
@@ -334,15 +285,11 @@ def load_local_data():
         return []
 
 # Load environment variables from .env file
-print("[DEBUG] Loading environment variables from .env")
 load_dotenv()
-print("[DEBUG] Loaded environment variables from .env")
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-print("[DEBUG] Starting Google Sheets Auth scope definition")
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -501,7 +448,7 @@ SHEETS_RATE_LIMIT_SECONDS = 2  # Minimum 2 seconds between calls
 
 # Cache for Google Sheets data - one cache per worksheet 
 sheets_cache = {}  # Dictionary of caches keyed by worksheet title
-cache_duration = 120  # 2 minutes
+cache_duration = 300  # 5 minutes - increased for better performance
 
 def get_cached_sheets_data(cache_key):
     """Get cached data if fresh (under 2 min old)"""
@@ -940,45 +887,35 @@ def run_migrations():
         raise
 
 CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"], allow_headers=["Content-Type", "Authorization"])
-print("[DEBUG] Flask app instance created and CORS enabled")
+
+# Enable response compression for better performance
+Compress(app)
 
 # Initialize database
-print("[DEBUG] Initializing database")
 init_db(app)
-print("[DEBUG] Database initialized")
 
 # Run migrations
-print("[DEBUG] Running database migrations")
 run_migrations()
-print("[DEBUG] Migrations completed")
 
 # Seed database with initial data
-print("[DEBUG] Seeding database with campus data")
 try:
     from seed_campuses import seed_campuses
     seed_campuses()
-    print("[DEBUG] Campus seeding completed")
 except Exception as e:
     logger.warning(f"Failed to seed campuses: {e}")
-    print(f"[DEBUG] Campus seeding skipped: {e}")
 
-print("[DEBUG] Seeding database with user data")
 try:
     from seed_users import seed_users
     seed_users()
-    print("[DEBUG] User seeding completed")
 except Exception as e:
     logger.warning(f"Failed to seed users: {e}")
-    print(f"[DEBUG] User seeding skipped: {e}")
 
 # Configure Flask-Login
-print("[DEBUG] Starting Flask-Login setup")
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'api_login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
-print("[DEBUG] Flask-Login configured")
 
 # User management functions
 def load_users_database():
@@ -5533,118 +5470,74 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
     - Column L: Visitors
     """
     try:
-        print("[DEBUG] FIRST get_dashboard_data function called - THIS IS THE ONE WITH AVERAGES")
-        
         # Try to get data from Google Sheets first, fallback to local data
         if sheet:
             try:
                 rows = safe_sheets_request(sheet.get_all_records)
                 if rows is None:  # Rate limited or failed
-                    print("[DEBUG] Google Sheets returned None (rate limited), using local data")
                     rows = load_local_data()
                     data_source = "Local Data (Google Sheets rate limited)"
                 else:
                     data_source = "Google Sheets"
-                    print("[DEBUG] Successfully loaded data from Google Sheets")
             except Exception as e:
                 logger.warning(f"Google Sheets failed, using local data: {e}")
                 rows = load_local_data()
                 data_source = "Local Data (Google Sheets failed)"
-                print("[DEBUG] Using local data fallback")
         else:
             rows = load_local_data()
             data_source = "Local Data (Google Sheets not available)"
-            print("[DEBUG] Google Sheets not available, using local data")
         
         if not rows:
-            print("[DEBUG] No rows found in data")
             return {"stats": {}, "recent_entries": [], "trends": {}, "data_source": data_source}
         
-        print(f"[DEBUG] Loaded {len(rows)} rows from {data_source}")
-        print(f"[DEBUG] Sample row: {rows[0] if rows else 'No rows'}")
-        print(f"[DEBUG] Data source: {data_source}")
+        # Calculate date range first to avoid redundant computation
+        now = datetime.now()
+        start_date, end_date = calculate_date_range(date_filter, custom_start_date, custom_end_date, now)
         
-        # Debug: Print field names from first row
-        if rows:
-            print(f"[DEBUG] Available field names: {list(rows[0].keys())}")
-        
-        # Debug: Check if rows have the expected structure
-        if rows and len(rows) > 0:
-            sample_row = rows[0]
-            print(f"[DEBUG] Sample row keys: {list(sample_row.keys())}")
-            print(f"[DEBUG] Sample row total_attendance: {sample_row.get('total_attendance', 'NOT_FOUND')}")
-        
-        # Filter by campus if not all_campuses or australia
-        # Skip campus filtering for roll-up views (australia, all_campuses)
-        print(f"[DEBUG-CAMPUS] Checking campus filter: campus='{campus}', rows before={len(rows)}")
-        if campus not in ['all_campuses', 'australia']:
-            print(f"[DEBUG-CAMPUS] Filtering by campus: {campus}")
+        # Pre-normalize campus for single-pass filtering
+        campus_normalized = None
+        skip_campus_filter = campus in ['all_campuses', 'australia']
+        if not skip_campus_filter:
             campus_normalized = normalize_campus(campus)
-            filtered_rows = []
-            for row in rows:
+        
+        # Pre-compile date parsing (most common format first for speed)
+        date_formats = ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y']
+        
+        # Combine campus and date filtering into single pass for performance
+        filtered_rows = []
+        for row in rows:
+            # Campus filtering (if needed)
+            if not skip_campus_filter:
                 row_campus = normalize_campus(row.get("Campus") or row.get("campus") or "")
-                # Use the same campus matching logic as query functions
                 campus_match = (row_campus == campus_normalized or
                                campus_normalized in row_campus or
                                row_campus in campus_normalized or
                                campus_normalized.replace(" ", "") in row_campus.replace(" ", "") or
                                row_campus.replace(" ", "") in campus_normalized.replace(" ", ""))
-                if campus_match:
-                    filtered_rows.append(row)
-            rows = filtered_rows
-            print(f"[DEBUG-CAMPUS] After campus filter ({campus}): {len(rows)} rows")
-        else:
-            print(f"[DEBUG-CAMPUS] Skipping campus filter for roll-up view '{campus}', keeping all {len(rows)} rows")
-        
-        # Calculate date range based on filter type
-        now = datetime.now()
-        start_date, end_date = calculate_date_range(date_filter, custom_start_date, custom_end_date, now)
-        print(f"[DEBUG] First function - Date range: {start_date} to {end_date}")
-        print(f"[DEBUG] First function - Total rows: {len(rows)}")
-        
-        # Apply date filtering properly - use Date field instead of Timestamp
-        filtered_rows = []
-        print(f"[DEBUG] Filtering {len(rows)} rows for date range {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-        
-        for row in rows:
-            try:
-                # Use the actual service Date field, not the Timestamp field
-                date_str = row.get("Date", "")
-                if not date_str:
+                if not campus_match:
                     continue
-                
-                # Parse the service date
-                try:
-                    if isinstance(date_str, str):
-                        # Try common date formats
-                        for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y']:
-                            try:
-                                row_date = datetime.strptime(date_str, fmt)
-                                break
-                            except ValueError:
-                                continue
-                        else:
-                            continue  # Skip if no format worked
-                    else:
-                        continue
-                    
-                    # Check if row is within date range
-                    if start_date <= row_date <= end_date:
-                        filtered_rows.append(row)
-                        
-                except Exception:
-                    continue
-                    
-            except Exception as e:
+            
+            # Date filtering (combined with campus check)
+            date_str = row.get("Date", "")
+            if not date_str or not isinstance(date_str, str):
                 continue
+            
+            # Optimized date parsing - try most common format first
+            row_date = None
+            for fmt in date_formats:
+                try:
+                    row_date = datetime.strptime(date_str, fmt)
+                    break
+                except ValueError:
+                    continue
+            
+            # Check if date is valid and within range
+            if row_date and start_date <= row_date <= end_date:
+                filtered_rows.append(row)
         
         # Ensure we have data to process
         if not filtered_rows:
-            print("[DEBUG] No filtered rows available")
             return {"stats": {}, "recent_entries": [], "trends": {}, "data_source": data_source}
-        
-        print(f"[DEBUG] Processing {len(filtered_rows)} rows")
-        print(f"[DEBUG] Sample row: {filtered_rows[0] if filtered_rows else 'No rows'}")
         
         period_stats = {
             # Main attendance
@@ -5745,12 +5638,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         
         # Initialize monthly trends tracking
         monthly_trends = {}
-        
-        # Debug: Print available field names from first row
-        if filtered_rows:
-            first_row = filtered_rows[0]
-            print(f"[DEBUG] Available fields in Google Sheets: {list(first_row.keys())}")
-            print(f"[DEBUG] Sample row data: {dict(first_row)}")
         
         for row in filtered_rows:
             processed_count += 1
@@ -10795,20 +10682,7 @@ def get_dashboard_data_public():
         show_previous_year = request.args.get('show_previous_year', 'false').lower() == 'true'
         
         # Use the working Google Sheets function directly
-        print(f"[DEBUG] API calling get_dashboard_data with: campus={campus}, date_filter={date_filter}")
         dashboard_data = get_dashboard_data(campus, date_filter, custom_start_date, custom_end_date, show_previous_year)
-        print(f"[DEBUG] API received dashboard_data: {type(dashboard_data)}")
-        print(f"[DEBUG] API stats: {dashboard_data.get('stats', 'NOT_FOUND')}")
-        print(f"[DEBUG] API chart data: {dashboard_data.get('chart_data', 'NOT_FOUND')}")
-        
-        # Debug information_gathered specifically for Adelaide City
-        if campus.lower().replace('_', ' ') == 'adelaide city':
-            stats = dashboard_data.get('stats', {})
-            print(f"[DEBUG] Adelaide City API Response - information_gathered: {stats.get('information_gathered', 'NOT_FOUND')}")
-            print(f"[DEBUG] Adelaide City API Response - first_time_visitors: {stats.get('first_time_visitors', 'NOT_FOUND')}")
-            print(f"[DEBUG] Adelaide City API Response - visitors: {stats.get('visitors', 'NOT_FOUND')}")
-            print(f"[DEBUG] Adelaide City API Response - new_people: {stats.get('new_people', 'NOT_FOUND')}")
-        
         return jsonify(dashboard_data)
     except Exception as e:
         logger.error(f"Public dashboard API error: {e}")

@@ -63,7 +63,6 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('Submission status updated:', data);
         setSubmissionStatus(data);
       }
     } catch (error) {
