@@ -7265,8 +7265,15 @@ def submit_finance_data():
             }), 500
             
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
         logger.error(f"Error submitting finance data: {str(e)}")
-        return jsonify({'success': False, 'error': f'An error occurred: {str(e)}'}), 500
+        logger.error(f"Error traceback: {error_details}")
+        return jsonify({
+            'success': False, 
+            'error': f'An error occurred: {str(e)}',
+            'details': str(e) if logger.level <= 10 else None
+        }), 500
 
 def update_tithe_for_campus(campus_id, date_str, tithe_amount):
     """Update or add tithe data for a specific campus and date to the Tithe tab"""
@@ -7357,8 +7364,11 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
                 return {'success': False, 'message': f'Error creating entry: {str(e)}'}
             
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
         logger.error(f"Error updating tithe for {campus_id}: {str(e)}")
-        return {'success': False, 'message': str(e)}
+        logger.error(f"Error traceback: {error_details}")
+        return {'success': False, 'message': f'Error: {str(e)}'}
 
 @app.route('/')
 def serve_index():
