@@ -7272,10 +7272,16 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
     """Update or add tithe data for a specific campus and date to the Tithe tab"""
     try:
         if not finance_sheet:
+            logger.error("Finance sheet is None when trying to update tithe")
             return {'success': False, 'message': 'Finance sheet (Tithe tab) not available'}
         
         # Get all rows from the Tithe tab
-        rows = safe_sheets_request(finance_sheet.get_all_records)
+        try:
+            rows = safe_sheets_request(finance_sheet.get_all_records)
+        except Exception as e:
+            logger.error(f"Error getting records from finance sheet: {str(e)}")
+            return {'success': False, 'message': f'Error reading from finance sheet: {str(e)}'}
+        
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
         # Look for existing row for this campus and date
@@ -7305,9 +7311,13 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
         if existing_row_index:
             # Update existing row - update all tithe breakdown columns (D-H)
             # D=General, E=Trust, F=Online Giving, G=Text, H=Total
-            finance_sheet.update(f'D{existing_row_index}:H{existing_row_index}', [[general, trust, online, text, total]])
-            logger.info(f"Updated tithe for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, Tx:{text})")
-            return {'success': True, 'message': f'Updated existing entry for {campus_id}'}
+            try:
+                finance_sheet.update(f'D{existing_row_index}:H{existing_row_index}', [[general, trust, online, text, total]])
+                logger.info(f"Updated tithe for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, Tx:{text})")
+                return {'success': True, 'message': f'Updated existing entry for {campus_id}'}
+            except Exception as e:
+                logger.error(f"Error updating row in finance sheet: {str(e)}")
+                return {'success': False, 'message': f'Error updating entry: {str(e)}'}
         else:
             # Create new row in Tithe tab with breakdown
             # Tithe tab columns: A=Timestamp, B=Date, C=Campus, D=General, E=Trust, F=Online Giving, G=Text, H=Total
@@ -7315,6 +7325,17 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
             from zoneinfo import ZoneInfo
             adelaide_tz = ZoneInfo('Australia/Adelaide')
             now_adelaide = datetime.now(adelaide_tz)
+            
+            # First, ensure headers exist (in case sheet was just created)
+            try:
+                headers = finance_sheet.row_values(1)  # Get first row (headers)
+                expected_headers = ['Timestamp', 'Date', 'Campus', 'General', 'Trust', 'Online Giving', 'Text', 'Total']
+                if len(headers) < len(expected_headers):
+                    # Add missing headers
+                    finance_sheet.update('A1:H1', [expected_headers])
+                    logger.info(f"Updated Tithe sheet headers")
+            except Exception as e:
+                logger.warning(f"Could not check/update headers: {e}")
             
             new_row = [
                 now_adelaide.strftime('%Y-%m-%d %H:%M:%S'),  # A: Timestamp
@@ -7327,9 +7348,13 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
                 total                        # H: Total
             ]
             
-            finance_sheet.append_row(new_row, value_input_option='USER_ENTERED', table_range='A1')
-            logger.info(f"Created new tithe entry for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, Tx:{text})")
-            return {'success': True, 'message': f'Created new entry for {campus_id}'}
+            try:
+                finance_sheet.append_row(new_row, value_input_option='USER_ENTERED')
+                logger.info(f"Created new tithe entry for {campus_id} on {date_str}: ${total} (G:{general}, T:{trust}, O:{online}, Tx:{text})")
+                return {'success': True, 'message': f'Created new entry for {campus_id}'}
+            except Exception as e:
+                logger.error(f"Error appending row to finance sheet: {str(e)}")
+                return {'success': False, 'message': f'Error creating entry: {str(e)}'}
             
     except Exception as e:
         logger.error(f"Error updating tithe for {campus_id}: {str(e)}")
