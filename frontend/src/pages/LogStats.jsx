@@ -162,8 +162,15 @@ const LogStats = () => {
     setQuickInputStats(newStats);
     setQuickInputDate(entry.date);
     setIsEditMode(true);
+    const originalCampus = entry.stats.Campus || entry.campus;
+    console.log('[EDIT] Campus names:', {
+      'entry.campus': entry.campus,
+      'entry.stats.Campus': entry.stats.Campus,
+      'originalCampus': originalCampus
+    });
+    
     setEditingEntry({
-      originalCampus: entry.stats.Campus || entry.campus, // Use original campus name from stats data
+      originalCampus: originalCampus, // Use original campus name from stats data
       originalDate: entry.date
     });
     setShowQuickInput(true);

@@ -10145,6 +10145,12 @@ def quick_input_update():
         original_campus = data.get('originalCampus', campus).strip()
         original_date = data.get('originalDate', date_str).strip()
         
+        logger.info(f"[EDIT_REQUEST] Received edit request:")
+        logger.info(f"  campus: '{campus}'")
+        logger.info(f"  date_str: '{date_str}'")
+        logger.info(f"  original_campus: '{original_campus}'")
+        logger.info(f"  original_date: '{original_date}'")
+        
         if not campus:
             return jsonify({"error": "Campus is required"}), 400
         
