@@ -1192,7 +1192,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                       <p className="text-white/60">Just visiting</p>
                     </div>
                     <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                      <h3 className="text-xl font-bold text-white mb-4">Info Gathered</h3>
+                      <h3 className="text-xl font-bold text-white mb-4">Cards Returned</h3>
                       <div className="text-4xl font-bold text-green-400 mb-2">
                         {modalData.infoGathered.toLocaleString()}
                       </div>
