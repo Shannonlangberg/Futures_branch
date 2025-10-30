@@ -9972,7 +9972,7 @@ def quick_input_update():
                 if not all_records:
                     if attempt < 2:
                         import time
-                        time.sleep(1)  # Wait 1 second before retrying
+                        time.sleep(2)  # Wait 2 seconds before retrying (increased from 1)
                         continue
                     return jsonify({"error": "No data available"}), 404
                 
@@ -10023,85 +10023,38 @@ def quick_input_update():
                 if row_index:
                     break  # Found it!
                     
-                # Not found, wait and retry
+                # Not found, wait and retry with longer delay
                 if attempt < 2:
-                    logger.warning(f"Entry not found on attempt {attempt + 1}, retrying...")
+                    wait_time = 2 if attempt == 0 else 3  # 2 seconds first retry, 3 seconds second retry
+                    logger.warning(f"Entry not found on attempt {attempt + 1}, waiting {wait_time}s before retry...")
                     import time
-                    time.sleep(1)
+                    time.sleep(wait_time)
             
             if not row_index:
-                # Entry not found - this might be a newly created entry that hasn't synced yet
-                # Instead of returning an error, create it as a new entry
-                logger.warning(f"Entry not found after 3 attempts. Creating new entry instead. campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
-                logger.warning(f"Last 10 entries: {[(r.get('Campus'), r.get('Date')) for r in all_records[-10:]]}")
+                # Entry not found - check if there's already an entry for this date to prevent duplicates
+                logger.error(f"Entry not found after 3 attempts. campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
+                logger.error(f"All entries on this date: {[(r.get('Campus'), r.get('Date')) for r in all_records if r.get('Date') == original_date]}")
                 
-                # Call the create endpoint logic instead
-                from zoneinfo import ZoneInfo
-                adelaide_tz = ZoneInfo('Australia/Adelaide')
-                now_adelaide = datetime.now(adelaide_tz)
+                # Check for ANY entry on this date (broader check to prevent duplicates)
+                entries_on_date = [r for r in all_records if r.get('Date') == original_date]
+                if entries_on_date:
+                    logger.error(f"Found {len(entries_on_date)} existing entries on {original_date}. Refusing to create duplicate.")
+                    logger.error(f"Existing entries: {[(r.get('Campus'), r.get('Date'), r.get('Total Attendance')) for r in entries_on_date]}")
+                    return jsonify({
+                        "error": f"Could not find your specific entry to edit, but found {len(entries_on_date)} other entry/entries on {original_date}. This might be a sync delay - please wait 10 seconds and try again, or refresh the page to see your entry.",
+                        "suggestion": "refresh"
+                    }), 404
                 
-                def safe_value(key, default=0):
-                    val = stats.get(key, default)
-                    if val == 0 or val == '':
-                        return ''
-                    return safe_int(val)
-                
-                headers = list(all_records[0].keys()) if all_records else []
-                
-                row_data = {
-                    'Timestamp': now_adelaide.strftime('%Y-%m-%d %H:%M:%S'),
-                    'Date': date_str,
-                    'Campus': campus,
-                    'Total People in Campus': safe_value('Total People in Campus'),
-                    'Total Attendance': safe_value('Total Attendance'),
-                    '9:00 AM': safe_value('9:00 AM'),
-                    '10:00 AM': safe_value('10:00 AM'),
-                    '11:00 AM': safe_value('11:00 AM'),
-                    '5:00 PM': safe_value('5:00 PM'),
-                    '5:30 PM': safe_value('5:30 PM'),
-                    'Kids 9:00 AM': safe_value('Kids 9:00 AM'),
-                    'Kids 10:00 AM': safe_value('Kids 10:00 AM'),
-                    'Kids 11:00 AM': safe_value('Kids 11:00 AM'),
-                    'Kids 5:00 PM': safe_value('Kids 5:00 PM'),
-                    'Kids 5:30 PM': safe_value('Kids 5:30 PM'),
-                    'Kids Attendance': safe_value('Kids Attendance'),
-                    'Kids Leaders': safe_value('Kids Leaders'),
-                    'New Kids': safe_value('New Kids'),
-                    'New Kids Salvations': safe_value('New Kids Salvations'),
-                    'First Time Visitors': safe_value('First Time Visitors'),
-                    'Visitors': safe_value('Visitors'),
-                    'Information Gathered': safe_value('Information Gathered'),
-                    'First Time Christians': safe_value('First Time Christians'),
-                    'Rededications': safe_value('Rededications'),
-                    'Youth Attendance': safe_value('Youth Attendance'),
-                    'Youth Salvations': safe_value('Youth Salvations'),
-                    'Youth New People': safe_value('Youth New People'),
-                    'Connect Groups': safe_value('Connect Groups'),
-                    'Dream Team': safe_value('Dream Team'),
-                    'Tithe': safe_value('Tithe'),
-                    'Baptisms': safe_value('Baptisms'),
-                    'Child Dedications': safe_value('Child Dedications')
-                }
-                
-                # Add missing headers with default values
-                for header in headers:
-                    if header not in row_data:
-                        row_data[header] = ''
-                
-                # Convert to list format
-                row_values = [row_data.get(header, '') for header in headers]
-                
-                # Append as new row
-                safe_sheets_request(sheet.append_row, row_values, value_input_option='USER_ENTERED')
-                logger.info(f"✓ Created new entry for {campus} on {date_str}")
+                # No entries on this date at all - likely the search logic has an issue
+                # Log detailed debugging info
+                logger.error(f"No entries found on {original_date} at all. Recent entries:")
+                for r in all_records[-5:]:
+                    logger.error(f"  Campus: '{r.get('Campus')}', Date: '{r.get('Date')}', Normalized: '{normalize_campus(r.get('Campus', ''))}'")
                 
                 return jsonify({
-                    "success": True,
-                    "message": "Entry created successfully",
-                    "stats": stats,
-                    "campus": campus,
-                    "date": date_str
-                }), 200
+                    "error": f"Entry not found for {original_campus} on {original_date}. This usually means Google Sheets is still syncing. Please wait 10-15 seconds and try again.",
+                    "suggestion": "wait"
+                }), 404
             
             # Prepare the row data
             def safe_value(key, default=0):
