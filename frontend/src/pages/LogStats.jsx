@@ -389,7 +389,12 @@ const LogStats = () => {
                 {recentEntries.map((entry, index) => {
                   const totalAtt = (entry.stats['Total Attendance'] || 0);
                   const kidsAtt = (entry.stats['Kids Attendance'] || 0);
-                  const youthAtt = (entry.stats['Youth Attendance'] || 0);
+                  const newPeople = (entry.stats['New People'] || 0);
+                  const newChristians = (entry.stats['New Christians'] || 0);
+                  
+                  // Format campus name properly
+                  const campusName = entry.campus === 'All Campuses' ? 'All Campuses' : 
+                    entry.campus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                   
                   return (
                     <div 
@@ -402,17 +407,21 @@ const LogStats = () => {
                           <div className="flex items-center space-x-3 mb-3">
                             <div className="text-lg text-blue-400 font-bold">{entry.date}</div>
                             <div className="text-sm text-slate-400 bg-white/10 rounded-lg px-3 py-1">
-                              {entry.campus}
+                              {campusName}
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-4">
+                          <div className="grid grid-cols-4 gap-4">
                             <div>
                               <div className="text-xs text-slate-400 mb-1">Total Attendance</div>
                               <div className="text-white text-xl font-semibold">{totalAtt.toLocaleString()}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-slate-400 mb-1">Youth</div>
-                              <div className="text-purple-400 text-xl font-semibold">{youthAtt.toLocaleString()}</div>
+                              <div className="text-xs text-slate-400 mb-1">New People</div>
+                              <div className="text-green-400 text-xl font-semibold">{newPeople.toLocaleString()}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-400 mb-1">New Christians</div>
+                              <div className="text-yellow-400 text-xl font-semibold">{newChristians.toLocaleString()}</div>
                             </div>
                             <div>
                               <div className="text-xs text-slate-400 mb-1">Kids</div>

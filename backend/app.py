@@ -9958,13 +9958,15 @@ def get_recent_entries():
                                 'Total Attendance': safe_int(record.get('Total Attendance', 0)),
                                 'Kids Attendance': safe_int(record.get('Kids Attendance', 0)),
                                 'Youth Attendance': safe_int(record.get('Youth Attendance', 0)),
+                                'New People': safe_int(record.get('New People', 0)),
+                                'New Christians': safe_int(record.get('New Christians', 0)),
                                 # Include all other fields from the record
                                 **record
                             }
                             
                             entries.append({
                                 'date': record_date_str,
-                                'campus': record_campus_str if not show_all_campuses else 'All Campuses',
+                                'campus': record_campus_str,  # Always show actual campus name
                                 'stats': stats
                             })
                             logger.debug(f"[RECENT_ENTRIES] Added entry: {record_date_str} for {record_campus_str}")
