@@ -562,7 +562,7 @@ const LogStats = () => {
                     <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
                       <span className="text-xl">⛪</span>
                     </div>
-                    <h4 className="text-xl font-bold text-white">Service Attendance</h4>
+                    <h4 className="text-xl font-bold text-white">Service Attendance (Adults)</h4>
                   </div>
                   <div className="space-y-3 sm:space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
