@@ -7354,9 +7354,13 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
         # Get all rows from the Tithe tab
         try:
             rows = safe_sheets_request(finance_sheet.get_all_records)
+            # Ensure rows is a list (handle None case)
+            if rows is None:
+                rows = []
         except Exception as e:
             logger.error(f"Error getting records from finance sheet: {str(e)}")
-            return {'success': False, 'message': f'Error reading from finance sheet: {str(e)}'}
+            # Return empty list instead of failing - we can still append new rows
+            rows = []
         
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
@@ -7366,6 +7370,7 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
         existing_row_index = None
         latest_timestamp = None
         
+        # Only search existing rows if we have any
         for i, row in enumerate(rows):
             date_str_row = row.get("Date", "")
             campus_name = row.get('Campus', '')
