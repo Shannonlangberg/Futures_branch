@@ -9706,6 +9706,61 @@ def greeting_audio():
         logger.error(f"Error in greeting_audio route: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/recent_entries', methods=['GET'])
+@login_required
+def get_recent_entries():
+    """Get recent entries for the user's campus (last 7 days)"""
+    try:
+        # Get campus from query parameter or user's default campus
+        campus = request.args.get('campus', '').strip()
+        if not campus and hasattr(current_user, 'campus'):
+            campus = current_user.campus
+        
+        if not campus:
+            return jsonify({"entries": []}), 200
+        
+        # Calculate date range (last 7 days)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        # Get data from Google Sheets
+        entries = []
+        if sheet:
+            try:
+                all_records = safe_sheets_request(sheet.get_all_records)
+                campus_normalized = normalize_campus(campus)
+                
+                for record in all_records:
+                    record_campus = normalize_campus(record.get('Campus', ''))
+                    record_date_str = record.get('Date', '')
+                    
+                    # Check if campus matches
+                    if record_campus == campus_normalized or campus_normalized in record_campus:
+                        # Check if date is within last 7 days
+                        try:
+                            record_date = datetime.strptime(record_date_str, '%Y-%m-%d')
+                            if start_date <= record_date <= end_date:
+                                entries.append({
+                                    'date': record_date_str,
+                                    'campus': record.get('Campus', ''),
+                                    'stats': record
+                                })
+                        except:
+                            continue
+                
+                # Sort by date descending (most recent first)
+                entries.sort(key=lambda x: x['date'], reverse=True)
+                
+            except Exception as e:
+                logger.error(f"Error fetching recent entries: {e}")
+                return jsonify({"entries": []}), 200
+        
+        return jsonify({"entries": entries}), 200
+        
+    except Exception as e:
+        logger.error(f"Recent entries error: {e}")
+        return jsonify({"entries": []}), 200
+
 @app.route('/api/quick_input', methods=['POST'])
 @login_required
 def quick_input():
@@ -9927,9 +9982,78 @@ def quick_input_update():
                     time.sleep(1)
             
             if not row_index:
-                logger.error(f"Entry not found after 3 attempts. Looking for: campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
-                logger.error(f"Last 10 entries: {[(r.get('Campus'), r.get('Date')) for r in all_records[-10:]]}")
-                return jsonify({"error": f"Entry not found for {original_campus} on {original_date}. The entry may not be synced yet - please wait a few seconds and try again."}), 404
+                # Entry not found - this might be a newly created entry that hasn't synced yet
+                # Instead of returning an error, create it as a new entry
+                logger.warning(f"Entry not found after 3 attempts. Creating new entry instead. campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
+                logger.warning(f"Last 10 entries: {[(r.get('Campus'), r.get('Date')) for r in all_records[-10:]]}")
+                
+                # Call the create endpoint logic instead
+                from zoneinfo import ZoneInfo
+                adelaide_tz = ZoneInfo('Australia/Adelaide')
+                now_adelaide = datetime.now(adelaide_tz)
+                
+                def safe_value(key, default=0):
+                    val = stats.get(key, default)
+                    if val == 0 or val == '':
+                        return ''
+                    return safe_int(val)
+                
+                headers = list(all_records[0].keys()) if all_records else []
+                
+                row_data = {
+                    'Timestamp': now_adelaide.strftime('%Y-%m-%d %H:%M:%S'),
+                    'Date': date_str,
+                    'Campus': campus,
+                    'Total People in Campus': safe_value('Total People in Campus'),
+                    'Total Attendance': safe_value('Total Attendance'),
+                    '9:00 AM': safe_value('9:00 AM'),
+                    '10:00 AM': safe_value('10:00 AM'),
+                    '11:00 AM': safe_value('11:00 AM'),
+                    '5:00 PM': safe_value('5:00 PM'),
+                    '5:30 PM': safe_value('5:30 PM'),
+                    'Kids 9:00 AM': safe_value('Kids 9:00 AM'),
+                    'Kids 10:00 AM': safe_value('Kids 10:00 AM'),
+                    'Kids 11:00 AM': safe_value('Kids 11:00 AM'),
+                    'Kids 5:00 PM': safe_value('Kids 5:00 PM'),
+                    'Kids 5:30 PM': safe_value('Kids 5:30 PM'),
+                    'Kids Attendance': safe_value('Kids Attendance'),
+                    'Kids Leaders': safe_value('Kids Leaders'),
+                    'New Kids': safe_value('New Kids'),
+                    'New Kids Salvations': safe_value('New Kids Salvations'),
+                    'First Time Visitors': safe_value('First Time Visitors'),
+                    'Visitors': safe_value('Visitors'),
+                    'Information Gathered': safe_value('Information Gathered'),
+                    'First Time Christians': safe_value('First Time Christians'),
+                    'Rededications': safe_value('Rededications'),
+                    'Youth Attendance': safe_value('Youth Attendance'),
+                    'Youth Salvations': safe_value('Youth Salvations'),
+                    'Youth New People': safe_value('Youth New People'),
+                    'Connect Groups': safe_value('Connect Groups'),
+                    'Dream Team': safe_value('Dream Team'),
+                    'Tithe': safe_value('Tithe'),
+                    'Baptisms': safe_value('Baptisms'),
+                    'Child Dedications': safe_value('Child Dedications')
+                }
+                
+                # Add missing headers with default values
+                for header in headers:
+                    if header not in row_data:
+                        row_data[header] = ''
+                
+                # Convert to list format
+                row_values = [row_data.get(header, '') for header in headers]
+                
+                # Append as new row
+                safe_sheets_request(sheet.append_row, row_values, value_input_option='USER_ENTERED')
+                logger.info(f"✓ Created new entry for {campus} on {date_str}")
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Entry created successfully",
+                    "stats": stats,
+                    "campus": campus,
+                    "date": date_str
+                }), 200
             
             # Prepare the row data
             def safe_value(key, default=0):
