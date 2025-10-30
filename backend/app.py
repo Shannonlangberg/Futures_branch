@@ -7734,10 +7734,17 @@ def manage_user(user_id):
         if not current_user.has_permission('manage_users'):
             return jsonify({"error": "Access denied"}), 403
         
-        users_data = load_users()
+        # Check if user exists in database first
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
+        user_exists = cursor.fetchone()
+        conn.close()
         
-        if user_id not in users_data['users']:
+        if not user_exists:
             return jsonify({"error": "User not found"}), 404
+        
+        users_data = load_users()
         
         if request.method == 'PUT':
             # Update user
@@ -7790,7 +7797,7 @@ def manage_user(user_id):
             
             conn.close()
             
-            # Also update JSON file for backward compatibility
+            # Also update JSON file for backward compatibility (if user exists there)
             if user_id in users_data['users']:
                 user_data = users_data['users'][user_id]
                 if 'active' in data:
