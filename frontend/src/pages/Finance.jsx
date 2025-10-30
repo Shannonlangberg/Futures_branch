@@ -114,7 +114,9 @@ const Finance = () => {
         // Reload existing data to show updated values
         await loadExistingData();
       } else {
-        setStatus({ message: result.error || 'Failed to submit tithe data', type: 'error' });
+        console.error('Finance submit error:', result);
+        const errorMsg = result.error || result.message || 'Failed to submit tithe data';
+        setStatus({ message: errorMsg, type: 'error' });
       }
     } catch (error) {
       console.error('Error submitting tithe data:', error);
