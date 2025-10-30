@@ -10145,6 +10145,11 @@ def quick_input_update():
         original_campus = data.get('originalCampus', campus).strip()
         original_date = data.get('originalDate', date_str).strip()
         
+        print(f"[EDIT_REQUEST] Received edit request:")
+        print(f"  campus: '{campus}'")
+        print(f"  date_str: '{date_str}'")
+        print(f"  original_campus: '{original_campus}'")
+        print(f"  original_date: '{original_date}'")
         logger.info(f"[EDIT_REQUEST] Received edit request:")
         logger.info(f"  campus: '{campus}'")
         logger.info(f"  date_str: '{date_str}'")
@@ -10204,10 +10209,12 @@ def quick_input_update():
                     if record_date == original_date:
                         matching_date_entries.append((idx, record))
                 
+                print(f"[EDIT_DEBUG] Found {len(matching_date_entries)} entries with date {original_date}")
                 logger.info(f"Found {len(matching_date_entries)} entries with date {original_date}")
                 
                 # Log all entries on this date for debugging
                 for idx, record in matching_date_entries:
+                    print(f"  Entry {idx}: Campus='{record.get('Campus')}', Total='{record.get('Total Attendance')}', 9AM='{record.get('9:00 AM')}'")
                     logger.info(f"  Entry {idx}: Campus='{record.get('Campus')}', Total='{record.get('Total Attendance')}', 9AM='{record.get('9:00 AM')}'")
                 
                 for idx, record in matching_date_entries:
