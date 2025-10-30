@@ -7154,6 +7154,20 @@ def submit_tithe_data():
         logger.error(f"Error submitting tithe data: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/finance/status')
+@login_required
+def check_finance_status():
+    """Check if finance sheet is connected"""
+    try:
+        return jsonify({
+            'success': True,
+            'finance_sheet_connected': finance_sheet is not None,
+            'finance_sheet_title': finance_sheet.title if finance_sheet else None
+        })
+    except Exception as e:
+        logger.error(f"Error checking finance status: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/finance/existing')
 @login_required
 def get_existing_finance_data():
@@ -7184,6 +7198,11 @@ def get_existing_finance_data():
 def submit_finance_data():
     """Submit tithe data for multiple campuses"""
     try:
+        # Check if finance sheet is available
+        if not finance_sheet:
+            logger.error("Finance sheet is not available - check Google Sheets connection")
+            return jsonify({'success': False, 'error': 'Finance sheet not available. Please contact administrator.'}), 500
+        
         # Only users with finance access can access this
         if not current_user.has_permission('finance_access'):
             return jsonify({'success': False, 'error': 'Access denied. Finance access required.'}), 403
@@ -7191,6 +7210,8 @@ def submit_finance_data():
         data = request.get_json()
         selected_date = data.get('date')
         tithe_data = data.get('tithe_data', {})
+        
+        logger.info(f"Finance submit request - Date: {selected_date}, Campus count: {len(tithe_data)}")
         
         if not selected_date:
             return jsonify({'success': False, 'error': 'Date is required'}), 400
