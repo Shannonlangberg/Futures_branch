@@ -10184,7 +10184,11 @@ def quick_input_update():
                     original_campus.lower(),
                     original_campus.replace('_', ' '),
                     original_campus.replace('_', ' ').title(),
-                    search_campus_norm
+                    original_campus.replace('_', ' ').lower(),
+                    search_campus_norm,
+                    # Add more variations for better matching
+                    original_campus.replace('_', '').lower(),
+                    original_campus.replace('_', '').title()
                 ]
                 logger.info(f"[Attempt {attempt + 1}] Searching for date='{original_date}', campus variants: {search_campus_variants}")
                 
@@ -10205,13 +10209,21 @@ def quick_input_update():
                     campus_match = False
                     for variant in search_campus_variants:
                         variant_norm = normalize_campus(variant)
+                        variant_lower = variant.lower()
+                        record_lower = record_campus_raw.lower()
+                        
+                        # Multiple matching strategies
                         if (variant_norm in record_campus or 
                             record_campus in variant_norm or 
                             variant_norm == record_campus or
-                            variant.lower() == record_campus_raw.lower() or
-                            variant.lower().replace('_', ' ') == record_campus_raw.lower().replace('_', ' ')):
+                            variant_lower == record_lower or
+                            variant_lower.replace('_', ' ') == record_lower.replace('_', ' ') or
+                            variant_lower.replace('_', '') == record_lower.replace('_', '') or
+                            # Check if any word from variant matches any word from record
+                            any(word in record_lower.split() for word in variant_lower.split() if len(word) > 2) or
+                            any(word in variant_lower.split() for word in record_lower.split() if len(word) > 2)):
                             campus_match = True
-                            logger.info(f"Matched using variant '{variant}' against '{record_campus_raw}'")
+                            logger.info(f"Matched using variant '{variant}' against '{record_campus_raw}' (normalized: '{record_campus}')")
                             break
                     
                     if campus_match:
@@ -10229,31 +10241,35 @@ def quick_input_update():
                     import time
                     time.sleep(wait_time)
             
-            if not row_index:
-                # Entry not found - check if there's already an entry for this date to prevent duplicates
-                logger.error(f"Entry not found after 3 attempts. campus='{original_campus}' (normalized: '{search_campus_norm}'), date='{original_date}'")
-                logger.error(f"All entries on this date: {[(r.get('Campus'), r.get('Date')) for r in all_records if r.get('Date') == original_date]}")
+                if not row_index:
+                # Entry not found - try one more fallback: use the most recent entry on this date
+                logger.warning(f"Exact campus match not found. Trying fallback: most recent entry on {original_date}")
                 
-                # Check for ANY entry on this date (broader check to prevent duplicates)
+                # Sort by timestamp to get the most recent entry
                 entries_on_date = [r for r in all_records if r.get('Date') == original_date]
                 if entries_on_date:
-                    logger.error(f"Found {len(entries_on_date)} existing entries on {original_date}. Refusing to create duplicate.")
-                    logger.error(f"Existing entries: {[(r.get('Campus'), r.get('Date'), r.get('Total Attendance')) for r in entries_on_date]}")
+                    # Try to sort by timestamp if available
+                    try:
+                        entries_on_date.sort(key=lambda x: x.get('Timestamp', ''), reverse=True)
+                    except:
+                        pass  # If timestamp sorting fails, use original order
+                    
+                    # Use the most recent entry
+                    most_recent_entry = entries_on_date[0]
+                    most_recent_idx = all_records.index(most_recent_entry)
+                    row_index = most_recent_idx + 2
+                    
+                    logger.warning(f"Using fallback: most recent entry at index {row_index} for campus '{most_recent_entry.get('Campus')}' on {original_date}")
+                else:
+                    # No entries on this date at all
+                    logger.error(f"No entries found on {original_date} at all. Recent entries:")
+                    for r in all_records[-5:]:
+                        logger.error(f"  Campus: '{r.get('Campus')}', Date: '{r.get('Date')}', Normalized: '{normalize_campus(r.get('Campus', ''))}'")
+                    
                     return jsonify({
-                        "error": f"Could not find your specific entry to edit, but found {len(entries_on_date)} other entry/entries on {original_date}. This might be a sync delay - please wait 10 seconds and try again, or refresh the page to see your entry.",
-                        "suggestion": "refresh"
+                        "error": f"Entry not found for {original_campus} on {original_date}. This usually means Google Sheets is still syncing. Please wait 10-15 seconds and try again.",
+                        "suggestion": "wait"
                     }), 404
-                
-                # No entries on this date at all - likely the search logic has an issue
-                # Log detailed debugging info
-                logger.error(f"No entries found on {original_date} at all. Recent entries:")
-                for r in all_records[-5:]:
-                    logger.error(f"  Campus: '{r.get('Campus')}', Date: '{r.get('Date')}', Normalized: '{normalize_campus(r.get('Campus', ''))}'")
-                
-                return jsonify({
-                    "error": f"Entry not found for {original_campus} on {original_date}. This usually means Google Sheets is still syncing. Please wait 10-15 seconds and try again.",
-                    "suggestion": "wait"
-                }), 404
             
             # Prepare the row data
             def safe_value(key, default=0):
