@@ -170,6 +170,9 @@ const LogStats = () => {
       'originalCampus': originalCampus
     });
     
+    // Set the selected campus to the correct one for editing
+    setSelectedCampus(originalCampus);
+    
     setEditingEntry({
       originalCampus: originalCampus, // Use original campus name from stats data
       originalDate: entry.date
