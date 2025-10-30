@@ -567,8 +567,69 @@ def safe_sheets_request(func, *args, force_refresh=False, **kwargs):
     except Exception as e:
         error_msg = str(e).lower()
         
+        # Handle list index out of range (empty sheet or malformed structure)
+        if 'list index out of range' in error_msg or 'index out of range' in error_msg:
+            logger.warning(f"Detected 'list index out of range' error, attempting manual fetch from worksheet")
+            try:
+                worksheet = func.__self__
+                all_values = worksheet.get_all_values()
+                
+                # If sheet is completely empty, return empty list
+                if not all_values or len(all_values) == 0:
+                    logger.info(f"Sheet '{worksheet.title}' is empty, returning empty list")
+                    return []
+                
+                # If only headers exist (1 row), return empty list
+                if len(all_values) < 2:
+                    logger.info(f"Sheet '{worksheet.title}' has only headers, no data rows")
+                    return []
+                
+                # Get headers and filter out empty ones
+                headers = all_values[0] if all_values else []
+                if not headers:
+                    logger.warning(f"Sheet '{worksheet.title}' has no headers")
+                    return []
+                
+                valid_headers = []
+                valid_indices = []
+                
+                for i, header in enumerate(headers):
+                    if header and str(header).strip():
+                        valid_headers.append(str(header).strip())
+                        valid_indices.append(i)
+                
+                if not valid_headers:
+                    logger.warning(f"Sheet '{worksheet.title}' has no valid headers")
+                    return []
+                
+                # Build records using only valid headers
+                records = []
+                for row_idx, row in enumerate(all_values[1:], start=2):
+                    record = {}
+                    for i, col_index in enumerate(valid_indices):
+                        if col_index < len(row):
+                            record[valid_headers[i]] = row[col_index]
+                        else:
+                            record[valid_headers[i]] = ""  # Fill with empty string if column missing
+                    records.append(record)
+                
+                # Cache and return
+                sheets_cache[cache_key] = {
+                    'data': records,
+                    'timestamp': time.time()
+                }
+                logger.info(f"[CACHE] Stored {len(records)} rows for '{cache_key}' (manual fetch due to index error)")
+                return records
+            except Exception as manual_error:
+                logger.error(f"Manual fetch also failed: {manual_error}")
+                # Return empty list instead of raising error for finance sheet
+                if 'finance' in cache_key.lower() or 'tithe' in cache_key.lower():
+                    logger.warning(f"Returning empty list for finance sheet due to error")
+                    return []
+                raise e
+        
         # Handle empty header cells error specifically
-        if 'empty cell' in error_msg and 'header' in error_msg:
+        elif 'empty cell' in error_msg and 'header' in error_msg:
             logger.warning(f"Detected empty headers in sheet, attempting manual fetch")
             try:
                 # Try to get data manually by fetching all values and building records
@@ -9848,44 +9909,66 @@ def get_recent_entries():
         if sheet:
             try:
                 all_records = safe_sheets_request(sheet.get_all_records)
-                campus_normalized = normalize_campus(campus)
                 
-                logger.info(f"[RECENT_ENTRIES] Processing {len(all_records)} total records, campus_normalized: '{campus_normalized}'")
+                # Handle "all_campuses" - show entries from all campuses
+                show_all_campuses = campus.lower() in ['all_campuses', 'all', 'australia']
+                
+                if not show_all_campuses:
+                    campus_normalized = normalize_campus(campus)
+                    logger.info(f"[RECENT_ENTRIES] Processing {len(all_records)} total records, filtering by campus: '{campus_normalized}'")
+                else:
+                    logger.info(f"[RECENT_ENTRIES] Processing {len(all_records)} total records, showing ALL campuses")
                 
                 for record in all_records:
-                    record_campus = normalize_campus(record.get('Campus', ''))
+                    record_campus_str = record.get('Campus', '')
                     record_date_str = record.get('Date', '')
                     
-                    # Check if campus matches
-                    campus_match = (record_campus == campus_normalized or 
-                                   campus_normalized in record_campus or
-                                   record_campus in campus_normalized)
+                    # Skip if no date
+                    if not record_date_str:
+                        continue
                     
-                    if campus_match:
-                        # Check if date is within last 7 days
-                        try:
-                            # Try different date formats
-                            record_date = None
-                            for date_format in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y']:
-                                try:
-                                    record_date = datetime.strptime(record_date_str, date_format).date()
-                                    break
-                                except:
-                                    continue
-                            
-                            if record_date and start_date <= record_date <= end_date:
-                                entries.append({
-                                    'date': record_date_str,
-                                    'campus': record.get('Campus', ''),
-                                    'stats': record
-                                })
-                                logger.debug(f"[RECENT_ENTRIES] Added entry: {record_date_str} for {record.get('Campus', '')}")
-                        except Exception as e:
-                            logger.debug(f"[RECENT_ENTRIES] Error parsing date '{record_date_str}': {e}")
+                    # Check campus match (skip if filtering by campus)
+                    if not show_all_campuses:
+                        record_campus = normalize_campus(record_campus_str)
+                        campus_match = (record_campus == campus_normalized or 
+                                       campus_normalized in record_campus or
+                                       record_campus in campus_normalized)
+                        if not campus_match:
                             continue
+                    
+                    # Check if date is within last 7 days
+                    try:
+                        # Try different date formats
+                        record_date = None
+                        for date_format in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y']:
+                            try:
+                                record_date = datetime.strptime(str(record_date_str), date_format).date()
+                                break
+                            except:
+                                continue
+                        
+                        if record_date and start_date <= record_date <= end_date:
+                            # Ensure we have the required stats fields
+                            stats = {
+                                'Total Attendance': safe_int(record.get('Total Attendance', 0)),
+                                'Kids Attendance': safe_int(record.get('Kids Attendance', 0)),
+                                'Youth Attendance': safe_int(record.get('Youth Attendance', 0)),
+                                # Include all other fields from the record
+                                **record
+                            }
+                            
+                            entries.append({
+                                'date': record_date_str,
+                                'campus': record_campus_str if not show_all_campuses else 'All Campuses',
+                                'stats': stats
+                            })
+                            logger.debug(f"[RECENT_ENTRIES] Added entry: {record_date_str} for {record_campus_str}")
+                    except Exception as e:
+                        logger.debug(f"[RECENT_ENTRIES] Error parsing date '{record_date_str}': {e}")
+                        continue
                 
-                # Sort by date descending (most recent first)
-                entries.sort(key=lambda x: x['date'], reverse=True)
+                # Sort by date descending (most recent first), then by campus
+                entries.sort(key=lambda x: (x['date'], x['campus']), reverse=True)
                 logger.info(f"[RECENT_ENTRIES] Found {len(entries)} matching entries")
                 
             except Exception as e:
