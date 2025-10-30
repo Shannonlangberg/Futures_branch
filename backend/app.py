@@ -7300,21 +7300,51 @@ def update_tithe_for_campus(campus_id, date_str, tithe_amount):
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
         # Look for existing row for this campus and date
+        # Normalize the incoming campus_id for comparison
+        normalized_campus_id = normalize_campus(campus_id)
         existing_row_index = None
+        latest_timestamp = None
+        
         for i, row in enumerate(rows):
             date_str_row = row.get("Date", "")
-            if date_str_row:
+            campus_name = row.get('Campus', '')
+            timestamp_str = row.get('Timestamp', '')
+            if date_str_row and campus_name:
                 try:
                     if "T" in date_str_row:
                         row_date = datetime.fromisoformat(date_str_row.replace('Z', '+00:00')).date()
                     else:
                         row_date = datetime.strptime(date_str_row, "%Y-%m-%d").date()
                     
-                    if row_date == target_date and row.get('Campus', '').lower() == campus_id.lower():
-                        existing_row_index = i + 2  # +2 for 1-indexed and header
-                        break
-                except:
+                    # Normalize both campus names for comparison
+                    normalized_row_campus = normalize_campus(campus_name)
+                    
+                    if row_date == target_date and normalized_row_campus == normalized_campus_id:
+                        # If there are multiple matches, use the most recent one (by timestamp)
+                        if timestamp_str:
+                            try:
+                                if "T" in timestamp_str:
+                                    row_timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                                else:
+                                    row_timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                                
+                                if latest_timestamp is None or row_timestamp > latest_timestamp:
+                                    latest_timestamp = row_timestamp
+                                    existing_row_index = i + 2  # +2 for 1-indexed and header
+                            except:
+                                # If timestamp parsing fails, just use this row if we haven't found one yet
+                                if existing_row_index is None:
+                                    existing_row_index = i + 2
+                        else:
+                            # No timestamp, use first match if we haven't found one
+                            if existing_row_index is None:
+                                existing_row_index = i + 2
+                except Exception as e:
+                    logger.warning(f"Error matching row {i}: {e}")
                     continue
+        
+        if existing_row_index:
+            logger.info(f"Found existing row {existing_row_index} for {campus_id} on {date_str} (updating instead of creating new)")
         
         # tithe_amount is now a dict with breakdown: {general, trust, online, text, total}
         general = tithe_amount.get('general', 0) if isinstance(tithe_amount, dict) else 0
