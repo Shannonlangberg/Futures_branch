@@ -107,7 +107,6 @@ const LogStats = () => {
         credentials: 'include'
       });
       const data = await response.json();
-      console.log(`[Recent Entries] Loaded ${data.entries?.length || 0} entries for campus: ${selectedCampus}`, data.entries);
       if (data.entries) {
         setRecentEntries(data.entries);
       } else {
@@ -166,11 +165,6 @@ const LogStats = () => {
     setIsEditMode(true);
     // Use the campus name from the stats data, which should be the actual campus name
     const originalCampus = entry.stats.Campus || entry.campus;
-    console.log('[EDIT] Campus names:', {
-      'entry.campus': entry.campus,
-      'entry.stats.Campus': entry.stats.Campus,
-      'originalCampus': originalCampus
-    });
     
     // Set the selected campus to the correct one for editing
     setSelectedCampus(originalCampus);
@@ -416,45 +410,40 @@ const LogStats = () => {
                   return (
                     <div 
                       key={uniqueKey} 
-                      className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl hover:border-blue-500/50 transition-all duration-300 cursor-pointer group" 
+                      className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/20 shadow-lg hover:shadow-xl hover:border-blue-500/50 transition-all duration-300 cursor-pointer group" 
                       onClick={() => {
-                        console.log('[CLICK] Clicked on entry:', {
-                          'entry.campus': entry.campus,
-                          'entry.date': entry.date,
-                          'campusName': campusName
-                        });
                         handleEditFromRecent(entry);
                       }}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-3">
-                            <div className="text-lg text-blue-400 font-bold">{entry.date}</div>
-                            <div className="text-sm text-slate-400 bg-white/10 rounded-lg px-3 py-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex-1 w-full">
+                          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 mb-4">
+                            <div className="text-base sm:text-lg text-blue-400 font-bold">{entry.date}</div>
+                            <div className="text-sm text-slate-400 bg-white/10 rounded-lg px-3 py-1 w-fit">
                               {campusName}
                             </div>
                           </div>
-                          <div className="grid grid-cols-4 gap-4">
-                            <div>
-                              <div className="text-xs text-slate-400 mb-1">Total Attendance</div>
-                              <div className="text-white text-xl font-semibold">{totalAtt.toLocaleString()}</div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-4">
+                            <div className="pb-2">
+                              <div className="text-xs sm:text-sm text-slate-400 mb-2 leading-tight">Total Attendance</div>
+                              <div className="text-white text-lg sm:text-xl font-semibold">{totalAtt.toLocaleString()}</div>
                             </div>
-                            <div>
-                              <div className="text-xs text-slate-400 mb-1">New People</div>
-                              <div className="text-green-400 text-xl font-semibold">{newPeople.toLocaleString()}</div>
+                            <div className="pb-2">
+                              <div className="text-xs sm:text-sm text-slate-400 mb-2 leading-tight">New People</div>
+                              <div className="text-green-400 text-lg sm:text-xl font-semibold">{newPeople.toLocaleString()}</div>
                             </div>
-                            <div>
-                              <div className="text-xs text-slate-400 mb-1">New Christians</div>
-                              <div className="text-yellow-400 text-xl font-semibold">{newChristians.toLocaleString()}</div>
+                            <div className="pb-2">
+                              <div className="text-xs sm:text-sm text-slate-400 mb-2 leading-tight">New Christians</div>
+                              <div className="text-yellow-400 text-lg sm:text-xl font-semibold">{newChristians.toLocaleString()}</div>
                             </div>
-                            <div>
-                              <div className="text-xs text-slate-400 mb-1">Kids</div>
-                              <div className="text-pink-400 text-xl font-semibold">{kidsAtt.toLocaleString()}</div>
+                            <div className="pb-2">
+                              <div className="text-xs sm:text-sm text-slate-400 mb-2 leading-tight">Kids</div>
+                              <div className="text-pink-400 text-lg sm:text-xl font-semibold">{kidsAtt.toLocaleString()}</div>
                             </div>
                           </div>
                         </div>
-                        <div className="bg-blue-500/20 p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity ml-4">
-                          <PencilIcon className="w-6 h-6 text-blue-400" />
+                        <div className="bg-blue-500/20 p-3 rounded-xl opacity-0 sm:opacity-100 sm:group-hover:opacity-100 transition-opacity mt-4 sm:mt-0 sm:ml-4 flex-shrink-0 self-end sm:self-auto">
+                          <PencilIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
                         </div>
                       </div>
                     </div>
