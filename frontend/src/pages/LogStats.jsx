@@ -162,8 +162,8 @@ const LogStats = () => {
     setQuickInputStats(newStats);
     setQuickInputDate(entry.date);
     setIsEditMode(true);
-    // The campus name is already the original name from the data, not the formatted display name
-    const originalCampus = entry.campus;
+    // Use the campus name from the stats data, which should be the actual campus name
+    const originalCampus = entry.stats.Campus || entry.campus;
     console.log('[EDIT] Campus names:', {
       'entry.campus': entry.campus,
       'entry.stats.Campus': entry.stats.Campus,
