@@ -214,15 +214,17 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
     total: serviceBreakdown[service]?.total || 0
   }));
   
-  // Calculate Sunday attendance from service breakdown totals (more accurate)
-  // This ensures the number matches the sum of service breakdown items
+  // Calculate Sunday attendance from service breakdown AVERAGES (not totals)
+  // Sum the averages across all service times to get total average Sunday attendance
   const sundayAttendanceFromServices = services.reduce((sum, service) => {
-    return sum + (service.total || (service.attendance * service.count));
+    // Use the average (attendance) per service, not the total across all weeks
+    return sum + (service.attendance || 0);
   }, 0);
   
   // Calculate percentages and metrics
   const totalPeople = data.stats?.total_people || 0;
-  const sundayAttendance = Math.round(sundayAttendanceFromServices || data.stats?.avg_attendance || 0);
+  // Use service breakdown sum if it exists and has data, otherwise fall back to avg_attendance
+  const sundayAttendance = Math.round(sundayAttendanceFromServices > 0 ? sundayAttendanceFromServices : (data.stats?.avg_attendance || 0));
   const youthAttendance = Math.round(data.stats?.avg_youth_attendance || 0); // ALWAYS average
   const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // ALWAYS average
   const totalAttendance = sundayAttendance + youthAttendance + kidsAttendance; // Weekend = Sunday + Youth + Kids
@@ -1085,7 +1087,8 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                           <div className="space-y-4">
                             {servicesToShow.map((service, index) => {
                               const avgPerService = Math.round(service.attendance);
-                              const totalForTimeSlot = Math.round(service.attendance * service.count);
+                              // Use actual total from backend, not recalculated
+                              const totalForTimeSlot = service.total || Math.round(service.attendance * service.count);
                               return (
                                 <div key={index} className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
                                   <div>
@@ -1096,9 +1099,9 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                                   </div>
                                   <div className="text-right">
                                     <div className="text-2xl font-bold text-purple-400">
-                                      {totalForTimeSlot.toLocaleString()}
+                                      {avgPerService.toLocaleString()}
                                     </div>
-                                    <div className="text-xs text-white/50">Total for time slot</div>
+                                    <div className="text-xs text-white/50">Avg per service</div>
                                   </div>
                                 </div>
                               );
