@@ -84,7 +84,9 @@ def seed_users():
         inserted = 0
         for user_key, user_data in users.items():
             # Use the actual username from user_data, not the dictionary key
-            actual_username = user_data.get('username', user_key)
+            # Strip whitespace to prevent login issues
+            actual_username = user_data.get('username', user_key).strip()
+            full_name = user_data.get('full_name', actual_username).strip()
             cursor.execute('''
                 INSERT OR IGNORE INTO users 
                 (username, password_hash, full_name, email, role, campus, active)
@@ -92,7 +94,7 @@ def seed_users():
             ''', (
                 actual_username,
                 user_data.get('password_hash', ''),
-                user_data.get('full_name', actual_username),
+                full_name,
                 user_data.get('email', ''),
                 user_data.get('role', 'campus_pastor'),
                 user_data.get('campus', ''),

@@ -1234,10 +1234,11 @@ def authenticate_user(username, password):
     try:
         conn = get_db()
         cursor = conn.cursor()
+        # Use TRIM to handle any trailing spaces in database
         cursor.execute('''
             SELECT id, username, password_hash, full_name, email, role, campus, active
             FROM users
-            WHERE username = ? AND active = 1
+            WHERE TRIM(username) = ? AND active = 1
         ''', (username,))
         
         row = cursor.fetchone()
@@ -10792,8 +10793,9 @@ def create_user_api():
     try:
         data = request.get_json()
         
-        username = data.get('username')
-        password = data.get('password')
+        # Strip whitespace from username to prevent login issues
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
         
         if not username or not password:
             return jsonify({"error": "Username and password required"}), 400
@@ -10802,8 +10804,8 @@ def create_user_api():
         conn = get_db()
         cursor = conn.cursor()
         
-        # Check if username already exists
-        cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+        # Check if username already exists (using TRIM for comparison)
+        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ?', (username,))
         if cursor.fetchone():
             conn.close()
             return jsonify({"error": "Username already exists"}), 400
@@ -10815,8 +10817,8 @@ def create_user_api():
         ''', (
             username,
             generate_password_hash(password),
-            data.get('full_name', username),
-            data.get('email', f"{username}@futures.church"),
+            data.get('full_name', username).strip() if data.get('full_name') else username,
+            data.get('email', f"{username}@futures.church").strip() if data.get('email') else f"{username}@futures.church",
             data.get('role', 'campus_pastor'),
             data.get('campus', 'all_campuses'),
             1
