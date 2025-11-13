@@ -352,33 +352,7 @@ def _env_flag(key: str, default: bool = True) -> bool:
 ENABLE_RESOURCES = _env_flag("ENABLE_RESOURCES", True)
 ENABLE_GOOGLE_OAUTH = _env_flag("ENABLE_GOOGLE_OAUTH", ENABLE_RESOURCES)
 
-DEFAULT_RESOURCES_MAP = {
-    "Finance": {
-        "displayName": "Finance",
-        "description": "Financial forms, reports, and templates",
-        "folderId": ""
-    },
-    "HR": {
-        "displayName": "HR",
-        "description": "Human resources policies, onboarding, and leave requests",
-        "folderId": ""
-    },
-    "Policies": {
-        "displayName": "Policies",
-        "description": "Organisational policies and procedures",
-        "folderId": ""
-    },
-    "Media": {
-        "displayName": "Media",
-        "description": "Brand assets, media kits, and communications resources",
-        "folderId": ""
-    },
-    "Training": {
-        "displayName": "Training",
-        "description": "Training material and learning resources",
-        "folderId": ""
-    }
-}
+DEFAULT_RESOURCES_MAP = {}
 
 
 def parse_scopes(scope_value: str) -> list:
@@ -531,6 +505,9 @@ def get_resource_categories_config(include_links: bool = False):
                 ]
             payload[category.slug] = entry
         return payload
+
+    if not DEFAULT_RESOURCES_MAP:
+        return load_resources_map_file()
 
     global RESOURCES_MAP
     if not RESOURCES_MAP:

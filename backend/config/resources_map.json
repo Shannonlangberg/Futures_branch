@@ -2,26 +2,8 @@
   "Finance": {
     "displayName": "Finance",
     "description": "Financial forms, reports, and templates for the finance team.",
-    "folderId": "1aVxzFoPktTUCzCbbU57y3HpDWAzDfBUk"
-  },
-  "HR": {
-    "displayName": "HR",
-    "description": "Human resources policies, onboarding documents, and leave request forms.",
-    "folderId": ""
-  },
-  "Policies": {
-    "displayName": "Policies",
-    "description": "Organisational policies, procedures, and governance documents.",
-    "folderId": ""
-  },
-  "Media": {
-    "displayName": "Media",
-    "description": "Brand assets, media kits, and communications resources.",
-    "folderId": ""
-  },
-  "Training": {
-    "displayName": "Training",
-    "description": "Training material, workshops, and development resources.",
     "folderId": ""
   }
 }
+
+
