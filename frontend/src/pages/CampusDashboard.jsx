@@ -221,12 +221,13 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   // Calculate percentages and metrics
   const totalPeople = data.stats?.total_people || 0;
   // Use service breakdown sum if it exists and has data, otherwise fall back to avg_attendance
-  const sundayAttendance = Math.round(sundayAttendanceFromServices > 0 ? sundayAttendanceFromServices : (data.stats?.avg_attendance || 0));
+  const sundayAdultAttendance = Math.round(sundayAttendanceFromServices > 0 ? sundayAttendanceFromServices : (data.stats?.avg_attendance || 0));
   const youthAttendance = Math.round(data.stats?.avg_youth_attendance || 0); // ALWAYS average
   const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // ALWAYS average
-  const totalAttendance = sundayAttendance + youthAttendance + kidsAttendance; // Weekend = Sunday + Youth + Kids
+  const sundayCombinedAttendance = sundayAdultAttendance + kidsAttendance;
+  const totalAttendance = sundayAdultAttendance + youthAttendance + kidsAttendance; // Weekend = Sunday + Youth + Kids
   const attendancePercentage = totalPeople > 0 ? Math.round((totalAttendance / totalPeople) * 100) : 0;
-  const connectGroupPercentage = sundayAttendance > 0 ? Math.round((data.stats?.avg_connect_groups || 0) / sundayAttendance * 100) : 0;
+  const connectGroupPercentage = sundayAdultAttendance > 0 ? Math.round((data.stats?.avg_connect_groups || 0) / sundayAdultAttendance * 100) : 0;
 
   return (
     <div key={`campus-dashboard-${campusId}-${lastRefresh.getTime()}`} className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -377,7 +378,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               className="group relative bg-gradient-to-br from-[#AC9B25]/20 to-[#FF8432]/20 backdrop-blur-sm rounded-2xl p-6 border border-[#AC9B25]/20 shadow-2xl hover:shadow-[#AC9B25]/25 transition-all duration-500 hover:scale-105 cursor-pointer"
               onClick={() => openModal('weekend-attendance', { 
                 total: totalAttendance,
-                sunday: sundayAttendance,
+                sunday: sundayAdultAttendance,
                 youth: youthAttendance,
                 percentage: attendancePercentage,
                 campus: campusName
@@ -406,10 +407,11 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               className="group relative bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm rounded-2xl p-6 border border-purple-400/20 shadow-2xl hover:shadow-purple-500/25 transition-all duration-500 hover:scale-105 cursor-pointer"
               onClick={() => {
                 openModal('sunday-attendance', { 
-                  total: sundayAttendance, 
+                  total: sundayCombinedAttendance, 
+                  adults: sundayAdultAttendance,
+                  kids: kidsAttendance,
                   services: services,
-                  campus: campusName,
-                  serviceBreakdown: data.service_breakdown
+                  campus: campusName
                 });
               }}
             >
@@ -421,12 +423,12 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   </div>
                   <div className="text-purple-400 text-sm font-semibold">Sunday</div>
                 </div>
-                <h3 className="text-white/80 text-sm font-medium mb-2">Adult Attendance</h3>
+                <h3 className="text-white/80 text-sm font-medium mb-2">Sunday Attendance (Adults + Kids)</h3>
                 <div className="text-4xl font-bold text-white mb-2">
-                  {sundayAttendance.toLocaleString()}
+                  {sundayCombinedAttendance.toLocaleString()}
                 </div>
                 <p className="text-purple-200/80 text-sm">
-                  {services.length > 1 ? `${services.length} services • Average per service` : 'Average per service (adults only)'}
+                  {services.length > 1 ? `${services.length} services • Average per service (adults + kids)` : 'Average per service (adults + kids)'}
                 </p>
               </div>
             </div>
@@ -583,7 +585,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               onClick={() => openModal('connect-groups', { 
                 total: Math.round(data.stats?.avg_connect_groups || 0),
                 percentage: connectGroupPercentage,
-                sundayAttendance: sundayAttendance,
+                sundayAttendance: sundayAdultAttendance,
                 campus: campusName 
               })}
             >
@@ -648,7 +650,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                     ></div>
                   </div>
                   <p className="text-white/60 text-sm">
-                    {Math.round(data.stats?.avg_connect_groups || 0)} in groups out of {sundayAttendance} Sunday attendees
+                    {Math.round(data.stats?.avg_connect_groups || 0)} in groups out of {sundayAdultAttendance} Sunday attendees
                   </p>
                 </div>
               </div>
@@ -948,14 +950,17 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               {modalType === 'sunday-attendance' && (
                 <div className="space-y-6">
                   <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                    <h3 className="text-xl font-bold text-white mb-4">Sunday Adult Attendance</h3>
+                    <h3 className="text-xl font-bold text-white mb-4">Sunday Attendance (Adults + Kids)</h3>
                     <div className="text-4xl font-bold text-purple-400 mb-2">
                       {modalData.total.toLocaleString()}
                     </div>
                     <p className="text-white/60">
                       {isRollup 
-                        ? 'Average adult attendance across all campuses (excluding kids & youth)' 
-                        : 'Average adult attendance only (excluding kids & youth)'}
+                        ? 'Average attendance across all campuses (adults + kids, excluding youth)' 
+                        : 'Average per service including kids ministry'}
+                    </p>
+                    <p className="text-white/50 text-sm mt-2">
+                      Adults: {(modalData?.adults ?? sundayAdultAttendance).toLocaleString()} • Kids: {(modalData?.kids ?? kidsAttendance).toLocaleString()}
                     </p>
                   </div>
                   
@@ -1029,7 +1034,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                       <div className="bg-purple-500/10 rounded-xl p-4 border border-purple-400/20">
                         <h4 className="text-lg font-semibold text-purple-300 mb-2">Sunday Services</h4>
                         <div className="text-3xl font-bold text-purple-400 mb-1">
-                          {sundayAttendance.toLocaleString()}
+                          {(modalData?.sunday ?? sundayAdultAttendance).toLocaleString()}
                         </div>
                         <p className="text-purple-200/80 text-sm">Average Sunday attendance</p>
                       </div>

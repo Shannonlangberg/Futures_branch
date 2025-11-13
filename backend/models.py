@@ -232,6 +232,30 @@ class Event(db.Model):
         }
 
 
+class GoogleOAuthToken(db.Model):
+    """Store Google OAuth tokens per user"""
+    __tablename__ = 'google_oauth_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(50), nullable=False)
+    provider = db.Column(db.String(50), nullable=False, default='google_drive')
+    token_json = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'provider', name='uq_google_tokens_user_provider'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'provider': self.provider,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
 def init_db(app):
     """Initialize database"""
     db.init_app(app)

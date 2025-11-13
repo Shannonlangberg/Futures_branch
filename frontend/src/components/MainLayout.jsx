@@ -21,7 +21,8 @@ import {
   BookOpenIcon,
   SignalIcon,
   DocumentChartBarIcon,
-  CalendarIcon
+  CalendarIcon,
+  AcademicCapIcon
 } from '@heroicons/react/24/outline';
 
 const MainLayout = ({ children }) => {
@@ -31,13 +32,33 @@ const MainLayout = ({ children }) => {
   const [userRole, setUserRole] = useState('user');
   const [userName, setUserName] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [featureFlags, setFeatureFlags] = useState({});
   const location = useLocation();
 
   // Fetch user session data on component mount
   useEffect(() => {
+    const fetchFeatureFlags = async () => {
+      try {
+        const response = await fetch('/api/feature_flags', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setFeatureFlags(data || {});
+        } else {
+          setFeatureFlags({});
+        }
+      } catch (error) {
+        console.error('Error fetching feature flags:', error);
+        setFeatureFlags({});
+      }
+    };
+
     const fetchSessionData = async () => {
       try {
-        const response = await fetch('/api/session');
+        const response = await fetch('/api/session', {
+          credentials: 'include'
+        });
         const data = await response.json();
         if (data.authenticated) {
           setUserRole(data.role || 'user');
@@ -49,9 +70,13 @@ const MainLayout = ({ children }) => {
             role: data.role || 'user',
             campus: data.campus || 'all_campuses'
           });
+          await fetchFeatureFlags();
+        } else {
+          setFeatureFlags({});
         }
       } catch (error) {
         console.error('Error fetching session data:', error);
+        setFeatureFlags({});
       }
     };
 
@@ -92,9 +117,12 @@ const MainLayout = ({ children }) => {
   const getNavigationItems = () => {
     const allItems = [
       // Core navigation - simplified to only show essential items
+      { name: 'Home', href: '/', icon: HomeIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance', 'user'] },
       { name: 'Dashboard', href: '/dashboard', icon: DocumentChartBarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
       { name: 'Input', href: '/stats', icon: ClipboardIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
+      { name: 'Passport', href: '/passport', icon: AcademicCapIcon, roles: ['admin'] },
       { name: 'Finance', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'] },
+      { name: 'Resources', href: '/resources', icon: BookOpenIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance', 'user'] },
       
       // Hidden items - commented out for now
       // { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'finance'] },
@@ -120,8 +148,9 @@ const MainLayout = ({ children }) => {
       
       // Check feature flag if specified
       if (item.featureFlag) {
-        // For now, we'll assume all feature flags are enabled
-        // In a real implementation, you'd fetch this from the API
+        if (!featureFlags[item.featureFlag]) {
+          return false;
+        }
       }
       
       return true;

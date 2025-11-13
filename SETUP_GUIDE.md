@@ -24,19 +24,22 @@ pip install -r requirements.txt
 
 ### Step 2: Environment Configuration
 
-Create `backend/.env`:
-```env
-# Google Sheets
-GOOGLE_CREDENTIALS_PATH=/path/to/credentials.json
-SHEET_ID=your_google_sheet_id
+Create `backend/.env` (or copy `ENV_TEMPLATE.txt` and adjust values):
 
+```env
 # Flask
 SECRET_KEY=your_random_secret_key_here
 FLASK_ENV=development
-PORT=5002
+CORS_ORIGINS=http://localhost:5173
 
-# CORS (for local dev)
-FRONTEND_URL=http://localhost:5173
+# Google Sheets (paste full JSON from Google Cloud)
+GOOGLE_SHEETS_CREDENTIALS={"type":"service_account","project_id":"your-project","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"service-account@your-project.iam.gserviceaccount.com"}
+GOOGLE_SHEET_NAME=Stats
+
+# Database (SQLite default)
+DATABASE_URL=sqlite:///futures_link.db
+# Optional: switch to Postgres
+# DATABASE_URL=postgresql+psycopg2://username:password@localhost:5432/futures_pulse
 ```
 
 ### Step 3: Google Sheets Setup
@@ -67,16 +70,23 @@ FRONTEND_URL=http://localhost:5173
 
 ### Step 4: Database Setup
 
+1. SQLite (default – nothing extra required)  
+   - The app will create `instance/church_voice.db` (regions, campuses)  
+   - And `futures_link.db` for SQLAlchemy tables on first run
+
+2. Postgres (recommended for multi-campus scaling)  
+   - Install Postgres locally (e.g. `brew install postgresql` on macOS)  
+   - Create a database: `createdb futures_pulse`  
+   - Update `DATABASE_URL` in `.env`, e.g. `postgresql+psycopg2://postgres:password@localhost:5432/futures_pulse`  
+   - Optional tuning: set `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW`, etc. as needed
+
+On first run the backend will create any missing SQLAlchemy tables automatically.  
+To populate the legacy `church_voice.db` tables (regions, campuses) you can still run:
+
 ```bash
 cd backend
-
-# Run migrations
 python migrate_regions.py
 ```
-
-This creates:
-- `instance/church_voice.db` (regions, campuses)
-- `instance/futures_link.db` (SQLAlchemy tables)
 
 ### Step 5: Start Backend
 

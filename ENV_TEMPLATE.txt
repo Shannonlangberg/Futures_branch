@@ -9,6 +9,14 @@ FLASK_ENV=development
 GOOGLE_SHEETS_CREDENTIALS={"type":"service_account","project_id":"your-project","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"your-service-account@your-project.iam.gserviceaccount.com","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs"}
 GOOGLE_SHEET_NAME=Stats
 
+# Google OAuth (Drive Resources)
+GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+GOOGLE_OAUTH_REDIRECT_URI=https://your-domain.com/api/google/callback
+# Optional overrides
+# GOOGLE_DRIVE_RESOURCE_SCOPES=https://www.googleapis.com/auth/drive.readonly
+# GOOGLE_RESOURCES_MAP_PATH=/absolute/path/to/resources_map.json
+
 # AI Configuration (Optional)
 ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
 ELEVENLABS_API_KEY=your-elevenlabs-key
@@ -20,5 +28,21 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174
 LOG_LEVEL=INFO
 
 # Database
+# Default local SQLite file (no extra setup required)
 DATABASE_URL=sqlite:///futures_link.db
 
+# Optional: Postgres connection (uncomment and update credentials)
+# DATABASE_URL=postgresql+psycopg2://username:password@localhost:5432/futures_pulse
+# DATABASE_POOL_SIZE=5
+# DATABASE_MAX_OVERFLOW=10
+# DATABASE_POOL_TIMEOUT=30
+# DATABASE_POOL_RECYCLE=1800
+
+# Feature Flags (optional overrides)
+# Toggle these to enable in-progress modules without merging into production
+DEVOTIONS_ADMIN_ENABLED=true
+GROUPS_FOR_STAFF_ENABLED=true
+BEACON_MGMT_ENABLED=false
+HEARTBEAT_ENABLED=false
+RBAC_ENABLED=true
+CAMPUS_SCOPING_ENABLED=true

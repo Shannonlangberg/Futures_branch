@@ -34,7 +34,7 @@
 **Backend:**
 - Python 3.11+
 - Flask
-- SQLite
+- SQLite (default) / Postgres (optional)
 - Google Sheets API
 
 **Frontend:**
@@ -70,6 +70,21 @@ GOOGLE_CREDENTIALS_PATH=path/to/credentials.json
 SHEET_ID=your_sheet_id
 SECRET_KEY=your_secret_key
 ```
+
+## Feature Flags
+
+Beacon and Heartbeat features are now isolated behind environment-driven flags:
+
+- `BEACON_MGMT_ENABLED` – gates all Bluetooth beacon endpoints and any future admin UI.
+- `HEARTBEAT_ENABLED` – gates the heartbeat demo APIs.
+
+Keep both values `false` in production to leave Pulse untouched. When you want to build or test locally:
+
+1. Set the flag(s) to `true` in your local `.env`.
+2. Restart the backend so the new values load.
+3. Refresh the frontend; it automatically fetches the current flag values.
+
+Flip the flags back to `false` before deploying or merging to keep unfinished modules hidden.
 
 ## User Roles
 

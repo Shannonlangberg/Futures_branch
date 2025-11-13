@@ -9,6 +9,9 @@ import CampusManagement from './pages/CampusManagement';
 import UserManagement from './pages/UserManagement';
 import DataExport from './pages/DataExport';
 import MyProfile from './pages/MyProfile';
+import Passport from './pages/Passport';
+import Resources from './pages/Resources';
+import Landing from './pages/Landing';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -69,7 +72,7 @@ function App() {
           path="/login" 
           element={
             isAuthenticated ? 
-            <Navigate to="/dashboard" replace /> : 
+            <Navigate to="/" replace /> : 
             <Login onLogin={handleLogin} />
           } 
         />
@@ -80,16 +83,18 @@ function App() {
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/" element={<Landing />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/stats" element={<LogStats />} />
                   <Route path="/finance" element={<Finance />} />
+                  <Route path="/passport" element={<Passport />} />
+                  <Route path="/resources" element={<Resources />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
                   <Route path="/export" element={<DataExport />} />
                   <Route path="/profile" element={<MyProfile />} />
                   <Route path="/settings" element={<Navigate to="/profile" replace />} />
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>
             ) : (

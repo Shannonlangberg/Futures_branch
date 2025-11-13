@@ -3,7 +3,8 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, GoogleOAuthToken, create_person_with_engagement
+from config.database import build_sqlalchemy_settings
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -26,6 +27,7 @@ except Exception as e:
     raise
 
 import json
+import secrets
 from typing import Dict, List, Optional, Any
 import logging
 
@@ -33,6 +35,16 @@ try:
     from dotenv import load_dotenv
 except Exception as e:
     print(f"[ERROR] Failed to import dotenv: {e}")
+    raise
+
+try:
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import Flow
+    from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
+    from google.auth.transport.requests import Request as GoogleAuthRequest
+except Exception as e:
+    print(f"[ERROR] Failed to import Google OAuth libraries: {e}")
     raise
 
 try:
@@ -50,6 +62,9 @@ except Exception as e:
 import requests
 import uuid
 from functools import wraps
+
+from utils.rbac import require_feature_flag
+from config.feature_flags import FeatureFlags
 
 try:
     from num2words import num2words
@@ -290,6 +305,196 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
+GOOGLE_DRIVE_SCOPE_ENV = os.getenv(
+    "GOOGLE_DRIVE_RESOURCE_SCOPES",
+    "https://www.googleapis.com/auth/drive.readonly"
+)
+RESOURCES_MAP_PATH = os.getenv(
+    "GOOGLE_RESOURCES_MAP_PATH",
+    os.path.join(os.path.dirname(__file__), "config", "resources_map.json")
+)
+RESOURCE_ALLOWED_ROLES = {
+    "admin",
+}
+
+DEFAULT_RESOURCES_MAP = {
+    "Finance": {
+        "displayName": "Finance",
+        "description": "Financial forms, reports, and templates",
+        "folderId": ""
+    },
+    "HR": {
+        "displayName": "HR",
+        "description": "Human resources policies, onboarding, and leave requests",
+        "folderId": ""
+    },
+    "Policies": {
+        "displayName": "Policies",
+        "description": "Organisational policies and procedures",
+        "folderId": ""
+    },
+    "Media": {
+        "displayName": "Media",
+        "description": "Brand assets, media kits, and communications resources",
+        "folderId": ""
+    },
+    "Training": {
+        "displayName": "Training",
+        "description": "Training material and learning resources",
+        "folderId": ""
+    }
+}
+
+
+def parse_scopes(scope_value: str) -> list:
+    """Parse drive scopes from env variable"""
+    if not scope_value:
+        return []
+    separators = [",", ";", " "]
+    scopes = [scope_value]
+    for sep in separators:
+        scopes = [item for token in scopes for item in token.split(sep)]
+    return [scope.strip() for scope in scopes if scope.strip()]
+
+
+GOOGLE_DRIVE_SCOPES = parse_scopes(GOOGLE_DRIVE_SCOPE_ENV)
+
+
+def get_google_client_config():
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return None
+    return {
+        "web": {
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+        }
+    }
+
+
+def load_resources_map_file():
+    """Load resources map configuration from disk"""
+    path = RESOURCES_MAP_PATH
+    resources = {key: value.copy() for key, value in DEFAULT_RESOURCES_MAP.items()}
+    try:
+        if not os.path.exists(path):
+            logger.warning(f"Resources map file not found at {path}, using defaults")
+            return resources
+        with open(path, "r") as file:
+            data = json.load(file)
+            if not isinstance(data, dict):
+                logger.error("Resources map file must contain a JSON object")
+                return resources
+            for key, value in data.items():
+                if isinstance(value, dict):
+                    merged = resources.get(key, {}).copy()
+                    merged.update(value)
+                    resources[key] = merged
+                else:
+                    resources[key] = value
+            return resources
+    except Exception as exc:
+        logger.error(f"Failed to load resources map file: {exc}")
+        return resources
+
+
+RESOURCES_MAP = load_resources_map_file()
+
+
+def get_resource_categories_config():
+    """Return current resources map configuration"""
+    global RESOURCES_MAP
+    if not RESOURCES_MAP:
+        RESOURCES_MAP = load_resources_map_file()
+    return RESOURCES_MAP
+
+
+def get_folder_for_category(category: str) -> Optional[str]:
+    """Retrieve Drive folder ID for category"""
+    config = get_resource_categories_config()
+    entry = config.get(category) or config.get(category.lower())
+    if not entry:
+        return None
+    return entry.get("folderId") or entry.get("folder_id")
+
+
+def get_category_metadata(category: str) -> dict:
+    config = get_resource_categories_config()
+    entry = config.get(category) or config.get(category.lower()) or {}
+    return {
+        "id": category,
+        "name": entry.get("displayName") or entry.get("name") or category,
+        "description": entry.get("description", ""),
+        "folderId": entry.get("folderId") or entry.get("folder_id"),
+    }
+
+
+def current_user_can_access_resources() -> bool:
+    return current_user.role in RESOURCE_ALLOWED_ROLES
+
+
+def save_google_credentials(user_id: str, credentials: Credentials, provider: str = "google_drive") -> bool:
+    """Persist Google credentials for user"""
+    try:
+        token = GoogleOAuthToken.query.filter_by(user_id=user_id, provider=provider).first()
+        if token:
+            token.token_json = credentials.to_json()
+        else:
+            token = GoogleOAuthToken(
+                user_id=user_id,
+                provider=provider,
+                token_json=credentials.to_json()
+            )
+            db.session.add(token)
+        db.session.commit()
+        return True
+    except Exception as exc:
+        logger.error(f"Failed to save Google credentials: {exc}")
+        db.session.rollback()
+        return False
+
+
+def get_google_credentials_for_user(user_id: str, provider: str = "google_drive") -> Optional[Credentials]:
+    """Load stored Google credentials for user and refresh if needed"""
+    try:
+        token = GoogleOAuthToken.query.filter_by(user_id=user_id, provider=provider).first()
+        if not token:
+            return None
+        token_info = json.loads(token.token_json)
+        credentials = Credentials.from_authorized_user_info(token_info, GOOGLE_DRIVE_SCOPES)
+        if credentials and credentials.expired and credentials.refresh_token:
+            try:
+                credentials.refresh(GoogleAuthRequest())
+                token.token_json = credentials.to_json()
+                db.session.commit()
+            except Exception as refresh_exc:
+                logger.error(f"Failed to refresh Google credentials: {refresh_exc}")
+                db.session.rollback()
+                return None
+        return credentials
+    except Exception as exc:
+        logger.error(f"Failed to load Google credentials: {exc}")
+        return None
+
+
+def build_google_flow(state: Optional[str] = None, redirect_uri: Optional[str] = None) -> Optional[Flow]:
+    config = get_google_client_config()
+    if not config:
+        return None
+    flow = Flow.from_client_config(config, scopes=GOOGLE_DRIVE_SCOPES)
+    flow.redirect_uri = redirect_uri or GOOGLE_OAUTH_REDIRECT_URI
+    if not flow.redirect_uri:
+        raise ValueError("Google OAuth redirect URI is not configured")
+    if state:
+        flow.state = state
+    return flow
+
+
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -798,13 +1003,20 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'futures-church-secret-key-2025')
 
 # Configure session cookies
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
+if 'SESSION_COOKIE_DOMAIN' not in app.config:
+    app.config['SESSION_COOKIE_DOMAIN'] = os.environ.get(
+        'SESSION_COOKIE_DOMAIN',
+        'futures-pulse-production.up.railway.app'
+    )
 
 # Configure SQLAlchemy database
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+database_settings = build_sqlalchemy_settings()
+app.config.update(database_settings)
+app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
+logger.info(f"SQLAlchemy connected to {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 # Configure direct database connection for new tables (regions, campuses_new)
 # These are in church_voice.db, while SQLAlchemy uses futures_link.db
@@ -7373,6 +7585,193 @@ def serve_index():
     print("[DEBUG] Serving React app")
     return send_from_directory('static', 'index.html')
 
+@app.route('/api/resources/categories', methods=['GET'])
+@login_required
+def list_resource_categories():
+    """Return configured resource categories"""
+    if not current_user_can_access_resources():
+        return jsonify({"error": "Forbidden"}), 403
+
+    config = get_resource_categories_config()
+    categories = []
+    for key, value in config.items():
+        if not isinstance(value, dict):
+            value = {}
+        categories.append({
+            "id": key,
+            "name": value.get("displayName") or value.get("name") or key,
+            "description": value.get("description", "")
+        })
+    categories.sort(key=lambda item: item["name"].lower())
+    return jsonify({"categories": categories})
+
+
+@app.route('/api/google/auth-url', methods=['GET'])
+@login_required
+def get_google_auth_url():
+    """Generate Google OAuth URL for Drive access"""
+    if not current_user_can_access_resources():
+        return jsonify({"error": "Forbidden"}), 403
+
+    if not GOOGLE_DRIVE_SCOPES or not get_google_client_config():
+        return jsonify({"error": "Google OAuth is not configured"}), 503
+
+    requested_category = request.args.get("category")
+    state = secrets.token_urlsafe(32)
+    session['google_auth_state'] = state
+    session['google_auth_requested'] = datetime.utcnow().isoformat()
+    if requested_category:
+        session['google_auth_category'] = requested_category
+
+    redirect_uri = GOOGLE_OAUTH_REDIRECT_URI or url_for('google_oauth_callback', _external=True)
+    try:
+        flow = build_google_flow(state=state, redirect_uri=redirect_uri)
+    except ValueError as exc:
+        logger.error(f"Failed to create Google OAuth flow: {exc}")
+        return jsonify({"error": "Google OAuth redirect URI not configured"}), 503
+
+    logger.info(
+        "Google OAuth auth-url generated | user=%s state=%s category=%s session_id=%s",
+        getattr(current_user, 'id', 'anonymous'),
+        state,
+        requested_category,
+        session.get('_id')
+    )
+
+    authorization_url, _ = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    return jsonify({"auth_url": authorization_url, "state": state})
+
+
+@app.route('/api/google/callback', methods=['GET'])
+@login_required
+def google_oauth_callback():
+    """Handle Google OAuth callback"""
+    state = request.args.get('state')
+    expected_state = session.get('google_auth_state')
+
+    if not expected_state or state != expected_state:
+        logger.warning(
+            "Google OAuth state mismatch | user=%s state_returned=%s expected=%s session_keys=%s",
+            getattr(current_user, 'id', 'anonymous'),
+            state,
+            expected_state,
+            list(session.keys())
+        )
+        return Response(
+            "<h3>OAuth Error</h3><p>State mismatch. Please close this window and try again.</p>",
+            mimetype='text/html',
+            status=400
+        )
+
+    redirect_uri = GOOGLE_OAUTH_REDIRECT_URI or url_for('google_oauth_callback', _external=True)
+
+    try:
+        logger.info(
+            "Google OAuth callback starting token exchange | user=%s state=%s session_id=%s",
+            getattr(current_user, 'id', 'anonymous'),
+            state,
+            session.get('_id')
+        )
+        flow = build_google_flow(state=state, redirect_uri=redirect_uri)
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
+    except Exception as exc:
+        logger.error(f"Google OAuth callback error: {exc}")
+        return Response(
+            "<h3>OAuth Error</h3><p>Unable to complete Google authentication. Please close this window and try again.</p>",
+            mimetype='text/html',
+            status=500
+        )
+
+    if not save_google_credentials(current_user.id, credentials):
+        return Response(
+            "<h3>OAuth Error</h3><p>Unable to save Google credentials. Please contact support.</p>",
+            mimetype='text/html',
+            status=500
+        )
+
+    session.pop('google_auth_state', None)
+    session.pop('google_auth_category', None)
+
+    success_markup = """
+        <html>
+          <head>
+            <title>Google Authentication Complete</title>
+          </head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
+                window.close();
+              } else {
+                document.write('<p>Authentication successful. You can close this window.</p>');
+              }
+            </script>
+            <noscript>
+              <p>Authentication successful. You can close this window.</p>
+            </noscript>
+          </body>
+        </html>
+    """
+    return Response(success_markup, mimetype='text/html')
+
+
+@app.route('/api/resources/<string:category>', methods=['GET'])
+@login_required
+def list_resources_for_category(category: str):
+    """List Google Drive files for a given resource category"""
+    if not current_user_can_access_resources():
+        return jsonify({"error": "Forbidden"}), 403
+
+    folder_id = get_folder_for_category(category)
+    if not folder_id:
+        return jsonify({"error": "Category not configured"}), 404
+
+    credentials = get_google_credentials_for_user(current_user.id)
+    if not credentials:
+        return jsonify({"error": "Google authorization required"}), 401
+
+    try:
+        service = build('drive', 'v3', credentials=credentials, cache_discovery=False)
+        response = service.files().list(
+            q=f"'{folder_id}' in parents and trashed = false",
+            fields="files(id, name, mimeType, webViewLink, iconLink, modifiedTime)",
+            orderBy="folder, name",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+            pageSize=100
+        ).execute()
+    except HttpError as http_error:
+        status = http_error.resp.status if getattr(http_error, "resp", None) else 500
+        logger.error(f"Google Drive API error: {http_error}")
+        return jsonify({"error": "Failed to fetch files from Google Drive"}), status
+    except Exception as exc:
+        logger.error(f"Unexpected error fetching Google Drive files: {exc}")
+        return jsonify({"error": "Failed to fetch files from Google Drive"}), 500
+
+    files = response.get('files', [])
+    items = []
+    for file in files:
+        items.append({
+            "id": file.get("id"),
+            "name": file.get("name"),
+            "mimeType": file.get("mimeType"),
+            "webViewLink": file.get("webViewLink"),
+            "iconLink": file.get("iconLink"),
+            "modifiedTime": file.get("modifiedTime"),
+        })
+
+    category_meta = get_category_metadata(category)
+    return jsonify({
+        "category": category_meta,
+        "files": items
+    })
+
+
 @app.route('/api/login', methods=['POST'])
 def api_login():
     """API login endpoint for React frontend"""
@@ -8089,6 +8488,17 @@ def session_info():
             "full_name": None,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+
+
+@app.route('/api/feature_flags', methods=['GET'])
+@login_required
+def get_feature_flags():
+    """Expose feature flag values to authenticated clients."""
+    try:
+        return jsonify(FeatureFlags.get_all_flags())
+    except Exception as e:
+        logger.error(f"Error loading feature flags: {e}")
+        return jsonify({'error': 'Failed to load feature flags'}), 500
 
 @app.route('/api/stats')
 @login_required
@@ -10067,6 +10477,8 @@ def quick_input():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
+                'Saints': safe_value('Saints'),
+                'Seniors': safe_value('Seniors'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -10316,6 +10728,8 @@ def quick_input_update():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
+                'Saints': safe_value('Saints'),
+                'Seniors': safe_value('Seniors'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -12278,6 +12692,7 @@ def serve_react_app(path):
 # ============================================================================
 
 @app.route('/api/persons/demo', methods=['GET'])
+@require_feature_flag('HEARTBEAT_ENABLED')
 def get_persons_demo():
     """Demo endpoint for testing Heartbeat interface (no auth required)"""
     try:
@@ -12348,6 +12763,7 @@ def get_persons_demo():
 
 
 @app.route('/api/persons/demo/<person_id>', methods=['GET'])
+@require_feature_flag('HEARTBEAT_ENABLED')
 def get_person_detail_demo(person_id):
     """Demo endpoint for person details (no auth required)"""
     try:
@@ -12377,6 +12793,7 @@ def get_person_detail_demo(person_id):
 
 
 @app.route('/api/persons/demo/<person_id>', methods=['PUT'])
+@require_feature_flag('HEARTBEAT_ENABLED')
 def update_person_demo(person_id):
     """Update person details (demo version - no auth required)"""
     try:
@@ -12692,6 +13109,7 @@ def update_person(person_id):
 
 
 @app.route('/api/engagement/log_attendance', methods=['POST'])
+@require_feature_flag('BEACON_MGMT_ENABLED')
 def log_attendance():
     """Log attendance via beacon detection (public endpoint for mobile app)"""
     try:
@@ -12870,6 +13288,7 @@ def get_pulse_status(person_id):
 
 @app.route('/api/beacon_zones', methods=['GET'])
 @login_required
+@require_feature_flag('BEACON_MGMT_ENABLED')
 def get_beacon_zones():
     """Get all beacon zones (admin only)"""
     try:
@@ -12894,7 +13313,7 @@ def get_beacon_zones():
         return jsonify({'error': 'Failed to fetch beacon zones'}), 500
 
 
-@app.route('/api/passport/<person_email>', methods=['GET'])
+@app.route('/api/passport/user/<person_email>', methods=['GET'])
 def get_passport_data(person_email):
     """Get passport/discipleship data for a user (public endpoint)"""
     try:
@@ -12988,6 +13407,14 @@ app.register_blueprint(serving_bp)
 # WEBHOOK ROUTES
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
+
+# PASSPORT MODULE ROUTES (register BEFORE the old passport route to avoid conflicts)
+try:
+    from passport_api import passport_bp
+    app.register_blueprint(passport_bp)
+    logger.info("Passport API routes registered")
+except Exception as e:
+    logger.warning(f"Failed to register Passport API routes: {e}")
 
 # USER MANAGEMENT ROUTES
 @app.route('/api/users', methods=['GET'])
@@ -13280,6 +13707,7 @@ def get_devotion_plans():
 
 # BLUETOOTH BEACON SYSTEM ROUTES
 @app.route('/api/beacons/attendance', methods=['POST'])
+@require_feature_flag('BEACON_MGMT_ENABLED')
 def log_beacon_attendance():
     """Log attendance via beacon detection (public endpoint for mobile app)"""
     try:
@@ -13323,6 +13751,7 @@ def log_beacon_attendance():
         return jsonify({'error': 'Failed to log attendance'}), 500
 
 @app.route('/api/beacons/zones', methods=['GET'])
+@require_feature_flag('BEACON_MGMT_ENABLED')
 def get_beacon_zones_public():
     """Get all active beacon zones (public endpoint)"""
     try:
@@ -13343,6 +13772,7 @@ def get_beacon_zones_public():
 
 @app.route('/api/beacons/zones', methods=['POST'])
 @admin_required
+@require_feature_flag('BEACON_MGMT_ENABLED')
 def create_beacon_zone():
     """Create a new beacon zone (admin only)"""
     try:

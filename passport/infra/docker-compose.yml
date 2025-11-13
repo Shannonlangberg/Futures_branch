@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://passport:passport@db:5432/passport
+      - SECRET_KEY=${SECRET_KEY:-dev-secret}
+      - JWT_ISSUER=futures-pulse
+      - DEV_AUTH_ENABLED=true
+      - CORS_ORIGINS=http://localhost:3000
+    volumes:
+      - ../backend:/app
+    depends_on:
+      - db
+    command: python -m flask run --host=0.0.0.0 --port=8000
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ../web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=passport
+      - POSTGRES_PASSWORD=passport
+      - POSTGRES_DB=passport
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+
+
+
+
+

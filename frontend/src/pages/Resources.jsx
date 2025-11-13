@@ -1,0 +1,453 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+
+const gradientBackground = 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900';
+
+const loadingStates = {
+  categories: 'Loading resource categories...',
+  files: 'Loading files...',
+};
+
+const formatModifiedTime = (value) => {
+  if (!value) {
+    return 'Last updated: Unknown';
+  }
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Last updated: Unknown';
+    }
+    return `Last updated: ${new Intl.DateTimeFormat('en-AU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)}`;
+  } catch (error) {
+    return 'Last updated: Unknown';
+  }
+};
+
+const Resources = () => {
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState('');
+
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [filesError, setFilesError] = useState('');
+  const [authRequired, setAuthRequired] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
+
+  const selectedCategory = useMemo(
+    () => categories.find((item) => item.id === selectedCategoryId) || null,
+    [categories, selectedCategoryId]
+  );
+
+  const fetchCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoriesError('');
+    try {
+      const response = await fetch('/api/resources/categories', {
+        credentials: 'include',
+      });
+
+      if (response.status === 403) {
+        setCategories([]);
+        setCategoriesError('You do not have access to view resources.');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Unable to load resource categories. Please try again.');
+      }
+
+      const data = await response.json();
+      const categoryList = Array.isArray(data.categories) ? data.categories : [];
+      setCategories(categoryList);
+      if (categoryList.length > 0) {
+        setSelectedCategoryId((current) => current || categoryList[0].id);
+      }
+    } catch (error) {
+      setCategoriesError(error.message || 'Unable to load resource categories.');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  const fetchFiles = useCallback(
+    async (categoryId) => {
+      if (!categoryId) {
+        return;
+      }
+
+      setFilesLoading(true);
+      setFilesError('');
+      setAuthRequired(false);
+
+      try {
+        const response = await fetch(`/api/resources/${encodeURIComponent(categoryId)}`, {
+          credentials: 'include',
+        });
+
+        if (response.status === 401) {
+          setFiles([]);
+          setAuthRequired(true);
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error('Unable to fetch files for this category.');
+        }
+
+        const data = await response.json();
+        const items = Array.isArray(data.files) ? data.files : [];
+        items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setFiles(items);
+      } catch (error) {
+        setFilesError(error.message || 'Something went wrong while loading files.');
+        setFiles([]);
+      } finally {
+        setFilesLoading(false);
+      }
+    },
+    []
+  );
+
+  const handleAuthorize = useCallback(async () => {
+    setIsLinking(true);
+    setFilesError('');
+
+    try {
+      const params = selectedCategoryId ? `?category=${encodeURIComponent(selectedCategoryId)}` : '';
+      const response = await fetch(`/api/google/auth-url${params}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Unable to begin Google authentication. Please try again.');
+      }
+
+      const data = await response.json();
+      const authUrl = data.auth_url || data.authUrl;
+      if (!authUrl) {
+        throw new Error('Missing Google authentication URL.');
+      }
+
+      const authWindow = window.open(
+        authUrl,
+        'googleDriveAuth',
+        'width=520,height=680,noopener,noreferrer'
+      );
+
+      if (!authWindow) {
+        throw new Error('Popup blocked. Please allow popups for this site and try again.');
+      }
+
+      authWindow.focus();
+    } catch (error) {
+      setFilesError(error.message || 'Unable to begin Google authentication.');
+    } finally {
+      setIsLinking(false);
+    }
+  }, [selectedCategoryId]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  useEffect(() => {
+    if (selectedCategoryId) {
+      fetchFiles(selectedCategoryId);
+    }
+  }, [selectedCategoryId, fetchFiles]);
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      if (event.data && event.data.type === 'googleAuthSuccess') {
+        setAuthRequired(false);
+        if (selectedCategoryId) {
+          fetchFiles(selectedCategoryId);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [selectedCategoryId, fetchFiles]);
+
+  const renderCategoryCards = () => {
+    if (categoriesLoading) {
+      return (
+        <div className="text-white/60 text-lg">
+          {loadingStates.categories}
+        </div>
+      );
+    }
+
+    if (categoriesError) {
+      return (
+        <div className="text-red-300 bg-red-900/20 border border-red-500/40 rounded-2xl px-6 py-4">
+          {categoriesError}
+        </div>
+      );
+    }
+
+    if (categories.length === 0) {
+      return (
+        <div className="text-white/60 text-lg">
+          No resource categories configured yet.
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {categories.map((category) => {
+          const isActive = category.id === selectedCategoryId;
+          return (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => setSelectedCategoryId(category.id)}
+              className={`
+                group relative text-left bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10
+                backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300
+                ${isActive ? 'border-blue-400/60 shadow-2xl shadow-blue-500/20 scale-[1.02]' : 'border-white/5 hover:border-blue-400/30 hover:scale-105'}
+              `}
+            >
+              <div className="absolute inset-0 rounded-2xl bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className={`
+                    w-12 h-12 rounded-xl flex items-center justify-center
+                    ${isActive ? 'bg-blue-500/30 text-white' : 'bg-white/10 text-white/80'}
+                  `}>
+                    <span className="text-2xl">📁</span>
+                  </div>
+                  {isActive && (
+                    <span className="text-blue-300 text-sm font-semibold">
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-white text-lg font-semibold tracking-tight">
+                    {category.name}
+                  </h3>
+                  {category.description && (
+                    <p className="text-white/60 text-sm mt-2 leading-relaxed">
+                      {category.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderFilesPanel = () => {
+    if (!selectedCategory) {
+      return (
+        <div className="bg-white/10 border border-white/10 rounded-3xl p-8 text-white/60">
+          Choose a category to view available resources.
+        </div>
+      );
+    }
+
+    if (filesLoading) {
+      return (
+        <div className="bg-white/10 border border-white/10 rounded-3xl p-10 flex flex-col items-center justify-center gap-4 text-white/70">
+          <div className="w-16 h-16 border-4 border-white/10 border-t-blue-400 rounded-full animate-spin" />
+          <div className="text-lg">{loadingStates.files}</div>
+        </div>
+      );
+    }
+
+    if (authRequired) {
+      return (
+        <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-400/30 rounded-3xl p-10 text-center space-y-6">
+          <div className="mx-auto w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center text-3xl">
+            🔐
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-white text-2xl font-semibold">Connect Google Drive</h3>
+            <p className="text-white/70 max-w-xl mx-auto">
+              Authorise Futures PULSE to access your Google Drive resources so we can display the files shared with your team.
+              We only request read-only access to the folders configured for these categories.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAuthorize}
+            disabled={isLinking}
+            className={`
+              inline-flex items-center gap-3 px-6 py-3 rounded-2xl font-semibold transition-all duration-300
+              ${isLinking ? 'bg-blue-500/40 text-white/70 cursor-not-allowed' : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-500/90 hover:to-purple-500/90 hover:scale-105'}
+            `}
+          >
+            <span className="text-xl">🔗</span>
+            {isLinking ? 'Opening Google...' : 'Connect with Google'}
+          </button>
+          {filesError && (
+            <div className="text-red-300 bg-red-900/30 border border-red-500/40 rounded-2xl px-4 py-2">
+              {filesError}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (filesError) {
+      return (
+        <div className="bg-red-900/20 border border-red-500/40 rounded-3xl p-8 text-red-200">
+          {filesError}
+        </div>
+      );
+    }
+
+    if (!files.length) {
+      return (
+        <div className="bg-white/10 border border-white/10 rounded-3xl p-8 text-white/60">
+          No files found in this folder yet. Once files are added to the mapped Google Drive folder they will appear here automatically.
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h3 className="text-white text-2xl font-semibold">
+              {selectedCategory.name} Resources
+            </h3>
+            <p className="text-white/60 text-sm mt-1">
+              Files are read directly from the configured Google Drive folder.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchFiles(selectedCategory.id)}
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all duration-300"
+          >
+            <span className="text-lg">⟳</span>
+            Refresh
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {files.map((file) => (
+            <a
+              key={file.id}
+              href={file.webViewLink || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group bg-gradient-to-br from-slate-800/70 to-slate-900/70 border border-white/5 hover:border-blue-400/40 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] flex flex-col gap-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-2xl">
+                  {file.mimeType && file.mimeType.includes('folder') ? '📂' : '📄'}
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-white font-semibold leading-tight group-hover:text-blue-200 transition-colors duration-300">
+                    {file.name}
+                  </h4>
+                  <p className="text-white/50 text-xs mt-1 truncate">
+                    {file.mimeType}
+                  </p>
+                </div>
+              </div>
+              <div className="text-white/40 text-xs">
+                {formatModifiedTime(file.modifiedTime)}
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={`min-h-screen ${gradientBackground}`}>
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-pink-500/5 rounded-full blur-3xl animate-pulse delay-500" />
+      </div>
+
+      <div className="relative">
+        <header className="bg-gradient-to-r from-blue-600/90 via-purple-600/90 to-pink-600/90 border-b border-white/10">
+          <div className="max-w-7xl mx-auto px-6 py-10">
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-3xl">
+                    📚
+                  </div>
+                  <div>
+                    <h1 className="text-white text-3xl sm:text-4xl font-bold tracking-tight">
+                      Team Resources
+                    </h1>
+                    <p className="text-white/80 text-base sm:text-lg mt-2 max-w-2xl">
+                      A single home for Futures Church documents, templates, and media. Select a category to explore the files your team needs.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-white/70 text-sm">
+                {selectedCategory
+                  ? `Viewing ${selectedCategory.name}`
+                  : 'Choose a category'}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-6 py-10 space-y-10">
+          <section className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-1 h-10 bg-gradient-to-b from-blue-400 to-purple-400 rounded-full" />
+              <div>
+                <h2 className="text-white text-2xl font-semibold">
+                  Resource Categories
+                </h2>
+                <p className="text-white/60 text-sm">
+                  Curated folders organised by ministry area.
+                </p>
+              </div>
+            </div>
+            {renderCategoryCards()}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-1 h-10 bg-gradient-to-b from-blue-400 to-purple-400 rounded-full" />
+              <div>
+                <h2 className="text-white text-2xl font-semibold">
+                  Files &amp; Documents
+                </h2>
+                <p className="text-white/60 text-sm">
+                  Direct links to the files stored in Google Drive.
+                </p>
+              </div>
+            </div>
+            {renderFilesPanel()}
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default Resources;
+
+
