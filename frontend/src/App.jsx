@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './components/MainLayout';
 import Login from './pages/Login';
@@ -11,17 +11,61 @@ import DataExport from './pages/DataExport';
 import MyProfile from './pages/MyProfile';
 import Passport from './pages/Passport';
 import Resources from './pages/Resources';
+import ResourceManager from './pages/ResourceManager';
+import Heartbeat from './pages/Heartbeat';
 import Landing from './pages/Landing';
+
+const DriveAuthModal = ({ onConnect, connecting, error }) => {
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-white/10 rounded-3xl shadow-2xl max-w-lg w-full p-8 space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-purple-500/20 flex items-center justify-center text-3xl">
+            🔐
+          </div>
+          <div>
+            <h2 className="text-white text-2xl font-semibold">Connect Google Drive</h2>
+            <p className="text-white/70 text-sm">
+              Futures PULSE needs access to the shared Drive folders before you continue. Authorise with your Futures Church Google account to unlock Resources.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white/70 text-sm">
+          You&apos;ll see a Google popup in a new window. If nothing happens, allow popups for <span className="text-white font-semibold">futures-pulse-production.up.railway.app</span> and try again.
+        </div>
+
+        {error && (
+          <div className="bg-red-900/30 border border-red-500/40 text-red-200 rounded-2xl px-4 py-3 text-sm">
+            {error}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onConnect}
+          disabled={connecting}
+          className={`w-full inline-flex items-center justify-center gap-3 px-5 py-3 rounded-2xl font-semibold transition-all duration-300
+            ${connecting ? 'bg-blue-500/40 text-white/70 cursor-not-allowed' : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:scale-105'}
+          `}
+        >
+          <span className="text-xl">🔗</span>
+          {connecting ? 'Opening Google...' : 'Connect with Google'}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [needsDriveAuth, setNeedsDriveAuth] = useState(false);
+  const [showDriveModal, setShowDriveModal] = useState(false);
+  const [driveConnecting, setDriveConnecting] = useState(false);
+  const [driveError, setDriveError] = useState('');
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/session', {
         credentials: 'include'
@@ -30,19 +74,32 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         setIsAuthenticated(data.authenticated);
+        const requiresDrive = Boolean(data.needs_drive_auth);
+        setNeedsDriveAuth(requiresDrive);
+        setShowDriveModal(requiresDrive);
       } else {
         setIsAuthenticated(false);
+        setNeedsDriveAuth(false);
+        setShowDriveModal(false);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setIsAuthenticated(false);
+      setNeedsDriveAuth(false);
+      setShowDriveModal(false);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    checkAuthStatus();
+  }, [checkAuthStatus]);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
+    setIsLoading(true);
+    checkAuthStatus();
   };
 
   const handleLogout = async () => {
@@ -55,7 +112,68 @@ function App() {
       console.error('Logout failed:', error);
     }
     setIsAuthenticated(false);
+    setNeedsDriveAuth(false);
+    setShowDriveModal(false);
+    setDriveError('');
   };
+
+  const handleDriveConnect = useCallback(async () => {
+    try {
+      setDriveError('');
+      setDriveConnecting(true);
+
+      const response = await fetch('/api/google/auth-url', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Unable to begin Google authentication. Please try again.');
+      }
+
+      const data = await response.json();
+      const authUrl = data.auth_url || data.authUrl;
+      if (!authUrl) {
+        throw new Error('Missing Google authentication URL.');
+      }
+
+      const authWindow = window.open(
+        authUrl,
+        'googleDriveAuth',
+        'width=520,height=680,noopener,noreferrer'
+      );
+
+      if (!authWindow) {
+        throw new Error('Popup blocked. Please allow popups for this site and try again.');
+      }
+
+      authWindow.focus();
+    } catch (error) {
+      setDriveError(error.message || 'Unable to begin Google authentication.');
+    } finally {
+      setDriveConnecting(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.data && event.data.type === 'googleAuthSuccess') {
+        setNeedsDriveAuth(false);
+        setShowDriveModal(false);
+        setDriveError('');
+        checkAuthStatus();
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [checkAuthStatus]);
 
   if (isLoading) {
     return (
@@ -67,6 +185,13 @@ function App() {
 
   return (
     <Router>
+      {isAuthenticated && showDriveModal && (
+        <DriveAuthModal
+          onConnect={handleDriveConnect}
+          connecting={driveConnecting}
+          error={driveError}
+        />
+      )}
       <Routes>
         <Route 
           path="/login" 
@@ -89,6 +214,8 @@ function App() {
                   <Route path="/finance" element={<Finance />} />
                   <Route path="/passport" element={<Passport />} />
                   <Route path="/resources" element={<Resources />} />
+                  <Route path="/resources/manage" element={<ResourceManager />} />
+                  <Route path="/heartbeat" element={<Heartbeat />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
                   <Route path="/export" element={<DataExport />} />

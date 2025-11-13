@@ -21,8 +21,7 @@ import {
   BookOpenIcon,
   SignalIcon,
   DocumentChartBarIcon,
-  CalendarIcon,
-  AcademicCapIcon
+  CalendarIcon
 } from '@heroicons/react/24/outline';
 
 const MainLayout = ({ children }) => {
@@ -120,12 +119,11 @@ const MainLayout = ({ children }) => {
       { name: 'Home', href: '/', icon: HomeIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance', 'user'] },
       { name: 'Dashboard', href: '/dashboard', icon: DocumentChartBarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
       { name: 'Input', href: '/stats', icon: ClipboardIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
-      { name: 'Passport', href: '/passport', icon: AcademicCapIcon, roles: ['admin'] },
       { name: 'Finance', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'] },
       { name: 'Resources', href: '/resources', icon: BookOpenIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance', 'user'] },
+      { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance'], featureFlag: 'HEARTBEAT_ENABLED' },
       
       // Hidden items - commented out for now
-      // { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'finance'] },
       // { name: 'Devotions Admin', href: '/devotions/admin', icon: BookOpenIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'staff'], featureFlag: 'DEVOTIONS_ADMIN_ENABLED' },
       // { name: 'Connect Groups', href: '/groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'staff'], featureFlag: 'GROUPS_FOR_STAFF_ENABLED' },
       // { name: 'Beacon Management', href: '/beacons', icon: SignalIcon, roles: ['admin'], featureFlag: 'BEACON_MGMT_ENABLED' },
@@ -174,6 +172,7 @@ const MainLayout = ({ children }) => {
     if (userRole === 'admin' || userRole === 'senior_leadership' || userRole === 'senior_leader' || userRole === 'senior_pastor' || userRole === 'lead_pastor') {
       items.push(
         { name: 'Data Export', href: '/export', icon: DocumentChartBarIcon, show: true },
+        { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, show: true },
         { name: 'Users', href: '/users', icon: UserGroupIcon, show: true },
         { name: 'Campuses', href: '/campuses', icon: BuildingOfficeIcon, show: true }
       );

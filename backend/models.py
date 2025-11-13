@@ -232,6 +232,68 @@ class Event(db.Model):
         }
 
 
+class ResourceCategory(db.Model):
+    """Configurable resource category surfaced in the Resources hub"""
+    __tablename__ = 'resource_categories'
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(120), unique=True, nullable=False)
+    display_name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    folder_id = db.Column(db.String(200))
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    links = db.relationship(
+        'ResourceLink',
+        backref='category',
+        cascade='all, delete-orphan',
+        order_by='ResourceLink.sort_order'
+    )
+
+    def to_dict(self, include_links: bool = False):
+        data = {
+            'id': self.id,
+            'slug': self.slug,
+            'display_name': self.display_name,
+            'description': self.description or '',
+            'folder_id': self.folder_id or '',
+            'sort_order': self.sort_order,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_links:
+            data['links'] = [link.to_dict() for link in self.links]
+        return data
+
+
+class ResourceLink(db.Model):
+    """Manual quick links surfaced within a resource category"""
+    __tablename__ = 'resource_links'
+
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('resource_categories.id', ondelete='CASCADE'), nullable=False)
+    label = db.Column(db.String(200), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    description = db.Column(db.Text)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'category_id': self.category_id,
+            'label': self.label,
+            'url': self.url,
+            'description': self.description or '',
+            'sort_order': self.sort_order,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class GoogleOAuthToken(db.Model):
     """Store Google OAuth tokens per user"""
     __tablename__ = 'google_oauth_tokens'

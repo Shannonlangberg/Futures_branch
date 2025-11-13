@@ -28,6 +28,47 @@ const formatModifiedTime = (value) => {
   }
 };
 
+const normalizeLinks = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      const label = (item.label || item.name || '').trim();
+      const url = (item.url || item.href || '').trim();
+      if (!label || !url) {
+        return null;
+      }
+
+      const description = (item.description || item.summary || '').trim();
+      let sortOrder = item.sortOrder ?? item.sort_order;
+      if (typeof sortOrder !== 'number') {
+        sortOrder = index;
+      }
+
+      return {
+        id: item.id ?? `link-${index}`,
+        label,
+        url,
+        description,
+        sortOrder,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const orderDiff = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      if (orderDiff !== 0) {
+        return orderDiff;
+      }
+      return a.label.localeCompare(b.label);
+    });
+};
+
 const Resources = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -35,6 +76,7 @@ const Resources = () => {
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [files, setFiles] = useState([]);
+  const [links, setLinks] = useState([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [filesError, setFilesError] = useState('');
   const [authRequired, setAuthRequired] = useState(false);
@@ -65,6 +107,13 @@ const Resources = () => {
 
       const data = await response.json();
       const categoryList = Array.isArray(data.categories) ? data.categories : [];
+      categoryList.sort((a, b) => {
+        const orderDiff = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+        if (orderDiff !== 0) {
+          return orderDiff;
+        }
+        return (a.name || '').localeCompare(b.name || '');
+      });
       setCategories(categoryList);
       if (categoryList.length > 0) {
         setSelectedCategoryId((current) => current || categoryList[0].id);
@@ -85,29 +134,35 @@ const Resources = () => {
       setFilesLoading(true);
       setFilesError('');
       setAuthRequired(false);
+      setLinks([]);
 
       try {
         const response = await fetch(`/api/resources/${encodeURIComponent(categoryId)}`, {
           credentials: 'include',
         });
 
+        const payload = await response.json().catch(() => ({}));
+
         if (response.status === 401) {
           setFiles([]);
+          setLinks(normalizeLinks(payload.links));
           setAuthRequired(true);
           return;
         }
 
         if (!response.ok) {
-          throw new Error('Unable to fetch files for this category.');
+          const message = payload.error || 'Unable to fetch files for this category.';
+          throw new Error(message);
         }
 
-        const data = await response.json();
-        const items = Array.isArray(data.files) ? data.files : [];
+        const items = Array.isArray(payload.files) ? payload.files : [];
         items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setFiles(items);
+        setLinks(normalizeLinks(payload.links));
       } catch (error) {
         setFilesError(error.message || 'Something went wrong while loading files.');
         setFiles([]);
+        setLinks([]);
       } finally {
         setFilesLoading(false);
       }
@@ -273,77 +328,57 @@ const Resources = () => {
       );
     }
 
-    if (authRequired) {
-      return (
-        <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-400/30 rounded-3xl p-10 text-center space-y-6">
-          <div className="mx-auto w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center text-3xl">
-            🔐
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-white text-2xl font-semibold">Connect Google Drive</h3>
-            <p className="text-white/70 max-w-xl mx-auto">
-              Authorise Futures PULSE to access your Google Drive resources so we can display the files shared with your team.
-              We only request read-only access to the folders configured for these categories.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleAuthorize}
-            disabled={isLinking}
-            className={`
-              inline-flex items-center gap-3 px-6 py-3 rounded-2xl font-semibold transition-all duration-300
-              ${isLinking ? 'bg-blue-500/40 text-white/70 cursor-not-allowed' : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-500/90 hover:to-purple-500/90 hover:scale-105'}
-            `}
-          >
-            <span className="text-xl">🔗</span>
-            {isLinking ? 'Opening Google...' : 'Connect with Google'}
-          </button>
-          {filesError && (
-            <div className="text-red-300 bg-red-900/30 border border-red-500/40 rounded-2xl px-4 py-2">
-              {filesError}
-            </div>
-          )}
-        </div>
-      );
-    }
+    const hasQuickLinks = links.length > 0;
+    const hasDriveFiles = files.length > 0;
 
-    if (filesError) {
-      return (
-        <div className="bg-red-900/20 border border-red-500/40 rounded-3xl p-8 text-red-200">
-          {filesError}
+    const renderQuickLinks = () => (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-white text-lg font-semibold">
+            Quick Links
+          </h4>
+          <span className="text-white/50 text-xs">
+            {`${links.length} link${links.length === 1 ? '' : 's'}`}
+          </span>
         </div>
-      );
-    }
-
-    if (!files.length) {
-      return (
-        <div className="bg-white/10 border border-white/10 rounded-3xl p-8 text-white/60">
-          No files found in this folder yet. Once files are added to the mapped Google Drive folder they will appear here automatically.
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {links.map((link) => (
+            <a
+              key={link.id}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-white/5 hover:border-purple-400/40 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] flex flex-col gap-3"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-2xl">
+                  🔗
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-white font-semibold leading-tight group-hover:text-purple-200 transition-colors duration-300">
+                    {link.label}
+                  </h4>
+                  {link.description && (
+                    <p className="text-white/60 text-xs mt-2 leading-snug line-clamp-3">
+                      {link.description}
+                    </p>
+                  )}
+                  <p className="text-white/40 text-[11px] mt-2 truncate">
+                    {link.url}
+                  </p>
+                </div>
+              </div>
+            </a>
+          ))}
         </div>
-      );
-    }
+      </div>
+    );
 
-    return (
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h3 className="text-white text-2xl font-semibold">
-              {selectedCategory.name} Resources
-            </h3>
-            <p className="text-white/60 text-sm mt-1">
-              Files are read directly from the configured Google Drive folder.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => fetchFiles(selectedCategory.id)}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all duration-300"
-          >
-            <span className="text-lg">⟳</span>
-            Refresh
-          </button>
-        </div>
-
+    const renderDriveFiles = () => (
+      <div className="space-y-3">
+        <h4 className="text-white text-lg font-semibold">
+          Drive Files
+        </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {files.map((file) => (
             <a
@@ -372,6 +407,90 @@ const Resources = () => {
             </a>
           ))}
         </div>
+      </div>
+    );
+
+    if (authRequired) {
+      return (
+        <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-400/30 rounded-3xl p-10 space-y-6">
+          <div className="text-center space-y-6">
+            <div className="mx-auto w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center text-3xl">
+              🔐
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-white text-2xl font-semibold">Connect Google Drive</h3>
+              <p className="text-white/70 max-w-xl mx-auto">
+                Authorise Futures PULSE to access your Google Drive resources so we can display the files shared with your team.
+                We only request read-only access to the folders configured for these categories.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAuthorize}
+              disabled={isLinking}
+              className={`
+                inline-flex items-center gap-3 px-6 py-3 rounded-2xl font-semibold transition-all duration-300
+                ${isLinking ? 'bg-blue-500/40 text-white/70 cursor-not-allowed' : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-500/90 hover:to-purple-500/90 hover:scale-105'}
+              `}
+            >
+              <span className="text-xl">🔗</span>
+              {isLinking ? 'Opening Google...' : 'Connect with Google'}
+            </button>
+            {filesError && (
+              <div className="text-red-300 bg-red-900/30 border border-red-500/40 rounded-2xl px-4 py-2">
+                {filesError}
+              </div>
+            )}
+          </div>
+
+          {hasQuickLinks && (
+            <div className="border-t border-white/10 pt-6">
+              {renderQuickLinks()}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (filesError) {
+      return (
+        <div className="bg-red-900/20 border border-red-500/40 rounded-3xl p-8 text-red-200">
+          {filesError}
+        </div>
+      );
+    }
+
+    if (!hasQuickLinks && !hasDriveFiles) {
+      return (
+        <div className="bg-white/10 border border-white/10 rounded-3xl p-8 text-white/60">
+          No files found in this folder yet. Once files are added to the mapped Google Drive folder they will appear here automatically.
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h3 className="text-white text-2xl font-semibold">
+              {selectedCategory.name} Resources
+            </h3>
+            <p className="text-white/60 text-sm mt-1">
+              Files are read directly from the configured Google Drive folder.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchFiles(selectedCategory.id)}
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all duration-300"
+          >
+            <span className="text-lg">⟳</span>
+            Refresh
+          </button>
+        </div>
+
+        {hasQuickLinks && renderQuickLinks()}
+        {hasDriveFiles && renderDriveFiles()}
       </div>
     );
   };

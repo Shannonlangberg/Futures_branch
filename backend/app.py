@@ -1,9 +1,21 @@
 # app.py
 
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
+from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, has_request_context
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, GoogleOAuthToken, create_person_with_engagement
+from models import (
+    db,
+    init_db,
+    Person,
+    EngagementProfile,
+    BeaconZone,
+    Event,
+    EventCategory,
+    ResourceCategory,
+    ResourceLink,
+    GoogleOAuthToken,
+    create_person_with_engagement,
+)
 from config.database import build_sqlalchemy_settings
 from datetime import datetime, timezone, timedelta
 import os
@@ -30,6 +42,7 @@ import json
 import secrets
 from typing import Dict, List, Optional, Any
 import logging
+from sqlalchemy import func
 
 try:
     from dotenv import load_dotenv
@@ -65,6 +78,7 @@ from functools import wraps
 
 from utils.rbac import require_feature_flag
 from config.feature_flags import FeatureFlags
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
     from num2words import num2words
@@ -321,6 +335,23 @@ RESOURCE_ALLOWED_ROLES = {
     "admin",
 }
 
+RESOURCE_MANAGER_ROLES = {
+    "admin",
+    "senior_leadership",
+    "senior_leader",
+    "senior_pastor",
+    "lead_pastor",
+}
+
+def _env_flag(key: str, default: bool = True) -> bool:
+    raw = os.getenv(key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+ENABLE_RESOURCES = _env_flag("ENABLE_RESOURCES", True)
+ENABLE_GOOGLE_OAUTH = _env_flag("ENABLE_GOOGLE_OAUTH", ENABLE_RESOURCES)
+
 DEFAULT_RESOURCES_MAP = {
     "Finance": {
         "displayName": "Finance",
@@ -406,16 +437,134 @@ def load_resources_map_file():
 RESOURCES_MAP = load_resources_map_file()
 
 
-def get_resource_categories_config():
-    """Return current resources map configuration"""
+def slugify_resource_identifier(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    slug = re.sub(r'[^a-z0-9]+', '-', value.strip().lower())
+    slug = re.sub(r'-{2,}', '-', slug).strip('-')
+    return slug
+
+
+def ensure_unique_category_slug(base_slug: str, existing_id: Optional[int] = None) -> str:
+    candidate = base_slug or "category"
+    suffix = 1
+
+    while True:
+        query = ResourceCategory.query.filter(ResourceCategory.slug == candidate)
+        if existing_id:
+            query = query.filter(ResourceCategory.id != existing_id)
+        if not query.first():
+            return candidate
+        candidate = f"{base_slug}-{suffix}"
+        suffix += 1
+
+
+def _fetch_resource_categories_from_db() -> List[ResourceCategory]:
+    try:
+        return ResourceCategory.query.order_by(
+            ResourceCategory.sort_order.asc(),
+            ResourceCategory.display_name.asc()
+        ).all()
+    except Exception as exc:
+        logger.error(f"Failed to load resource categories from database: {exc}")
+        return []
+
+
+def _serialize_link_for_response(link: ResourceLink, index: int = 0) -> dict:
+    return {
+        "id": link.id,
+        "label": link.label,
+        "url": link.url,
+        "description": link.description or "",
+        "sortOrder": link.sort_order if link.sort_order is not None else index,
+    }
+
+
+def _serialize_config_link(raw_entry: dict, index: int) -> Optional[dict]:
+    if not isinstance(raw_entry, dict):
+        return None
+    label = (raw_entry.get("label") or raw_entry.get("name") or "").strip()
+    url = (raw_entry.get("url") or raw_entry.get("href") or "").strip()
+    if not label or not url:
+        return None
+    description = (raw_entry.get("description") or raw_entry.get("summary") or "").strip()
+    sort_order = raw_entry.get("sortOrder", raw_entry.get("sort_order", index))
+    return {
+        "id": raw_entry.get("id") or f"config-{index}",
+        "label": label,
+        "url": url,
+        "description": description,
+        "sortOrder": sort_order,
+    }
+
+
+def _extract_config_links(entry: dict) -> List[dict]:
+    raw_links = []
+    if isinstance(entry, dict):
+        raw_links = entry.get("links") or entry.get("manualLinks") or entry.get("quickLinks") or []
+    links: List[dict] = []
+    if isinstance(raw_links, list):
+        for idx, item in enumerate(raw_links):
+            serialized = _serialize_config_link(item, idx)
+            if serialized:
+                links.append(serialized)
+    return links
+
+
+def get_resource_categories_config(include_links: bool = False):
+    """Return current resources configuration, preferring database records."""
+    categories = _fetch_resource_categories_from_db()
+    if categories:
+        payload = {}
+        for category in categories:
+            entry = {
+                "id": category.slug,
+                "displayName": category.display_name,
+                "description": category.description or "",
+                "folderId": category.folder_id or "",
+                "sortOrder": category.sort_order or 0,
+            }
+            if include_links:
+                entry["links"] = [
+                    _serialize_link_for_response(link, idx)
+                    for idx, link in enumerate(category.links)
+                ]
+            payload[category.slug] = entry
+        return payload
+
     global RESOURCES_MAP
     if not RESOURCES_MAP:
         RESOURCES_MAP = load_resources_map_file()
     return RESOURCES_MAP
 
 
+def get_resource_category_by_identifier(identifier: str) -> Optional[ResourceCategory]:
+    if not identifier:
+        return None
+    identifier = identifier.strip()
+    if identifier.isdigit():
+        category = ResourceCategory.query.get(int(identifier))
+        if category:
+            return category
+    normalized_slug = slugify_resource_identifier(identifier)
+    if normalized_slug:
+        category = ResourceCategory.query.filter(
+            ResourceCategory.slug == normalized_slug
+        ).first()
+        if category:
+            return category
+    lowercase_identifier = identifier.lower()
+    return ResourceCategory.query.filter(
+        func.lower(ResourceCategory.display_name) == lowercase_identifier
+    ).first()
+
+
 def get_folder_for_category(category: str) -> Optional[str]:
     """Retrieve Drive folder ID for category"""
+    category_model = get_resource_category_by_identifier(category)
+    if category_model:
+        return category_model.folder_id
+
     config = get_resource_categories_config()
     entry = config.get(category) or config.get(category.lower())
     if not entry:
@@ -424,17 +573,97 @@ def get_folder_for_category(category: str) -> Optional[str]:
 
 
 def get_category_metadata(category: str) -> dict:
-    config = get_resource_categories_config()
+    category_model = get_resource_category_by_identifier(category)
+    if category_model:
+        return {
+            "id": category_model.slug,
+            "name": category_model.display_name,
+            "description": category_model.description or "",
+            "folderId": category_model.folder_id,
+            "links": [
+                _serialize_link_for_response(link, idx)
+                for idx, link in enumerate(category_model.links)
+            ],
+        }
+
+    config = get_resource_categories_config(include_links=True)
     entry = config.get(category) or config.get(category.lower()) or {}
+    fallbacks = _extract_config_links(entry) if "links" not in entry else entry["links"]
     return {
-        "id": category,
+        "id": entry.get("id") or category,
         "name": entry.get("displayName") or entry.get("name") or category,
         "description": entry.get("description", ""),
         "folderId": entry.get("folderId") or entry.get("folder_id"),
+        "links": fallbacks,
+    }
+
+
+def _parse_links_payload(raw_links) -> List[dict]:
+    parsed: List[dict] = []
+    if not isinstance(raw_links, list):
+        return parsed
+    for idx, item in enumerate(raw_links):
+        if not isinstance(item, dict):
+            continue
+        label = (item.get("label") or item.get("name") or "").strip()
+        url = (item.get("url") or item.get("href") or "").strip()
+        if not label or not url:
+            continue
+        description = (item.get("description") or item.get("summary") or "").strip()
+        sort_order = item.get("sortOrder", item.get("sort_order", idx))
+        identifier = item.get("id")
+        link_id = None
+        try:
+            if identifier is not None:
+                link_id = int(identifier)
+        except (TypeError, ValueError):
+            link_id = None
+        parsed.append({
+            "id": link_id,
+            "label": label,
+            "url": url,
+            "description": description,
+            "sort_order": sort_order if isinstance(sort_order, int) else idx,
+        })
+    return parsed
+
+
+def get_next_category_sort_order() -> int:
+    try:
+        current_max = db.session.query(func.max(ResourceCategory.sort_order)).scalar()
+    except Exception:
+        return 0
+    return (current_max or 0) + 1
+
+
+def _category_to_admin_payload(category: ResourceCategory) -> dict:
+    return {
+        "id": category.id,
+        "slug": category.slug,
+        "displayName": category.display_name,
+        "description": category.description or "",
+        "folderId": category.folder_id or "",
+        "sortOrder": category.sort_order or 0,
+        "createdAt": category.created_at.isoformat() if category.created_at else None,
+        "updatedAt": category.updated_at.isoformat() if category.updated_at else None,
+        "links": [
+            {
+                "id": link.id,
+                "label": link.label,
+                "url": link.url,
+                "description": link.description or "",
+                "sortOrder": link.sort_order if link.sort_order is not None else idx,
+                "createdAt": link.created_at.isoformat() if link.created_at else None,
+                "updatedAt": link.updated_at.isoformat() if link.updated_at else None,
+            }
+            for idx, link in enumerate(category.links)
+        ]
     }
 
 
 def current_user_can_access_resources() -> bool:
+    if not ENABLE_RESOURCES:
+        return False
     return current_user.role in RESOURCE_ALLOWED_ROLES
 
 
@@ -493,6 +722,29 @@ def build_google_flow(state: Optional[str] = None, redirect_uri: Optional[str] =
     if state:
         flow.state = state
     return flow
+
+
+def resolve_google_redirect_uri() -> str:
+    """
+    Work out the correct redirect URI for Google OAuth.
+
+    - Honour GOOGLE_OAUTH_REDIRECT_URI when set.
+    - Fall back to the current request host/scheme (respecting X-Forwarded-Proto).
+    - Default to https when we cannot detect a scheme.
+    """
+    if GOOGLE_OAUTH_REDIRECT_URI:
+        return GOOGLE_OAUTH_REDIRECT_URI
+
+    if not has_request_context():
+        # Should not happen in normal request flow, but guard regardless.
+        return "https://localhost/api/google/callback"
+
+    scheme = request.headers.get("X-Forwarded-Proto")
+    if scheme and "," in scheme:
+        scheme = scheme.split(",")[0].strip()
+    if not scheme:
+        scheme = "https" if request.is_secure else "http"
+    return url_for("google_oauth_callback", _external=True, _scheme=scheme)
 
 
 scope = [
@@ -1001,6 +1253,8 @@ def save_conversation_memory(memory: Dict[str, Any]):
 print("[DEBUG] Creating Flask app instance")
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'futures-church-secret-key-2025')
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.config.setdefault('PREFERRED_URL_SCHEME', 'https')
 
 # Configure session cookies
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -7589,6 +7843,8 @@ def serve_index():
 @login_required
 def list_resource_categories():
     """Return configured resource categories"""
+    if not ENABLE_RESOURCES:
+        return jsonify({"error": "Resources temporarily unavailable"}), 503
     if not current_user_can_access_resources():
         return jsonify({"error": "Forbidden"}), 403
 
@@ -7600,16 +7856,199 @@ def list_resource_categories():
         categories.append({
             "id": key,
             "name": value.get("displayName") or value.get("name") or key,
-            "description": value.get("description", "")
+            "description": value.get("description", ""),
+            "sortOrder": value.get("sortOrder", value.get("sort_order", 0)),
         })
-    categories.sort(key=lambda item: item["name"].lower())
+    categories.sort(key=lambda item: (item.get("sortOrder", 0), item["name"].lower()))
     return jsonify({"categories": categories})
+
+
+@app.route('/api/admin/resource-categories', methods=['GET'])
+@login_required
+def admin_list_resource_categories():
+    """List resource categories for management UI"""
+    if current_user.role not in RESOURCE_MANAGER_ROLES:
+        return jsonify({"error": "Forbidden"}), 403
+
+    categories = _fetch_resource_categories_from_db()
+    return jsonify({
+        "categories": [_category_to_admin_payload(category) for category in categories]
+    })
+
+
+@app.route('/api/admin/resource-categories', methods=['POST'])
+@login_required
+def admin_create_resource_category():
+    """Create a new resource category"""
+    if current_user.role not in RESOURCE_MANAGER_ROLES:
+        return jsonify({"error": "Forbidden"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    display_name = (payload.get("displayName") or payload.get("display_name") or "").strip()
+    if not display_name:
+        return jsonify({"error": "Display name is required"}), 400
+
+    slug_input = payload.get("slug") or payload.get("id") or display_name
+    base_slug = slugify_resource_identifier(slug_input) or slugify_resource_identifier(display_name)
+    if not base_slug:
+        base_slug = f"category-{uuid.uuid4().hex[:6]}"
+    slug = ensure_unique_category_slug(base_slug)
+
+    sort_order = payload.get("sortOrder", payload.get("sort_order"))
+    if not isinstance(sort_order, int):
+        sort_order = get_next_category_sort_order()
+
+    description = (payload.get("description") or "").strip()
+    folder_id = (payload.get("folderId") or payload.get("folder_id") or "").strip()
+    links_payload = _parse_links_payload(payload.get("links") or [])
+
+    try:
+        category = ResourceCategory(
+            slug=slug,
+            display_name=display_name,
+            description=description or None,
+            folder_id=folder_id or None,
+            sort_order=sort_order,
+        )
+        db.session.add(category)
+        db.session.flush()  # Ensure category.id is available for links
+
+        for idx, link_data in enumerate(links_payload):
+            link = ResourceLink(
+                category=category,
+                label=link_data["label"],
+                url=link_data["url"],
+                description=link_data["description"] or None,
+                sort_order=link_data["sort_order"] if link_data["sort_order"] is not None else idx,
+            )
+            db.session.add(link)
+
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f"Failed to create resource category: {exc}")
+        return jsonify({"error": "Unable to create resource category"}), 500
+
+    return jsonify({
+        "message": "Resource category created",
+        "category": _category_to_admin_payload(category)
+    }), 201
+
+
+@app.route('/api/admin/resource-categories/<string:identifier>', methods=['PUT', 'PATCH'])
+@login_required
+def admin_update_resource_category(identifier: str):
+    """Update an existing resource category"""
+    if current_user.role not in RESOURCE_MANAGER_ROLES:
+        return jsonify({"error": "Forbidden"}), 403
+
+    category = get_resource_category_by_identifier(identifier)
+    if not category:
+        return jsonify({"error": "Resource category not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+
+    display_name = payload.get("displayName") or payload.get("display_name")
+    if isinstance(display_name, str) and display_name.strip():
+        category.display_name = display_name.strip()
+
+    description = payload.get("description")
+    if description is not None:
+        category.description = description.strip() or None
+
+    folder_id = payload.get("folderId", payload.get("folder_id"))
+    if folder_id is not None:
+        folder_value = folder_id.strip()
+        category.folder_id = folder_value or None
+
+    sort_order = payload.get("sortOrder", payload.get("sort_order"))
+    if sort_order is not None:
+        try:
+            category.sort_order = int(sort_order)
+        except (TypeError, ValueError):
+            pass
+
+    slug_input = payload.get("slug")
+    if isinstance(slug_input, str) and slug_input.strip():
+        new_slug_base = slugify_resource_identifier(slug_input)
+        if not new_slug_base:
+            new_slug_base = slugify_resource_identifier(category.display_name)
+        if new_slug_base and new_slug_base != category.slug:
+            category.slug = ensure_unique_category_slug(new_slug_base, existing_id=category.id)
+
+    links_payload_raw = payload.get("links")
+    if links_payload_raw is not None:
+        new_links = _parse_links_payload(links_payload_raw)
+        existing_links = {link.id: link for link in category.links}
+        ids_to_keep = set()
+
+        for idx, link_data in enumerate(new_links):
+            link_id = link_data.get("id")
+            sort_order_value = link_data["sort_order"] if link_data["sort_order"] is not None else idx
+
+            if link_id and link_id in existing_links:
+                link = existing_links[link_id]
+                link.label = link_data["label"]
+                link.url = link_data["url"]
+                link.description = link_data["description"] or None
+                link.sort_order = sort_order_value
+                ids_to_keep.add(link.id)
+            else:
+                link = ResourceLink(
+                    category=category,
+                    label=link_data["label"],
+                    url=link_data["url"],
+                    description=link_data["description"] or None,
+                    sort_order=sort_order_value,
+                )
+                db.session.add(link)
+
+        # Remove links not retained
+        for link_id, link in existing_links.items():
+            if link_id not in ids_to_keep:
+                db.session.delete(link)
+
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f"Failed to update resource category {identifier}: {exc}")
+        return jsonify({"error": "Unable to update resource category"}), 500
+
+    return jsonify({
+        "message": "Resource category updated",
+        "category": _category_to_admin_payload(category)
+    })
+
+
+@app.route('/api/admin/resource-categories/<string:identifier>', methods=['DELETE'])
+@login_required
+def admin_delete_resource_category(identifier: str):
+    """Delete a resource category"""
+    if current_user.role not in RESOURCE_MANAGER_ROLES:
+        return jsonify({"error": "Forbidden"}), 403
+
+    category = get_resource_category_by_identifier(identifier)
+    if not category:
+        return jsonify({"error": "Resource category not found"}), 404
+
+    try:
+        db.session.delete(category)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f"Failed to delete resource category {identifier}: {exc}")
+        return jsonify({"error": "Unable to delete resource category"}), 500
+
+    return jsonify({"message": "Resource category deleted"})
 
 
 @app.route('/api/google/auth-url', methods=['GET'])
 @login_required
 def get_google_auth_url():
     """Generate Google OAuth URL for Drive access"""
+    if not ENABLE_GOOGLE_OAUTH:
+        return jsonify({"error": "Google Drive integration is disabled"}), 503
     if not current_user_can_access_resources():
         return jsonify({"error": "Forbidden"}), 403
 
@@ -7618,30 +8057,66 @@ def get_google_auth_url():
 
     requested_category = request.args.get("category")
     state = secrets.token_urlsafe(32)
-    session['google_auth_state'] = state
-    session['google_auth_requested'] = datetime.utcnow().isoformat()
-    if requested_category:
-        session['google_auth_category'] = requested_category
+    states = session.get('google_auth_states', [])
+    if not isinstance(states, list):
+        states = []
+    states.append(state)
+    # Keep only the most recent 5 states to avoid unbounded growth
+    session['google_auth_states'] = states[-5:]
 
-    redirect_uri = GOOGLE_OAUTH_REDIRECT_URI or url_for('google_oauth_callback', _external=True)
+    session['google_auth_requested'] = datetime.utcnow().isoformat()
+
+    if requested_category:
+        category_map = session.get('google_auth_category_map', {})
+        if not isinstance(category_map, dict):
+            category_map = {}
+        category_map[state] = requested_category
+        # Keep category map in sync with valid states
+        # remove entries whose state no longer tracked
+        valid_states = set(session['google_auth_states'])
+        category_map = {k: v for k, v in category_map.items() if k in valid_states}
+        session['google_auth_category_map'] = category_map
+
+    redirect_uri = resolve_google_redirect_uri()
     try:
         flow = build_google_flow(state=state, redirect_uri=redirect_uri)
     except ValueError as exc:
         logger.error(f"Failed to create Google OAuth flow: {exc}")
         return jsonify({"error": "Google OAuth redirect URI not configured"}), 503
 
-    logger.info(
-        "Google OAuth auth-url generated | user=%s state=%s category=%s session_id=%s",
-        getattr(current_user, 'id', 'anonymous'),
-        state,
-        requested_category,
-        session.get('_id')
-    )
-
-    authorization_url, _ = flow.authorization_url(
+    authorization_url, oauthlib_state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
         prompt='consent'
+    )
+
+    # oauthlib may generate its own state; prefer that if provided
+    effective_state = oauthlib_state or state
+
+    # Replace the last stored state with the effective one
+    states = session.get('google_auth_states', [])
+    if states:
+        states[-1] = effective_state
+    else:
+        states = [effective_state]
+    session['google_auth_states'] = states[-5:]
+
+    if requested_category:
+        category_map = session.get('google_auth_category_map', {})
+        if not isinstance(category_map, dict):
+            category_map = {}
+        category_map[effective_state] = requested_category
+        valid_states = set(session['google_auth_states'])
+        category_map = {k: v for k, v in category_map.items() if k in valid_states}
+        session['google_auth_category_map'] = category_map
+
+    logger.info(
+        "Google OAuth auth-url generated | user=%s state=%s effective_state=%s category=%s session_id=%s",
+        getattr(current_user, 'id', 'anonymous'),
+        state,
+        effective_state,
+        requested_category,
+        session.get('_id')
     )
     return jsonify({"auth_url": authorization_url, "state": state})
 
@@ -7650,15 +8125,25 @@ def get_google_auth_url():
 @login_required
 def google_oauth_callback():
     """Handle Google OAuth callback"""
-    state = request.args.get('state')
-    expected_state = session.get('google_auth_state')
+    if not ENABLE_GOOGLE_OAUTH:
+        return Response(
+            "<h3>OAuth Disabled</h3><p>Google Drive integration is currently disabled.</p>",
+            mimetype='text/html',
+            status=503
+        )
 
-    if not expected_state or state != expected_state:
+    state = request.args.get('state')
+    code = request.args.get('code')
+    valid_states = session.get('google_auth_states', [])
+    if not isinstance(valid_states, list):
+        valid_states = []
+
+    if not state or state not in valid_states:
         logger.warning(
             "Google OAuth state mismatch | user=%s state_returned=%s expected=%s session_keys=%s",
             getattr(current_user, 'id', 'anonymous'),
             state,
-            expected_state,
+            valid_states,
             list(session.keys())
         )
         return Response(
@@ -7667,7 +8152,32 @@ def google_oauth_callback():
             status=400
         )
 
-    redirect_uri = GOOGLE_OAUTH_REDIRECT_URI or url_for('google_oauth_callback', _external=True)
+    # Remove the used state so it can't be reused
+    try:
+        valid_states.remove(state)
+    except ValueError:
+        pass
+    session['google_auth_states'] = valid_states
+
+    category_map = session.get('google_auth_category_map', {})
+    if isinstance(category_map, dict):
+        session['google_auth_category'] = category_map.pop(state, None)
+        session['google_auth_category_map'] = category_map
+
+    redirect_uri = resolve_google_redirect_uri()
+
+    if not code:
+        logger.warning(
+            "Google OAuth callback missing code parameter | user=%s state=%s session_id=%s",
+            getattr(current_user, 'id', 'anonymous'),
+            state,
+            session.get('_id')
+        )
+        return Response(
+            "<h3>OAuth Error</h3><p>Missing authorization code. Please close this window and try again.</p>",
+            mimetype='text/html',
+            status=400
+        )
 
     try:
         logger.info(
@@ -7680,7 +8190,16 @@ def google_oauth_callback():
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
     except Exception as exc:
-        logger.error(f"Google OAuth callback error: {exc}")
+        message = str(exc)
+        if 'insecure_transport' in message:
+            logger.error("Google OAuth callback blocked due to insecure transport. request_url=%s", request.url)
+            return Response(
+                "<h3>OAuth Error</h3><p>Authentication must use HTTPS. Please ensure you're using the secure site URL and try again.</p>",
+                mimetype='text/html',
+                status=400
+            )
+
+        logger.exception("Google OAuth callback error")
         return Response(
             "<h3>OAuth Error</h3><p>Unable to complete Google authentication. Please close this window and try again.</p>",
             mimetype='text/html',
@@ -7694,23 +8213,30 @@ def google_oauth_callback():
             status=500
         )
 
-    session.pop('google_auth_state', None)
-    session.pop('google_auth_category', None)
-
     success_markup = """
         <html>
           <head>
             <title>Google Authentication Complete</title>
+            <script>
+              (function() {
+                function notifyParent() {
+                  if (window.opener) {
+                    try {
+                      window.opener.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
+                      window.opener.location.reload();
+                    } catch (err) {
+                      console.warn('Unable to reload opener window automatically.', err);
+                    }
+                  }
+                }
+                notifyParent();
+                setTimeout(function() {
+                  window.close();
+                }, 1200);
+              })();
+            </script>
           </head>
           <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
-                window.close();
-              } else {
-                document.write('<p>Authentication successful. You can close this window.</p>');
-              }
-            </script>
             <noscript>
               <p>Authentication successful. You can close this window.</p>
             </noscript>
@@ -7724,6 +8250,8 @@ def google_oauth_callback():
 @login_required
 def list_resources_for_category(category: str):
     """List Google Drive files for a given resource category"""
+    if not ENABLE_RESOURCES:
+        return jsonify({"error": "Resources temporarily unavailable"}), 503
     if not current_user_can_access_resources():
         return jsonify({"error": "Forbidden"}), 403
 
@@ -7733,7 +8261,14 @@ def list_resources_for_category(category: str):
 
     credentials = get_google_credentials_for_user(current_user.id)
     if not credentials:
-        return jsonify({"error": "Google authorization required"}), 401
+        category_meta = get_category_metadata(category)
+        manual_links = category_meta.pop("links", [])
+        return jsonify({
+            "category": category_meta,
+            "files": [],
+            "links": manual_links,
+            "error": "Google authorization required"
+        }), 401
 
     try:
         service = build('drive', 'v3', credentials=credentials, cache_discovery=False)
@@ -7766,9 +8301,11 @@ def list_resources_for_category(category: str):
         })
 
     category_meta = get_category_metadata(category)
+    manual_links = category_meta.pop("links", [])
     return jsonify({
         "category": category_meta,
-        "files": items
+        "files": items,
+        "links": manual_links
     })
 
 
@@ -8471,13 +9008,23 @@ def debug_claude():
 @app.route('/api/session')
 def session_info():
     if current_user.is_authenticated:
+        needs_drive_auth = False
+        try:
+            if current_user.role in RESOURCE_ALLOWED_ROLES:
+                credentials = get_google_credentials_for_user(current_user.id)
+                needs_drive_auth = credentials is None
+        except Exception as auth_exc:
+            logger.warning(f"Failed to determine Google auth status for user {current_user.id}: {auth_exc}")
+            needs_drive_auth = True
+
         return jsonify({
             "authenticated": True,
             "user": current_user.username,
             "role": current_user.role,
             "campus": current_user.campus,
             "full_name": current_user.full_name,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "needs_drive_auth": needs_drive_auth
         })
     else:
         return jsonify({
@@ -8486,7 +9033,8 @@ def session_info():
             "role": None,
             "campus": None,
             "full_name": None,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "needs_drive_auth": False
         })
 
 
@@ -12656,14 +13204,6 @@ def generate_any_time_frame_leadership_report(start_date: datetime, end_date: da
 
 # Patch the review detection logic in query_data_internal
 # ... existing code ...
-
-# @app.route('/heartbeat')
-# def heartbeat():
-#     return render_template('heartbeat.html')
-
-# @app.route('/journey')
-# def journey():
-#     return render_template('journey.html')
 
 # Catch-all route for React Router - serve React app for all non-API routes
 @app.route('/<path:path>')
