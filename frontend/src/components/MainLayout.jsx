@@ -172,9 +172,14 @@ const MainLayout = ({ children }) => {
     if (userRole === 'admin' || userRole === 'senior_leadership' || userRole === 'senior_leader' || userRole === 'senior_pastor' || userRole === 'lead_pastor') {
       items.push(
         { name: 'Data Export', href: '/export', icon: DocumentChartBarIcon, show: true },
-        { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, show: true },
         { name: 'Users', href: '/users', icon: UserGroupIcon, show: true },
         { name: 'Campuses', href: '/campuses', icon: BuildingOfficeIcon, show: true }
+      );
+    }
+
+    if (userRole === 'admin') {
+      items.push(
+        { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, show: true }
       );
     }
 

@@ -337,10 +337,6 @@ RESOURCE_ALLOWED_ROLES = {
 
 RESOURCE_MANAGER_ROLES = {
     "admin",
-    "senior_leadership",
-    "senior_leader",
-    "senior_pastor",
-    "lead_pastor",
 }
 
 def _env_flag(key: str, default: bool = True) -> bool:
