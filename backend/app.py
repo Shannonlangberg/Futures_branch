@@ -8255,14 +8255,21 @@ def list_resources_for_category(category: str):
     if not current_user_can_access_resources():
         return jsonify({"error": "Forbidden"}), 403
 
-    folder_id = get_folder_for_category(category)
+    category_meta = get_category_metadata(category)
+    manual_links = category_meta.pop("links", [])
+    folder_id = category_meta.get("folderId")
+
     if not folder_id:
+        if manual_links:
+            return jsonify({
+                "category": category_meta,
+                "files": [],
+                "links": manual_links
+            })
         return jsonify({"error": "Category not configured"}), 404
 
     credentials = get_google_credentials_for_user(current_user.id)
     if not credentials:
-        category_meta = get_category_metadata(category)
-        manual_links = category_meta.pop("links", [])
         return jsonify({
             "category": category_meta,
             "files": [],
@@ -8300,8 +8307,6 @@ def list_resources_for_category(category: str):
             "modifiedTime": file.get("modifiedTime"),
         })
 
-    category_meta = get_category_metadata(category)
-    manual_links = category_meta.pop("links", [])
     return jsonify({
         "category": category_meta,
         "files": items,
