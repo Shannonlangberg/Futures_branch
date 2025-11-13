@@ -337,9 +337,6 @@ const Resources = () => {
           <h4 className="text-white text-lg font-semibold">
             Quick Links
           </h4>
-          <span className="text-white/50 text-xs">
-            {`${links.length} link${links.length === 1 ? '' : 's'}`}
-          </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {links.map((link) => (
@@ -363,9 +360,6 @@ const Resources = () => {
                       {link.description}
                     </p>
                   )}
-                  <p className="text-white/40 text-[11px] mt-2 truncate">
-                    {link.url}
-                  </p>
                 </div>
               </div>
             </a>
