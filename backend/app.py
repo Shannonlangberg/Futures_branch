@@ -11780,12 +11780,19 @@ def edit_user_api(user_id):
     try:
         data = request.get_json()
         
+        # Convert user_id to integer if possible (database uses numeric IDs)
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid user_id format: {user_id}")
+            return jsonify({"error": "Invalid user ID"}), 400
+        
         # Update in database
         conn = get_db()
         cursor = conn.cursor()
         
         # Check if user exists
-        cursor.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT id, username FROM users WHERE id = ?', (user_id_int,))
         existing_user = cursor.fetchone()
         
         if not existing_user:
@@ -11821,14 +11828,14 @@ def edit_user_api(user_id):
             params.append(data['campus'])
         
         if update_fields:
-            params.append(user_id)
+            params.append(user_id_int)
             query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
             cursor.execute(query, params)
             conn.commit()
         
         conn.close()
         
-        logger.info(f"Updated user ID: {user_id}")
+        logger.info(f"Updated user ID: {user_id_int}")
         return jsonify({"success": True, "message": "User updated successfully"})
     except Exception as e:
         logger.error(f"Edit user API error: {e}", exc_info=True)
@@ -11839,22 +11846,29 @@ def edit_user_api(user_id):
 def delete_user_api(user_id):
     """API endpoint for deleting a user"""
     try:
+        # Convert user_id to integer if possible (database uses numeric IDs)
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid user_id format: {user_id}")
+            return jsonify({"error": "Invalid user ID"}), 400
+        
         # Delete from database (soft delete by setting active = 0)
         conn = get_db()
         cursor = conn.cursor()
         
         # Check if user exists
-        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id_int,))
         if not cursor.fetchone():
             conn.close()
             return jsonify({"error": "User not found"}), 404
         
         # Soft delete (set active = 0)
-        cursor.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id,))
+        cursor.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id_int,))
         conn.commit()
         conn.close()
         
-        logger.info(f"Deleted user ID: {user_id}")
+        logger.info(f"Deleted user ID: {user_id_int}")
         return jsonify({"success": True, "message": "User deleted successfully"})
     except Exception as e:
         logger.error(f"Delete user API error: {e}", exc_info=True)
@@ -13943,27 +13957,51 @@ def get_users():
         if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
             return jsonify({'error': 'Unauthorized'}), 403
         
-        users_db = load_users_database()
-        users_list = []
+        # Get users from database instead of JSON file
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, email, full_name, role, campus, active, created_at, last_login
+            FROM users
+            ORDER BY full_name
+        ''')
         
-        for user_id, user_data in users_db.get('users', {}).items():
-            # Don't send password hash to frontend
+        users_list = []
+        users_data = load_users()  # Still need this for role names
+        
+        for row in cursor.fetchall():
+            user_id, username, email, full_name, role, campus, active, created_at, last_login = row
+            
+            # Format last login for display
+            last_login_display = "Never"
+            if last_login:
+                try:
+                    # Convert to readable format
+                    if isinstance(last_login, str):
+                        last_login_dt = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
+                    else:
+                        last_login_dt = last_login
+                    last_login_display = last_login_dt.strftime('%Y-%m-%d %H:%M')
+                except:
+                    last_login_display = "Unknown"
+            
             user_info = {
-                'id': user_data.get('id'),
-                'username': user_data.get('username'),
-                'email': user_data.get('email', ''),
-                'full_name': user_data.get('full_name'),
-                'role': user_data.get('role'),
-                'campus': user_data.get('campus'),
-                'active': user_data.get('active', True),
-                'last_login': user_data.get('last_login'),
-                'created_date': user_data.get('created_date')
+                'id': str(user_id),  # Convert to string for frontend compatibility
+                'username': username,
+                'email': email or 'N/A',
+                'full_name': full_name or username,
+                'role': role,
+                'campus': campus or '',
+                'active': bool(active),
+                'created_date': created_at.strftime('%Y-%m-%d') if created_at else 'Unknown',
+                'last_login': last_login_display
             }
             users_list.append(user_info)
         
+        conn.close()
         return jsonify({'users': users_list, 'success': True})
     except Exception as e:
-        logger.error(f"Error fetching users: {e}")
+        logger.error(f"Error fetching users: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch users'}), 500
 
 # COMMUNICATIONS PLATFORM ROUTES
