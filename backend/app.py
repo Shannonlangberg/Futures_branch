@@ -11744,11 +11744,35 @@ def create_user_api():
         conn = get_db()
         cursor = conn.cursor()
         
-        # Check if username already exists (using TRIM for comparison)
-        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ?', (username,))
-        if cursor.fetchone():
+        # Check if username already exists among active users (using TRIM for comparison)
+        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ? AND active = 1', (username,))
+        existing_user = cursor.fetchone()
+        if existing_user:
             conn.close()
             return jsonify({"error": "Username already exists"}), 400
+        
+        # Check if there's an inactive user with this username - if so, reactivate and update them
+        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ? AND active = 0', (username,))
+        inactive_user = cursor.fetchone()
+        if inactive_user:
+            # Reactivate the existing user and update their details
+            user_id = inactive_user[0]
+            cursor.execute('''
+                UPDATE users 
+                SET password_hash = ?, full_name = ?, email = ?, role = ?, campus = ?, active = 1
+                WHERE id = ?
+            ''', (
+                generate_password_hash(password),
+                data.get('full_name', username).strip() if data.get('full_name') else username,
+                data.get('email', f"{username}@futures.church").strip() if data.get('email') else f"{username}@futures.church",
+                data.get('role', 'campus_pastor'),
+                data.get('campus', 'all_campuses'),
+                user_id
+            ))
+            conn.commit()
+            conn.close()
+            logger.info(f"Reactivated user: {username} (ID: {user_id})")
+            return jsonify({"success": True, "message": "User reactivated successfully"})
         
         # Insert new user
         cursor.execute('''
