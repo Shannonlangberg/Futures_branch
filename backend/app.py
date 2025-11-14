@@ -1245,22 +1245,34 @@ app.config.update(database_settings)
 app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
 logger.info(f"SQLAlchemy connected to {app.config['SQLALCHEMY_DATABASE_URI']}")
 
-# Configure direct database connection for new tables (regions, campuses_new)
-# These are in church_voice.db, while SQLAlchemy uses futures_link.db
-CHURCH_VOICE_DB_PATH = os.path.join(os.path.dirname(__file__), 'instance', 'church_voice.db')
-
+# Configure direct database connection - use same database as SQLAlchemy
 def get_db():
-    """Get a direct sqlite3 connection to church_voice.db for new tables"""
+    """Get a direct sqlite3 connection to the same database SQLAlchemy uses"""
     import sqlite3
-    return sqlite3.connect(CHURCH_VOICE_DB_PATH)
+    from urllib.parse import urlparse
+    
+    # Extract database path from SQLAlchemy URI
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        # Remove 'sqlite:///' prefix and handle absolute paths
+        db_path = db_uri.replace('sqlite:///', '')
+        # Handle 4 slashes for absolute paths (sqlite:////path)
+        if db_path.startswith('/'):
+            db_path = db_path
+        else:
+            # Relative path - resolve relative to backend directory
+            backend_dir = os.path.dirname(__file__)
+            db_path = os.path.join(backend_dir, db_path)
+    else:
+        # Fallback to old path if not SQLite
+        db_path = os.path.join(os.path.dirname(__file__), 'instance', 'church_voice.db')
+    
+    return sqlite3.connect(db_path)
 
 def run_migrations():
     """Run SQL migrations on startup"""
     import sqlite3
     try:
-        # Ensure instance directory exists
-        os.makedirs(os.path.dirname(CHURCH_VOICE_DB_PATH), exist_ok=True)
-        
         # Get migrations directory
         migrations_dir = os.path.join(os.path.dirname(__file__), 'migrations')
         
@@ -1275,7 +1287,15 @@ def run_migrations():
             logger.info("No migration files found")
             return
         
-        conn = sqlite3.connect(CHURCH_VOICE_DB_PATH)
+        # Use get_db() to get the correct database connection (same as SQLAlchemy)
+        conn = get_db()
+        
+        # Ensure directory exists for the database file
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if db_uri.startswith('sqlite:///'):
+            db_path = db_uri.replace('sqlite:///', '')
+            if db_path.startswith('/'):
+                os.makedirs(os.path.dirname(db_path), exist_ok=True)
         cursor = conn.cursor()
         
         # Create migrations tracking table if it doesn't exist
@@ -1345,7 +1365,15 @@ except Exception as e:
 
 try:
     from seed_users import seed_users
-    seed_users()
+    # Extract database path from SQLAlchemy URI for seed_users
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        seed_db_path = db_uri.replace('sqlite:///', '')
+        if not seed_db_path.startswith('/'):
+            seed_db_path = os.path.join(os.path.dirname(__file__), seed_db_path)
+    else:
+        seed_db_path = None
+    seed_users(db_path=seed_db_path)
 except Exception as e:
     logger.warning(f"Failed to seed users: {e}")
 
@@ -13984,6 +14012,14 @@ def get_users():
         # Get users from database instead of JSON file
         conn = get_db()
         cursor = conn.cursor()
+        
+        # Check if users table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        if not cursor.fetchone():
+            conn.close()
+            logger.warning("Users table does not exist yet")
+            return jsonify({'users': [], 'success': True})
+        
         cursor.execute('''
             SELECT id, username, email, full_name, role, campus, active, created_at, last_login
             FROM users
@@ -14026,7 +14062,7 @@ def get_users():
         return jsonify({'users': users_list, 'success': True})
     except Exception as e:
         logger.error(f"Error fetching users: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to fetch users'}), 500
+        return jsonify({'error': f'Failed to fetch users: {str(e)}'}), 500
 
 # COMMUNICATIONS PLATFORM ROUTES
 @app.route('/api/communications/campaigns', methods=['GET'])
