@@ -24,6 +24,9 @@ def normalize_database_url(database_url: str | None) -> str:
       URIs that SQLAlchemy 2.x accepts without warnings.
     """
     if not database_url:
+        volume_path = Path("/data")
+        if volume_path.exists():
+            return f"sqlite:///{volume_path / 'futures_link.db'}"
         return DEFAULT_SQLITE_URL
 
     cleaned = database_url.strip()
