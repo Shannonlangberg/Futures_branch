@@ -67,7 +67,7 @@ def seed_users(db_path=None):
                 'Administrator',
                 'admin@futures.church',
                 'admin',
-                'admin'
+                'admin'  # WHERE username = ?
             ))
             print("[SEED] Updated admin user (username: admin, password: futures2025)")
         else:
