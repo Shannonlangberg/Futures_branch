@@ -1359,7 +1359,15 @@ run_migrations()
 # Seed database with initial data
 try:
     from seed_campuses import seed_campuses
-    seed_campuses()
+    # Extract database path from SQLAlchemy URI for seed_campuses
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        seed_db_path = db_uri.replace('sqlite:///', '')
+        if not seed_db_path.startswith('/'):
+            seed_db_path = os.path.join(os.path.dirname(__file__), seed_db_path)
+    else:
+        seed_db_path = None
+    seed_campuses(db_path=seed_db_path)
 except Exception as e:
     logger.warning(f"Failed to seed campuses: {e}")
 

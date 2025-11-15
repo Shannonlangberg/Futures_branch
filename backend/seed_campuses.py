@@ -7,16 +7,32 @@ import sqlite3
 import os
 import sys
 
-def seed_campuses():
+def seed_campuses(db_path=None):
     """Load campuses from campuses.json into database"""
     
     # Get paths
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     campuses_json_path = os.path.join(backend_dir, 'campuses.json')
-    db_path = os.path.join(backend_dir, 'instance', 'church_voice.db')
+    
+    # Use provided db_path or fall back to extracting from DATABASE_URL
+    if not db_path:
+        database_url = os.getenv('DATABASE_URL', '')
+        if database_url and database_url.startswith('sqlite:///'):
+            db_path = database_url.replace('sqlite:///', '')
+            # Handle 4 slashes for absolute paths
+            if not db_path.startswith('/'):
+                db_path = os.path.join(backend_dir, db_path)
+        else:
+            # Fallback to default
+            db_path = os.path.join(backend_dir, 'instance', 'church_voice.db')
     
     print(f"[SEED] Loading campuses from: {campuses_json_path}")
     print(f"[SEED] Database path: {db_path}")
+    
+    # Ensure database directory exists (SQLite will create the file if it doesn't exist)
+    db_dir = os.path.dirname(db_path)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
     
     # Load campuses.json
     if not os.path.exists(campuses_json_path):
@@ -33,11 +49,7 @@ def seed_campuses():
     
     print(f"[SEED] Found {len(campuses)} campuses in JSON file")
     
-    # Connect to database
-    if not os.path.exists(db_path):
-        print(f"[SEED] ERROR: Database not found at {db_path}")
-        return False
-    
+    # Connect to database (SQLite will create the file if it doesn't exist)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     

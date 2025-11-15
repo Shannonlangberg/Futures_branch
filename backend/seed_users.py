@@ -16,7 +16,6 @@ def seed_users(db_path=None):
     
     # Use provided db_path or fall back to extracting from DATABASE_URL
     if not db_path:
-        import os
         from urllib.parse import urlparse
         database_url = os.getenv('DATABASE_URL', '')
         if database_url and database_url.startswith('sqlite:///'):
