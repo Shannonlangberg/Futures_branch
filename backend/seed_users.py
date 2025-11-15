@@ -31,6 +31,11 @@ def seed_users(db_path=None):
     print(f"[SEED] Loading users from: {users_json_path}")
     print(f"[SEED] Database path: {db_path}")
     
+    # Ensure database directory exists (SQLite will create the file if it doesn't exist)
+    db_dir = os.path.dirname(db_path)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+    
     # Load users.json
     if not os.path.exists(users_json_path):
         print(f"[SEED] WARNING: users.json not found at {users_json_path}")
@@ -43,15 +48,19 @@ def seed_users(db_path=None):
     
     print(f"[SEED] Found {len(users)} users in JSON file")
     
-    # Connect to database
-    if not os.path.exists(db_path):
-        print(f"[SEED] ERROR: Database not found at {db_path}")
-        return False
-    
+    # Connect to database (SQLite will create the file if it doesn't exist)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     try:
+        # Check if users table exists (migrations should create it, but handle gracefully)
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        if not cursor.fetchone():
+            print(f"[SEED] WARNING: users table does not exist yet. Migrations may not have run.")
+            print(f"[SEED] Users table should be created by migration 012_users_table.sql")
+            conn.close()
+            return False
+        
         # Always ensure we have the expected users from users.json
         cursor.execute("SELECT COUNT(*) FROM users")
         existing_count = cursor.fetchone()[0]
