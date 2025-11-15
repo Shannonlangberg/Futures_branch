@@ -14048,7 +14048,12 @@ def get_users():
         ''')
         
         users_list = []
-        users_data = load_users()  # Still need this for role names
+        # Try to load users.json for role names, but don't fail if it doesn't exist
+        try:
+            users_data = load_users()  # Still need this for role names
+        except Exception as e:
+            logger.warning(f"Could not load users.json for role names: {e}")
+            users_data = {"roles": {}}
         
         for row in cursor.fetchall():
             user_id, username, email, full_name, role, campus, active, created_at, last_login = row
