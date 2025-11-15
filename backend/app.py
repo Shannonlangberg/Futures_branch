@@ -14056,33 +14056,48 @@ def get_users():
             users_data = {"roles": {}}
         
         for row in cursor.fetchall():
-            user_id, username, email, full_name, role, campus, active, created_at, last_login = row
-            
-            # Format last login for display
-            last_login_display = "Never"
-            if last_login:
-                try:
-                    # Convert to readable format
-                    if isinstance(last_login, str):
-                        last_login_dt = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
-                    else:
-                        last_login_dt = last_login
-                    last_login_display = last_login_dt.strftime('%Y-%m-%d %H:%M')
-                except:
-                    last_login_display = "Unknown"
-            
-            user_info = {
-                'id': str(user_id),  # Convert to string for frontend compatibility
-                'username': username,
-                'email': email or 'N/A',
-                'full_name': full_name or username,
-                'role': role,
-                'campus': campus or '',
-                'active': bool(active),
-                'created_date': created_at.strftime('%Y-%m-%d') if created_at else 'Unknown',
-                'last_login': last_login_display
-            }
-            users_list.append(user_info)
+            try:
+                user_id, username, email, full_name, role, campus, active, created_at, last_login = row
+                
+                # Format last login for display
+                last_login_display = "Never"
+                if last_login:
+                    try:
+                        # Convert to readable format
+                        if isinstance(last_login, str):
+                            last_login_dt = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
+                        else:
+                            last_login_dt = last_login
+                        last_login_display = last_login_dt.strftime('%Y-%m-%d %H:%M')
+                    except:
+                        last_login_display = "Unknown"
+                
+                # Format created_at safely
+                created_date_str = 'Unknown'
+                if created_at:
+                    try:
+                        if isinstance(created_at, str):
+                            created_date_str = created_at[:10] if len(created_at) >= 10 else 'Unknown'
+                        else:
+                            created_date_str = created_at.strftime('%Y-%m-%d')
+                    except:
+                        created_date_str = 'Unknown'
+                
+                user_info = {
+                    'id': str(user_id),  # Convert to string for frontend compatibility
+                    'username': username or 'Unknown',
+                    'email': email or 'N/A',
+                    'full_name': full_name or username or 'Unknown',
+                    'role': role or 'user',
+                    'campus': campus or '',
+                    'active': bool(active) if active is not None else True,
+                    'created_date': created_date_str,
+                    'last_login': last_login_display
+                }
+                users_list.append(user_info)
+            except Exception as row_error:
+                logger.error(f"Error processing user row: {row_error}, row: {row}")
+                continue
         
         conn.close()
         return jsonify({'users': users_list, 'success': True})
