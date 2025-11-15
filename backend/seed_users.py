@@ -102,32 +102,65 @@ def seed_users(db_path=None):
             print("[SEED] Created default admin user (username: admin, password: futures2025)")
             return True
         
-        # Insert each user (INSERT OR IGNORE to avoid duplicates)
+        # Insert or update each user
         inserted = 0
+        updated = 0
+        from werkzeug.security import generate_password_hash
+        
         for user_key, user_data in users.items():
             # Use the actual username from user_data, not the dictionary key
             # Strip whitespace to prevent login issues
             actual_username = user_data.get('username', user_key).strip()
             full_name = user_data.get('full_name', actual_username).strip()
-            cursor.execute('''
-                INSERT OR IGNORE INTO users 
-                (username, password_hash, full_name, email, role, campus, active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                actual_username,
-                user_data.get('password_hash', ''),
-                full_name,
-                user_data.get('email', ''),
-                user_data.get('role', 'campus_pastor'),
-                user_data.get('campus', ''),
-                1 if user_data.get('active', True) else 0
-            ))
             
-            inserted += 1
-            print(f"[SEED] Inserted user: {actual_username} ({user_data.get('role', 'campus_pastor')})")
+            # Get password hash - use from JSON, or generate default for admin
+            password_hash = user_data.get('password_hash', '')
+            if not password_hash and actual_username.lower() == 'admin':
+                # Ensure admin has a known password if hash is missing
+                password_hash = generate_password_hash('futures2025')
+                print(f"[SEED] Generated password hash for admin user")
+            
+            # Check if user already exists
+            cursor.execute('SELECT id FROM users WHERE username = ?', (actual_username,))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing user (including password hash to ensure it's correct)
+                cursor.execute('''
+                    UPDATE users 
+                    SET password_hash = ?, full_name = ?, email = ?, role = ?, campus = ?, active = ?
+                    WHERE username = ?
+                ''', (
+                    password_hash,
+                    full_name,
+                    user_data.get('email', ''),
+                    user_data.get('role', 'campus_pastor'),
+                    user_data.get('campus', ''),
+                    1 if user_data.get('active', True) else 0,
+                    actual_username
+                ))
+                updated += 1
+                print(f"[SEED] Updated user: {actual_username} ({user_data.get('role', 'campus_pastor')})")
+            else:
+                # Insert new user
+                cursor.execute('''
+                    INSERT INTO users 
+                    (username, password_hash, full_name, email, role, campus, active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    actual_username,
+                    password_hash,
+                    full_name,
+                    user_data.get('email', ''),
+                    user_data.get('role', 'campus_pastor'),
+                    user_data.get('campus', ''),
+                    1 if user_data.get('active', True) else 0
+                ))
+                inserted += 1
+                print(f"[SEED] Inserted user: {actual_username} ({user_data.get('role', 'campus_pastor')})")
         
         conn.commit()
-        print(f"[SEED] Successfully inserted {inserted} users")
+        print(f"[SEED] Successfully inserted {inserted} users, updated {updated} users")
         return True
         
     except Exception as e:
