@@ -8236,32 +8236,78 @@ def google_oauth_callback():
         )
 
     success_markup = """
+        <!DOCTYPE html>
         <html>
           <head>
             <title>Google Authentication Complete</title>
+            <meta charset="UTF-8">
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+              }
+              .container {
+                text-align: center;
+                padding: 2rem;
+              }
+              .checkmark {
+                font-size: 4rem;
+                margin-bottom: 1rem;
+              }
+              h1 {
+                margin: 0.5rem 0;
+                font-size: 1.5rem;
+              }
+              p {
+                margin: 0.5rem 0;
+                opacity: 0.9;
+              }
+            </style>
             <script>
               (function() {
                 function notifyParent() {
                   if (window.opener) {
                     try {
-                      window.opener.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
-                      window.opener.location.reload();
+                      // Try to send message to parent window
+                      const origin = window.location.origin;
+                      window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
+                      
+                      // Also try with wildcard for cross-origin scenarios
+                      try {
+                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                      } catch (e) {
+                        // Ignore cross-origin errors
+                      }
                     } catch (err) {
-                      console.warn('Unable to reload opener window automatically.', err);
+                      console.warn('Unable to notify parent window:', err);
                     }
                   }
                 }
+                
+                // Notify immediately
                 notifyParent();
-                setTimeout(function() {
-                  window.close();
-                }, 1200);
+                
+                // Show success message
+                document.addEventListener('DOMContentLoaded', function() {
+                  setTimeout(function() {
+                    window.close();
+                  }, 2000);
+                });
               })();
             </script>
           </head>
           <body>
-            <noscript>
-              <p>Authentication successful. You can close this window.</p>
-            </noscript>
+            <div class="container">
+              <div class="checkmark">✓</div>
+              <h1>Authentication Successful!</h1>
+              <p>You can close this window now.</p>
+            </div>
           </body>
         </html>
     """
