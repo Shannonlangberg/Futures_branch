@@ -346,7 +346,8 @@ def _env_flag(key: str, default: bool = True) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 ENABLE_RESOURCES = _env_flag("ENABLE_RESOURCES", True)
-ENABLE_GOOGLE_OAUTH = _env_flag("ENABLE_GOOGLE_OAUTH", ENABLE_RESOURCES)
+# Enable Google OAuth by default - only disable if explicitly set to False
+ENABLE_GOOGLE_OAUTH = _env_flag("ENABLE_GOOGLE_OAUTH", True)
 
 DEFAULT_RESOURCES_MAP = {}
 

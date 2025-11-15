@@ -140,13 +140,24 @@ function App() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || 'Unable to begin Google authentication. Please try again.');
+        const errorMsg = payload.error || 'Unable to begin Google authentication. Please try again.';
+        
+        // If OAuth is disabled, show a more helpful message
+        if (response.status === 503 && errorMsg.includes('disabled')) {
+          setDriveError('Google Drive integration needs to be enabled. Please contact your administrator.');
+        } else {
+          setDriveError(errorMsg);
+        }
+        setDriveConnecting(false);
+        return;
       }
 
       const data = await response.json();
       const authUrl = data.auth_url || data.authUrl;
       if (!authUrl) {
-        throw new Error('Missing Google authentication URL.');
+        setDriveError('Missing Google authentication URL.');
+        setDriveConnecting(false);
+        return;
       }
 
       const authWindow = window.open(
@@ -156,7 +167,9 @@ function App() {
       );
 
       if (!authWindow) {
-        throw new Error('Popup blocked. Please allow popups for this site and try again.');
+        setDriveError('Popup blocked. Please allow popups for this site and try again.');
+        setDriveConnecting(false);
+        return;
       }
 
       authWindow.focus();
