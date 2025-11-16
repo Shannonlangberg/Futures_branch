@@ -13871,7 +13871,19 @@ def get_persons():
 def create_person():
     """Create new person with engagement profile (admin only)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        # Allow key leadership roles to add people; campus pastors can add
+        # people for their campus even though they don't have manage_users.
+        allowed_roles = {
+            'admin',
+            'senior_leadership',
+            'senior_leader',
+            'senior_pastor',
+            'lead_pastor',
+            'campus_pastor',
+            'pastor',
+            'staff',
+        }
+        if current_user.role not in allowed_roles:
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
