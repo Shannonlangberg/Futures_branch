@@ -42,6 +42,19 @@ const People = () => {
   const [campuses, setCampuses] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [savingPerson, setSavingPerson] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [newPerson, setNewPerson] = useState({
+    firstName: '',
+    lastName: '',
+    preferredName: '',
+    email: '',
+    phone: '',
+    campus: '',
+    connectGroup: '',
+    dreamTeamRoles: ''
+  });
   const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0 });
   const [filters, setFilters] = useState({
     campus: 'all_campuses',
@@ -196,6 +209,95 @@ const People = () => {
     input.click();
   };
 
+  const openAddModal = () => {
+    setAddError('');
+    setNewPerson((prev) => ({
+      ...prev,
+      campus: filters.campus && filters.campus !== 'all_campuses' ? filters.campus : prev.campus
+    }));
+    setShowAddModal(true);
+  };
+
+  const handleNewPersonChange = (field, value) => {
+    setNewPerson((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSavePerson = async () => {
+    setAddError('');
+    const firstName = newPerson.firstName.trim();
+    const lastName = newPerson.lastName.trim();
+    const email = newPerson.email.trim();
+    const campusValue =
+      newPerson.campus ||
+      (filters.campus && filters.campus !== 'all_campuses' ? filters.campus : '');
+
+    if (!firstName && !lastName) {
+      setAddError('Please enter at least a first or last name.');
+      return;
+    }
+    if (!email) {
+      setAddError('Please enter an email address.');
+      return;
+    }
+    if (!campusValue) {
+      setAddError('Please select a campus.');
+      return;
+    }
+
+    const fullName = `${firstName} ${lastName}`.trim();
+    const dreamTeamRoles = newPerson.dreamTeamRoles
+      ? newPerson.dreamTeamRoles
+          .split(',')
+          .map((r) => r.trim())
+          .filter(Boolean)
+      : [];
+
+    try {
+      setSavingPerson(true);
+      const response = await fetch('/api/persons', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          full_name: fullName,
+          preferred_name: newPerson.preferredName || firstName || fullName,
+          email,
+          phone: newPerson.phone || null,
+          campus: campusValue,
+          connect_group: newPerson.connectGroup || null,
+          dream_team_roles: dreamTeamRoles
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create person');
+      }
+
+      // Reset form and refresh list from first page
+      setShowAddModal(false);
+      setNewPerson({
+        firstName: '',
+        lastName: '',
+        preferredName: '',
+        email: '',
+        phone: '',
+        campus: campusValue,
+        connectGroup: '',
+        dreamTeamRoles: ''
+      });
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    } catch (err) {
+      console.error('Add person error:', err);
+      setAddError(err.message || 'Failed to save person.');
+    } finally {
+      setSavingPerson(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -223,6 +325,13 @@ const People = () => {
                 {pf.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="px-3 py-1.5 rounded-full text-xs font-medium border border-emerald-500/60 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20"
+            >
+              Add Person
+            </button>
             <button
               type="button"
               onClick={handleImportClick}
@@ -430,6 +539,157 @@ const People = () => {
           </div>
         </div>
       </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Add Person</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingPerson) setShowAddModal(false);
+                }}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Quick add for new people in your campus. You can fill in more details later from their
+              profile.
+            </p>
+
+            {addError && (
+              <div className="text-xs text-red-200 bg-red-900/40 border border-red-500/50 rounded-lg px-3 py-2">
+                {addError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  First name
+                </label>
+                <input
+                  type="text"
+                  value={newPerson.firstName}
+                  onChange={(e) => handleNewPersonChange('firstName', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Last name
+                </label>
+                <input
+                  type="text"
+                  value={newPerson.lastName}
+                  onChange={(e) => handleNewPersonChange('lastName', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Preferred name
+                </label>
+                <input
+                  type="text"
+                  value={newPerson.preferredName}
+                  onChange={(e) => handleNewPersonChange('preferredName', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newPerson.email}
+                  onChange={(e) => handleNewPersonChange('email', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={newPerson.phone}
+                  onChange={(e) => handleNewPersonChange('phone', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Campus
+                </label>
+                <select
+                  value={
+                    newPerson.campus ||
+                    (filters.campus !== 'all_campuses' ? filters.campus : newPerson.campus)
+                  }
+                  onChange={(e) => handleNewPersonChange('campus', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                >
+                  <option value="">Select campus</option>
+                  {campuses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Connect group
+                </label>
+                <input
+                  type="text"
+                  value={newPerson.connectGroup}
+                  onChange={(e) => handleNewPersonChange('connectGroup', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Dream team roles
+                </label>
+                <input
+                  type="text"
+                  placeholder="Comma separated, e.g. Host, Kids, Worship"
+                  value={newPerson.dreamTeamRoles}
+                  onChange={(e) => handleNewPersonChange('dreamTeamRoles', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60 placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingPerson) setShowAddModal(false);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 border border-slate-600 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePerson}
+                disabled={savingPerson}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {savingPerson ? 'Saving…' : 'Save person'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

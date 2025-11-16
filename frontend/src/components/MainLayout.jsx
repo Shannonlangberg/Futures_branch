@@ -121,8 +121,8 @@ const MainLayout = ({ children }) => {
       { name: 'Input', href: '/stats', icon: ClipboardIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
       { name: 'Finance', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'] },
       { name: 'People', href: '/people', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'] },
-      { name: 'Resources', href: '/resources', icon: BookOpenIcon, roles: ['admin'] },
       { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance'], featureFlag: 'HEARTBEAT_ENABLED' },
+      { name: 'Resources', href: '/resources', icon: BookOpenIcon, roles: ['admin'] },
       
       // Hidden items - commented out for now
       // { name: 'Devotions Admin', href: '/devotions/admin', icon: BookOpenIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'staff'], featureFlag: 'DEVOTIONS_ADMIN_ENABLED' },

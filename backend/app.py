@@ -13366,7 +13366,8 @@ def serve_react_app(path):
 def get_heartbeat_list():
     """List people with basic heartbeat info for pastors"""
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        # Use query_access permission for heartbeat dashboards
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         campus_filter = request.args.get('campus', None)
@@ -13456,7 +13457,7 @@ def get_heartbeat_list():
 def get_heartbeat_detail(person_id):
     """Detailed heartbeat view for one person"""
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         person = Person.query.filter_by(id=person_id, is_active=True).first()
@@ -13527,7 +13528,8 @@ def get_people_directory():
     for People directory and Heartbeat dashboards.
     """
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        # Directory is available to roles that already have query/report access
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         campus_filter = request.args.get('campus', None)
@@ -13632,8 +13634,14 @@ def import_people_from_pco():
       - Tags :: Tags
     """
     try:
-        # Require write-level pulse/people access
-        if not current_user.has_permission('pulse', 'write'):
+        # Restrict bulk imports to senior leadership/admin roles
+        if current_user.role not in (
+            'admin',
+            'senior_leadership',
+            'senior_leader',
+            'senior_pastor',
+            'lead_pastor',
+        ):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         if 'file' not in request.files:
