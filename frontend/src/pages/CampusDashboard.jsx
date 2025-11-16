@@ -599,13 +599,10 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   </div>
                   <div className="text-cyan-400 text-sm font-semibold">Community</div>
                 </div>
-                <h3 className="text-white/80 text-sm font-medium mb-2">Total Connect Group Attendance</h3>
+                <h3 className="text-white/80 text-sm font-medium mb-2">Total Number of Connect Groups</h3>
                 <div className="text-4xl font-bold text-white mb-2">
                   {Math.round(data.stats?.avg_connect_groups || 0).toLocaleString()}
                 </div>
-                <p className="text-cyan-200/80 text-sm">
-                  {connectGroupPercentage}% of Sunday attendance
-                </p>
               </div>
             </div>
           </div>
