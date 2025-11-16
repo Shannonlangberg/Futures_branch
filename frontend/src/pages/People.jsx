@@ -40,6 +40,8 @@ const People = () => {
   const [error, setError] = useState('');
   const [people, setPeople] = useState([]);
   const [campuses, setCampuses] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0 });
   const [filters, setFilters] = useState({
     campus: 'all_campuses',
@@ -146,6 +148,54 @@ const People = () => {
 
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / pagination.pageSize));
 
+  const handleImportClick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv';
+
+    input.onchange = async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        setImporting(true);
+        setImportResult(null);
+        setError('');
+
+        const response = await fetch('/api/people/import_pco', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Import failed');
+        }
+
+        setImportResult({
+          created: data.created,
+          skipped: data.skipped,
+          errors: data.errors || []
+        });
+
+        // Refresh people list from first page
+        setPagination((prev) => ({ ...prev, page: 1 }));
+      } catch (err) {
+        console.error('PCO import error:', err);
+        setError(err.message || 'Failed to import Planning Center CSV.');
+      } finally {
+        setImporting(false);
+      }
+    };
+
+    input.click();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -173,10 +223,33 @@ const People = () => {
                 {pf.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={handleImportClick}
+              disabled={importing}
+              className="px-3 py-1.5 rounded-full text-xs font-medium border border-blue-500/60 text-blue-200 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {importing ? 'Importing PCO CSV…' : 'Import PCO CSV'}
+            </button>
           </div>
         </div>
 
         <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4 sm:p-5 space-y-4">
+          {importResult && (
+            <div className="mb-3 text-xs text-emerald-200 bg-emerald-900/30 border border-emerald-500/40 rounded-lg px-3 py-2">
+              Imported {importResult.created} people, skipped {importResult.skipped}.
+              {importResult.errors && importResult.errors.length > 0 && (
+                <div className="mt-1 text-[11px] text-emerald-100/90">
+                  Some rows were skipped. First few errors:
+                  <ul className="list-disc list-inside">
+                    {importResult.errors.slice(0, 3).map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="flex flex-col">
               <span className="text-xs text-slate-400 uppercase tracking-wide">

@@ -13615,6 +13615,141 @@ def get_people_directory():
         return jsonify({'error': 'Failed to fetch people directory'}), 500
 
 
+@app.route('/api/people/import_pco', methods=['POST'])
+@login_required
+def import_people_from_pco():
+    """
+    Import people from a Planning Center CSV export.
+    
+    Expected columns (simplified v1):
+      - Person ID
+      - First Name
+      - Last Name
+      - Nickname
+      - Campus Name
+      - Home Email / Work Email / Other Email
+      - Mobile Phone Number / Home Phone Number
+      - Tags :: Tags
+    """
+    try:
+        # Require write-level pulse/people access
+        if not current_user.has_permission('pulse', 'write'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part in request'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+
+        import csv
+        import io
+
+        # Read CSV content (assuming UTF-8)
+        stream = io.StringIO(file.stream.read().decode('utf-8', errors='ignore'))
+        reader = csv.DictReader(stream)
+
+        created = 0
+        skipped = 0
+        errors = []
+
+        # Simple campus mapping hook (PCO campus name -> internal campus code)
+        # For now, use name directly; can be customized later.
+        def map_campus(pco_campus_name):
+            return (pco_campus_name or '').strip() or 'all_campuses'
+
+        for idx, row in enumerate(reader, start=1):
+            try:
+                first_name = (row.get('First Name') or row.get('Given Name') or '').strip()
+                last_name = (row.get('Last Name') or '').strip()
+                nickname = (row.get('Nickname') or '').strip()
+                campus_name = (row.get('Campus Name') or '').strip()
+
+                # Choose primary email
+                email = (
+                    (row.get('Home Email') or '').strip()
+                    or (row.get('Work Email') or '').strip()
+                    or (row.get('Other Email') or '').strip()
+                )
+
+                # Choose primary phone
+                phone = (
+                    (row.get('Mobile Phone Number') or '').strip()
+                    or (row.get('Home Phone Number') or '').strip()
+                )
+
+                if not first_name and not last_name:
+                    skipped += 1
+                    continue
+
+                if not email:
+                    # Skip people with no email for now (we use email as unique key)
+                    skipped += 1
+                    continue
+
+                full_name = f"{first_name} {last_name}".strip()
+                preferred_name = nickname or first_name or full_name
+
+                campus_code = map_campus(campus_name)
+
+                # Tags :: Tags column: comma-separated list
+                raw_tags = (row.get('Tags :: Tags') or '').strip()
+                tags_list = [t.strip() for t in raw_tags.split(',') if t.strip()] if raw_tags else []
+
+                # Check if person already exists by email
+                existing_person = Person.query.filter_by(email=email, is_active=True).first()
+                if existing_person:
+                    skipped += 1
+                    continue
+
+                # Create person + engagement
+                person, engagement = create_person_with_engagement(
+                    full_name=full_name,
+                    email=email,
+                    campus=campus_code,
+                    preferred_name=preferred_name,
+                    phone=phone,
+                    connect_group=None,
+                    dream_team_roles=[],
+                    birthday=None,
+                    pastoral_notes=None,
+                    tags=tags_list,
+                )
+
+                # Optionally store PCO Person ID in tags for now
+                pco_id = (row.get('Person ID') or '').strip()
+                if pco_id:
+                    existing_tags = person.tags or '[]'
+                    import json
+                    tag_values = json.loads(existing_tags)
+                    if f"pco:{pco_id}" not in tag_values:
+                        tag_values.append(f"pco:{pco_id}")
+                        person.tags = json.dumps(tag_values)
+
+                db.session.add(person)
+                db.session.add(engagement)
+                created += 1
+
+            except Exception as row_err:
+                skipped += 1
+                errors.append(f"Row {idx}: {row_err}")
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Import completed',
+            'created': created,
+            'skipped': skipped,
+            'errors': errors[:20],  # cap error list for response size
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error importing people from PCO: {e}")
+        return jsonify({'error': 'Failed to import people from PCO CSV'}), 500
+
+
 @app.route('/api/persons/demo/<person_id>', methods=['PUT'])
 @require_feature_flag('HEARTBEAT_ENABLED')
 def update_person_demo(person_id):
