@@ -179,10 +179,17 @@ function App() {
         if (authWindow.closed) {
           clearInterval(checkWindow);
           setDriveConnecting(false);
-          // Check auth status after window closes (user might have completed auth)
+
+          // After the popup is closed, always re-check auth
+          // and then hide the modal so the user doesn't need
+          // to manually refresh.
           setTimeout(() => {
-            checkAuthStatus();
-          }, 1000);
+            checkAuthStatus().finally(() => {
+              setNeedsDriveAuth(false);
+              setShowDriveModal(false);
+              setDriveError('');
+            });
+          }, 800);
         }
       }, 500);
 
