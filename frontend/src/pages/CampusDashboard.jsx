@@ -1212,7 +1212,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                     <h3 className="text-xl font-bold text-white mb-4">Kids Ministry Overview</h3>
                     <div className="text-4xl font-bold text-pink-400 mb-2">
-                      {(modalData.attendance + modalData.leaders).toLocaleString()}
+                      {modalData.attendance.toLocaleString()}
                     </div>
                     <p className="text-white/60">{modalData.attendance} kids + {modalData.leaders} leaders</p>
                   </div>
