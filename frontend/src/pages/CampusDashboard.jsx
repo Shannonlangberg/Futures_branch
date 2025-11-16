@@ -223,9 +223,11 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   // Use service breakdown sum if it exists and has data, otherwise fall back to avg_attendance
   const sundayAdultAttendance = Math.round(sundayAttendanceFromServices > 0 ? sundayAttendanceFromServices : (data.stats?.avg_attendance || 0));
   const youthAttendance = Math.round(data.stats?.avg_youth_attendance || 0); // ALWAYS average
-  const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // ALWAYS average
-  const sundayCombinedAttendance = sundayAdultAttendance + kidsAttendance;
-  const totalAttendance = sundayAdultAttendance + youthAttendance + kidsAttendance; // Weekend = Sunday + Youth + Kids
+  const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // Kids only
+  const kidsLeaders = Math.round(data.stats?.avg_kids_leaders || 0); // Leaders only
+  const kidsTotalForSunday = kidsAttendance + kidsLeaders; // Kids + leaders
+  const sundayCombinedAttendance = sundayAdultAttendance + kidsTotalForSunday;
+  const totalAttendance = sundayAdultAttendance + youthAttendance + kidsTotalForSunday; // Weekend = Sunday + Youth + Kids (kids = kids + leaders)
   const attendancePercentage = totalPeople > 0 ? Math.round((totalAttendance / totalPeople) * 100) : 0;
   const connectGroupPercentage = sundayAdultAttendance > 0 ? Math.round((data.stats?.avg_connect_groups || 0) / sundayAdultAttendance * 100) : 0;
 
@@ -409,7 +411,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 openModal('sunday-attendance', { 
                   total: sundayCombinedAttendance, 
                   adults: sundayAdultAttendance,
-                  kids: kidsAttendance,
+                  kids: kidsTotalForSunday, // Kids + leaders for clarity in modal
                   services: services,
                   campus: campusName
                 });
@@ -960,7 +962,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         : 'Average per service including kids ministry'}
                     </p>
                     <p className="text-white/50 text-sm mt-2">
-                      Adults: {(modalData?.adults ?? sundayAdultAttendance).toLocaleString()} • Kids: {(modalData?.kids ?? kidsAttendance).toLocaleString()}
+                      Adults: {(modalData?.adults ?? sundayAdultAttendance).toLocaleString()} • Kids (incl. leaders): {(modalData?.kids ?? kidsTotalForSunday).toLocaleString()}
                     </p>
                   </div>
                   
