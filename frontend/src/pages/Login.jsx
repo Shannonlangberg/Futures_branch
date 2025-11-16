@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserIcon, LockClosedIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
@@ -8,12 +8,110 @@ const Login = ({ onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isDriveAuthRequired, setIsDriveAuthRequired] = useState(false);
+  const [isDriveConnecting, setIsDriveConnecting] = useState(false);
+  const [driveError, setDriveError] = useState('');
   const navigate = useNavigate();
+
+  // Start Google Drive OAuth for admins who need it
+  const startGoogleAuth = async () => {
+    try {
+      setDriveError('');
+      setIsDriveConnecting(true);
+
+      const response = await fetch('/api/google/auth-url', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const errorMsg = payload.error || 'Unable to begin Google authentication. Please try again.';
+
+        if (response.status === 503 && errorMsg.toLowerCase().includes('disabled')) {
+          setDriveError('Google Drive integration needs to be enabled. Please contact your administrator.');
+        } else if (response.status === 403) {
+          setDriveError('You do not have permission to connect Google Drive for this account.');
+        } else {
+          setDriveError(errorMsg);
+        }
+        setIsDriveConnecting(false);
+        return;
+      }
+
+      const data = await response.json();
+      const authUrl = data.auth_url || data.authUrl;
+      if (!authUrl) {
+        setDriveError('Missing Google authentication URL.');
+        setIsDriveConnecting(false);
+        return;
+      }
+
+      const authWindow = window.open(
+        authUrl,
+        'googleDriveAuth',
+        'width=520,height=680,noopener,noreferrer'
+      );
+
+      if (!authWindow) {
+        setDriveError('Popup blocked. Please allow popups for this site and try again.');
+        setIsDriveConnecting(false);
+        return;
+      }
+
+      authWindow.focus();
+
+      // Fallback: if window closes without us seeing a message,
+      // still move the user into the app.
+      const checkWindow = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(checkWindow);
+          setIsDriveConnecting(false);
+          if (onLogin) {
+            onLogin();
+          }
+          navigate('/dashboard');
+        }
+      }, 700);
+
+      // Safety timeout to clear interval
+      setTimeout(() => {
+        clearInterval(checkWindow);
+      }, 5 * 60 * 1000);
+    } catch (err) {
+      console.error('Google auth error during login:', err);
+      setDriveError('Unable to complete Google authentication. You can continue without Drive.');
+      setIsDriveConnecting(false);
+      if (onLogin) {
+        onLogin();
+      }
+      navigate('/dashboard');
+    }
+  };
+
+  // If the popup posts a success message, send the user straight in
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data && event.data.type === 'googleAuthSuccess') {
+        setIsDriveConnecting(false);
+        setDriveError('');
+        if (onLogin) {
+          onLogin();
+        }
+        navigate('/dashboard');
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [navigate, onLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setDriveError('');
+    setIsDriveAuthRequired(false);
 
     try {
       const response = await fetch('/api/login', {
@@ -45,11 +143,19 @@ const Login = ({ onLogin }) => {
       }
 
       if (response.ok && data.success) {
-        // Update auth state and redirect to dashboard
-        if (onLogin) {
-          onLogin();
+        const needsDriveAuth = !!data.needs_drive_auth;
+
+        if (needsDriveAuth) {
+          // For admins needing Drive, start Google auth before redirecting
+          setIsDriveAuthRequired(true);
+          await startGoogleAuth();
+        } else {
+          // Normal login flow
+          if (onLogin) {
+            onLogin();
+          }
+          navigate('/dashboard');
         }
-        navigate('/dashboard');
       } else {
         setError(data.error || 'Invalid username or password');
       }
@@ -151,13 +257,31 @@ const Login = ({ onLogin }) => {
               </div>
             )}
 
+            {/* Google Drive Auth Status */}
+            {isDriveAuthRequired && (
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 space-y-1">
+                <p className="text-blue-200 text-sm font-medium">
+                  Connecting Google Drive for your admin account…
+                </p>
+                <p className="text-blue-300/80 text-xs">
+                  A Google popup should appear. Once you approve access, we&apos;ll take you straight to your dashboard.
+                </p>
+              </div>
+            )}
+
+            {driveError && (
+              <div className="bg-amber-900/20 border border-amber-500/40 rounded-xl p-4">
+                <p className="text-amber-200 text-sm font-medium">{driveError}</p>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isDriveConnecting}
               className="w-full flex justify-center py-4 px-6 border border-transparent rounded-xl text-base font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30"
             >
-              {isLoading ? (
+              {isLoading || isDriveConnecting ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
                   Signing in...

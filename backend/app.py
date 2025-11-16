@@ -8401,9 +8401,26 @@ def api_login():
     user = authenticate_user(username, password)
     if user:
         login_user(user, remember=True)
+
+        # Determine whether this user should complete Google Drive auth
+        needs_drive_auth = False
+        try:
+            if user.role in RESOURCE_ALLOWED_ROLES:
+                credentials = get_google_credentials_for_user(user.id)
+                needs_drive_auth = credentials is None
+        except Exception as auth_exc:
+            logger.warning(f"Failed to determine Google auth status during login for user {user.id}: {auth_exc}")
+            needs_drive_auth = True
+
         # Log successful login
         log_security_event(user.id, 'login_success', 'User logged in successfully')
-        return jsonify({"success": True, "redirect": "/"})
+
+        return jsonify({
+            "success": True,
+            "redirect": "/",
+            "role": user.role,
+            "needs_drive_auth": needs_drive_auth
+        })
     else:
         # Log failed login attempt
         log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
