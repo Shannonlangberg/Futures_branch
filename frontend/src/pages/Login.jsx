@@ -72,7 +72,7 @@ const Login = ({ onLogin }) => {
         <div className="text-center mb-8">
           <div className="mx-auto w-20 h-20 mb-6">
             <img 
-              src="/static/assets/logo.png" 
+              src="/static/logo.png" 
               alt="Futures PULSE Logo" 
               className="w-full h-full object-contain"
             />

@@ -7136,7 +7136,10 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         total_youth_attendance = sum(safe_int(row.get('Youth Attendance', 0)) for row in filtered_rows)
         total_youth_salvations = sum(safe_int(row.get('Youth Salvations', 0)) for row in filtered_rows)
         total_youth_new_people = sum(safe_int(row.get('Youth New People', 0)) for row in filtered_rows)
-        total_kids_attendance = sum(safe_int(row.get('Kids Attendance', 0)) for row in filtered_rows)
+        # IMPORTANT: Kids attendance should be KIDS ONLY (sum of kids service-time columns),
+        # never including leaders. We intentionally ignore any pre-calculated
+        # "Kids Attendance" column here to avoid double-counting leaders.
+        total_kids_attendance = sum(calculate_kids_attendance(row) for row in filtered_rows)
         total_kids_leaders = sum(safe_int(row.get('Kids Leaders', 0)) for row in filtered_rows)
         total_new_kids = sum(safe_int(row.get('New Kids', 0)) for row in filtered_rows)
         total_new_kids_salvations = sum(safe_int(row.get('New Kids Salvations', 0)) for row in filtered_rows)

@@ -10,9 +10,14 @@ from __future__ import annotations
 
 import os
 from typing import Dict, Any
+from pathlib import Path
+
+from sqlalchemy.engine import make_url
 
 
-DEFAULT_SQLITE_URL = "sqlite:///futures_link.db"
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_SQLITE_PATH = BACKEND_ROOT / "instance" / "futures_link.db"
+DEFAULT_SQLITE_URL = f"sqlite:///{DEFAULT_SQLITE_PATH}"
 
 
 def normalize_database_url(database_url: str | None) -> str:
@@ -31,10 +36,20 @@ def normalize_database_url(database_url: str | None) -> str:
 
     cleaned = database_url.strip()
     if cleaned.startswith("postgres://"):
-        return cleaned.replace("postgres://", "postgresql+psycopg2://", 1)
+        cleaned = cleaned.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif cleaned.startswith("postgresql://") and "+psycopg2" not in cleaned:
+        cleaned = cleaned.replace("postgresql://", "postgresql+psycopg2://", 1)
 
-    if cleaned.startswith("postgresql://") and "+psycopg2" not in cleaned:
-        return cleaned.replace("postgresql://", "postgresql+psycopg2://", 1)
+    # For SQLite URLs without an absolute path, resolve them relative to the backend root
+    try:
+        url = make_url(cleaned)
+        if url.drivername == "sqlite" and url.database and url.database != ":memory:":
+            db_path = Path(url.database)
+            if not db_path.is_absolute():
+                resolved = BACKEND_ROOT / db_path
+                cleaned = str(url.set(database=str(resolved)))
+    except Exception:
+        pass
 
     return cleaned
 
@@ -77,6 +92,19 @@ def build_sqlalchemy_settings() -> Dict[str, Any]:
     settings: Dict[str, Any] = {
         "SQLALCHEMY_DATABASE_URI": database_url,
     }
+
+    try:
+        url = make_url(database_url)
+        if url.drivername == "sqlite" and url.database and url.database != ":memory:":
+            db_path = Path(url.database)
+            if not db_path.is_absolute():
+                db_path = BACKEND_ROOT / db_path
+                url = url.set(database=str(db_path))
+                database_url = str(url)
+                settings["SQLALCHEMY_DATABASE_URI"] = database_url
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
     if engine_options:
         settings["SQLALCHEMY_ENGINE_OPTIONS"] = engine_options
