@@ -13361,22 +13361,31 @@ def serve_react_app(path):
 # Intelligent people-focused modules for Futures LINK
 # ============================================================================
 
-@app.route('/api/persons/demo', methods=['GET'])
-@require_feature_flag('HEARTBEAT_ENABLED')
-def get_persons_demo():
-    """Demo endpoint for testing Heartbeat interface (no auth required)"""
+@app.route('/api/heartbeat', methods=['GET'])
+@login_required
+def get_heartbeat_list():
+    """List people with basic heartbeat info for pastors"""
     try:
-        # This is for demo/testing only - bypasses authentication
+        if not current_user.has_permission('pulse', 'read'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
         search = request.args.get('search', '').strip()
-        
-        # Build query
+        page = int(request.args.get('page', 1))
+        page_size = min(int(request.args.get('page_size', 50)), 200)
+
+        # Build base query
         query = Person.query.filter_by(is_active=True)
-        
+
+        # Apply explicit campus filter (e.g. admin switching campuses)
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(Person.campus == campus_filter)
-        
+
+        # Apply campus scoping based on user role/campus for heartbeat resource
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'heartbeat')
+
         if search:
             search_term = f"%{search}%"
             query = query.filter(
@@ -13386,80 +13395,126 @@ def get_persons_demo():
                     Person.preferred_name.ilike(search_term)
                 )
             )
-        
-        persons = query.order_by(Person.full_name).all()
-        
-        # Include engagement profile data
-        result = []
+
+        total = query.count()
+        persons = (
+            query.order_by(Person.full_name)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        results = []
         for person in persons:
-            person_data = person.to_dict()
-            
-            # Add engagement profile data
-            if person.engagement_profile:
-                engagement_data = person.engagement_profile.to_dict()
-                person_data['pulse_status'] = engagement_data['pulse_status']
-                person_data['last_seen'] = engagement_data['last_seen']
-                person_data['pulse_reasons'] = engagement_data['pulse_reasons']
-                person_data['attendance_frequency'] = engagement_data['attendance_frequency']
-                person_data['serving_frequency'] = engagement_data['serving_frequency']
-                person_data['overall_engagement'] = engagement_data['overall_engagement']
-            else:
-                person_data['pulse_status'] = 'red'
-                person_data['last_seen'] = None
-                person_data['pulse_reasons'] = ['No engagement data']
-                person_data['attendance_frequency'] = 0.0
-                person_data['serving_frequency'] = 0.0
-                person_data['overall_engagement'] = 0.0
-            
+            engagement = person.engagement_profile
+            if not engagement:
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                db.session.flush()
+
+            # Ensure heartbeat is up to date
+            engagement.recalculate_heartbeat()
+            profile = engagement.to_dict()
+
             # Apply pulse filter if specified
-            if pulse_filter and person_data['pulse_status'] != pulse_filter:
+            if pulse_filter and profile['pulse_status'] != pulse_filter:
                 continue
-            
-            result.append(person_data)
-        
+
+            results.append({
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+                'campus': person.campus,
+                'pulse_status': profile['pulse_status'],
+                'overall_engagement': profile['overall_engagement'],
+                'last_seen': profile['last_seen'],
+                'pulse_reasons': profile['pulse_reasons'],
+            })
+
+        db.session.commit()
+
         return jsonify({
-            'persons': result,
-            'total': len(result),
+            'persons': results,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
             'filters': {
                 'campus': campus_filter,
                 'pulse_status': pulse_filter,
                 'search': search
             }
         })
-        
+
     except Exception as e:
-        logger.error(f"Error fetching persons (demo): {e}")
-        return jsonify({'error': 'Failed to fetch persons'}), 500
+        db.session.rollback()
+        logger.error(f"Error fetching heartbeat list: {e}")
+        return jsonify({'error': 'Failed to fetch heartbeat list'}), 500
 
 
-@app.route('/api/persons/demo/<person_id>', methods=['GET'])
-@require_feature_flag('HEARTBEAT_ENABLED')
-def get_person_detail_demo(person_id):
-    """Demo endpoint for person details (no auth required)"""
+@app.route('/api/heartbeat/<person_id>', methods=['GET'])
+@login_required
+def get_heartbeat_detail(person_id):
+    """Detailed heartbeat view for one person"""
     try:
+        if not current_user.has_permission('pulse', 'read'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
         person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
-        
-        # Get person data
-        person_data = person.to_dict()
-        
-        # Add full engagement profile
-        if person.engagement_profile:
-            engagement_data = person.engagement_profile.to_dict()
-            person_data['engagement'] = engagement_data
-        else:
-            # Create engagement profile if it doesn't exist
+
+        engagement = person.engagement_profile
+        if not engagement:
             engagement = EngagementProfile(person_id=person.id)
             db.session.add(engagement)
-            db.session.commit()
-            person_data['engagement'] = engagement.to_dict()
-        
-        return jsonify(person_data)
-        
+            db.session.flush()
+
+        engagement.recalculate_heartbeat()
+        profile = engagement.to_dict()
+        db.session.commit()
+
+        # Build metrics shape (v1 mostly attendance-based)
+        now = datetime.utcnow()
+        attendance_log = profile['attendance_log']
+        recent_attendance = [
+            r for r in attendance_log
+            if 'timestamp' in r and (now - datetime.fromisoformat(r['timestamp'])).days <= 56
+        ]
+
+        metrics = {
+            'attendance': {
+                'services_last_8_weeks': len(recent_attendance),
+                'attendance_score': profile['overall_engagement'],
+                'last_seen': profile['last_seen'],
+                'timeline': attendance_log
+            },
+            # Placeholders for future metrics
+            'groups': {},
+            'bible': {},
+            'giving': {},
+            'serving': {}
+        }
+
+        return jsonify({
+            'person': {
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+                'campus': person.campus
+            },
+            'summary': {
+                'pulse_status': profile['pulse_status'],
+                'overall_engagement': profile['overall_engagement'],
+                'pulse_reasons': profile['pulse_reasons'],
+                'last_seen': profile['last_seen']
+            },
+            'metrics': metrics
+        })
+
     except Exception as e:
-        logger.error(f"Error fetching person detail (demo): {e}")
-        return jsonify({'error': 'Failed to fetch person details'}), 500
+        db.session.rollback()
+        logger.error(f"Error fetching heartbeat detail: {e}")
+        return jsonify({'error': 'Failed to fetch heartbeat detail'}), 500
 
 
 @app.route('/api/persons/demo/<person_id>', methods=['PUT'])

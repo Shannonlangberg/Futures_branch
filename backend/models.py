@@ -65,62 +65,113 @@ class EngagementProfile(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False, unique=True)
+
+    # Summary pulse
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red
     last_seen = db.Column(db.DateTime)
-    attendance_log = db.Column(db.Text)  # JSON array stored as text
-    interaction_log = db.Column(db.Text)  # JSON array stored as text
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+    # Raw logs (JSON text – we can normalize later)
+    attendance_log = db.Column(db.Text)          # [{timestamp, campus, zones}]
+    interaction_log = db.Column(db.Text)         # reserved for notes etc.
+    bible_log = db.Column(db.Text)               # [{date}]
+    giving_log = db.Column(db.Text)              # [{date, amount}]
+    serving_log = db.Column(db.Text)             # [{date, role, campus}]
+    group_attendance_log = db.Column(db.Text)    # [{group_id, date, present}]
+
+    # Derived metrics (simple v1)
+    attendance_frequency = db.Column(db.Float, default=0.0)
+    serving_frequency = db.Column(db.Float, default=0.0)
+    overall_engagement = db.Column(db.Float, default=0.0)
+
+    def _load_json(self, value):
+        return json.loads(value) if value else []
+
+    def _dump_json(self, value):
+        return json.dumps(value or [])
+
     def add_attendance(self, zones, campus, attendance_time=None):
-        """Add attendance record"""
+        """Add attendance record and recalculate heartbeat"""
         if attendance_time is None:
             attendance_time = datetime.utcnow()
         
-        attendance_log = json.loads(self.attendance_log) if self.attendance_log else []
-        
-        attendance_record = {
+        attendance_log = self._load_json(self.attendance_log)
+        attendance_log.append({
             'timestamp': attendance_time.isoformat(),
             'zones': zones,
             'campus': campus
-        }
-        
-        attendance_log.append(attendance_record)
-        self.attendance_log = json.dumps(attendance_log)
+        })
+        self.attendance_log = self._dump_json(attendance_log)
         self.last_seen = attendance_time
-        self.update_pulse_status()
-    
-    def update_pulse_status(self):
-        """Update pulse status based on attendance"""
+        self.recalculate_heartbeat()
+
+    def recalculate_heartbeat(self):
+        """
+        Recalculate simple heartbeat metrics and pulse_status.
+        v1: only uses attendance recency + frequency.
+        """
+        # Attendance-based status
         if not self.last_seen:
             self.pulse_status = 'red'
+            self.attendance_frequency = 0.0
+            self.overall_engagement = 0.0
             return
-        
-        days_since_last_seen = (datetime.utcnow() - self.last_seen).days
-        
-        if days_since_last_seen <= 14:
+
+        now = datetime.utcnow()
+        days_since_last_seen = (now - self.last_seen).days
+
+        # Compute attendance in last 56 days (8 weeks)
+        attendance_log = self._load_json(self.attendance_log)
+        recent_attendance = [
+            r for r in attendance_log
+            if 'timestamp' in r and (now - datetime.fromisoformat(r['timestamp'])).days <= 56
+        ]
+        services_last_8_weeks = len(recent_attendance)
+
+        # Normalize to 0–1 and then 0–100
+        max_services = 8
+        freq_ratio = min(services_last_8_weeks / max_services, 1.0) if max_services > 0 else 0.0
+        attendance_score = freq_ratio * 100.0
+        self.attendance_frequency = freq_ratio
+
+        # Simple overall engagement = attendance_score for now
+        self.overall_engagement = attendance_score
+
+        # Pulse colour thresholds
+        if days_since_last_seen <= 14 and attendance_score >= 70:
             self.pulse_status = 'green'
         elif days_since_last_seen <= 28:
             self.pulse_status = 'amber'
         else:
             self.pulse_status = 'red'
-    
+
     def get_pulse_reasons(self):
-        """Get reasons for current pulse status"""
+        """Explain current pulse status in human language"""
         reasons = []
-        
+
         if not self.last_seen:
             reasons.append("No attendance recorded")
             return reasons
-        
-        days_since_last_seen = (datetime.utcnow() - self.last_seen).days
-        
-        if self.pulse_status == 'green':
+
+        now = datetime.utcnow()
+        days_since_last_seen = (now - self.last_seen).days
+
+        if days_since_last_seen <= 14:
             reasons.append(f"Attended {days_since_last_seen} days ago")
-        elif self.pulse_status == 'amber':
-            reasons.append(f"Last seen {days_since_last_seen} days ago (2-4 weeks)")
+        elif days_since_last_seen <= 28:
+            reasons.append(f"Last seen {days_since_last_seen} days ago (2–4 weeks)")
         else:
             reasons.append(f"Last seen {days_since_last_seen} days ago (>4 weeks)")
-        
+
+        # Attendance frequency reason
+        attendance_log = self._load_json(self.attendance_log)
+        recent_attendance = [
+            r for r in attendance_log
+            if 'timestamp' in r and (now - datetime.fromisoformat(r['timestamp'])).days <= 56
+        ]
+        services_last_8_weeks = len(recent_attendance)
+        reasons.append(f"Services attended in last 8 weeks: {services_last_8_weeks}")
+
         return reasons
     
     def to_dict(self):
@@ -130,8 +181,15 @@ class EngagementProfile(db.Model):
             'person_id': self.person_id,
             'pulse_status': self.pulse_status,
             'last_seen': self.last_seen.isoformat() if self.last_seen else None,
-            'attendance_log': json.loads(self.attendance_log) if self.attendance_log else [],
-            'interaction_log': json.loads(self.interaction_log) if self.interaction_log else [],
+            'attendance_log': self._load_json(self.attendance_log),
+            'interaction_log': self._load_json(self.interaction_log),
+            'bible_log': self._load_json(self.bible_log),
+            'giving_log': self._load_json(self.giving_log),
+            'serving_log': self._load_json(self.serving_log),
+            'group_attendance_log': self._load_json(self.group_attendance_log),
+            'attendance_frequency': self.attendance_frequency,
+            'serving_frequency': self.serving_frequency,
+            'overall_engagement': self.overall_engagement,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'pulse_reasons': self.get_pulse_reasons()
         }
