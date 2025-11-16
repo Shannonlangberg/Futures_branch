@@ -7,105 +7,87 @@ import sqlite3
 import os
 import sys
 
-def seed_users():
+def seed_users(db_path=None):
     """Load users from users.json into database"""
     
     # Get paths
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     users_json_path = os.path.join(backend_dir, 'users.json')
-    db_path = os.path.join(backend_dir, 'instance', 'church_voice.db')
     
-    print(f"[SEED] Loading users from: {users_json_path}")
+    # Use provided db_path or fall back to extracting from DATABASE_URL
+    if not db_path:
+        from urllib.parse import urlparse
+        database_url = os.getenv('DATABASE_URL', '')
+        if database_url and database_url.startswith('sqlite:///'):
+            db_path = database_url.replace('sqlite:///', '')
+            # Handle 4 slashes for absolute paths
+            if not db_path.startswith('/'):
+                db_path = os.path.join(backend_dir, db_path)
+        else:
+            # Fallback to default
+            db_path = os.path.join(backend_dir, 'instance', 'church_voice.db')
+    
+    print(f"[SEED] Ensuring admin user exists")
     print(f"[SEED] Database path: {db_path}")
     
-    # Load users.json
-    if not os.path.exists(users_json_path):
-        print(f"[SEED] WARNING: users.json not found at {users_json_path}")
-        print(f"[SEED] Will create default admin user")
-        users = {}
-    else:
-        with open(users_json_path, 'r') as f:
-            data = json.load(f)
-        users = data.get('users', {})
+    # Ensure database directory exists (SQLite will create the file if it doesn't exist)
+    db_dir = os.path.dirname(db_path)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
     
-    print(f"[SEED] Found {len(users)} users in JSON file")
-    
-    # Connect to database
-    if not os.path.exists(db_path):
-        print(f"[SEED] ERROR: Database not found at {db_path}")
-        return False
-    
+    # Connect to database (SQLite will create the file if it doesn't exist)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     try:
-        # Always ensure we have the expected users from users.json
-        cursor.execute("SELECT COUNT(*) FROM users")
-        existing_count = cursor.fetchone()[0]
-        print(f"[SEED] Currently {existing_count} users in database")
+        # Check if users table exists (migrations should create it, but handle gracefully)
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        if not cursor.fetchone():
+            print(f"[SEED] WARNING: users table does not exist yet. Migrations may not have run.")
+            print(f"[SEED] Users table should be created by migration 012_users_table.sql")
+            conn.close()
+            return False
         
-        # If we have 5+ users, verify they're the correct ones
-        if existing_count >= 5:
-            cursor.execute("SELECT username FROM users ORDER BY id LIMIT 5")
-            existing_usernames = [row[0] for row in cursor.fetchall()]
-            expected_usernames = list(users.keys()) if users else []
-            
-            # Check if we have the right users
-            has_correct_users = any(users[key].get('username', key) in existing_usernames for key in expected_usernames[:3])
-            
-            if has_correct_users:
-                print(f"[SEED] Found {existing_count} users with correct data, skipping seed")
-                return True
-            else:
-                print(f"[SEED] Found {existing_count} users but they appear to be wrong, re-seeding")
-                cursor.execute("DELETE FROM users")
-                conn.commit()
+        # Check if admin user exists
+        cursor.execute("SELECT id FROM users WHERE username = ?", ('admin',))
+        admin_exists = cursor.fetchone()
         
-        # If no users in JSON, create default admin
-        if not users:
-            print("[SEED] No users.json found, creating default admin")
-            from werkzeug.security import generate_password_hash
+        # Always ensure admin user exists with correct password
+        from werkzeug.security import generate_password_hash
+        admin_password_hash = generate_password_hash('futures2025')
+        
+        if admin_exists:
+            # Update existing admin to ensure password is correct
             cursor.execute('''
-                INSERT OR IGNORE INTO users (username, password_hash, full_name, email, role, active)
-                VALUES (?, ?, ?, ?, ?, ?)
+                UPDATE users 
+                SET password_hash = ?, full_name = ?, email = ?, role = ?, active = 1
+                WHERE username = ?
             ''', (
-                'admin',
-                generate_password_hash('futures2025'),
+                admin_password_hash,
                 'Administrator',
-                'admin@futureschurch.com',
+                'admin@futures.church',
                 'admin',
-                1
+                'admin'  # WHERE username = ?
             ))
-            conn.commit()
-            print("[SEED] Created default admin user (username: admin, password: futures2025)")
-            return True
-        
-        # Insert each user (INSERT OR IGNORE to avoid duplicates)
-        inserted = 0
-        for user_key, user_data in users.items():
-            # Use the actual username from user_data, not the dictionary key
-            # Strip whitespace to prevent login issues
-            actual_username = user_data.get('username', user_key).strip()
-            full_name = user_data.get('full_name', actual_username).strip()
+            print("[SEED] Updated admin user (username: admin, password: futures2025)")
+        else:
+            # Create admin user
             cursor.execute('''
-                INSERT OR IGNORE INTO users 
-                (username, password_hash, full_name, email, role, campus, active)
+                INSERT INTO users (username, password_hash, full_name, email, role, campus, active)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
-                actual_username,
-                user_data.get('password_hash', ''),
-                full_name,
-                user_data.get('email', ''),
-                user_data.get('role', 'campus_pastor'),
-                user_data.get('campus', ''),
-                1 if user_data.get('active', True) else 0
+                'admin',
+                admin_password_hash,
+                'Administrator',
+                'admin@futures.church',
+                'admin',
+                'all_campuses',
+                1
             ))
-            
-            inserted += 1
-            print(f"[SEED] Inserted user: {actual_username} ({user_data.get('role', 'campus_pastor')})")
+            print("[SEED] Created default admin user (username: admin, password: futures2025)")
         
         conn.commit()
-        print(f"[SEED] Successfully inserted {inserted} users")
+        print("[SEED] Admin user ensured successfully")
         return True
         
     except Exception as e:

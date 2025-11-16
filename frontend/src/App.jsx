@@ -15,6 +15,8 @@ import ResourceManager from './pages/ResourceManager';
 import Heartbeat from './pages/Heartbeat';
 import Landing from './pages/Landing';
 
+const RESOURCE_ALLOWED_ROLES = ['admin'];
+
 const DriveAuthModal = ({ onConnect, connecting, error }) => {
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
@@ -64,6 +66,7 @@ function App() {
   const [showDriveModal, setShowDriveModal] = useState(false);
   const [driveConnecting, setDriveConnecting] = useState(false);
   const [driveError, setDriveError] = useState('');
+  const [userRole, setUserRole] = useState(null);
 
   const checkAuthStatus = useCallback(async () => {
     try {
@@ -74,19 +77,27 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         setIsAuthenticated(data.authenticated);
-        const requiresDrive = Boolean(data.needs_drive_auth);
+        const role = data.role || null;
+        setUserRole(role);
+        const allowsDriveAuth = role ? RESOURCE_ALLOWED_ROLES.includes(role) : false;
+        const requiresDrive = allowsDriveAuth && Boolean(data.needs_drive_auth);
         setNeedsDriveAuth(requiresDrive);
         setShowDriveModal(requiresDrive);
+        return true;
       } else {
         setIsAuthenticated(false);
+        setUserRole(null);
         setNeedsDriveAuth(false);
         setShowDriveModal(false);
+        return false;
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setIsAuthenticated(false);
+      setUserRole(null);
       setNeedsDriveAuth(false);
       setShowDriveModal(false);
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +123,7 @@ function App() {
       console.error('Logout failed:', error);
     }
     setIsAuthenticated(false);
+    setUserRole(null);
     setNeedsDriveAuth(false);
     setShowDriveModal(false);
     setDriveError('');
@@ -128,13 +140,24 @@ function App() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || 'Unable to begin Google authentication. Please try again.');
+        const errorMsg = payload.error || 'Unable to begin Google authentication. Please try again.';
+        
+        // If OAuth is disabled, show a more helpful message
+        if (response.status === 503 && errorMsg.includes('disabled')) {
+          setDriveError('Google Drive integration needs to be enabled. Please contact your administrator.');
+        } else {
+          setDriveError(errorMsg);
+        }
+        setDriveConnecting(false);
+        return;
       }
 
       const data = await response.json();
       const authUrl = data.auth_url || data.authUrl;
       if (!authUrl) {
-        throw new Error('Missing Google authentication URL.');
+        setDriveError('Missing Google authentication URL.');
+        setDriveConnecting(false);
+        return;
       }
 
       const authWindow = window.open(
@@ -144,28 +167,70 @@ function App() {
       );
 
       if (!authWindow) {
-        throw new Error('Popup blocked. Please allow popups for this site and try again.');
+        setDriveError('Popup blocked. Please allow popups for this site and try again.');
+        setDriveConnecting(false);
+        return;
       }
 
       authWindow.focus();
+
+      // Poll for window closure or success message
+      const checkWindow = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(checkWindow);
+          setDriveConnecting(false);
+
+          // After the popup is closed, always re-check auth
+          // and then hide the modal so the user doesn't need
+          // to manually refresh.
+          setTimeout(() => {
+            checkAuthStatus().finally(() => {
+              setNeedsDriveAuth(false);
+              setShowDriveModal(false);
+              setDriveError('');
+            });
+          }, 800);
+        }
+      }, 500);
+
+      // Cleanup interval after 5 minutes
+      setTimeout(() => {
+        clearInterval(checkWindow);
+        if (!authWindow.closed) {
+          setDriveConnecting(false);
+        }
+      }, 300000);
     } catch (error) {
       setDriveError(error.message || 'Unable to begin Google authentication.');
-    } finally {
       setDriveConnecting(false);
     }
-  }, []);
+  }, [checkAuthStatus]);
 
   useEffect(() => {
     const handleMessage = (event) => {
-      if (event.origin !== window.location.origin) {
+      // Allow messages from the same origin or from Railway domain
+      const allowedOrigins = [
+        window.location.origin,
+        'https://futures-pulse-production.up.railway.app',
+        'https://futures.pulse.com'
+      ];
+      
+      if (!allowedOrigins.some(origin => event.origin === origin || event.origin.startsWith(origin))) {
         return;
       }
 
       if (event.data && event.data.type === 'googleAuthSuccess') {
-        setNeedsDriveAuth(false);
-        setShowDriveModal(false);
+        setDriveConnecting(false);
         setDriveError('');
-        checkAuthStatus();
+        
+        // Immediately check auth status
+        checkAuthStatus().then(() => {
+          // Close modal after confirming auth
+          setTimeout(() => {
+            setNeedsDriveAuth(false);
+            setShowDriveModal(false);
+          }, 500);
+        });
       }
     };
 
@@ -213,8 +278,12 @@ function App() {
                   <Route path="/stats" element={<LogStats />} />
                   <Route path="/finance" element={<Finance />} />
                   <Route path="/passport" element={<Passport />} />
-                  <Route path="/resources" element={<Resources />} />
-                  <Route path="/resources/manage" element={<ResourceManager />} />
+                  {userRole && RESOURCE_ALLOWED_ROLES.includes(userRole) && (
+                    <>
+                      <Route path="/resources" element={<Resources />} />
+                      <Route path="/resources/manage" element={<ResourceManager />} />
+                    </>
+                  )}
                   <Route path="/heartbeat" element={<Heartbeat />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />

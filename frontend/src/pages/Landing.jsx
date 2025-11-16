@@ -6,8 +6,7 @@ import {
   LifebuoyIcon,
   MegaphoneIcon,
   PlayCircleIcon,
-  SparklesIcon,
-  UserGroupIcon
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 
 const gradientBackground = 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950';
@@ -90,12 +89,6 @@ const Landing = () => {
       icon: PlayCircleIcon,
       highlight: true
     },
-    {
-      name: 'People & Campuses',
-      description: 'Manage campuses, teams, and user access (admins only).',
-      href: '/campuses',
-      icon: UserGroupIcon
-    }
   ]), []);
 
   const featuredCategories = categories.filter(Boolean);
@@ -140,24 +133,24 @@ const Landing = () => {
           <div className="absolute top-1/3 left-1/3 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl animate-pulse delay-[1200ms]" />
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-6 py-10 space-y-12">
-          <header className="bg-white/5 border border-white/10 rounded-3xl p-8 md:p-12 backdrop-blur-md shadow-xl shadow-blue-500/10">
-            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
-              <div className="space-y-4">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-10 sm:space-y-12">
+          <header className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 md:p-12 backdrop-blur-md shadow-xl shadow-blue-500/10">
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 lg:gap-8">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="inline-flex items-center gap-2 text-blue-300 text-sm font-medium bg-blue-500/10 border border-blue-400/40 rounded-full px-3 py-1">
                   <SparklesIcon className="h-4 w-4" />
                   {sessionLoading ? 'Loading profile...' : 'Welcome to Futures PULSE'}
                 </div>
-                <div className="space-y-2">
-                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+                <div className="space-y-2 sm:space-y-3">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">
                     {sessionLoading ? 'Loading...' : `${greeting}, ${displayName}.`}
                   </h1>
-                  <p className="text-white/70 text-base sm:text-lg max-w-2xl leading-relaxed">
+                  <p className="text-white/70 text-sm sm:text-base lg:text-lg max-w-2xl leading-relaxed">
                     Your launchpad for the week ahead—track key metrics, share weekend stories, and access the resources your teams rely on.
                   </p>
                 </div>
               </div>
-              <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+              <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10 rounded-2xl p-5 sm:p-6 w-full max-w-full sm:max-w-sm">
                 <div className="flex items-center gap-3 text-white/80 text-sm">
                   <MegaphoneIcon className="h-6 w-6 text-blue-300" />
                   Platform updates land here—check back regularly for new drops.
@@ -167,12 +160,12 @@ const Landing = () => {
                     <a
                       key={item.title}
                       href={item.href}
-                      className="block bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-3 transition-all duration-200 group"
+                      className="block bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-3 sm:px-4 py-3 transition-all duration-200 group"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-white group-hover:text-blue-200">{item.title}</p>
-                          <p className="text-xs text-white/50">{item.description}</p>
+                          <p className="text-xs text-white/50 leading-snug">{item.description}</p>
                         </div>
                         <ArrowTopRightOnSquareIcon className="h-4 w-4 text-white/40 group-hover:text-blue-200" />
                       </div>
@@ -183,21 +176,21 @@ const Landing = () => {
             </div>
           </header>
 
-          <section className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <section className="space-y-5 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
-                <h2 className="text-2xl font-semibold">Get moving</h2>
-                <p className="text-white/60 text-sm">Jump straight into the actions that matter most today.</p>
+                <h2 className="text-xl sm:text-2xl font-semibold">Get moving</h2>
+                <p className="text-white/60 text-sm sm:text-base">Jump straight into the actions that matter most today.</p>
               </div>
               <span className="text-xs uppercase tracking-[0.2em] text-white/40">Quick links</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
               {quickActions.map((action) => (
                 <a
                   key={action.name}
                   href={action.href}
                   className={`
-                    group rounded-2xl border border-white/10 p-6 transition-transform duration-200
+                    group rounded-2xl border border-white/10 p-5 sm:p-6 transition-transform duration-200
                     bg-white/5 hover:bg-white/10 hover:-translate-y-1
                     ${action.highlight ? 'shadow-lg shadow-blue-500/10' : 'shadow-sm shadow-black/10'}
                   `}
@@ -208,8 +201,8 @@ const Landing = () => {
                     </div>
                     <ArrowTopRightOnSquareIcon className="h-4 w-4 text-white/30 group-hover:text-blue-200" />
                   </div>
-                  <div className="mt-5 space-y-2">
-                    <h3 className="text-lg font-semibold leading-snug">{action.name}</h3>
+                  <div className="mt-4 sm:mt-5 space-y-2">
+                    <h3 className="text-base sm:text-lg font-semibold leading-snug">{action.name}</h3>
                     <p className="text-sm text-white/60 leading-relaxed">
                       {action.description}
                     </p>
@@ -219,11 +212,11 @@ const Landing = () => {
             </div>
           </section>
 
-          <section className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <section className="space-y-5 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
-                <h2 className="text-2xl font-semibold">Resource spotlight</h2>
-                <p className="text-white/60 text-sm">
+                <h2 className="text-xl sm:text-2xl font-semibold">Resource spotlight</h2>
+                <p className="text-white/60 text-sm sm:text-base">
                   Recently added folders from the Futures resource library.
                 </p>
               </div>
@@ -235,14 +228,14 @@ const Landing = () => {
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
               </a>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
               {categoriesLoading && (
-                <div className="col-span-full bg-white/5 border border-white/10 rounded-2xl p-6 text-white/60">
+                <div className="col-span-full bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 text-white/60">
                   Loading featured folders...
                 </div>
               )}
               {!categoriesLoading && featuredCategories.length === 0 && (
-                <div className="col-span-full bg-white/5 border border-white/10 rounded-2xl p-6 text-white/60">
+                <div className="col-span-full bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 text-white/60">
                   No shared folders yet—check back soon or reach out to the Ops team.
                 </div>
               )}
@@ -250,7 +243,7 @@ const Landing = () => {
                 <a
                   key={category.id}
                   href="/resources"
-                  className="group bg-gradient-to-br from-slate-900/60 to-slate-900/30 border border-white/10 rounded-2xl p-6 transition-all duration-200 hover:border-blue-400/40 hover:-translate-y-1"
+                  className="group bg-gradient-to-br from-slate-900/60 to-slate-900/30 border border-white/10 rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:border-blue-400/40 hover:-translate-y-1"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="w-12 h-12 rounded-xl bg-blue-500/15 flex items-center justify-center text-2xl">
@@ -273,20 +266,20 @@ const Landing = () => {
             </div>
           </section>
 
-          <section className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <section className="space-y-5 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
-                <h2 className="text-2xl font-semibold">Support & feedback</h2>
-                <p className="text-white/60 text-sm">
+                <h2 className="text-xl sm:text-2xl font-semibold">Support & feedback</h2>
+                <p className="text-white/60 text-sm sm:text-base">
                   We’re here to help keep things moving smoothly for your campus.
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               {supportItems.map((item) => (
                 <div
                   key={item.title}
-                  className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3"
+                  className="bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-3"
                 >
                   <div className="flex items-center gap-3">
                     <LifebuoyIcon className="h-6 w-6 text-blue-300" />

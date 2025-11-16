@@ -19,5 +19,3 @@ const Heartbeat = () => (
 );
 
 export default Heartbeat;
-
-

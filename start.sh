@@ -19,5 +19,15 @@ echo "PYTHONUNBUFFERED=$PYTHONUNBUFFERED"
 echo ""
 echo "=== Starting Python app ==="
 cd backend
-exec python -u app.py
+
+if command -v gunicorn >/dev/null 2>&1; then
+  WORKERS=${GUNICORN_WORKERS:-2}
+  THREADS=${GUNICORN_THREADS:-4}
+  TIMEOUT=${GUNICORN_TIMEOUT:-120}
+  echo "Using gunicorn with workers=$WORKERS threads=$THREADS timeout=$TIMEOUT"
+  exec gunicorn --bind "0.0.0.0:${PORT:-8080}" --workers "$WORKERS" --threads "$THREADS" --timeout "$TIMEOUT" app:app
+else
+  echo "gunicorn not found, falling back to python app.py (development server)"
+  exec python -u app.py
+fi
 

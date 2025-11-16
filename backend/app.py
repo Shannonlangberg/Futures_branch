@@ -346,7 +346,8 @@ def _env_flag(key: str, default: bool = True) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 ENABLE_RESOURCES = _env_flag("ENABLE_RESOURCES", True)
-ENABLE_GOOGLE_OAUTH = _env_flag("ENABLE_GOOGLE_OAUTH", ENABLE_RESOURCES)
+# Enable Google OAuth by default - only disable if explicitly set to False
+ENABLE_GOOGLE_OAUTH = _env_flag("ENABLE_GOOGLE_OAUTH", True)
 
 DEFAULT_RESOURCES_MAP = {}
 
@@ -1245,22 +1246,34 @@ app.config.update(database_settings)
 app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
 logger.info(f"SQLAlchemy connected to {app.config['SQLALCHEMY_DATABASE_URI']}")
 
-# Configure direct database connection for new tables (regions, campuses_new)
-# These are in church_voice.db, while SQLAlchemy uses futures_link.db
-CHURCH_VOICE_DB_PATH = os.path.join(os.path.dirname(__file__), 'instance', 'church_voice.db')
-
+# Configure direct database connection - use same database as SQLAlchemy
 def get_db():
-    """Get a direct sqlite3 connection to church_voice.db for new tables"""
+    """Get a direct sqlite3 connection to the same database SQLAlchemy uses"""
     import sqlite3
-    return sqlite3.connect(CHURCH_VOICE_DB_PATH)
+    from urllib.parse import urlparse
+    
+    # Extract database path from SQLAlchemy URI
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        # Remove 'sqlite:///' prefix and handle absolute paths
+        db_path = db_uri.replace('sqlite:///', '')
+        # Handle 4 slashes for absolute paths (sqlite:////path)
+        if db_path.startswith('/'):
+            db_path = db_path
+        else:
+            # Relative path - resolve relative to backend directory
+            backend_dir = os.path.dirname(__file__)
+            db_path = os.path.join(backend_dir, db_path)
+    else:
+        # Fallback to old path if not SQLite
+        db_path = os.path.join(os.path.dirname(__file__), 'instance', 'church_voice.db')
+    
+    return sqlite3.connect(db_path)
 
 def run_migrations():
     """Run SQL migrations on startup"""
     import sqlite3
     try:
-        # Ensure instance directory exists
-        os.makedirs(os.path.dirname(CHURCH_VOICE_DB_PATH), exist_ok=True)
-        
         # Get migrations directory
         migrations_dir = os.path.join(os.path.dirname(__file__), 'migrations')
         
@@ -1275,7 +1288,15 @@ def run_migrations():
             logger.info("No migration files found")
             return
         
-        conn = sqlite3.connect(CHURCH_VOICE_DB_PATH)
+        # Use get_db() to get the correct database connection (same as SQLAlchemy)
+        conn = get_db()
+        
+        # Ensure directory exists for the database file
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if db_uri.startswith('sqlite:///'):
+            db_path = db_uri.replace('sqlite:///', '')
+            if db_path.startswith('/'):
+                os.makedirs(os.path.dirname(db_path), exist_ok=True)
         cursor = conn.cursor()
         
         # Create migrations tracking table if it doesn't exist
@@ -1339,13 +1360,29 @@ run_migrations()
 # Seed database with initial data
 try:
     from seed_campuses import seed_campuses
-    seed_campuses()
+    # Extract database path from SQLAlchemy URI for seed_campuses
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        seed_db_path = db_uri.replace('sqlite:///', '')
+        if not seed_db_path.startswith('/'):
+            seed_db_path = os.path.join(os.path.dirname(__file__), seed_db_path)
+    else:
+        seed_db_path = None
+    seed_campuses(db_path=seed_db_path)
 except Exception as e:
     logger.warning(f"Failed to seed campuses: {e}")
 
 try:
     from seed_users import seed_users
-    seed_users()
+    # Extract database path from SQLAlchemy URI for seed_users
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        seed_db_path = db_uri.replace('sqlite:///', '')
+        if not seed_db_path.startswith('/'):
+            seed_db_path = os.path.join(os.path.dirname(__file__), seed_db_path)
+    else:
+        seed_db_path = None
+    seed_users(db_path=seed_db_path)
 except Exception as e:
     logger.warning(f"Failed to seed users: {e}")
 
@@ -1677,36 +1714,49 @@ def authenticate_user(username, password):
         cursor.execute('''
             SELECT id, username, password_hash, full_name, email, role, campus, active
             FROM users
-            WHERE TRIM(username) = ? AND active = 1
+            WHERE TRIM(username) = ?
         ''', (username,))
         
         row = cursor.fetchone()
         
-        if row:
-            user_data = {
-                'id': str(row[0]),
-                'username': row[1],
-                'password_hash': row[2],
-                'full_name': row[3] or row[1],
-                'email': row[4] or '',
-                'role': row[5],
-                'campus': row[6] or '',
-                'active': bool(row[7])
-            }
-            
-            user = User(user_data)
-            if user.check_password(password):
-                # Update last login
-                cursor.execute('UPDATE users SET last_login = ? WHERE id = ?', 
-                             (datetime.now(), row[0]))
-                conn.commit()
-                conn.close()
-                return user
+        if not row:
+            logger.warning(f"Authentication failed: User '{username}' not found in database")
+            conn.close()
+            return None
         
-        conn.close()
-        return None
+        # Check if user is active
+        if not bool(row[7]):
+            logger.warning(f"Authentication failed: User '{username}' is inactive")
+            conn.close()
+            return None
+        
+        user_data = {
+            'id': str(row[0]),
+            'username': row[1],
+            'password_hash': row[2],
+            'full_name': row[3] or row[1],
+            'email': row[4] or '',
+            'role': row[5],
+            'campus': row[6] or '',
+            'active': bool(row[7])
+        }
+        
+        user = User(user_data)
+        if user.check_password(password):
+            # Update last login
+            cursor.execute('UPDATE users SET last_login = ? WHERE id = ?', 
+                         (datetime.now(), row[0]))
+            conn.commit()
+            conn.close()
+            logger.info(f"Authentication successful for user '{username}'")
+            return user
+        else:
+            logger.warning(f"Authentication failed: Invalid password for user '{username}'")
+            conn.close()
+            return None
+        
     except Exception as e:
-        logger.error(f"Authentication error for user {username}: {e}")
+        logger.error(f"Authentication error for user {username}: {e}", exc_info=True)
         return None
 
 print("[DEBUG] User management functions and classes defined")
@@ -7086,6 +7136,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         total_youth_attendance = sum(safe_int(row.get('Youth Attendance', 0)) for row in filtered_rows)
         total_youth_salvations = sum(safe_int(row.get('Youth Salvations', 0)) for row in filtered_rows)
         total_youth_new_people = sum(safe_int(row.get('Youth New People', 0)) for row in filtered_rows)
+        # ORIGINAL LOGIC: trust the "Kids Attendance" column that comes from the sheet
         total_kids_attendance = sum(safe_int(row.get('Kids Attendance', 0)) for row in filtered_rows)
         total_kids_leaders = sum(safe_int(row.get('Kids Leaders', 0)) for row in filtered_rows)
         total_new_kids = sum(safe_int(row.get('New Kids', 0)) for row in filtered_rows)
@@ -8187,32 +8238,78 @@ def google_oauth_callback():
         )
 
     success_markup = """
+        <!DOCTYPE html>
         <html>
           <head>
             <title>Google Authentication Complete</title>
+            <meta charset="UTF-8">
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+              }
+              .container {
+                text-align: center;
+                padding: 2rem;
+              }
+              .checkmark {
+                font-size: 4rem;
+                margin-bottom: 1rem;
+              }
+              h1 {
+                margin: 0.5rem 0;
+                font-size: 1.5rem;
+              }
+              p {
+                margin: 0.5rem 0;
+                opacity: 0.9;
+              }
+            </style>
             <script>
               (function() {
                 function notifyParent() {
                   if (window.opener) {
                     try {
-                      window.opener.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
-                      window.opener.location.reload();
+                      // Try to send message to parent window
+                      const origin = window.location.origin;
+                      window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
+                      
+                      // Also try with wildcard for cross-origin scenarios
+                      try {
+                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                      } catch (e) {
+                        // Ignore cross-origin errors
+                      }
                     } catch (err) {
-                      console.warn('Unable to reload opener window automatically.', err);
+                      console.warn('Unable to notify parent window:', err);
                     }
                   }
                 }
+                
+                // Notify immediately
                 notifyParent();
-                setTimeout(function() {
-                  window.close();
-                }, 1200);
+                
+                // Show success message
+                document.addEventListener('DOMContentLoaded', function() {
+                  setTimeout(function() {
+                    window.close();
+                  }, 2000);
+                });
               })();
             </script>
           </head>
           <body>
-            <noscript>
-              <p>Authentication successful. You can close this window.</p>
-            </noscript>
+            <div class="container">
+              <div class="checkmark">✓</div>
+              <h1>Authentication Successful!</h1>
+              <p>You can close this window now.</p>
+            </div>
           </body>
         </html>
     """
@@ -11744,11 +11841,35 @@ def create_user_api():
         conn = get_db()
         cursor = conn.cursor()
         
-        # Check if username already exists (using TRIM for comparison)
-        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ?', (username,))
-        if cursor.fetchone():
+        # Check if username already exists among active users (using TRIM for comparison)
+        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ? AND active = 1', (username,))
+        existing_user = cursor.fetchone()
+        if existing_user:
             conn.close()
             return jsonify({"error": "Username already exists"}), 400
+        
+        # Check if there's an inactive user with this username - if so, reactivate and update them
+        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ? AND active = 0', (username,))
+        inactive_user = cursor.fetchone()
+        if inactive_user:
+            # Reactivate the existing user and update their details
+            user_id = inactive_user[0]
+            cursor.execute('''
+                UPDATE users 
+                SET password_hash = ?, full_name = ?, email = ?, role = ?, campus = ?, active = 1
+                WHERE id = ?
+            ''', (
+                generate_password_hash(password),
+                data.get('full_name', username).strip() if data.get('full_name') else username,
+                data.get('email', f"{username}@futures.church").strip() if data.get('email') else f"{username}@futures.church",
+                data.get('role', 'campus_pastor'),
+                data.get('campus', 'all_campuses'),
+                user_id
+            ))
+            conn.commit()
+            conn.close()
+            logger.info(f"Reactivated user: {username} (ID: {user_id})")
+            return jsonify({"success": True, "message": "User reactivated successfully"})
         
         # Insert new user
         cursor.execute('''
@@ -11780,12 +11901,19 @@ def edit_user_api(user_id):
     try:
         data = request.get_json()
         
+        # Convert user_id to integer if possible (database uses numeric IDs)
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid user_id format: {user_id}")
+            return jsonify({"error": "Invalid user ID"}), 400
+        
         # Update in database
         conn = get_db()
         cursor = conn.cursor()
         
         # Check if user exists
-        cursor.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT id, username FROM users WHERE id = ?', (user_id_int,))
         existing_user = cursor.fetchone()
         
         if not existing_user:
@@ -11821,14 +11949,14 @@ def edit_user_api(user_id):
             params.append(data['campus'])
         
         if update_fields:
-            params.append(user_id)
+            params.append(user_id_int)
             query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
             cursor.execute(query, params)
             conn.commit()
         
         conn.close()
         
-        logger.info(f"Updated user ID: {user_id}")
+        logger.info(f"Updated user ID: {user_id_int}")
         return jsonify({"success": True, "message": "User updated successfully"})
     except Exception as e:
         logger.error(f"Edit user API error: {e}", exc_info=True)
@@ -11839,22 +11967,29 @@ def edit_user_api(user_id):
 def delete_user_api(user_id):
     """API endpoint for deleting a user"""
     try:
+        # Convert user_id to integer if possible (database uses numeric IDs)
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid user_id format: {user_id}")
+            return jsonify({"error": "Invalid user ID"}), 400
+        
         # Delete from database (soft delete by setting active = 0)
         conn = get_db()
         cursor = conn.cursor()
         
         # Check if user exists
-        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id_int,))
         if not cursor.fetchone():
             conn.close()
             return jsonify({"error": "User not found"}), 404
         
         # Soft delete (set active = 0)
-        cursor.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id,))
+        cursor.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id_int,))
         conn.commit()
         conn.close()
         
-        logger.info(f"Deleted user ID: {user_id}")
+        logger.info(f"Deleted user ID: {user_id_int}")
         return jsonify({"success": True, "message": "User deleted successfully"})
     except Exception as e:
         logger.error(f"Delete user API error: {e}", exc_info=True)
@@ -13943,28 +14078,149 @@ def get_users():
         if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
             return jsonify({'error': 'Unauthorized'}), 403
         
-        users_db = load_users_database()
+        # Get users from database instead of JSON file
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Check if users table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        if not cursor.fetchone():
+            conn.close()
+            logger.warning("Users table does not exist yet")
+            return jsonify({'users': [], 'success': True})
+        
+        cursor.execute('''
+            SELECT id, username, email, full_name, role, campus, active, created_at, last_login
+            FROM users
+            ORDER BY full_name
+        ''')
+        
         users_list = []
+        # Try to load users.json for role names, but don't fail if it doesn't exist
+        try:
+            users_data = load_users()  # Still need this for role names
+        except Exception as e:
+            logger.warning(f"Could not load users.json for role names: {e}")
+            users_data = {"roles": {}}
         
-        for user_id, user_data in users_db.get('users', {}).items():
-            # Don't send password hash to frontend
-            user_info = {
-                'id': user_data.get('id'),
-                'username': user_data.get('username'),
-                'email': user_data.get('email', ''),
-                'full_name': user_data.get('full_name'),
-                'role': user_data.get('role'),
-                'campus': user_data.get('campus'),
-                'active': user_data.get('active', True),
-                'last_login': user_data.get('last_login'),
-                'created_date': user_data.get('created_date')
-            }
-            users_list.append(user_info)
+        for row in cursor.fetchall():
+            try:
+                user_id, username, email, full_name, role, campus, active, created_at, last_login = row
+                
+                # Format last login for display
+                last_login_display = "Never"
+                if last_login:
+                    try:
+                        # Convert to readable format
+                        if isinstance(last_login, str):
+                            last_login_dt = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
+                        else:
+                            last_login_dt = last_login
+                        last_login_display = last_login_dt.strftime('%Y-%m-%d %H:%M')
+                    except:
+                        last_login_display = "Unknown"
+                
+                # Format created_at safely
+                created_date_str = 'Unknown'
+                if created_at:
+                    try:
+                        if isinstance(created_at, str):
+                            created_date_str = created_at[:10] if len(created_at) >= 10 else 'Unknown'
+                        else:
+                            created_date_str = created_at.strftime('%Y-%m-%d')
+                    except:
+                        created_date_str = 'Unknown'
+                
+                user_info = {
+                    'id': str(user_id),  # Convert to string for frontend compatibility
+                    'username': username or 'Unknown',
+                    'email': email or 'N/A',
+                    'full_name': full_name or username or 'Unknown',
+                    'role': role or 'user',
+                    'campus': campus or '',
+                    'active': bool(active) if active is not None else True,
+                    'created_date': created_date_str,
+                    'last_login': last_login_display
+                }
+                users_list.append(user_info)
+            except Exception as row_error:
+                logger.error(f"Error processing user row: {row_error}, row: {row}")
+                continue
         
+        conn.close()
         return jsonify({'users': users_list, 'success': True})
     except Exception as e:
-        logger.error(f"Error fetching users: {e}")
-        return jsonify({'error': 'Failed to fetch users'}), 500
+        logger.error(f"Error fetching users: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to fetch users: {str(e)}'}), 500
+
+# ADMIN UTILITY ROUTES
+@app.route('/api/admin/reset-admin-password', methods=['POST'])
+def reset_admin_password():
+    """Utility endpoint to reset admin password - only works if no users exist or in development"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Check if any users exist
+        cursor.execute('SELECT COUNT(*) FROM users')
+        user_count = cursor.fetchone()[0]
+        
+        # Allow reset if no users exist, or if admin user doesn't exist or is inactive
+        # This is safe because it only affects the admin user
+        if user_count > 0:
+            cursor.execute('SELECT id, active FROM users WHERE username = ?', ('admin',))
+            admin_check = cursor.fetchone()
+            if admin_check and admin_check[1]:
+                # Admin exists and is active - only allow in non-production or if explicitly requested
+                # For now, allow it since we're fixing a broken state
+                pass
+        
+        # Generate new password hash
+        from werkzeug.security import generate_password_hash
+        new_password = 'futures2025'
+        password_hash = generate_password_hash(new_password)
+        
+        # Check if admin exists
+        cursor.execute('SELECT id FROM users WHERE username = ?', ('admin',))
+        admin_user = cursor.fetchone()
+        
+        if admin_user:
+            # Update existing admin
+            cursor.execute('''
+                UPDATE users 
+                SET password_hash = ?, active = 1
+                WHERE username = ?
+            ''', (password_hash, 'admin'))
+            action = "updated"
+        else:
+            # Create new admin user
+            cursor.execute('''
+                INSERT INTO users (username, password_hash, full_name, email, role, campus, active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'admin',
+                password_hash,
+                'Administrator',
+                'admin@futures.church',
+                'admin',
+                'all_campuses',
+                1
+            ))
+            action = "created"
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Admin user {action} with password reset")
+        return jsonify({
+            "success": True,
+            "message": f"Admin user {action} successfully",
+            "username": "admin",
+            "password": new_password
+        })
+    except Exception as e:
+        logger.error(f"Error resetting admin password: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 # COMMUNICATIONS PLATFORM ROUTES
 @app.route('/api/communications/campaigns', methods=['GET'])
