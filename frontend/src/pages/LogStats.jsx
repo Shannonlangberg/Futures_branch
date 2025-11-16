@@ -65,6 +65,7 @@ const LogStats = () => {
 
   const totalAttendance = calculateTotalAttendance();
   const totalKidsAttendance = calculateTotalKidsAttendance();
+  const totalKidsOverall = totalKidsAttendance + (parseInt(quickInputStats['Kids Leaders']) || 0);
 
   useEffect(() => {
     // Load campuses
@@ -856,16 +857,10 @@ const LogStats = () => {
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
-                    {totalKidsAttendance > 0 && (
-                      <div className="flex items-center justify-between border-t border-white/20 pt-4 mt-2">
-                        <span className="text-pink-300 font-bold text-lg">Total Kids:</span>
-                        <span className="text-pink-300 font-bold text-2xl">{totalKidsAttendance}</span>
-                      </div>
-                    )}
                     <div className="border-t border-white/20 pt-4 mt-4">
                       <div className="flex items-center justify-between">
                         <label className="text-white font-semibold min-w-[150px]">
-                          Kids Leaders:
+                          Total Kids Leaders:
                         </label>
                         <input
                           type="text"
@@ -912,6 +907,12 @@ const LogStats = () => {
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
+                    {totalKidsOverall > 0 && (
+                      <div className="flex items-center justify-between border-t border-white/20 pt-4 mt-4">
+                        <span className="text-pink-300 font-bold text-lg">Total Kids (Kids + Leaders):</span>
+                        <span className="text-pink-300 font-bold text-2xl">{totalKidsOverall}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
