@@ -390,9 +390,6 @@ const Resources = () => {
                   <h4 className="text-white font-semibold leading-tight group-hover:text-blue-200 transition-colors duration-300">
                     {file.name}
                   </h4>
-                  <p className="text-white/50 text-xs mt-1 truncate">
-                    {file.mimeType}
-                  </p>
                 </div>
               </div>
               <div className="text-white/40 text-xs">
