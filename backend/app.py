@@ -13661,6 +13661,7 @@ def import_people_from_pco():
         created = 0
         skipped = 0
         errors = []
+        seen_emails = set()
 
         # Simple campus mapping hook (PCO campus name -> internal campus code)
         # For now, use name directly; can be customized later.
@@ -13705,7 +13706,12 @@ def import_people_from_pco():
                 raw_tags = (row.get('Tags :: Tags') or '').strip()
                 tags_list = [t.strip() for t in raw_tags.split(',') if t.strip()] if raw_tags else []
 
-                # Check if person already exists by email
+                # Skip duplicate emails within the same CSV import
+                if email in seen_emails:
+                    skipped += 1
+                    continue
+
+                # Check if person already exists by email in the database
                 existing_person = Person.query.filter_by(email=email, is_active=True).first()
                 if existing_person:
                     skipped += 1
@@ -13737,6 +13743,7 @@ def import_people_from_pco():
 
                 db.session.add(person)
                 db.session.add(engagement)
+                seen_emails.add(email)
                 created += 1
 
             except Exception as row_err:
