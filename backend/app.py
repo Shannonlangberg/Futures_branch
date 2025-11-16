@@ -13663,10 +13663,26 @@ def import_people_from_pco():
         errors = []
         seen_emails = set()
 
-        # Simple campus mapping hook (PCO campus name -> internal campus code)
-        # For now, use name directly; can be customized later.
+        # Campus mapping hook (PCO campus name -> internal campus code)
+        # Build mapping from active campuses so PCO "Copper Coast" maps to our ID.
+        active_campuses = get_active_campuses()
+        campus_name_to_id = {}
+        for c in active_campuses:
+            cid = c.get('id')
+            display = (c.get('name') or '').strip().lower()
+            full = (c.get('full_name') or '').strip().lower()
+            if cid:
+                if display:
+                    campus_name_to_id[display] = cid
+                if full:
+                    campus_name_to_id[full] = cid
+
         def map_campus(pco_campus_name):
-            return (pco_campus_name or '').strip() or 'all_campuses'
+            raw = (pco_campus_name or '').strip()
+            if not raw:
+                return 'all_campuses'
+            key = raw.lower()
+            return campus_name_to_id.get(key, raw)
 
         for idx, row in enumerate(reader, start=1):
             try:
