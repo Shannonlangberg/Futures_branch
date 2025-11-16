@@ -13517,6 +13517,104 @@ def get_heartbeat_detail(person_id):
         return jsonify({'error': 'Failed to fetch heartbeat detail'}), 500
 
 
+@app.route('/api/people', methods=['GET'])
+@login_required
+def get_people_directory():
+    """
+    Paginated people directory for pastors, campus-scoped via RBAC.
+    
+    Returns basic person info plus heartbeat summary fields suitable
+    for People directory and Heartbeat dashboards.
+    """
+    try:
+        if not current_user.has_permission('pulse', 'read'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
+        campus_filter = request.args.get('campus', None)
+        pulse_filter = request.args.get('pulse_status', None)
+        search = request.args.get('search', '').strip()
+        page = int(request.args.get('page', 1))
+        page_size = min(int(request.args.get('page_size', 50)), 200)
+
+        # Build base query
+        query = Person.query.filter_by(is_active=True)
+
+        # Explicit campus filter (for cross-campus roles)
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(Person.campus == campus_filter)
+
+        # Apply campus scoping based on user role/campus for heartbeat/people resource
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'heartbeat')
+
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Person.full_name.ilike(search_term),
+                    Person.email.ilike(search_term),
+                    Person.preferred_name.ilike(search_term)
+                )
+            )
+
+        total = query.count()
+        persons = (
+            query.order_by(Person.full_name)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        results = []
+        for person in persons:
+            engagement = person.engagement_profile
+            if not engagement:
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                db.session.flush()
+
+            engagement.recalculate_heartbeat()
+            profile = engagement.to_dict()
+
+            # Apply pulse filter if specified
+            if pulse_filter and profile['pulse_status'] != pulse_filter:
+                continue
+
+            results.append({
+                'id': person.id,
+                'full_name': person.full_name,
+                'preferred_name': person.preferred_name,
+                'email': person.email,
+                'phone': person.phone,
+                'campus': person.campus,
+                'connect_group': person.connect_group,
+                'dream_team_roles': json.loads(person.dream_team_roles) if person.dream_team_roles else [],
+                'tags': json.loads(person.tags) if person.tags else [],
+                'pulse_status': profile['pulse_status'],
+                'overall_engagement': profile['overall_engagement'],
+                'last_seen': profile['last_seen'],
+            })
+
+        db.session.commit()
+
+        return jsonify({
+            'people': results,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'filters': {
+                'campus': campus_filter,
+                'pulse_status': pulse_filter,
+                'search': search
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error fetching people directory: {e}")
+        return jsonify({'error': 'Failed to fetch people directory'}), 500
+
+
 @app.route('/api/persons/demo/<person_id>', methods=['PUT'])
 @require_feature_flag('HEARTBEAT_ENABLED')
 def update_person_demo(person_id):
@@ -13601,59 +13699,15 @@ def get_persons():
         if not current_user.has_permission('pulse', 'read'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # Build query
-        query = Person.query.filter_by(is_active=True)
-        
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter(Person.campus == campus_filter)
-        
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                db.or_(
-                    Person.full_name.ilike(search_term),
-                    Person.email.ilike(search_term),
-                    Person.preferred_name.ilike(search_term)
-                )
-            )
-        
-        persons = query.order_by(Person.full_name).all()
-        
-        # Include engagement profile data
-        result = []
-        for person in persons:
-            person_data = person.to_dict()
-            
-            # Add engagement profile data
-            if person.engagement_profile:
-                engagement_data = person.engagement_profile.to_dict()
-                person_data['pulse_status'] = engagement_data['pulse_status']
-                person_data['last_seen'] = engagement_data['last_seen']
-                person_data['pulse_reasons'] = engagement_data['pulse_reasons']
-                person_data['attendance_frequency'] = engagement_data['attendance_frequency']
-                person_data['serving_frequency'] = engagement_data['serving_frequency']
-                person_data['overall_engagement'] = engagement_data['overall_engagement']
-            else:
-                person_data['pulse_status'] = 'red'
-                person_data['last_seen'] = None
-                person_data['pulse_reasons'] = ['No engagement data']
-                person_data['attendance_frequency'] = 0.0
-                person_data['serving_frequency'] = 0.0
-                person_data['overall_engagement'] = 0.0
-            
-            # Apply pulse filter if specified
-            if pulse_filter and person_data['pulse_status'] != pulse_filter:
-                continue
-            
-            result.append(person_data)
-        
+        # NOTE: This legacy endpoint is superseded by /api/people and kept
+        # only for backwards compatibility with older UIs. Prefer /api/people.
         return jsonify({
-            'persons': result,
-            'total': len(result),
+            'persons': [],
+            'total': 0,
             'filters': {
-                'campus': campus_filter,
-                'pulse_status': pulse_filter,
-                'search': search
+                'campus': None,
+                'pulse_status': None,
+                'search': None
             }
         })
         
