@@ -819,7 +819,7 @@ def get_db():
     import sqlite3
     
     # On Railway, check if DATABASE_URL points to a database with users table
-    database_url = os.getenv('DATABASE_URL', '')
+    database_url = os.getenv('DATABASE_URL', '').strip()
     if database_url and database_url.startswith('sqlite:///'):
         potential_path = database_url.replace('sqlite:///', '')
         if potential_path.startswith('/'):
@@ -846,7 +846,7 @@ def run_migrations():
         # Determine which database to use for migrations
         # Check if DATABASE_URL points to a database we should use
         db_path = CHURCH_VOICE_DB_PATH
-        database_url = os.getenv('DATABASE_URL', '')
+        database_url = os.getenv('DATABASE_URL', '').strip()
         if database_url and database_url.startswith('sqlite:///'):
             potential_path = database_url.replace('sqlite:///', '')
             if potential_path.startswith('/'):
