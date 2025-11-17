@@ -34,7 +34,7 @@ class FeatureFlags:
     HEARTBEAT_ENABLED = _as_bool(os.environ.get('HEARTBEAT_ENABLED'), False)
     
     # People directory and management
-    PEOPLE_ENABLED = _as_bool(os.environ.get('PEOPLE_ENABLED'), False)
+    PEOPLE_ENABLED = _as_bool(os.environ.get('PEOPLE_ENABLED'), True)
     
     # RBAC System
     RBAC_ENABLED = _as_bool(os.environ.get('RBAC_ENABLED'), True)
