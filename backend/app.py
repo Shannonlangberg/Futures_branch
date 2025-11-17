@@ -14699,20 +14699,61 @@ def google_oauth_callback():
         session.pop('google_oauth_state', None)
         session.pop('google_oauth_user_id', None)
         
-        # Return success page that closes popup and notifies parent
+        # Return success page that handles both popup and redirect scenarios
         return '''
         <!DOCTYPE html>
         <html>
         <head>
             <title>Google Drive Connected</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-align: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(10px);
+                    border-radius: 20px;
+                    padding: 40px;
+                    max-width: 400px;
+                }
+                h1 { margin-top: 0; }
+                .checkmark {
+                    font-size: 64px;
+                    margin-bottom: 20px;
+                }
+            </style>
         </head>
         <body>
-            <h1>Google Drive Connected Successfully!</h1>
-            <p>You can close this window.</p>
+            <div class="container">
+                <div class="checkmark">✓</div>
+                <h1>Google Drive Connected!</h1>
+                <p>You can close this window or return to the app.</p>
+            </div>
             <script>
+                // Handle popup scenario (desktop)
                 if (window.opener) {
                     window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                    setTimeout(() => window.close(), 1000);
+                    setTimeout(() => window.close(), 2000);
+                } else {
+                    // Handle redirect scenario (mobile) - redirect back to app
+                    setTimeout(() => {
+                        // Try to go back, or redirect to home
+                        if (window.history.length > 1) {
+                            window.history.back();
+                        } else {
+                            window.location.href = '/';
+                        }
+                    }, 2000);
                 }
             </script>
         </body>

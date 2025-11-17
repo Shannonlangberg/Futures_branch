@@ -190,6 +190,18 @@ const Resources = () => {
         throw new Error('Missing Google authentication URL.');
       }
 
+      // Detect mobile devices
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
+                      (window.innerWidth <= 768 && window.innerHeight <= 1024);
+      
+      if (isMobile) {
+        // On mobile, use full-page redirect instead of popup
+        sessionStorage.setItem('google_oauth_in_progress', 'true');
+        window.location.href = authUrl;
+        return; // Don't set error - we're navigating away
+      }
+
+      // On desktop, use popup
       const authWindow = window.open(
         authUrl,
         'googleDriveAuth',

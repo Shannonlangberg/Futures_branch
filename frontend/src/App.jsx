@@ -107,6 +107,19 @@ function App() {
 
   useEffect(() => {
     checkAuthStatus();
+    
+    // Check if we're returning from mobile OAuth redirect
+    const oauthInProgress = sessionStorage.getItem('google_oauth_in_progress');
+    if (oauthInProgress) {
+      sessionStorage.removeItem('google_oauth_in_progress');
+      // Wait a moment for session to be updated, then check auth
+      setTimeout(() => {
+        checkAuthStatus().then(() => {
+          setNeedsDriveAuth(false);
+          setShowDriveModal(false);
+        });
+      }, 1000);
+    }
   }, [checkAuthStatus]);
 
   const handleLogin = () => {
@@ -162,6 +175,19 @@ function App() {
         return;
       }
 
+      // Detect mobile devices
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
+                      (window.innerWidth <= 768 && window.innerHeight <= 1024);
+      
+      if (isMobile) {
+        // On mobile, use full-page redirect instead of popup
+        // Store that we're doing OAuth so we can check on return
+        sessionStorage.setItem('google_oauth_in_progress', 'true');
+        window.location.href = authUrl;
+        return; // Don't set connecting to false - we're navigating away
+      }
+
+      // On desktop, use popup
       const authWindow = window.open(
         authUrl,
         'googleDriveAuth',
