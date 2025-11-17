@@ -7484,6 +7484,9 @@ def api_login():
     user = authenticate_user(username, password)
     if user:
         login_user(user, remember=True)
+        # Ensure session is saved
+        session.modified = True
+        logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
         # Log successful login
         log_security_event(user.id, 'login_success', 'User logged in successfully')
         return jsonify({"success": True, "redirect": "/"})
@@ -14597,10 +14600,16 @@ def get_resource_categories():
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
 @app.route('/api/google/auth-url', methods=['GET'])
-@admin_required_json
 def get_google_auth_url():
     """Get Google Drive OAuth URL"""
     try:
+        # Check authentication manually (don't use decorator to avoid recursion)
+        if not current_user.is_authenticated:
+            return jsonify({'error': 'Authentication required. Please sign in first.'}), 401
+        
+        # Check if user has admin role
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            return jsonify({'error': 'Administrator access required'}), 403
         
         # Check if OAuth credentials are configured
         client_id = os.getenv('GOOGLE_CLIENT_ID')
