@@ -8141,15 +8141,25 @@ def debug_claude():
 @app.route('/api/session')
 def session_info():
     if current_user.is_authenticated:
-        # For now, Google Drive auth is not required - set needs_drive_auth to False
-        # This prevents the Drive auth modal from showing on login
+        # Check if user needs Google Drive auth (admin users only)
+        needs_drive_auth = False
+        if current_user.role == 'admin':
+            # Check if Google Drive is authenticated
+            drive_authenticated = session.get('google_drive_authenticated', False)
+            # Check if token is still valid
+            token_expiry = session.get('google_drive_token_expiry', 0)
+            token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
+            
+            # Admin users need Drive auth if not authenticated or token expired
+            needs_drive_auth = not (drive_authenticated and token_valid)
+        
         return jsonify({
             "authenticated": True,
             "user": current_user.username,
             "role": current_user.role,
             "campus": current_user.campus,
             "full_name": current_user.full_name,
-            "needs_drive_auth": False,  # Google Drive OAuth not yet implemented
+            "needs_drive_auth": needs_drive_auth,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     else:
@@ -14573,20 +14583,144 @@ def get_resource_categories():
 @app.route('/api/google/auth-url', methods=['GET'])
 @login_required
 def get_google_auth_url():
-    """Get Google Drive OAuth URL (stub - not fully implemented)"""
+    """Get Google Drive OAuth URL"""
     try:
         # Resources is admin-only - check if user is admin
         if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # For now, return an error - Google Drive OAuth not fully implemented
+        # Check if OAuth credentials are configured
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+        redirect_uri = os.getenv('GOOGLE_OAUTH_REDIRECT_URI')
+        
+        if not client_id or not client_secret:
+            return jsonify({
+                'error': 'Google OAuth credentials not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.',
+                'auth_url': None
+            }), 503
+        
+        # Use request origin for redirect URI if not set
+        if not redirect_uri:
+            # Get the origin from the request
+            origin = request.headers.get('Origin') or request.host_url.rstrip('/')
+            redirect_uri = f"{origin}/api/google/callback"
+        
+        # Generate state token for security
+        import secrets
+        state_token = secrets.token_urlsafe(32)
+        session['google_oauth_state'] = state_token
+        session['google_oauth_user_id'] = current_user.id
+        
+        # Google OAuth scopes for Drive
+        scopes = [
+            'https://www.googleapis.com/auth/drive.readonly',
+            'https://www.googleapis.com/auth/drive.file'
+        ]
+        scope_string = ' '.join(scopes)
+        
+        # Build OAuth URL
+        auth_url = (
+            f"https://accounts.google.com/o/oauth2/v2/auth?"
+            f"client_id={client_id}&"
+            f"redirect_uri={redirect_uri}&"
+            f"response_type=code&"
+            f"scope={scope_string}&"
+            f"state={state_token}&"
+            f"access_type=offline&"
+            f"prompt=consent"
+        )
+        
         return jsonify({
-            'error': 'Google Drive authentication is not yet configured. Resource files will be available once configured.',
-            'auth_url': None
-        }), 501  # 501 Not Implemented
+            'auth_url': auth_url,
+            'state': state_token
+        })
     except Exception as e:
-        logger.error(f"Error getting Google auth URL: {e}")
-        return jsonify({'error': 'Failed to get Google auth URL'}), 500
+        logger.error(f"Error getting Google auth URL: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to get Google auth URL: {str(e)}'}), 500
+
+@app.route('/api/google/callback', methods=['GET'])
+def google_oauth_callback():
+    """Handle Google OAuth callback"""
+    try:
+        code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
+        
+        if error:
+            return jsonify({'error': f'OAuth error: {error}'}), 400
+        
+        if not code:
+            return jsonify({'error': 'Missing authorization code'}), 400
+        
+        # Verify state token
+        expected_state = session.get('google_oauth_state')
+        if not expected_state or state != expected_state:
+            return jsonify({'error': 'Invalid state token'}), 400
+        
+        user_id = session.get('google_oauth_user_id')
+        if not user_id:
+            return jsonify({'error': 'Session expired'}), 401
+        
+        # Exchange code for tokens
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+        redirect_uri = os.getenv('GOOGLE_OAUTH_REDIRECT_URI')
+        
+        if not redirect_uri:
+            origin = request.headers.get('Origin') or request.host_url.rstrip('/')
+            redirect_uri = f"{origin}/api/google/callback"
+        
+        # Exchange authorization code for tokens
+        token_url = 'https://oauth2.googleapis.com/token'
+        token_data = {
+            'code': code,
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'redirect_uri': redirect_uri,
+            'grant_type': 'authorization_code'
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        
+        if not token_response.ok:
+            logger.error(f"Token exchange failed: {token_response.text}")
+            return jsonify({'error': 'Failed to exchange authorization code'}), 500
+        
+        tokens = token_response.json()
+        
+        # Store tokens in session
+        session['google_drive_access_token'] = tokens.get('access_token')
+        session['google_drive_refresh_token'] = tokens.get('refresh_token')
+        session['google_drive_token_expiry'] = datetime.now(timezone.utc).timestamp() + tokens.get('expires_in', 3600)
+        session['google_drive_authenticated'] = True
+        
+        # Clear OAuth state
+        session.pop('google_oauth_state', None)
+        session.pop('google_oauth_user_id', None)
+        
+        # Return success page that closes popup and notifies parent
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Google Drive Connected</title>
+        </head>
+        <body>
+            <h1>Google Drive Connected Successfully!</h1>
+            <p>You can close this window.</p>
+            <script>
+                if (window.opener) {
+                    window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                    setTimeout(() => window.close(), 1000);
+                }
+            </script>
+        </body>
+        </html>
+        '''
+    except Exception as e:
+        logger.error(f"Error in Google OAuth callback: {e}", exc_info=True)
+        return jsonify({'error': f'OAuth callback failed: {str(e)}'}), 500
 
 @app.route('/api/resources/<category_id>', methods=['GET'])
 @login_required
