@@ -14694,6 +14694,10 @@ def google_oauth_callback():
         session.pop('google_oauth_state', None)
         session.pop('google_oauth_user_id', None)
         
+        # CRITICAL: Mark session as modified and save it before redirecting
+        session.modified = True
+        logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session")
+        
         # Return success page that handles both popup and redirect scenarios
         return '''
         <!DOCTYPE html>

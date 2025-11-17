@@ -96,20 +96,23 @@ const Resources = () => {
       });
 
       if (response.status === 401) {
+        const payload = await response.json().catch(() => ({}));
         setCategories([]);
-        setCategoriesError('Please sign in to view resources.');
+        setCategoriesError(payload.error || 'Please sign in to view resources.');
         return;
       }
 
       if (response.status === 403) {
+        const payload = await response.json().catch(() => ({}));
         setCategories([]);
-        setCategoriesError('You do not have access to view resources.');
+        setCategoriesError(payload.error || 'You do not have access to view resources. Admin access required.');
         return;
       }
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        const errorMsg = payload.error || 'Unable to load resource categories. Please try again.';
+        const errorMsg = payload.error || `Unable to load resource categories (${response.status}). Please try again.`;
+        console.error('Resources fetch error:', errorMsg, payload);
         throw new Error(errorMsg);
       }
 
