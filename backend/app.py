@@ -7964,27 +7964,19 @@ def serve_audio(filename):
 
 @app.route('/api/health')
 def health_check():
+    """Simple health check endpoint - must respond quickly"""
     try:
-        # Get more detailed Claude status
-        claude_status = "connected" if claude is not None else "not_connected"
-        sheets_status = "connected" if sheet is not None else "not_connected"
-        
+        # Simple health check - don't check external services to avoid timeouts
         return jsonify({
             "status": "ok",
-            "sheets_connected": sheet is not None,
-            "claude_connected": claude is not None,
-            "claude_status": claude_status,
-            "sheets_status": sheets_status,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     except Exception as e:
         return jsonify({
             "status": "error",
             "error": str(e),
-            "sheets_connected": False,
-            "claude_connected": False,
             "timestamp": datetime.now(timezone.utc).isoformat()
-        })
+        }), 500
 
 @app.route('/api/debug/auth')
 def debug_auth():
