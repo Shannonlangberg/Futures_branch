@@ -26,7 +26,11 @@ const People = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [campusFilter, setCampusFilter] = useState('all_campuses');
   const [pulseFilter, setPulseFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(null);
   const [formData, setFormData] = useState({
@@ -35,6 +39,7 @@ const People = () => {
     email: '',
     phone: '',
     campus: 'all_campuses',
+    department: '',
     connect_group: '',
     dream_team_roles: [],
     birthday: '',
@@ -45,7 +50,7 @@ const People = () => {
   useEffect(() => {
     loadCampuses();
     loadPersons();
-  }, [campusFilter, pulseFilter, searchTerm, includeArchived]);
+  }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
 
   const loadCampuses = async () => {
     try {
@@ -89,6 +94,9 @@ const People = () => {
       if (pulseFilter && pulseFilter !== 'all') {
         params.append('pulse_status', pulseFilter);
       }
+      if (departmentFilter && departmentFilter !== 'all') {
+        params.append('department', departmentFilter);
+      }
       if (searchTerm) {
         params.append('search', searchTerm);
       }
@@ -126,6 +134,7 @@ const People = () => {
         email: person.email || '',
         phone: person.phone || '',
         campus: person.campus || 'all_campuses',
+        department: person.department || '',
         connect_group: person.connect_group || '',
         dream_team_roles: person.dream_team_roles || [],
         birthday: person.birthday ? person.birthday.split('T')[0] : '',
@@ -142,6 +151,7 @@ const People = () => {
         email: '',
         phone: '',
         campus: 'all_campuses',
+        department: '',
         connect_group: '',
         dream_team_roles: [],
         birthday: '',
@@ -314,6 +324,41 @@ const People = () => {
     }
   };
 
+  const handleImportCSV = async () => {
+    if (!importFile) {
+      alert('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+
+      const response = await fetch('/api/persons/import_pco', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(data.message || `Import completed: ${data.added} added, ${data.skipped} skipped`);
+        setShowImportModal(false);
+        setImportFile(null);
+        await loadPersons();
+      } else {
+        alert(data.error || 'Failed to import CSV');
+      }
+    } catch (err) {
+      console.error('Error importing CSV:', err);
+      alert('Failed to import CSV');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -353,13 +398,22 @@ const People = () => {
               </h1>
               <p className="text-slate-400">Manage church members and track engagement</p>
             </div>
-            <button
-              onClick={() => handleOpenModal()}
-              className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <PlusIcon className="w-5 h-5 mr-2" />
-              Add Person
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                <ArrowPathIcon className="w-5 h-5 mr-2" />
+                Import CSV
+              </button>
+              <button
+                onClick={() => handleOpenModal()}
+                className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <PlusIcon className="w-5 h-5 mr-2" />
+                Add Person
+              </button>
+            </div>
           </div>
         </div>
 
@@ -423,6 +477,26 @@ const People = () => {
                 <option value="green">Active</option>
                 <option value="amber">At Risk</option>
                 <option value="red">Inactive</option>
+              </select>
+            </div>
+
+            {/* Department Filter */}
+            <div className="min-w-[150px]">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Department
+              </label>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="all">All Departments</option>
+                <option value="Kids">Kids</option>
+                <option value="Youth">Youth</option>
+                <option value="Young Adults">Young Adults</option>
+                <option value="Families">Families</option>
+                <option value="Adults">Adults</option>
+                <option value="Seniors">Seniors</option>
               </select>
             </div>
 
@@ -668,6 +742,26 @@ const People = () => {
                 </select>
               </div>
 
+              {/* Department */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Department
+                </label>
+                <select
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select Department</option>
+                  <option value="Kids">Kids</option>
+                  <option value="Youth">Youth</option>
+                  <option value="Young Adults">Young Adults</option>
+                  <option value="Families">Families</option>
+                  <option value="Adults">Adults</option>
+                  <option value="Seniors">Seniors</option>
+                </select>
+              </div>
+
               {/* Connect Group */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -756,6 +850,54 @@ const People = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import CSV Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full">
+            <div className="p-6 border-b border-slate-700">
+              <h2 className="text-2xl font-bold text-white mb-2">Import PCO CSV</h2>
+              <p className="text-slate-400">
+                Upload a CSV file exported from Planning Center Online to import people into the database.
+              </p>
+            </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  CSV File
+                </label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setImportFile(e.target.files[0])}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportFile(null);
+                  }}
+                  className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  disabled={importing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImportCSV}
+                  disabled={!importFile || importing}
+                  className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                >
+                  {importing ? 'Importing...' : 'Import CSV'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

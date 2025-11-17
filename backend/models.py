@@ -15,6 +15,7 @@ class Person(db.Model):
     email = db.Column(db.String(200), unique=True, nullable=False)
     phone = db.Column(db.String(50))
     campus = db.Column(db.String(100), nullable=False)
+    department = db.Column(db.String(50))  # Kids, Youth, Young Adults, Families, Adults, Seniors
     connect_group = db.Column(db.String(200))
     dream_team_roles = db.Column(db.Text)  # JSON array stored as text
     birthday = db.Column(db.Date)
@@ -43,6 +44,7 @@ class Person(db.Model):
             'email': self.email,
             'phone': self.phone,
             'campus': self.campus,
+            'department': self.department,
             'connect_group': self.connect_group,
             'dream_team_roles': json.loads(self.dream_team_roles) if self.dream_team_roles else [],
             'birthday': self.birthday.isoformat() if self.birthday else None,
@@ -589,6 +591,7 @@ def create_person_with_engagement(
     campus,
     preferred_name=None,
     phone=None,
+    department=None,
     connect_group=None,
     dream_team_roles=None,
     birthday=None,
@@ -609,6 +612,7 @@ def create_person_with_engagement(
         campus=campus,
         preferred_name=preferred_name,
         phone=phone,
+        department=department,
         connect_group=connect_group,
         dream_team_roles=json.dumps(dream_team_roles) if dream_team_roles else None,
         birthday=birthday,

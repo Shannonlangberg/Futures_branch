@@ -12491,12 +12491,13 @@ def update_person_demo(person_id):
 def get_persons():
     """Get all persons with basic info (admin only)"""
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Get query parameters
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
+        department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
         include_archived = request.args.get('include_archived', 'false').lower() == 'true'
         
@@ -12508,6 +12509,9 @@ def get_persons():
         
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(Person.campus == campus_filter)
+        
+        if department_filter and department_filter != 'all':
+            query = query.filter(Person.department == department_filter)
         
         if search:
             search_term = f"%{search}%"
@@ -12555,6 +12559,7 @@ def get_persons():
             'filters': {
                 'campus': campus_filter,
                 'pulse_status': pulse_filter,
+                'department': department_filter,
                 'search': search
             }
         })
@@ -12569,7 +12574,7 @@ def get_persons():
 def create_person():
     """Create new person with engagement profile (admin only)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
@@ -12592,6 +12597,7 @@ def create_person():
             campus=data['campus'],
             preferred_name=data.get('preferred_name'),
             phone=data.get('phone'),
+            department=data.get('department'),
             connect_group=data.get('connect_group'),
             dream_team_roles=data.get('dream_team_roles', []),
             birthday=datetime.strptime(data['birthday'], '%Y-%m-%d').date() if data.get('birthday') else None,
@@ -12628,7 +12634,7 @@ def create_person():
 def get_person_detail(person_id):
     """Get detailed person info with full engagement profile (admin only)"""
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id, is_active=True).first()
@@ -12661,7 +12667,7 @@ def get_person_detail(person_id):
 def update_person(person_id):
     """Update person details (admin only)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id, is_active=True).first()
@@ -12740,7 +12746,7 @@ def update_person(person_id):
 def archive_person(person_id):
     """Archive a person (soft delete - sets is_active to False)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id).first()
@@ -12767,7 +12773,7 @@ def archive_person(person_id):
 def restore_person(person_id):
     """Restore an archived person (sets is_active to True)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id).first()
@@ -12794,7 +12800,7 @@ def restore_person(person_id):
 def delete_person(person_id):
     """Permanently delete a person from the database (hard delete)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id).first()
@@ -12818,6 +12824,125 @@ def delete_person(person_id):
         db.session.rollback()
         logger.error(f"Error deleting person {person_id}: {e}")
         return jsonify({'error': 'Failed to delete person'}), 500
+
+
+@app.route('/api/persons/import_pco', methods=['POST'])
+@login_required
+def import_pco_csv():
+    """Import people from Planning Center Online CSV export"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.endswith('.csv'):
+            return jsonify({'error': 'File must be a CSV'}), 400
+        
+        import csv
+        from io import StringIO
+        
+        # Read CSV content
+        stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        # Get active campuses for mapping
+        active_campuses = get_active_campuses()
+        campus_name_to_id = {c['name']: c['id'] for c in active_campuses}
+        
+        added_count = 0
+        skipped_count = 0
+        errors = []
+        seen_emails = set()
+        seen_pco_ids = set()
+        
+        for row in csv_reader:
+            try:
+                # Get PCO Person ID (use as primary key)
+                pco_id = str(row.get('Person ID', '').strip())
+                if not pco_id:
+                    skipped_count += 1
+                    continue
+                
+                # Check for duplicate PCO ID
+                if pco_id in seen_pco_ids:
+                    skipped_count += 1
+                    continue
+                seen_pco_ids.add(pco_id)
+                
+                # Check if person already exists
+                existing = Person.query.filter_by(id=pco_id).first()
+                if existing:
+                    skipped_count += 1
+                    continue
+                
+                # Get email (can be empty)
+                email = row.get('Email', '').strip() or None
+                
+                # Check for duplicate email within this import
+                if email and email in seen_emails:
+                    skipped_count += 1
+                    continue
+                if email:
+                    seen_emails.add(email)
+                
+                # Get name
+                full_name = row.get('Name', '').strip()
+                if not full_name:
+                    skipped_count += 1
+                    continue
+                
+                # Get campus and map to ID
+                campus_name = row.get('Campus', '').strip()
+                campus_id = campus_name_to_id.get(campus_name, 'all_campuses')
+                
+                # Get department (if available in CSV)
+                department = row.get('Department', '').strip() or None
+                
+                # Create person
+                person = Person(
+                    id=pco_id,
+                    full_name=full_name,
+                    preferred_name=row.get('Preferred Name', '').strip() or None,
+                    email=email or f'no-email-{pco_id}@futures.church',  # Placeholder if no email
+                    phone=row.get('Phone', '').strip() or None,
+                    campus=campus_id,
+                    department=department,
+                    connect_group=row.get('Connect Group', '').strip() or None,
+                    is_active=True
+                )
+                
+                db.session.add(person)
+                
+                # Create engagement profile
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                
+                added_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row error: {str(e)}")
+                skipped_count += 1
+                continue
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Import completed: {added_count} added, {skipped_count} skipped',
+            'added': added_count,
+            'skipped': skipped_count,
+            'errors': errors[:10]  # Limit errors returned
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error importing PCO CSV: {e}")
+        return jsonify({'error': f'Failed to import CSV: {str(e)}'}), 500
 
 
 @app.route('/api/engagement/log_attendance', methods=['POST'])
