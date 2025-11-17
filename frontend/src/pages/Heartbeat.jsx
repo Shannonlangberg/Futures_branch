@@ -39,6 +39,7 @@ const Heartbeat = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [people, setPeople] = useState([]);
+  const [needingAttention, setNeedingAttention] = useState([]);
   const [campuses, setCampuses] = useState([]);
   const [summary, setSummary] = useState({
     total: 0,
@@ -132,6 +133,34 @@ const Heartbeat = () => {
           { total: 0, green: 0, amber: 0, red: 0 }
         );
         setSummary(counts);
+
+        // Identify people needing attention (red + high-priority amber)
+        const needingAttention = persons
+          .filter((p) => {
+            if (p.pulse_status === 'red') return true;
+            if (p.pulse_status === 'amber') {
+              // Include amber if last seen > 21 days ago
+              if (p.last_seen) {
+                const daysSince = Math.floor(
+                  (new Date() - new Date(p.last_seen)) / (1000 * 60 * 60 * 24)
+                );
+                return daysSince > 21;
+              }
+              return true; // Include amber with no attendance
+            }
+            return false;
+          })
+          .sort((a, b) => {
+            // Sort red first, then by last_seen (oldest first)
+            if (a.pulse_status === 'red' && b.pulse_status !== 'red') return -1;
+            if (a.pulse_status !== 'red' && b.pulse_status === 'red') return 1;
+            const aDate = a.last_seen ? new Date(a.last_seen) : new Date(0);
+            const bDate = b.last_seen ? new Date(b.last_seen) : new Date(0);
+            return aDate - bDate;
+          })
+          .slice(0, 10); // Top 10 priorities
+
+        setNeedingAttention(needingAttention);
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Heartbeat load error:', err);
@@ -231,7 +260,9 @@ const Heartbeat = () => {
               {summary.total}
             </div>
             <div className="text-xs text-slate-500 mt-1">
-              Scoped to your campus unless you have cross-campus access.
+              {summary.total > 0
+                ? `${Math.round((summary.green / summary.total) * 100)}% healthy`
+                : 'No people yet'}
             </div>
           </div>
           <div className="bg-emerald-900/20 border border-emerald-500/40 rounded-2xl p-4">
@@ -241,6 +272,9 @@ const Heartbeat = () => {
             <div className="text-2xl font-semibold text-emerald-100">
               {summary.green}
             </div>
+            <div className="text-xs text-emerald-400/70 mt-1">
+              Thriving & engaged
+            </div>
           </div>
           <div className="bg-amber-900/20 border border-amber-500/40 rounded-2xl p-4">
             <div className="text-xs text-amber-300 uppercase tracking-wide mb-1">
@@ -248,6 +282,9 @@ const Heartbeat = () => {
             </div>
             <div className="text-2xl font-semibold text-amber-100">
               {summary.amber}
+            </div>
+            <div className="text-xs text-amber-400/70 mt-1">
+              Needs attention soon
             </div>
           </div>
           <div className="bg-red-900/20 border border-red-500/40 rounded-2xl p-4">
@@ -257,8 +294,80 @@ const Heartbeat = () => {
             <div className="text-2xl font-semibold text-red-100">
               {summary.red}
             </div>
+            <div className="text-xs text-red-400/70 mt-1">
+              Urgent follow-up needed
+            </div>
           </div>
         </div>
+
+        {/* People Needing Attention Section */}
+        {needingAttention.length > 0 && (
+          <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  People Needing Attention
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Top priorities for follow-up this week
+                </p>
+              </div>
+              <div className="text-xs text-slate-400">
+                {needingAttention.length} {needingAttention.length === 1 ? 'person' : 'people'}
+              </div>
+            </div>
+            <div className="space-y-2">
+              {needingAttention.map((person) => {
+                const lastSeen = person.last_seen
+                  ? new Date(person.last_seen)
+                  : null;
+                const daysSince = lastSeen
+                  ? Math.floor((new Date() - lastSeen) / (1000 * 60 * 60 * 24))
+                  : null;
+                const primaryReason =
+                  person.pulse_reasons && person.pulse_reasons.length > 0
+                    ? person.pulse_reasons[0]
+                    : 'No engagement data';
+
+                return (
+                  <button
+                    key={person.id}
+                    type="button"
+                    onClick={() => navigate(`/persons/${person.id}`)}
+                    className="w-full text-left bg-slate-800/50 hover:bg-slate-800/70 border border-slate-700/50 rounded-lg p-3 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-slate-100 font-medium truncate">
+                            {person.full_name}
+                          </span>
+                          <PulseBadge
+                            status={person.pulse_status}
+                            score={person.overall_engagement}
+                          />
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-400">
+                          {person.department && (
+                            <span className="capitalize">{person.department.replace('_', ' ')}</span>
+                          )}
+                          {person.campus && <span>• {person.campus}</span>}
+                          {daysSince !== null && (
+                            <span>• {daysSince === 0 ? 'Today' : `${daysSince} days ago`}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-300 mt-1.5 line-clamp-1">
+                          {primaryReason}
+                        </p>
+                      </div>
+                      <div className="text-slate-400 text-xs">→</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4 sm:p-5 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

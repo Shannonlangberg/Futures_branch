@@ -14035,12 +14035,20 @@ def create_person():
 @app.route('/api/persons/<person_id>', methods=['GET'])
 @login_required
 def get_person_detail(person_id):
-    """Get detailed person info with full engagement profile (admin only)"""
+    """Get detailed person info with full engagement profile"""
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        # Use query_access for consistency with heartbeat/people endpoints
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        # Build query with campus scoping
+        query = Person.query.filter_by(id=person_id, is_active=True)
+        
+        # Apply campus scoping based on user role/campus
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'heartbeat')
+        
+        person = query.first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         

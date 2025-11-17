@@ -14,6 +14,7 @@ import Resources from './pages/Resources';
 import ResourceManager from './pages/ResourceManager';
 import Heartbeat from './pages/Heartbeat';
 import People from './pages/People';
+import PersonHealthReport from './pages/PersonHealthReport';
 import Landing from './pages/Landing';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
@@ -287,6 +288,7 @@ function App() {
                   )}
                   <Route path="/heartbeat" element={<Heartbeat />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/persons/:personId" element={<PersonHealthReport />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
                   <Route path="/export" element={<DataExport />} />
