@@ -14558,6 +14558,24 @@ def get_resource_categories():
         logger.error(f"Error fetching resource categories: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
+@app.route('/api/google/auth-url', methods=['GET'])
+@login_required
+def get_google_auth_url():
+    """Get Google Drive OAuth URL (stub - not fully implemented)"""
+    try:
+        # Resources is admin-only - check if user is admin
+        if current_user.role != 'admin':
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # For now, return an error - Google Drive OAuth not fully implemented
+        return jsonify({
+            'error': 'Google Drive authentication is not yet configured. Resource files will be available once configured.',
+            'auth_url': None
+        }), 501  # 501 Not Implemented
+    except Exception as e:
+        logger.error(f"Error getting Google auth URL: {e}")
+        return jsonify({'error': 'Failed to get Google auth URL'}), 500
+
 @app.route('/api/resources/<category_id>', methods=['GET'])
 @login_required
 def get_resource_category_files(category_id):
@@ -14567,8 +14585,20 @@ def get_resource_category_files(category_id):
         if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # For now, return empty array - resources functionality can be added later
-        return jsonify({'files': [], 'links': []})
+        # Get category to retrieve links
+        category = ResourceCategory.query.filter(
+            (ResourceCategory.slug == category_id) | (ResourceCategory.id == category_id)
+        ).filter_by(is_active=True).first()
+        
+        if category:
+            links = json.loads(category.links) if category.links else []
+            # For now, return links from category - Google Drive files not yet implemented
+            return jsonify({
+                'files': [],  # Google Drive files not yet implemented
+                'links': links
+            })
+        else:
+            return jsonify({'files': [], 'links': []})
     except Exception as e:
         logger.error(f"Error fetching resource category files: {e}")
         return jsonify({'error': 'Failed to fetch resource files'}), 500
