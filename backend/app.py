@@ -14735,20 +14735,32 @@ def google_oauth_callback():
                 <p>You can close this window or return to the app.</p>
             </div>
             <script>
-                // Handle popup scenario (desktop)
-                if (window.opener) {
-                    window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                    setTimeout(() => window.close(), 2000);
-                } else {
-                    // Handle redirect scenario (mobile) - redirect back to app
-                    setTimeout(() => {
-                        // Try to go back, or redirect to home
-                        if (window.history.length > 1) {
-                            window.history.back();
-                        } else {
-                            window.location.href = '/';
-                        }
-                    }, 2000);
+                // Immediately try to notify parent/opener
+                try {
+                    if (window.opener) {
+                        // Desktop popup scenario
+                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                        setTimeout(() => window.close(), 500);
+                    } else if (window.parent && window.parent !== window) {
+                        // Iframe scenario
+                        window.parent.postMessage({ type: 'googleAuthSuccess' }, '*');
+                    }
+                } catch (e) {
+                    console.log('Could not post message:', e);
+                }
+                
+                // For mobile redirects, always redirect back to app immediately
+                // This ensures we get back to the app even if postMessage fails
+                if (!window.opener) {
+                    // Store success in sessionStorage for the app to detect
+                    try {
+                        sessionStorage.setItem('google_oauth_success', 'true');
+                    } catch (e) {
+                        console.log('Could not set sessionStorage:', e);
+                    }
+                    
+                    // Redirect immediately
+                    window.location.href = '/';
                 }
             </script>
         </body>

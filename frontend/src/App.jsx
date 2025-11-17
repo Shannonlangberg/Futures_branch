@@ -110,16 +110,44 @@ function App() {
     
     // Check if we're returning from mobile OAuth redirect
     const oauthInProgress = sessionStorage.getItem('google_oauth_in_progress');
-    if (oauthInProgress) {
+    const oauthSuccess = sessionStorage.getItem('google_oauth_success');
+    
+    if (oauthInProgress || oauthSuccess) {
       sessionStorage.removeItem('google_oauth_in_progress');
+      sessionStorage.removeItem('google_oauth_success');
       // Wait a moment for session to be updated, then check auth
       setTimeout(() => {
         checkAuthStatus().then(() => {
           setNeedsDriveAuth(false);
           setShowDriveModal(false);
+          setDriveError('');
         });
-      }, 1000);
+      }, 1500);
     }
+  }, [checkAuthStatus]);
+  
+  useEffect(() => {
+    // Listen for OAuth success messages (from popup or redirect)
+    const handleMessage = (event) => {
+      // Accept messages from same origin
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      
+      if (event.data && event.data.type === 'googleAuthSuccess') {
+        // OAuth completed successfully
+        setTimeout(() => {
+          checkAuthStatus().then(() => {
+            setNeedsDriveAuth(false);
+            setShowDriveModal(false);
+            setDriveError('');
+          });
+        }, 500);
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [checkAuthStatus]);
 
   const handleLogin = () => {
@@ -235,8 +263,9 @@ function App() {
   }, [checkAuthStatus]);
 
   useEffect(() => {
-    const handleMessage = (event) => {
-      // Allow messages from the same origin or from Railway domain
+    // This handler is for the Drive auth modal specifically
+    const handleDriveAuthMessage = (event) => {
+      // Allow messages from the same origin
       const allowedOrigins = [
         window.location.origin,
         'https://futures-pulse-production.up.railway.app',
