@@ -14523,9 +14523,11 @@ def get_resource_categories():
         if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # For now, return empty array - resources functionality can be added later
-        # This prevents the "Unable to load" error
-        return jsonify({'categories': []})
+        # Get all active categories from database
+        categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
+        categories_data = [category.to_dict() for category in categories]
+        
+        return jsonify({'categories': categories_data})
     except Exception as e:
         logger.error(f"Error fetching resource categories: {e}")
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
