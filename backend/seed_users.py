@@ -14,18 +14,33 @@ def seed_users(db_path=None):
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     users_json_path = os.path.join(backend_dir, 'users.json')
     
-    # Use provided db_path or fall back to extracting from DATABASE_URL
+    # Use provided db_path or use the same path as app.py (CHURCH_VOICE_DB_PATH)
     if not db_path:
-        from urllib.parse import urlparse
+        # Default to the same path as authentication uses (CHURCH_VOICE_DB_PATH)
+        db_path = os.path.join(backend_dir, 'instance', 'church_voice.db')
+        
+        # On Railway, the database might be at /data/futures_link.db
+        # Check DATABASE_URL and if it points to a mounted volume, use that
         database_url = os.getenv('DATABASE_URL', '')
         if database_url and database_url.startswith('sqlite:///'):
-            db_path = database_url.replace('sqlite:///', '')
-            # Handle 4 slashes for absolute paths
-            if not db_path.startswith('/'):
-                db_path = os.path.join(backend_dir, db_path)
-        else:
-            # Fallback to default
-            db_path = os.path.join(backend_dir, 'instance', 'church_voice.db')
+            # Extract path from DATABASE_URL (handles both sqlite:/// and sqlite:////)
+            potential_path = database_url.replace('sqlite:///', '')
+            # Handle 4 slashes (sqlite:////) - remove one more slash
+            if potential_path.startswith('/'):
+                # This is an absolute path (Railway mounted volume)
+                # Check if users table exists there - if so, use it
+                import sqlite3
+                try:
+                    test_conn = sqlite3.connect(potential_path)
+                    test_cursor = test_conn.cursor()
+                    test_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+                    if test_cursor.fetchone():
+                        # Users table exists in this database, use it
+                        db_path = potential_path
+                        print(f"[SEED] Found users table in DATABASE_URL database, using: {db_path}")
+                    test_conn.close()
+                except:
+                    pass  # Fall back to default
     
     print(f"[SEED] Ensuring admin user exists")
     print(f"[SEED] Database path: {db_path}")
