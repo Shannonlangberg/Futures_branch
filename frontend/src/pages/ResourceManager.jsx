@@ -52,6 +52,12 @@ const ResourceManager = () => {
         credentials: 'include',
       });
 
+      if (response.status === 401) {
+        setCategories([]);
+        setError('Please sign in to manage resource categories.');
+        return;
+      }
+
       if (response.status === 403) {
         setCategories([]);
         setError('You do not have permission to manage resource categories.');
@@ -59,7 +65,8 @@ const ResourceManager = () => {
       }
 
       if (!response.ok) {
-        throw new Error('Unable to load resource categories.');
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Unable to load resource categories.');
       }
 
       const data = await response.json();
@@ -237,6 +244,12 @@ const ResourceManager = () => {
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        alert('Please sign in to save resource categories. You may need to refresh the page after Google authentication.');
+        setIsSubmitting(false);
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to save resource category.');

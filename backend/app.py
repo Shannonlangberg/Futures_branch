@@ -14774,8 +14774,8 @@ def google_oauth_callback():
                         console.log('Could not set sessionStorage:', e);
                     }
                     
-                    // Redirect immediately
-                    window.location.href = '/';
+                    // Redirect immediately with a flag to force auth refresh
+                    window.location.href = '/?oauth_success=true';
                 }
             </script>
         </body>

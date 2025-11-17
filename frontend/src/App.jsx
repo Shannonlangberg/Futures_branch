@@ -111,18 +111,53 @@ function App() {
     // Check if we're returning from mobile OAuth redirect
     const oauthInProgress = sessionStorage.getItem('google_oauth_in_progress');
     const oauthSuccess = sessionStorage.getItem('google_oauth_success');
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthSuccessParam = urlParams.get('oauth_success');
     
-    if (oauthInProgress || oauthSuccess) {
+    if (oauthInProgress || oauthSuccess || oauthSuccessParam) {
       sessionStorage.removeItem('google_oauth_in_progress');
       sessionStorage.removeItem('google_oauth_success');
-      // Wait a moment for session to be updated, then check auth
-      setTimeout(() => {
-        checkAuthStatus().then(() => {
-          setNeedsDriveAuth(false);
-          setShowDriveModal(false);
-          setDriveError('');
-        });
-      }, 1500);
+      
+      // Clean up URL parameter
+      if (oauthSuccessParam) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+      
+      // Wait a moment for session to be updated, then check auth multiple times
+      // This ensures the session cookie is properly set
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      const checkAuthWithRetry = () => {
+        attempts++;
+        fetch('/api/session', { credentials: 'include' })
+          .then(res => res.json())
+          .then((sessionData) => {
+            if (sessionData && sessionData.authenticated) {
+              setIsAuthenticated(true);
+              setNeedsDriveAuth(false);
+              setShowDriveModal(false);
+              setDriveError('');
+              
+              // Force a page refresh to ensure all components see the new auth state
+              if (attempts === 1) {
+                // Only refresh on first successful check
+                setTimeout(() => {
+                  window.location.reload();
+                }, 500);
+              }
+            } else if (attempts < maxAttempts) {
+              // Retry if not authenticated yet
+              setTimeout(checkAuthWithRetry, 500);
+            }
+          }).catch(() => {
+            if (attempts < maxAttempts) {
+              setTimeout(checkAuthWithRetry, 500);
+            }
+          });
+      };
+      
+      setTimeout(checkAuthWithRetry, 1000);
     }
   }, [checkAuthStatus]);
   
