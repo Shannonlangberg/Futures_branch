@@ -11,6 +11,8 @@ import DataExport from './pages/DataExport';
 import MyProfile from './pages/MyProfile';
 import ConnectGroups from './pages/ConnectGroups';
 import ConnectGroupLeader from './pages/ConnectGroupLeader';
+import People from './pages/People';
+import Passport from './pages/Passport';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -90,6 +92,9 @@ function App() {
                   <Route path="/users" element={<UserManagement />} />
                   <Route path="/export" element={<DataExport />} />
                   <Route path="/profile" element={<MyProfile />} />
+                  <Route path="/people" element={<People />} />
+                  <Route path="/passport" element={<Passport />} />
+                  <Route path="/journey" element={<Passport />} />
                   <Route path="/connect-groups" element={<ConnectGroups />} />
                   <Route path="/connect-groups/leader" element={<ConnectGroupLeader />} />
                   <Route path="/settings" element={<Navigate to="/profile" replace />} />
