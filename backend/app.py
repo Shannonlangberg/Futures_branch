@@ -803,7 +803,11 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HT
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 # Configure SQLAlchemy database
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
+# Strip whitespace from DATABASE_URL to handle Railway environment variable issues
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
+if database_url:
+    database_url = database_url.strip()  # Remove leading/trailing whitespace
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure direct database connection for new tables (regions, campuses_new)
