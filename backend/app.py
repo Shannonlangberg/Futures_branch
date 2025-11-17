@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -12459,8 +12459,17 @@ def get_persons():
         if not current_user.has_permission('pulse', 'read'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
+        # Get query parameters
+        campus_filter = request.args.get('campus', None)
+        pulse_filter = request.args.get('pulse_status', None)
+        search = request.args.get('search', '').strip()
+        include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+        
         # Build query
-        query = Person.query.filter_by(is_active=True)
+        if include_archived:
+            query = Person.query
+        else:
+            query = Person.query.filter_by(is_active=True)
         
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(Person.campus == campus_filter)
@@ -12485,12 +12494,12 @@ def get_persons():
             # Add engagement profile data
             if person.engagement_profile:
                 engagement_data = person.engagement_profile.to_dict()
-                person_data['pulse_status'] = engagement_data['pulse_status']
-                person_data['last_seen'] = engagement_data['last_seen']
-                person_data['pulse_reasons'] = engagement_data['pulse_reasons']
-                person_data['attendance_frequency'] = engagement_data['attendance_frequency']
-                person_data['serving_frequency'] = engagement_data['serving_frequency']
-                person_data['overall_engagement'] = engagement_data['overall_engagement']
+                person_data['pulse_status'] = engagement_data.get('pulse_status', 'red')
+                person_data['last_seen'] = engagement_data.get('last_seen')
+                person_data['pulse_reasons'] = engagement_data.get('pulse_reasons', ['No engagement data'])
+                person_data['attendance_frequency'] = engagement_data.get('attendance_frequency', 0.0)
+                person_data['serving_frequency'] = engagement_data.get('serving_frequency', 0.0)
+                person_data['overall_engagement'] = engagement_data.get('overall_engagement', 0.0)
             else:
                 person_data['pulse_status'] = 'red'
                 person_data['last_seen'] = None
@@ -12691,6 +12700,91 @@ def update_person(person_id):
         return jsonify({'error': 'Failed to update person'}), 500
 
 
+@app.route('/api/persons/<person_id>/archive', methods=['POST'])
+@login_required
+def archive_person(person_id):
+    """Archive a person (soft delete - sets is_active to False)"""
+    try:
+        if not current_user.has_permission('pulse', 'write'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        person.is_active = False
+        db.session.commit()
+        
+        logger.info(f"Person {person_id} archived by user {current_user.id}")
+        return jsonify({
+            'message': 'Person archived successfully',
+            'person': person.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error archiving person {person_id}: {e}")
+        return jsonify({'error': 'Failed to archive person'}), 500
+
+
+@app.route('/api/persons/<person_id>/restore', methods=['POST'])
+@login_required
+def restore_person(person_id):
+    """Restore an archived person (sets is_active to True)"""
+    try:
+        if not current_user.has_permission('pulse', 'write'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        person.is_active = True
+        db.session.commit()
+        
+        logger.info(f"Person {person_id} restored by user {current_user.id}")
+        return jsonify({
+            'message': 'Person restored successfully',
+            'person': person.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error restoring person {person_id}: {e}")
+        return jsonify({'error': 'Failed to restore person'}), 500
+
+
+@app.route('/api/persons/<person_id>', methods=['DELETE'])
+@login_required
+def delete_person(person_id):
+    """Permanently delete a person from the database (hard delete)"""
+    try:
+        if not current_user.has_permission('pulse', 'write'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Delete engagement profile first (cascade should handle this, but being explicit)
+        if person.engagement_profile:
+            db.session.delete(person.engagement_profile)
+        
+        # Delete the person
+        db.session.delete(person)
+        db.session.commit()
+        
+        logger.info(f"Person {person_id} permanently deleted by user {current_user.id}")
+        return jsonify({
+            'message': 'Person permanently deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting person {person_id}: {e}")
+        return jsonify({'error': 'Failed to delete person'}), 500
+
+
 @app.route('/api/engagement/log_attendance', methods=['POST'])
 def log_attendance():
     """Log attendance via beacon detection (public endpoint for mobile app)"""
@@ -12796,19 +12890,19 @@ def log_serving():
             db.session.add(engagement)
         
         # Parse serving date
-        serving_date = datetime.now()
+        serving_date = datetime.now().date()
         if data.get('date'):
             try:
-                serving_date = datetime.strptime(data['date'], '%Y-%m-%d')
+                serving_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
             except ValueError:
                 return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
         
         # Add serving record
         engagement.add_serving_record(
             role=data['role'],
-            location=data['location'],
             campus=data['campus'],
-            serving_date=serving_date
+            serving_date=serving_date,
+            location=data.get('location')
         )
         
         db.session.commit()
@@ -12827,6 +12921,626 @@ def log_serving():
         db.session.rollback()
         logger.error(f"Error logging serving: {e}")
         return jsonify({'error': 'Failed to log serving activity'}), 500
+
+
+@app.route('/api/engagement/log_bible', methods=['POST'])
+def log_bible():
+    """Log Bible reading (public endpoint for mobile app)"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if 'person_email' not in data:
+            return jsonify({'error': 'Missing required field: person_email'}), 400
+        
+        # Find person by email
+        person = Person.query.filter_by(email=data['person_email'], is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Parse reading date
+        reading_date = None
+        if data.get('date'):
+            try:
+                reading_date = datetime.fromisoformat(data['date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    reading_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                except ValueError:
+                    pass  # Use current date if invalid
+        
+        # Add Bible reading record
+        engagement.add_bible_reading(reading_date=reading_date)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Bible reading logged successfully',
+            'person_id': person.id,
+            'date': reading_date.isoformat() if reading_date else datetime.now().date().isoformat(),
+            'pulse_status': engagement.pulse_status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging Bible reading: {e}")
+        return jsonify({'error': 'Failed to log Bible reading'}), 500
+
+
+@app.route('/api/engagement/log_giving', methods=['POST'])
+def log_giving():
+    """Log giving (public endpoint for mobile app or Stripe webhook)"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if 'person_email' not in data:
+            return jsonify({'error': 'Missing required field: person_email'}), 400
+        if 'amount' not in data:
+            return jsonify({'error': 'Missing required field: amount'}), 400
+        
+        # Find person by email
+        person = Person.query.filter_by(email=data['person_email'], is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Parse giving date
+        giving_date = None
+        if data.get('date'):
+            try:
+                giving_date = datetime.fromisoformat(data['date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    giving_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                except ValueError:
+                    pass  # Use current date if invalid
+        
+        # Add giving record
+        engagement.add_giving(
+            amount=data['amount'],
+            giving_date=giving_date,
+            campus=data.get('campus', person.campus)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Giving logged successfully',
+            'person_id': person.id,
+            'amount': float(data['amount']),
+            'date': giving_date.isoformat() if giving_date else datetime.now().date().isoformat(),
+            'pulse_status': engagement.pulse_status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging giving: {e}")
+        return jsonify({'error': 'Failed to log giving'}), 500
+
+
+@app.route('/api/engagement/log_group_attendance', methods=['POST'])
+def log_group_attendance():
+    """Log connect group attendance (for leader portal)"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['person_id', 'group_id']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Find person
+        person = Person.query.filter_by(id=data['person_id'], is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Verify person is in the group
+        if person.connect_group != data['group_id']:
+            return jsonify({'error': 'Person is not a member of this group'}), 400
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Parse attendance date
+        attendance_date = None
+        if data.get('date'):
+            try:
+                attendance_date = datetime.fromisoformat(data['date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    attendance_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                except ValueError:
+                    pass  # Use current date if invalid
+        
+        # Add group attendance record
+        engagement.add_group_attendance(
+            group_id=data['group_id'],
+            attendance_date=attendance_date,
+            present=data.get('present', True)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Group attendance logged successfully',
+            'person_id': person.id,
+            'group_id': data['group_id'],
+            'date': attendance_date.isoformat() if attendance_date else datetime.now().date().isoformat(),
+            'present': data.get('present', True),
+            'pulse_status': engagement.pulse_status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging group attendance: {e}")
+        return jsonify({'error': 'Failed to log group attendance'}), 500
+
+
+# ============================================================================
+# CONNECT GROUPS API ROUTES
+# ============================================================================
+
+@app.route('/api/connect-groups', methods=['GET'])
+@login_required
+def get_connect_groups():
+    """Get list of connect groups (campus-scoped)"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        campus_filter = request.args.get('campus', None)
+        is_active = request.args.get('is_active', 'true').lower() == 'true'
+        
+        # Build query
+        query = ConnectGroup.query
+        
+        # Apply campus scoping
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'groups')
+        
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(ConnectGroup.campus == campus_filter)
+        
+        if is_active:
+            query = query.filter(ConnectGroup.is_active == True)
+        
+        groups = query.order_by(ConnectGroup.name).all()
+        
+        return jsonify({
+            'groups': [g.to_dict() for g in groups],
+            'total': len(groups)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching connect groups: {e}")
+        return jsonify({'error': 'Failed to fetch connect groups'}), 500
+
+
+@app.route('/api/connect-groups', methods=['POST'])
+@login_required
+def create_connect_group():
+    """Create new connect group"""
+    try:
+        if not current_user.has_permission('groups', 'create'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['name', 'campus', 'leader_id']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Generate group ID
+        import uuid
+        group_id = f"cg_{data['campus'].lower().replace(' ', '_')}_{str(uuid.uuid4())[:8]}"
+        
+        # Verify leader exists
+        leader = Person.query.filter_by(id=data['leader_id'], is_active=True).first()
+        if not leader:
+            return jsonify({'error': 'Leader not found'}), 404
+        
+        # Create group
+        group = ConnectGroup(
+            id=group_id,
+            name=data['name'],
+            campus=data['campus'],
+            leader_id=data['leader_id'],
+            co_leader_id=data.get('co_leader_id'),
+            meeting_day=data.get('meeting_day'),
+            meeting_time=data.get('meeting_time'),
+            meeting_frequency=data.get('meeting_frequency', 'weekly'),
+            location=data.get('location'),
+            leader_access_code=data.get('leader_access_code')  # Simple password for leader portal
+        )
+        
+        db.session.add(group)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Connect group created successfully',
+            'group': group.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating connect group: {e}")
+        return jsonify({'error': 'Failed to create connect group'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>', methods=['GET'])
+@login_required
+def get_connect_group(group_id):
+    """Get connect group details with members"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        # Get members
+        members = group.get_members()
+        
+        # Get meetings (sorted by date, most recent first)
+        meetings = ConnectGroupMeeting.query.filter_by(group_id=group_id).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
+        
+        group_data = group.to_dict()
+        group_data['members'] = [m.to_dict() for m in members]
+        group_data['meetings'] = [m.to_dict() for m in meetings]
+        
+        return jsonify(group_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching connect group: {e}")
+        return jsonify({'error': 'Failed to fetch connect group'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>', methods=['PUT'])
+@login_required
+def update_connect_group(group_id):
+    """Update connect group"""
+    try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        data = request.get_json()
+        
+        # Update fields
+        if 'name' in data:
+            group.name = data['name']
+        if 'leader_id' in data:
+            leader = Person.query.filter_by(id=data['leader_id'], is_active=True).first()
+            if not leader:
+                return jsonify({'error': 'Leader not found'}), 404
+            group.leader_id = data['leader_id']
+        if 'co_leader_id' in data:
+            if data['co_leader_id']:
+                co_leader = Person.query.filter_by(id=data['co_leader_id'], is_active=True).first()
+                if not co_leader:
+                    return jsonify({'error': 'Co-leader not found'}), 404
+            group.co_leader_id = data['co_leader_id']
+        if 'meeting_day' in data:
+            group.meeting_day = data['meeting_day']
+        if 'meeting_time' in data:
+            group.meeting_time = data['meeting_time']
+        if 'meeting_frequency' in data:
+            group.meeting_frequency = data['meeting_frequency']
+        if 'location' in data:
+            group.location = data['location']
+        if 'leader_access_code' in data:
+            group.leader_access_code = data['leader_access_code']
+        if 'is_active' in data:
+            group.is_active = data['is_active']
+        
+        group.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Connect group updated successfully',
+            'group': group.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating connect group: {e}")
+        return jsonify({'error': 'Failed to update connect group'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/members', methods=['POST'])
+@login_required
+def add_group_member(group_id):
+    """Add member to connect group"""
+    try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        data = request.get_json()
+        person_id = data.get('person_id')
+        
+        if not person_id:
+            return jsonify({'error': 'Missing person_id'}), 400
+        
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Update person's connect_group
+        person.connect_group = group_id
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Member added successfully',
+            'person': person.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error adding group member: {e}")
+        return jsonify({'error': 'Failed to add member'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/members/<person_id>', methods=['DELETE'])
+@login_required
+def remove_group_member(group_id, person_id):
+    """Remove member from connect group"""
+    try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        if person.connect_group != group_id:
+            return jsonify({'error': 'Person is not a member of this group'}), 400
+        
+        person.connect_group = None
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Member removed successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error removing group member: {e}")
+        return jsonify({'error': 'Failed to remove member'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/meetings', methods=['POST'])
+def create_group_meeting(group_id):
+    """Create a connect group meeting (allows leader access via email + access code)"""
+    try:
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        data = request.get_json()
+        
+        # Check permissions - either logged-in admin/staff OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                leader_email = group.leader.email if group.leader else None
+                co_leader_email = group.co_leader.email if group.co_leader else None
+                is_leader = (leader_email == current_user.email) or (co_leader_email == current_user.email)
+                is_authenticated_user = current_user.has_permission('groups', 'edit')
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code
+        if not is_authenticated_user and not is_leader:
+            leader_email = group.leader.email if group.leader else None
+            co_leader_email = group.co_leader.email if group.co_leader else None
+            provided_email = data.get('leader_email', '').lower()
+            provided_code = data.get('access_code', '')
+            
+            if provided_email and (provided_email == leader_email.lower() or provided_email == co_leader_email.lower()):
+                # Verify access code if set
+                if group.leader_access_code:
+                    if provided_code != group.leader_access_code:
+                        return jsonify({'error': 'Invalid access code'}), 403
+                is_leader = True
+            else:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        if not (is_authenticated_user or is_leader):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Parse meeting date
+        meeting_date = datetime.now().date()
+        if data.get('meeting_date'):
+            try:
+                meeting_date = datetime.fromisoformat(data['meeting_date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    meeting_date = datetime.strptime(data['meeting_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        # Create meeting
+        meeting = ConnectGroupMeeting(
+            group_id=group_id,
+            meeting_date=meeting_date,
+            notes=data.get('notes')
+        )
+        
+        db.session.add(meeting)
+        db.session.flush()  # Get meeting ID
+        
+        # Create attendance records for all group members
+        members = group.get_members()
+        for member in members:
+            attendance = ConnectGroupAttendance(
+                meeting_id=meeting.id,
+                person_id=member.id,
+                present=False  # Default to absent, leader will mark present
+            )
+            db.session.add(attendance)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Meeting created successfully',
+            'meeting': meeting.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating group meeting: {e}")
+        return jsonify({'error': 'Failed to create meeting'}), 500
+
+
+@app.route('/api/connect-groups/meetings/<meeting_id>', methods=['GET'])
+def get_group_meeting(meeting_id):
+    """Get meeting details with attendance"""
+    try:
+        meeting = ConnectGroupMeeting.query.filter_by(id=meeting_id).first()
+        if not meeting:
+            return jsonify({'error': 'Meeting not found'}), 404
+        
+        group = meeting.group
+        
+        # Get attendance records
+        attendance_records = ConnectGroupAttendance.query.filter_by(meeting_id=meeting_id).all()
+        
+        meeting_data = meeting.to_dict()
+        meeting_data['attendance'] = [att.to_dict() for att in attendance_records]
+        
+        return jsonify(meeting_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching meeting: {e}")
+        return jsonify({'error': 'Failed to fetch meeting'}), 500
+
+
+@app.route('/api/connect-groups/meetings/<meeting_id>/attendance', methods=['POST'])
+def submit_meeting_attendance(meeting_id):
+    """Submit attendance for a meeting (allows leader access via email + access code)"""
+    try:
+        meeting = ConnectGroupMeeting.query.filter_by(id=meeting_id).first()
+        if not meeting:
+            return jsonify({'error': 'Meeting not found'}), 404
+        
+        group = meeting.group
+        data = request.get_json()
+        
+        # Check permissions - either logged-in admin/staff OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                leader_email = group.leader.email if group.leader else None
+                co_leader_email = group.co_leader.email if group.co_leader else None
+                is_leader = (leader_email == current_user.email) or (co_leader_email == current_user.email)
+                is_authenticated_user = current_user.has_permission('groups', 'edit')
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code
+        if not is_authenticated_user and not is_leader:
+            leader_email = group.leader.email if group.leader else None
+            co_leader_email = group.co_leader.email if group.co_leader else None
+            provided_email = data.get('leader_email', '').lower()
+            provided_code = data.get('access_code', '')
+            
+            if provided_email and (provided_email == leader_email.lower() or provided_email == co_leader_email.lower()):
+                # Verify access code if set
+                if group.leader_access_code:
+                    if provided_code != group.leader_access_code:
+                        return jsonify({'error': 'Invalid access code'}), 403
+                is_leader = True
+            else:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        if not (is_authenticated_user or is_leader):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        attendance_list = data.get('attendance', [])  # [{person_id, present, notes?}]
+        
+        if not attendance_list:
+            return jsonify({'error': 'No attendance data provided'}), 400
+        
+        # Update attendance records
+        for att_data in attendance_list:
+            person_id = att_data.get('person_id')
+            present = att_data.get('present', False)
+            
+            if not person_id:
+                continue
+            
+            # Find or create attendance record
+            attendance = ConnectGroupAttendance.query.filter_by(
+                meeting_id=meeting_id,
+                person_id=person_id
+            ).first()
+            
+            if attendance:
+                attendance.present = present
+                attendance.notes = att_data.get('notes')
+            else:
+                # Create new attendance record
+                attendance = ConnectGroupAttendance(
+                    meeting_id=meeting_id,
+                    person_id=person_id,
+                    present=present,
+                    notes=att_data.get('notes')
+                )
+                db.session.add(attendance)
+            
+            # Update engagement profile if present
+            if present:
+                person = Person.query.filter_by(id=person_id).first()
+                if person and person.engagement_profile:
+                    person.engagement_profile.add_group_attendance(
+                        group_id=group.id,
+                        attendance_date=meeting.meeting_date,
+                        present=True
+                    )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Attendance submitted successfully',
+            'meeting': meeting.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error submitting attendance: {e}")
+        return jsonify({'error': 'Failed to submit attendance'}), 500
 
 
 @app.route('/api/pulse/<person_id>', methods=['GET'])

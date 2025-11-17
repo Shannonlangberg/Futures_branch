@@ -65,61 +65,283 @@ class EngagementProfile(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False, unique=True)
+    
+    # Summary pulse
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red
     last_seen = db.Column(db.DateTime)
-    attendance_log = db.Column(db.Text)  # JSON array stored as text
-    interaction_log = db.Column(db.Text)  # JSON array stored as text
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Raw logs (JSON text – we can normalize later)
+    attendance_log = db.Column(db.Text)          # [{timestamp, campus, zones}]
+    interaction_log = db.Column(db.Text)         # reserved for notes etc.
+    bible_log = db.Column(db.Text)               # [{date}]
+    giving_log = db.Column(db.Text)              # [{date, amount, campus}]
+    serving_log = db.Column(db.Text)             # [{date, role, campus, location}]
+    group_attendance_log = db.Column(db.Text)    # [{group_id, date, present}]
+    
+    # Derived metrics (simple v1)
+    attendance_frequency = db.Column(db.Float, default=0.0)
+    serving_frequency = db.Column(db.Float, default=0.0)
+    overall_engagement = db.Column(db.Float, default=0.0)
+    
+    def _load_json(self, value):
+        """Helper to load JSON from text field"""
+        return json.loads(value) if value else []
+    
+    def _dump_json(self, value):
+        """Helper to dump JSON to text field"""
+        return json.dumps(value or [])
+    
     def add_attendance(self, zones, campus, attendance_time=None):
-        """Add attendance record"""
+        """Add attendance record and recalculate heartbeat"""
         if attendance_time is None:
             attendance_time = datetime.utcnow()
         
-        attendance_log = json.loads(self.attendance_log) if self.attendance_log else []
-        
-        attendance_record = {
+        attendance_log = self._load_json(self.attendance_log)
+        attendance_log.append({
             'timestamp': attendance_time.isoformat(),
             'zones': zones,
             'campus': campus
+        })
+        self.attendance_log = self._dump_json(attendance_log)
+        self.last_seen = attendance_time
+        self.recalculate_heartbeat()
+    
+    def add_bible_reading(self, reading_date=None):
+        """Add Bible reading record"""
+        if reading_date is None:
+            reading_date = datetime.utcnow().date()
+        elif isinstance(reading_date, str):
+            reading_date = datetime.fromisoformat(reading_date).date()
+        
+        bible_log = self._load_json(self.bible_log)
+        bible_log.append({
+            'date': reading_date.isoformat()
+        })
+        self.bible_log = self._dump_json(bible_log)
+        self.recalculate_heartbeat()
+    
+    def add_giving(self, amount, giving_date=None, campus=None):
+        """Add giving record"""
+        if giving_date is None:
+            giving_date = datetime.utcnow().date()
+        elif isinstance(giving_date, str):
+            giving_date = datetime.fromisoformat(giving_date).date()
+        
+        giving_log = self._load_json(self.giving_log)
+        giving_log.append({
+            'date': giving_date.isoformat(),
+            'amount': float(amount),
+            'campus': campus
+        })
+        self.giving_log = self._dump_json(giving_log)
+        self.recalculate_heartbeat()
+    
+    def add_serving_record(self, role, campus, serving_date=None, location=None):
+        """Add serving activity record"""
+        if serving_date is None:
+            serving_date = datetime.utcnow().date()
+        elif isinstance(serving_date, str):
+            serving_date = datetime.fromisoformat(serving_date).date()
+        
+        serving_log = self._load_json(self.serving_log)
+        serving_log.append({
+            'date': serving_date.isoformat(),
+            'role': role,
+            'campus': campus,
+            'location': location
+        })
+        self.serving_log = self._dump_json(serving_log)
+        self.recalculate_heartbeat()
+    
+    def add_group_attendance(self, group_id, attendance_date=None, present=True):
+        """Add connect group attendance record"""
+        if attendance_date is None:
+            attendance_date = datetime.utcnow().date()
+        elif isinstance(attendance_date, str):
+            attendance_date = datetime.fromisoformat(attendance_date).date()
+        
+        group_log = self._load_json(self.group_attendance_log)
+        group_log.append({
+            'group_id': group_id,
+            'date': attendance_date.isoformat(),
+            'present': present
+        })
+        self.group_attendance_log = self._dump_json(group_log)
+        self.recalculate_heartbeat()
+    
+    def recalculate_heartbeat(self):
+        """
+        Recalculate heartbeat metrics and pulse_status.
+        Enhanced version with all 5 engagement factors and weighted scoring.
+        """
+        now = datetime.utcnow()
+        eight_weeks_ago = now - timedelta(days=56)
+        
+        # 1. ATTENDANCE (30% weight)
+        attendance_log = self._load_json(self.attendance_log)
+        recent_attendance = [
+            r for r in attendance_log
+            if 'timestamp' in r and (now - datetime.fromisoformat(r['timestamp'])).days <= 56
+        ]
+        services_last_8_weeks = len(recent_attendance)
+        max_services = 8
+        attendance_freq = min(services_last_8_weeks / max_services, 1.0) if max_services > 0 else 0.0
+        attendance_score = attendance_freq * 100.0
+        self.attendance_frequency = attendance_freq
+        
+        # Update last_seen if we have recent attendance
+        if recent_attendance:
+            latest_attendance = max(
+                [datetime.fromisoformat(r['timestamp']) for r in recent_attendance if 'timestamp' in r],
+                default=None
+            )
+            if latest_attendance:
+                self.last_seen = latest_attendance
+        
+        days_since_last_seen = (now - self.last_seen).days if self.last_seen else None
+        
+        # 2. BIBLE READING (25% weight)
+        # Target: Daily reading = 56 days in 8 weeks
+        bible_log = self._load_json(self.bible_log)
+        recent_bible = [
+            r for r in bible_log
+            if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        bible_freq = min(len(recent_bible) / 56, 1.0)  # Daily target
+        bible_score = bible_freq * 100.0
+        
+        # 3. GIVING (15% weight)
+        # Target: Weekly giving = 8 times in 8 weeks
+        giving_log = self._load_json(self.giving_log)
+        recent_giving = [
+            r for r in giving_log
+            if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        giving_freq = min(len(recent_giving) / 8, 1.0)  # Weekly target
+        giving_score = giving_freq * 100.0
+        
+        # 4. SERVING (15% weight)
+        # Target: Weekly serving = 8 times in 8 weeks
+        serving_log = self._load_json(self.serving_log)
+        recent_serving = [
+            r for r in serving_log
+            if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        serving_freq = min(len(recent_serving) / 8, 1.0)  # Weekly target
+        serving_score = serving_freq * 100.0
+        self.serving_frequency = serving_freq
+        
+        # 5. CONNECT GROUPS (15% weight)
+        # Target: Weekly attendance = 8 meetings in 8 weeks
+        group_log = self._load_json(self.group_attendance_log)
+        recent_groups = [
+            r for r in group_log
+            if 'date' in r and r.get('present', True) and 
+            datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        group_freq = min(len(recent_groups) / 8, 1.0)  # Weekly target
+        group_score = group_freq * 100.0
+        
+        # Weighted overall engagement score
+        weights = {
+            'attendance': 0.30,  # 30%
+            'bible': 0.25,      # 25%
+            'giving': 0.15,     # 15%
+            'serving': 0.15,    # 15%
+            'groups': 0.15       # 15%
         }
         
-        attendance_log.append(attendance_record)
-        self.attendance_log = json.dumps(attendance_log)
-        self.last_seen = attendance_time
-        self.update_pulse_status()
-    
-    def update_pulse_status(self):
-        """Update pulse status based on attendance"""
+        self.overall_engagement = (
+            attendance_score * weights['attendance'] +
+            bible_score * weights['bible'] +
+            giving_score * weights['giving'] +
+            serving_score * weights['serving'] +
+            group_score * weights['groups']
+        )
+        
+        # Pulse status determination
+        # Consider both overall engagement and recency
         if not self.last_seen:
             self.pulse_status = 'red'
-            return
-        
-        days_since_last_seen = (datetime.utcnow() - self.last_seen).days
-        
-        if days_since_last_seen <= 14:
-            self.pulse_status = 'green'
+        elif days_since_last_seen <= 14:
+            # Recent activity - check engagement level
+            if self.overall_engagement >= 70:
+                self.pulse_status = 'green'
+            elif self.overall_engagement >= 40:
+                self.pulse_status = 'amber'
+            else:
+                self.pulse_status = 'red'
         elif days_since_last_seen <= 28:
-            self.pulse_status = 'amber'
+            # 2-4 weeks - amber unless very high engagement
+            if self.overall_engagement >= 80:
+                self.pulse_status = 'green'
+            else:
+                self.pulse_status = 'amber'
         else:
-            self.pulse_status = 'red'
+            # >4 weeks - red unless exceptional engagement
+            if self.overall_engagement >= 90:
+                self.pulse_status = 'amber'
+            else:
+                self.pulse_status = 'red'
     
     def get_pulse_reasons(self):
-        """Get reasons for current pulse status"""
+        """Explain current pulse status in human language"""
         reasons = []
+        
+        now = datetime.utcnow()
+        eight_weeks_ago = now - timedelta(days=56)
         
         if not self.last_seen:
             reasons.append("No attendance recorded")
-            return reasons
-        
-        days_since_last_seen = (datetime.utcnow() - self.last_seen).days
-        
-        if self.pulse_status == 'green':
-            reasons.append(f"Attended {days_since_last_seen} days ago")
-        elif self.pulse_status == 'amber':
-            reasons.append(f"Last seen {days_since_last_seen} days ago (2-4 weeks)")
         else:
-            reasons.append(f"Last seen {days_since_last_seen} days ago (>4 weeks)")
+            days_since_last_seen = (now - self.last_seen).days
+            if days_since_last_seen <= 14:
+                reasons.append(f"Attended {days_since_last_seen} days ago")
+            elif days_since_last_seen <= 28:
+                reasons.append(f"Last seen {days_since_last_seen} days ago (2–4 weeks)")
+            else:
+                reasons.append(f"Last seen {days_since_last_seen} days ago (>4 weeks)")
+        
+        # Engagement breakdown
+        attendance_log = self._load_json(self.attendance_log)
+        recent_attendance = [
+            r for r in attendance_log
+            if 'timestamp' in r and (now - datetime.fromisoformat(r['timestamp'])).days <= 56
+        ]
+        services_last_8_weeks = len(recent_attendance)
+        reasons.append(f"Services: {services_last_8_weeks}/8 in last 8 weeks")
+        
+        bible_log = self._load_json(self.bible_log)
+        recent_bible = [
+            r for r in bible_log
+            if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        reasons.append(f"Bible reading: {len(recent_bible)} days in last 8 weeks")
+        
+        giving_log = self._load_json(self.giving_log)
+        recent_giving = [
+            r for r in giving_log
+            if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        reasons.append(f"Giving: {len(recent_giving)} times in last 8 weeks")
+        
+        serving_log = self._load_json(self.serving_log)
+        recent_serving = [
+            r for r in serving_log
+            if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        reasons.append(f"Serving: {len(recent_serving)} times in last 8 weeks")
+        
+        group_log = self._load_json(self.group_attendance_log)
+        recent_groups = [
+            r for r in group_log
+            if 'date' in r and r.get('present', True) and 
+            datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
+        ]
+        reasons.append(f"Connect groups: {len(recent_groups)} meetings in last 8 weeks")
+        
+        reasons.append(f"Overall engagement score: {int(self.overall_engagement)}/100")
         
         return reasons
     
@@ -130,8 +352,15 @@ class EngagementProfile(db.Model):
             'person_id': self.person_id,
             'pulse_status': self.pulse_status,
             'last_seen': self.last_seen.isoformat() if self.last_seen else None,
-            'attendance_log': json.loads(self.attendance_log) if self.attendance_log else [],
-            'interaction_log': json.loads(self.interaction_log) if self.interaction_log else [],
+            'attendance_log': self._load_json(self.attendance_log),
+            'interaction_log': self._load_json(self.interaction_log),
+            'bible_log': self._load_json(self.bible_log),
+            'giving_log': self._load_json(self.giving_log),
+            'serving_log': self._load_json(self.serving_log),
+            'group_attendance_log': self._load_json(self.group_attendance_log),
+            'attendance_frequency': self.attendance_frequency,
+            'serving_frequency': self.serving_frequency,
+            'overall_engagement': self.overall_engagement,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'pulse_reasons': self.get_pulse_reasons()
         }
@@ -171,6 +400,118 @@ class BeaconZone(db.Model):
             'beacon_minor': self.beacon_minor,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class ConnectGroup(db.Model):
+    """Connect Group model"""
+    __tablename__ = 'connect_groups'
+    
+    id = db.Column(db.String(50), primary_key=True)  # e.g., "cg_copper_coast_1"
+    name = db.Column(db.String(200), nullable=False)  # e.g., "Copper Coast Young Adults"
+    campus = db.Column(db.String(100), nullable=False)
+    leader_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    co_leader_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)
+    
+    # Meeting schedule
+    meeting_day = db.Column(db.String(20))  # "Monday", "Tuesday", etc.
+    meeting_time = db.Column(db.String(20))  # "7:00 PM"
+    meeting_frequency = db.Column(db.String(20), default='weekly')  # weekly, bi-weekly, monthly
+    location = db.Column(db.String(200))  # Address or location name
+    
+    # Leader access (simple password for leader portal)
+    leader_access_code = db.Column(db.String(50))  # Simple password for leader login
+    
+    # Metadata
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    leader = db.relationship('Person', foreign_keys=[leader_id], backref='led_groups')
+    co_leader = db.relationship('Person', foreign_keys=[co_leader_id], backref='co_led_groups')
+    
+    def get_members(self):
+        """Get all active members of this group"""
+        return Person.query.filter_by(connect_group=self.id, is_active=True).all()
+    
+    def get_member_count(self):
+        """Get count of active members"""
+        return Person.query.filter_by(connect_group=self.id, is_active=True).count()
+    
+    def to_dict(self):
+        """Convert connect group to dictionary"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'campus': self.campus,
+            'leader_id': self.leader_id,
+            'leader_name': self.leader.full_name if self.leader else None,
+            'leader_email': self.leader.email if self.leader else None,
+            'co_leader_id': self.co_leader_id,
+            'co_leader_name': self.co_leader.full_name if self.co_leader else None,
+            'meeting_day': self.meeting_day,
+            'meeting_time': self.meeting_time,
+            'meeting_frequency': self.meeting_frequency,
+            'location': self.location,
+            'member_count': self.get_member_count(),
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class ConnectGroupMeeting(db.Model):
+    """Individual connect group meeting attendance records"""
+    __tablename__ = 'connect_group_meetings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.String(50), db.ForeignKey('connect_groups.id'), nullable=False)
+    meeting_date = db.Column(db.Date, nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    group = db.relationship('ConnectGroup', backref='meetings')
+    attendance = db.relationship('ConnectGroupAttendance', backref='meeting', cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        """Convert meeting to dictionary"""
+        present_count = len([a for a in self.attendance if a.present])
+        return {
+            'id': self.id,
+            'group_id': self.group_id,
+            'group_name': self.group.name if self.group else None,
+            'meeting_date': self.meeting_date.isoformat(),
+            'notes': self.notes,
+            'attendance_count': present_count,
+            'total_members': len(self.attendance),
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class ConnectGroupAttendance(db.Model):
+    """Individual attendance record for a meeting"""
+    __tablename__ = 'connect_group_attendance'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    meeting_id = db.Column(db.Integer, db.ForeignKey('connect_group_meetings.id'), nullable=False)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    present = db.Column(db.Boolean, default=True)
+    notes = db.Column(db.Text)
+    
+    # Relationships
+    person = db.relationship('Person', backref='cg_attendance_records')
+    
+    def to_dict(self):
+        """Convert attendance record to dictionary"""
+        return {
+            'id': self.id,
+            'meeting_id': self.meeting_id,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'present': self.present,
+            'notes': self.notes
         }
 
 
