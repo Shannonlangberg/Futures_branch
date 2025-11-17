@@ -986,6 +986,14 @@ login_manager.login_view = 'api_login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
 
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Handle unauthorized API requests - return JSON instead of redirect"""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Authentication required. Please sign in.'}), 401
+    # For non-API routes, redirect to login
+    return redirect(url_for('api_login'))
+
 # User management functions
 def load_users_database():
     """Load users from database"""
