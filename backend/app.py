@@ -13520,7 +13520,7 @@ def get_heartbeat_list():
         department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
         page = int(request.args.get('page', 1))
-        page_size = min(int(request.args.get('page_size', 50)), 200)
+        page_size = min(int(request.args.get('page_size', 200)), 500)  # Increased default to 200 to show more people
 
         # Build base query
         query = Person.query.filter_by(is_active=True)
@@ -13711,7 +13711,7 @@ def get_people_directory():
         department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
         page = int(request.args.get('page', 1))
-        page_size = min(int(request.args.get('page_size', 50)), 200)
+        page_size = min(int(request.args.get('page_size', 200)), 500)  # Increased default to 200 to show more people
 
         # Build base query
         query = Person.query.filter_by(is_active=True)
