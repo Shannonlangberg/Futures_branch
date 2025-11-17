@@ -14722,15 +14722,11 @@ def google_oauth_callback():
         # CRITICAL: Mark session as modified and save it before redirecting
         session.modified = True
         
-        # Ensure Flask-Login session is preserved
-        # If user was authenticated via Flask-Login, make sure that session persists
+        # Log success (don't re-login user as it can cause recursion)
         if current_user.is_authenticated:
-            # Re-login the user to ensure Flask-Login session is fresh
-            from flask_login import login_user
-            login_user(current_user, remember=True)
             logger.info(f"Google Drive OAuth successful for authenticated user {current_user.username} (ID: {user_id}), tokens stored in session")
         else:
-            logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session (user not authenticated via Flask-Login)")
+            logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session")
         
         # Return success page that handles both popup and redirect scenarios
         return '''
