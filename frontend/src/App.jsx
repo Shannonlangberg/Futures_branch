@@ -291,9 +291,9 @@ function App() {
       }
     };
 
-    window.addEventListener('message', handleMessage);
+    window.addEventListener('message', handleDriveAuthMessage);
     return () => {
-      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('message', handleDriveAuthMessage);
     };
   }, [checkAuthStatus]);
 
