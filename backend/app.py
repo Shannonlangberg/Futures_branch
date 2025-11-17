@@ -14405,8 +14405,8 @@ def get_events():
 def get_resource_categories():
     """Get all resource categories"""
     try:
-        # Check if user has access to resources (admin only)
-        if not current_user.has_permission('resources', 'view'):
+        # Resources is admin-only - check if user is admin
+        if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         # For now, return empty array - resources functionality can be added later
@@ -14421,8 +14421,8 @@ def get_resource_categories():
 def get_resource_category_files(category_id):
     """Get files for a specific resource category"""
     try:
-        # Check if user has access to resources (admin only)
-        if not current_user.has_permission('resources', 'view'):
+        # Resources is admin-only - check if user is admin
+        if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         # For now, return empty array - resources functionality can be added later
