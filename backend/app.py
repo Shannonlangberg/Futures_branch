@@ -801,6 +801,8 @@ app.secret_key = os.environ.get('SECRET_KEY', 'futures-church-secret-key-2025')
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_NAME'] = 'session'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Keep session for 7 days
 
 # Configure SQLAlchemy database
 # Strip whitespace from DATABASE_URL to handle Railway environment variable issues
