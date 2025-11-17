@@ -575,6 +575,37 @@ class Event(db.Model):
         }
 
 
+class ResourceCategory(db.Model):
+    """Resource category model for organizing resources"""
+    __tablename__ = 'resource_categories'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    display_name = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(200), unique=True, nullable=False)
+    description = db.Column(db.Text)
+    folder_id = db.Column(db.String(200))  # Google Drive folder ID
+    sort_order = db.Column(db.Integer, default=0)
+    links = db.Column(db.Text)  # JSON array of links
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        """Convert category to dictionary"""
+        return {
+            'id': self.slug or str(self.id),
+            'displayName': self.display_name,
+            'slug': self.slug,
+            'description': self.description or '',
+            'folderId': self.folder_id or '',
+            'sortOrder': self.sort_order or 0,
+            'links': json.loads(self.links) if self.links else [],
+            'isActive': self.is_active,
+            'createdAt': self.created_at.isoformat() if self.created_at else None,
+            'updatedAt': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
 def init_db(app):
     """Initialize database"""
     db.init_app(app)
