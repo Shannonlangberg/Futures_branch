@@ -189,6 +189,11 @@ resources:
     description: "Manage Bluetooth beacons and zones"
     actions: ["view", "edit", "create", "delete", "assign"]
 
+  heartbeat:
+    name: "Heartbeat"
+    description: "View and manage engagement health dashboards"
+    actions: ["view", "edit", "create", "delete", "view_own"]
+
 # Campus scoping rules
 campus_scoping:
   enabled: true
@@ -198,6 +203,7 @@ campus_scoping:
     - "serving"
     - "events"
     - "prayer_requests"
+    - "heartbeat"
   
   # Roles that can see all campuses
   cross_campus_roles:

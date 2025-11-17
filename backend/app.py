@@ -15,6 +15,7 @@ from models import (
     ResourceLink,
     GoogleOAuthToken,
     create_person_with_engagement,
+    AIAlert,
 )
 from config.database import build_sqlalchemy_settings
 from datetime import datetime, timezone, timedelta
@@ -2239,6 +2240,319 @@ Be warm and specific. Use their data to give meaningful insights about Futures C
     except Exception as e:
         logger.error(f"Claude API error in generate_cross_campus_insights: {e}")
         return f"I'd be happy to analyze your church-wide data for Futures Church, but I'm having trouble connecting to my AI assistant right now. The data shows {analysis_data.get('total_attendance', 0)} total attendance across all campuses with an average of {analysis_data.get('averages', {}).get('attendance', 0):.1f} people per week."
+
+def monitor_person_heartbeat_ai(person, engagement_profile, previous_status=None, previous_engagement=None):
+    """
+    AI monitoring function - acts like 100 new people pastors watching each person
+    Detects engagement drops and generates alerts/recommendations
+    Called when heartbeat is recalculated
+    """
+    from models import AIAlert
+    
+    if not claude:
+        return  # Skip if AI not available
+    
+    try:
+        current_status = engagement_profile.pulse_status
+        current_engagement = engagement_profile.overall_engagement or 0
+        last_seen = engagement_profile.last_seen
+        
+        # Calculate days since last seen
+        days_since = None
+        if last_seen:
+            days_since = (datetime.utcnow() - last_seen).days
+        
+        # Detect if status dropped (green -> amber/red, amber -> red)
+        status_dropped = False
+        if previous_status:
+            if previous_status == 'green' and current_status in ['amber', 'red']:
+                status_dropped = True
+            elif previous_status == 'amber' and current_status == 'red':
+                status_dropped = True
+        
+        # Detect significant engagement drop (>20 points)
+        engagement_dropped = False
+        if previous_engagement and current_engagement < previous_engagement - 20:
+            engagement_dropped = True
+        
+        # Check if person needs escalation to staff
+        needs_escalation = False
+        priority = 'low'
+        
+        if current_status == 'red':
+            if days_since and days_since > 42:  # >6 weeks
+                needs_escalation = True
+                priority = 'urgent'
+            elif days_since and days_since > 28:  # >4 weeks
+                needs_escalation = True
+                priority = 'high'
+            else:
+                priority = 'medium'
+        elif current_status == 'amber' and days_since and days_since > 21:
+            priority = 'medium'
+        
+        # Only create alert if there's a significant change or urgent situation
+        should_alert = status_dropped or engagement_dropped or needs_escalation or (current_status == 'red' and days_since and days_since > 28)
+        
+        if not should_alert:
+            return
+        
+        # Check if we already have a recent active alert for this person
+        recent_alert = AIAlert.query.filter_by(
+            person_id=person.id,
+            status='active'
+        ).order_by(AIAlert.created_at.desc()).first()
+        
+        # Don't create duplicate alerts within 7 days
+        if recent_alert and recent_alert.created_at:
+            days_since_alert = (datetime.utcnow() - recent_alert.created_at).days
+            if days_since_alert < 7:
+                return
+        
+        # Build context for AI
+        attendance_log = engagement_profile._load_json(engagement_profile.attendance_log) if engagement_profile.attendance_log else []
+        recent_attendance = [r for r in attendance_log[-5:]] if attendance_log else []
+        
+        context = f"""Person: {person.full_name}
+Campus: {person.campus}
+Department: {person.department or 'Not set'}
+Connect Group: {person.connect_group or 'Not in a group'}
+Dream Team: {', '.join(json.loads(person.dream_team_roles)) if person.dream_team_roles else 'Not serving'}
+
+Current Status:
+- Pulse Status: {current_status.upper()} (was {previous_status or 'new'})
+- Engagement Score: {current_engagement:.0f} (was {previous_engagement or 'N/A'})
+- Days since last seen: {days_since if days_since is not None else 'Never'}
+- Recent attendance: {len(recent_attendance)} services in last 8 weeks
+
+Changes detected:
+- Status dropped: {status_dropped}
+- Engagement dropped: {engagement_dropped}
+- Needs staff escalation: {needs_escalation}
+"""
+        
+        # Generate AI recommendation
+        prompt = f"""You're an AI assistant acting as a caring new people pastor monitoring church members' spiritual health.
+
+{context}
+
+Generate a brief, caring alert and recommendation (2-3 sentences) for the campus pastor:
+1. What's happening with this person
+2. What action should be taken (specific, actionable)
+3. When to escalate to staff (if urgent)
+
+Be warm, specific, and actionable. Focus on pastoral care, not just data.
+
+Format as JSON:
+{{
+  "title": "Brief alert title",
+  "message": "What's happening with this person",
+  "recommendation": "Specific action to take"
+}}"""
+
+        try:
+            response = claude.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=300,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            ai_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
+            
+            # Parse JSON from response
+            import json
+            json_start = ai_text.find('{')
+            json_end = ai_text.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                ai_data = json.loads(ai_text[json_start:json_end])
+                title = ai_data.get('title', f'{person.full_name} needs attention')
+                message = ai_data.get('message', f'Engagement has dropped to {current_status}')
+                recommendation = ai_data.get('recommendation', 'Consider reaching out to check in')
+            else:
+                # Fallback if JSON parsing fails
+                title = f'{person.full_name} needs attention'
+                message = f'Pulse status is {current_status.upper()}. Last seen {days_since} days ago.' if days_since else f'Pulse status is {current_status.upper()}.'
+                recommendation = ai_text[:200] if len(ai_text) > 200 else ai_text
+        except Exception as e:
+            logger.error(f"Error generating AI recommendation: {e}")
+            title = f'{person.full_name} needs attention'
+            message = f'Pulse status is {current_status.upper()}. Last seen {days_since} days ago.' if days_since else f'Pulse status is {current_status.upper()}.'
+            recommendation = 'Consider reaching out to check in'
+        
+        # Determine alert type
+        if needs_escalation:
+            alert_type = 'escalate_staff'
+        elif status_dropped or engagement_dropped:
+            alert_type = 'engagement_drop'
+        else:
+            alert_type = 'needs_followup'
+        
+        # Create alert
+        alert = AIAlert(
+            person_id=person.id,
+            alert_type=alert_type,
+            priority=priority,
+            title=title,
+            message=message,
+            ai_recommendation=recommendation,
+            campus=person.campus,
+            status='active'
+        )
+        
+        db.session.add(alert)
+        db.session.flush()  # Flush to get ID but don't commit yet (caller will commit)
+        
+        logger.info(f"AI Alert created for {person.full_name}: {title} (Priority: {priority})")
+        
+    except Exception as e:
+        logger.error(f"Error in AI monitoring for person {person.id}: {e}")
+        # Don't fail the heartbeat recalculation if AI monitoring fails
+
+
+def generate_campus_heartbeat_insights(campus_id, total, green, amber, red, department_filter=None):
+    """Generate AI insights for campus heartbeat health"""
+    if not claude:
+        return None
+    
+    try:
+        campus_name = campus_id if campus_id != 'all_campuses' else 'All Campuses'
+        dept_context = f" (filtered to {department_filter.replace('_', ' ')} department)" if department_filter and department_filter != 'all' else ""
+        
+        health_percentage = (green / total * 100) if total > 0 else 0
+        risk_percentage = (red / total * 100) if total > 0 else 0
+        
+        prompt = f"""You're an AI assistant helping a campus pastor monitor their congregation's spiritual health.
+
+Campus: {campus_name}{dept_context}
+Total People: {total}
+- Healthy (Green): {green} ({health_percentage:.1f}%)
+- Watch (Amber): {amber} ({amber/total*100 if total > 0 else 0:.1f}%)
+- At Risk (Red): {red} ({risk_percentage:.1f}%)
+
+Generate a brief, encouraging insight (2-3 sentences) about:
+1. Overall campus health status
+2. What the pastor should focus on this week
+3. Any patterns or concerns to watch
+
+Be warm, pastoral, and actionable. Focus on helping them care for their people effectively."""
+        
+        response = claude.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=200,
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        insight_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
+        return insight_text
+    except Exception as e:
+        logger.error(f"Error generating campus heartbeat insights: {e}")
+        return None
+
+def generate_person_discipleship_next_steps(person_data, engagement_data):
+    """Generate AI-powered next steps based on person's discipleship journey"""
+    if not claude:
+        return []
+    
+    try:
+        # Build discipleship journey context
+        milestones = []
+        if person_data.get('dna_completed'):
+            milestones.append(f"Completed DNA on {person_data['dna_completed']}")
+        if person_data.get('baptised_on'):
+            milestones.append(f"Baptised on {person_data['baptised_on']}")
+        if person_data.get('filled_holy_spirit'):
+            milestones.append(f"Filled with Holy Spirit on {person_data['filled_holy_spirit']}")
+        if person_data.get('rise_attended'):
+            milestones.append(f"Attended RISE on {person_data['rise_attended']}")
+        if person_data.get('first_served_on'):
+            milestones.append(f"Started serving on {person_data['first_served_on']}")
+        
+        journey_status = "\n".join(milestones) if milestones else "No discipleship milestones completed yet"
+        
+        # Build engagement context
+        pulse_status = engagement_data.get('pulse_status', 'unknown')
+        last_seen = engagement_data.get('last_seen')
+        days_since = None
+        if last_seen:
+            try:
+                from datetime import datetime
+                if isinstance(last_seen, str):
+                    last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                else:
+                    last_seen_dt = last_seen
+                days_since = (datetime.now() - last_seen_dt.replace(tzinfo=None)).days
+            except:
+                days_since = None
+        
+        engagement_context = f"""
+Pulse Status: {pulse_status}
+Last Seen: {last_seen or 'Never'}
+Days Since Last Attendance: {days_since if days_since is not None else 'N/A'}
+Overall Engagement Score: {engagement_data.get('overall_engagement', 0):.0f}
+Attendance Frequency: {engagement_data.get('attendance_frequency', 0)*100:.0f}%
+"""
+        
+        # Connection context
+        connect_group = person_data.get('connect_group')
+        serving_roles = person_data.get('dream_team_roles', [])
+        connection_context = f"""
+Connect Group: {connect_group if connect_group else 'Not in a group'}
+Serving: {', '.join(serving_roles) if serving_roles else 'Not currently serving'}
+"""
+        
+        prompt = f"""You're an AI assistant helping a campus pastor guide someone on their discipleship journey.
+
+Person: {person_data.get('full_name', 'Unknown')}
+Campus: {person_data.get('campus', 'Unknown')}
+Department: {person_data.get('department', 'Unknown')}
+
+Discipleship Journey (Railroad):
+{journey_status}
+
+Engagement Health:
+{engagement_context}
+
+Current Connection:
+{connection_context}
+
+Based on their discipleship journey and current engagement, suggest 2-3 specific, actionable next steps. Consider:
+1. What's the next milestone in the discipleship railroad they should pursue?
+2. How can we help them grow based on their current engagement level?
+3. What practical steps can the pastor take this week?
+
+Format as a JSON array of objects, each with:
+- "action": short action title (e.g., "Invite to Connect Group")
+- "description": why this matters and what to do
+- "priority": "high", "medium", or "low"
+- "milestone": which discipleship milestone this relates to (or "engagement" if not milestone-specific)
+
+Return ONLY valid JSON, no markdown or extra text."""
+        
+        response = claude.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=400,
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        response_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
+        
+        # Parse JSON response
+        import json
+        # Try to extract JSON from response (in case it's wrapped in markdown)
+        json_start = response_text.find('[')
+        json_end = response_text.rfind(']') + 1
+        if json_start >= 0 and json_end > json_start:
+            json_str = response_text[json_start:json_end]
+            steps = json.loads(json_str)
+            return steps
+        else:
+            # Fallback: try parsing the whole response
+            steps = json.loads(response_text)
+            return steps
+    except Exception as e:
+        logger.error(f"Error generating person discipleship next steps: {e}")
+        # Return fallback rule-based steps
+        return []
 
 def preprocess_voice_text(text: str) -> str:
     """Preprocess voice input text to improve recognition accuracy with enhanced noise handling"""
@@ -13361,22 +13675,37 @@ def serve_react_app(path):
 # Intelligent people-focused modules for Futures LINK
 # ============================================================================
 
-@app.route('/api/persons/demo', methods=['GET'])
-@require_feature_flag('HEARTBEAT_ENABLED')
-def get_persons_demo():
-    """Demo endpoint for testing Heartbeat interface (no auth required)"""
+@app.route('/api/heartbeat', methods=['GET'])
+@login_required
+def get_heartbeat_list():
+    """List people with basic heartbeat info for pastors"""
     try:
-        # This is for demo/testing only - bypasses authentication
+        # Use query_access permission for heartbeat dashboards
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
+        department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
-        
-        # Build query
+        page = int(request.args.get('page', 1))
+        page_size = min(int(request.args.get('page_size', 200)), 500)  # Increased default to 200 to show more people
+
+        # Build base query
         query = Person.query.filter_by(is_active=True)
-        
+
+        # Apply explicit campus filter (e.g. admin switching campuses)
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(Person.campus == campus_filter)
-        
+
+        # Department filter
+        if department_filter and department_filter != 'all':
+            query = query.filter(Person.department == department_filter)
+
+        # Apply campus scoping based on user role/campus for heartbeat resource
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'heartbeat')
+
         if search:
             search_term = f"%{search}%"
             query = query.filter(
@@ -13386,80 +13715,523 @@ def get_persons_demo():
                     Person.preferred_name.ilike(search_term)
                 )
             )
-        
-        persons = query.order_by(Person.full_name).all()
-        
-        # Include engagement profile data
-        result = []
+
+        total = query.count()
+        persons = (
+            query.order_by(Person.full_name)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        results = []
         for person in persons:
-            person_data = person.to_dict()
+            engagement = person.engagement_profile
+            if not engagement:
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                db.session.flush()
+
+            # Store previous values for AI monitoring
+            previous_status = engagement.pulse_status
+            previous_engagement = engagement.overall_engagement
             
-            # Add engagement profile data
-            if person.engagement_profile:
-                engagement_data = person.engagement_profile.to_dict()
-                person_data['pulse_status'] = engagement_data['pulse_status']
-                person_data['last_seen'] = engagement_data['last_seen']
-                person_data['pulse_reasons'] = engagement_data['pulse_reasons']
-                person_data['attendance_frequency'] = engagement_data['attendance_frequency']
-                person_data['serving_frequency'] = engagement_data['serving_frequency']
-                person_data['overall_engagement'] = engagement_data['overall_engagement']
-            else:
-                person_data['pulse_status'] = 'red'
-                person_data['last_seen'] = None
-                person_data['pulse_reasons'] = ['No engagement data']
-                person_data['attendance_frequency'] = 0.0
-                person_data['serving_frequency'] = 0.0
-                person_data['overall_engagement'] = 0.0
+            # Ensure heartbeat is up to date
+            engagement.recalculate_heartbeat()
+            profile = engagement.to_dict()
             
+            # Trigger AI monitoring if status changed (after commit)
+            if engagement.pulse_status != previous_status or (previous_engagement and abs(engagement.overall_engagement - previous_engagement) > 10):
+                try:
+                    monitor_person_heartbeat_ai(person, engagement, previous_status, previous_engagement)
+                except Exception as e:
+                    logger.error(f"Error in AI monitoring: {e}")
+
             # Apply pulse filter if specified
-            if pulse_filter and person_data['pulse_status'] != pulse_filter:
+            if pulse_filter and profile['pulse_status'] != pulse_filter:
                 continue
-            
-            result.append(person_data)
-        
+
+            results.append({
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+                'campus': person.campus,
+                'department': person.department,
+                'pulse_status': profile['pulse_status'],
+                'overall_engagement': profile['overall_engagement'],
+                'last_seen': profile['last_seen'],
+                'pulse_reasons': profile['pulse_reasons'],
+            })
+
+        db.session.commit()
+
+        # Calculate summary stats for AI insights
+        summary_total = len(results)
+        summary_green = sum(1 for p in results if p['pulse_status'] == 'green')
+        summary_amber = sum(1 for p in results if p['pulse_status'] == 'amber')
+        summary_red = sum(1 for p in results if p['pulse_status'] == 'red')
+
+        # Generate AI insights for campus health (if Claude is available)
+        ai_insights = None
+        if claude and summary_total > 0:
+            try:
+                ai_insights = generate_campus_heartbeat_insights(
+                    campus_filter or 'all_campuses',
+                    summary_total,
+                    summary_green,
+                    summary_amber,
+                    summary_red,
+                    department_filter
+                )
+            except Exception as e:
+                logger.error(f"Error generating AI insights: {e}")
+                ai_insights = None
+
         return jsonify({
-            'persons': result,
-            'total': len(result),
+            'persons': results,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'ai_insights': ai_insights,
             'filters': {
                 'campus': campus_filter,
                 'pulse_status': pulse_filter,
                 'search': search
             }
         })
-        
+
     except Exception as e:
-        logger.error(f"Error fetching persons (demo): {e}")
-        return jsonify({'error': 'Failed to fetch persons'}), 500
+        db.session.rollback()
+        logger.error(f"Error fetching heartbeat list: {e}")
+        return jsonify({'error': 'Failed to fetch heartbeat list'}), 500
 
 
-@app.route('/api/persons/demo/<person_id>', methods=['GET'])
-@require_feature_flag('HEARTBEAT_ENABLED')
-def get_person_detail_demo(person_id):
-    """Demo endpoint for person details (no auth required)"""
+@app.route('/api/heartbeat/<person_id>', methods=['GET'])
+@login_required
+def get_heartbeat_detail(person_id):
+    """Detailed heartbeat view for one person"""
     try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
         person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
-        
-        # Get person data
-        person_data = person.to_dict()
-        
-        # Add full engagement profile
-        if person.engagement_profile:
-            engagement_data = person.engagement_profile.to_dict()
-            person_data['engagement'] = engagement_data
-        else:
-            # Create engagement profile if it doesn't exist
+
+        engagement = person.engagement_profile
+        if not engagement:
             engagement = EngagementProfile(person_id=person.id)
             db.session.add(engagement)
-            db.session.commit()
-            person_data['engagement'] = engagement.to_dict()
-        
-        return jsonify(person_data)
-        
+            db.session.flush()
+
+        engagement.recalculate_heartbeat()
+        profile = engagement.to_dict()
+        db.session.commit()
+
+        # Build metrics shape (v1 mostly attendance-based)
+        now = datetime.utcnow()
+        attendance_log = profile['attendance_log']
+        recent_attendance = [
+            r for r in attendance_log
+            if 'timestamp' in r and (now - datetime.fromisoformat(r['timestamp'])).days <= 56
+        ]
+
+        metrics = {
+            'attendance': {
+                'services_last_8_weeks': len(recent_attendance),
+                'attendance_score': profile['overall_engagement'],
+                'last_seen': profile['last_seen'],
+                'timeline': attendance_log
+            },
+            # Placeholders for future metrics
+            'groups': {},
+            'bible': {},
+            'giving': {},
+            'serving': {}
+        }
+
+        return jsonify({
+            'person': {
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+                'campus': person.campus
+            },
+            'summary': {
+                'pulse_status': profile['pulse_status'],
+                'overall_engagement': profile['overall_engagement'],
+                'pulse_reasons': profile['pulse_reasons'],
+                'last_seen': profile['last_seen']
+            },
+            'metrics': metrics
+        })
+
     except Exception as e:
-        logger.error(f"Error fetching person detail (demo): {e}")
-        return jsonify({'error': 'Failed to fetch person details'}), 500
+        db.session.rollback()
+        logger.error(f"Error fetching heartbeat detail: {e}")
+        return jsonify({'error': 'Failed to fetch heartbeat detail'}), 500
+
+
+@app.route('/api/people', methods=['GET'])
+@login_required
+def get_people_directory():
+    """
+    Paginated people directory for pastors, campus-scoped via RBAC.
+    
+    Returns basic person info plus heartbeat summary fields suitable
+    for People directory and Heartbeat dashboards.
+    """
+    try:
+        # Directory is available to roles that already have query/report access
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
+        campus_filter = request.args.get('campus', None)
+        pulse_filter = request.args.get('pulse_status', None)
+        department_filter = request.args.get('department', None)
+        search = request.args.get('search', '').strip()
+        page = int(request.args.get('page', 1))
+        page_size = min(int(request.args.get('page_size', 200)), 500)  # Increased default to 200 to show more people
+
+        # Build base query
+        query = Person.query.filter_by(is_active=True)
+
+        # Explicit campus filter (for cross-campus roles)
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(Person.campus == campus_filter)
+
+        # Department filter
+        if department_filter and department_filter != 'all':
+            query = query.filter(Person.department == department_filter)
+
+        # Apply campus scoping based on user role/campus for heartbeat/people resource
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'heartbeat')
+
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Person.full_name.ilike(search_term),
+                    Person.email.ilike(search_term),
+                    Person.preferred_name.ilike(search_term)
+                )
+            )
+
+        total = query.count()
+        persons = (
+            query.order_by(Person.full_name)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        results = []
+        for person in persons:
+            engagement = person.engagement_profile
+            if not engagement:
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                db.session.flush()
+
+            engagement.recalculate_heartbeat()
+            profile = engagement.to_dict()
+
+            # Apply pulse filter if specified
+            if pulse_filter and profile['pulse_status'] != pulse_filter:
+                continue
+
+            results.append({
+                'id': person.id,
+                'full_name': person.full_name,
+                'preferred_name': person.preferred_name,
+                'email': person.email,
+                'phone': person.phone,
+                'campus': person.campus,
+                'department': person.department,
+                'connect_group': person.connect_group,
+                'dream_team_roles': json.loads(person.dream_team_roles) if person.dream_team_roles else [],
+                'tags': json.loads(person.tags) if person.tags else [],
+                'pulse_status': profile['pulse_status'],
+                'overall_engagement': profile['overall_engagement'],
+                'last_seen': profile['last_seen'],
+            })
+
+        db.session.commit()
+
+        return jsonify({
+            'people': results,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'filters': {
+                'campus': campus_filter,
+                'pulse_status': pulse_filter,
+                'search': search
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error fetching people directory: {e}")
+        return jsonify({'error': 'Failed to fetch people directory'}), 500
+
+
+@app.route('/api/people/import_pco', methods=['POST'])
+@login_required
+def import_people_from_pco():
+    """
+    Import people from a Planning Center CSV export.
+    
+    Expected columns (simplified v1):
+      - Person ID
+      - First Name
+      - Last Name
+      - Nickname
+      - Campus Name
+      - Home Email / Work Email / Other Email
+      - Mobile Phone Number / Home Phone Number
+      - Tags :: Tags
+    """
+    try:
+        # Restrict bulk imports to senior leadership/admin roles
+        if current_user.role not in (
+            'admin',
+            'senior_leadership',
+            'senior_leader',
+            'senior_pastor',
+            'lead_pastor',
+        ):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part in request'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+
+        import csv
+        import io
+
+        # Read CSV content (assuming UTF-8)
+        stream = io.StringIO(file.stream.read().decode('utf-8', errors='ignore'))
+        reader = csv.DictReader(stream)
+
+        created = 0
+        skipped = 0
+        errors = []
+        seen_emails = set()
+
+        # Campus mapping hook (PCO campus name -> internal campus code)
+        # Build mapping from active campuses so PCO "Copper Coast" maps to our ID.
+        active_campuses = get_active_campuses()
+        campus_name_to_id = {}
+        for c in active_campuses:
+            cid = c.get('id')
+            display = (c.get('name') or '').strip().lower()
+            full = (c.get('full_name') or '').strip().lower()
+            if cid:
+                if display:
+                    campus_name_to_id[display] = cid
+                if full:
+                    campus_name_to_id[full] = cid
+
+        def map_campus(pco_campus_name):
+            raw = (pco_campus_name or '').strip()
+            if not raw:
+                return 'all_campuses'
+            key = raw.lower()
+            return campus_name_to_id.get(key, raw)
+
+        def map_department(tags_list, status=None, birthday_str=None):
+            """
+            Map PCO tags/status to department.
+            Returns: kids, youth, young_adults, families, adults, seniors, or None
+            """
+            if not tags_list:
+                tags_list = []
+            
+            # Normalize tags to lowercase for matching
+            tags_lower = [t.lower() for t in tags_list]
+            status_lower = (status or '').lower()
+            
+            # Check tags for explicit department markers
+            for tag in tags_lower:
+                if any(word in tag for word in ['kids', 'children', 'child', 'grade', 'kindergarten', 'primary', 'elementary']):
+                    return 'kids'
+                if any(word in tag for word in ['youth', 'teen', 'teenager', 'high school']):
+                    return 'youth'
+                if any(word in tag for word in ['young adult', 'ya', 'collective', 'college', 'university']):
+                    return 'young_adults'
+                if any(word in tag for word in ['family', 'families', 'parent', 'married', 'couple']):
+                    return 'families'
+                if any(word in tag for word in ['senior', 'elder', 'retired', 'retirement']):
+                    return 'seniors'
+            
+            # Check status field
+            if status_lower:
+                if any(word in status_lower for word in ['kids', 'children', 'child']):
+                    return 'kids'
+                if any(word in status_lower for word in ['youth', 'teen']):
+                    return 'youth'
+                if any(word in status_lower for word in ['young adult', 'ya']):
+                    return 'young_adults'
+                if any(word in status_lower for word in ['family', 'families']):
+                    return 'families'
+                if any(word in status_lower for word in ['senior', 'elder']):
+                    return 'seniors'
+            
+            # Age-based fallback if birthday is available
+            if birthday_str:
+                try:
+                    from datetime import datetime
+                    birthday = datetime.strptime(birthday_str.strip(), '%Y-%m-%d')
+                    age = (datetime.now() - birthday).days // 365
+                    if age < 13:
+                        return 'kids'
+                    elif age < 18:
+                        return 'youth'
+                    elif age < 25:
+                        return 'young_adults'
+                    elif age < 65:
+                        return 'adults'
+                    else:
+                        return 'seniors'
+                except:
+                    pass
+            
+            # Default to adults if no indicators found
+            return 'adults'
+
+        for idx, row in enumerate(reader, start=1):
+            try:
+                first_name = (row.get('First Name') or row.get('Given Name') or '').strip()
+                last_name = (row.get('Last Name') or '').strip()
+                nickname = (row.get('Nickname') or '').strip()
+                campus_name = (row.get('Campus Name') or '').strip()
+
+                # Choose primary email
+                email = (
+                    (row.get('Home Email') or '').strip()
+                    or (row.get('Work Email') or '').strip()
+                    or (row.get('Other Email') or '').strip()
+                )
+
+                # Choose primary phone
+                phone = (
+                    (row.get('Mobile Phone Number') or '').strip()
+                    or (row.get('Home Phone Number') or '').strip()
+                )
+
+                if not first_name and not last_name:
+                    skipped += 1
+                    errors.append(f"Row {idx}: Missing first name and last name")
+                    continue
+
+                full_name = f"{first_name} {last_name}".strip()
+                preferred_name = nickname or first_name or full_name
+
+                campus_code = map_campus(campus_name)
+
+                # Tags :: Tags column: comma-separated list
+                raw_tags = (row.get('Tags :: Tags') or '').strip()
+                tags_list = [t.strip() for t in raw_tags.split(',') if t.strip()] if raw_tags else []
+
+                # Map department from tags/status/birthday
+                status = (row.get('Status') or row.get('Membership Status') or '').strip()
+                birthday_str = (row.get('Birthdate') or row.get('Birthday') or '').strip()
+                department = map_department(tags_list, status, birthday_str)
+
+                # Use Person ID as the unique identifier (from PCO)
+                pco_id = (row.get('Person ID') or '').strip()
+                
+                # Check if person already exists by PCO ID first
+                existing_person = None
+                if pco_id:
+                    # Check by PCO ID in tags
+                    import json
+                    all_persons = Person.query.filter_by(is_active=True).all()
+                    for p in all_persons:
+                        if p.tags:
+                            tags = json.loads(p.tags) if isinstance(p.tags, str) else p.tags
+                            if isinstance(tags, list) and f"pco:{pco_id}" in tags:
+                                existing_person = p
+                                break
+                
+                # If no PCO ID match, check by email (if email exists)
+                if not existing_person and email:
+                    # Skip duplicate emails within the same CSV import
+                    if email.lower() in seen_emails:
+                        skipped += 1
+                        errors.append(f"Row {idx}: Duplicate email '{email}' in CSV, skipping")
+                        continue
+                    
+                    # Check if person already exists by email in the database
+                    existing_person = Person.query.filter_by(email=email, is_active=True).first()
+                
+                if existing_person:
+                    skipped += 1
+                    errors.append(f"Row {idx}: Person already exists (PCO ID: {pco_id or 'N/A'}, Email: {email or 'N/A'})")
+                    continue
+                
+                # Normalize email (lowercase, or None if empty)
+                email_normalized = email.lower().strip() if email else None
+                if email_normalized:
+                    seen_emails.add(email_normalized)
+
+                # Use PCO Person ID as the person_id if available, otherwise generate UUID
+                import uuid
+                person_id = f"pco_{pco_id}" if pco_id else str(uuid.uuid4())
+                
+                # Create person + engagement
+                person, engagement = create_person_with_engagement(
+                    full_name=full_name,
+                    email=email_normalized,  # Can be None now
+                    campus=campus_code,
+                    preferred_name=preferred_name,
+                    phone=phone,
+                    connect_group=None,
+                    dream_team_roles=[],
+                    birthday=None,
+                    pastoral_notes=None,
+                    tags=tags_list,
+                    department=department,
+                    person_id=person_id
+                )
+
+                # Store PCO Person ID in tags for future reference
+                if pco_id:
+                    import json
+                    existing_tags = person.tags or '[]'
+                    tag_values = json.loads(existing_tags) if isinstance(existing_tags, str) else existing_tags
+                    if not isinstance(tag_values, list):
+                        tag_values = []
+                    if f"pco:{pco_id}" not in tag_values:
+                        tag_values.append(f"pco:{pco_id}")
+                        person.tags = json.dumps(tag_values)
+
+                db.session.add(person)
+                db.session.add(engagement)
+                created += 1
+
+            except Exception as row_err:
+                skipped += 1
+                errors.append(f"Row {idx}: {row_err}")
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Import completed',
+            'created': created,
+            'skipped': skipped,
+            'errors': errors[:20],  # cap error list for response size
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error importing people from PCO: {e}")
+        return jsonify({'error': 'Failed to import people from PCO CSV'}), 500
 
 
 @app.route('/api/persons/demo/<person_id>', methods=['PUT'])
@@ -13546,59 +14318,15 @@ def get_persons():
         if not current_user.has_permission('pulse', 'read'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # Build query
-        query = Person.query.filter_by(is_active=True)
-        
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter(Person.campus == campus_filter)
-        
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                db.or_(
-                    Person.full_name.ilike(search_term),
-                    Person.email.ilike(search_term),
-                    Person.preferred_name.ilike(search_term)
-                )
-            )
-        
-        persons = query.order_by(Person.full_name).all()
-        
-        # Include engagement profile data
-        result = []
-        for person in persons:
-            person_data = person.to_dict()
-            
-            # Add engagement profile data
-            if person.engagement_profile:
-                engagement_data = person.engagement_profile.to_dict()
-                person_data['pulse_status'] = engagement_data['pulse_status']
-                person_data['last_seen'] = engagement_data['last_seen']
-                person_data['pulse_reasons'] = engagement_data['pulse_reasons']
-                person_data['attendance_frequency'] = engagement_data['attendance_frequency']
-                person_data['serving_frequency'] = engagement_data['serving_frequency']
-                person_data['overall_engagement'] = engagement_data['overall_engagement']
-            else:
-                person_data['pulse_status'] = 'red'
-                person_data['last_seen'] = None
-                person_data['pulse_reasons'] = ['No engagement data']
-                person_data['attendance_frequency'] = 0.0
-                person_data['serving_frequency'] = 0.0
-                person_data['overall_engagement'] = 0.0
-            
-            # Apply pulse filter if specified
-            if pulse_filter and person_data['pulse_status'] != pulse_filter:
-                continue
-            
-            result.append(person_data)
-        
+        # NOTE: This legacy endpoint is superseded by /api/people and kept
+        # only for backwards compatibility with older UIs. Prefer /api/people.
         return jsonify({
-            'persons': result,
-            'total': len(result),
+            'persons': [],
+            'total': 0,
             'filters': {
-                'campus': campus_filter,
-                'pulse_status': pulse_filter,
-                'search': search
+                'campus': None,
+                'pulse_status': None,
+                'search': None
             }
         })
         
@@ -13612,21 +14340,34 @@ def get_persons():
 def create_person():
     """Create new person with engagement profile (admin only)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        # Allow key leadership roles to add people; campus pastors can add
+        # people for their campus even though they don't have manage_users.
+        allowed_roles = {
+            'admin',
+            'senior_leadership',
+            'senior_leader',
+            'senior_pastor',
+            'lead_pastor',
+            'campus_pastor',
+            'pastor',
+            'staff',
+        }
+        if current_user.role not in allowed_roles:
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         
-        # Validate required fields
-        required_fields = ['full_name', 'email', 'campus']
+        # Validate required fields (email is now optional)
+        required_fields = ['full_name', 'campus']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Check if email already exists
-        existing_person = Person.query.filter_by(email=data['email']).first()
-        if existing_person:
-            return jsonify({'error': 'Person with this email already exists'}), 400
+        # Check if email already exists (only if email provided)
+        if data.get('email'):
+            existing_person = Person.query.filter_by(email=data['email'], is_active=True).first()
+            if existing_person:
+                return jsonify({'error': 'Person with this email already exists'}), 400
         
         # Create person and engagement profile
         person, engagement = create_person_with_engagement(
@@ -13639,7 +14380,8 @@ def create_person():
             dream_team_roles=data.get('dream_team_roles', []),
             birthday=datetime.strptime(data['birthday'], '%Y-%m-%d').date() if data.get('birthday') else None,
             pastoral_notes=data.get('pastoral_notes'),
-            tags=data.get('tags', [])
+            tags=data.get('tags', []),
+            department=data.get('department')
         )
         
         # Add discipleship milestones if provided
@@ -13669,12 +14411,20 @@ def create_person():
 @app.route('/api/persons/<person_id>', methods=['GET'])
 @login_required
 def get_person_detail(person_id):
-    """Get detailed person info with full engagement profile (admin only)"""
+    """Get detailed person info with full engagement profile"""
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        # Use query_access for consistency with heartbeat/people endpoints
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        # Build query with campus scoping
+        query = Person.query.filter_by(id=person_id, is_active=True)
+        
+        # Apply campus scoping based on user role/campus
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'heartbeat')
+        
+        person = query.first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
@@ -13692,6 +14442,17 @@ def get_person_detail(person_id):
             db.session.commit()
             person_data['engagement'] = engagement.to_dict()
         
+        # Generate AI-powered discipleship next steps
+        ai_next_steps = None
+        if claude:
+            try:
+                ai_next_steps = generate_person_discipleship_next_steps(person_data, person_data['engagement'])
+            except Exception as e:
+                logger.error(f"Error generating AI next steps: {e}")
+                ai_next_steps = None
+        
+        person_data['ai_next_steps'] = ai_next_steps
+        
         return jsonify(person_data)
         
     except Exception as e:
@@ -13702,14 +14463,22 @@ def get_person_detail(person_id):
 @app.route('/api/persons/<person_id>', methods=['PUT'])
 @login_required
 def update_person(person_id):
-    """Update person details (admin only)"""
+    """Update person details (campus pastors and above)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        # Use query_access so campus pastors can edit people in their campus
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
+        
+        # Apply campus scoping - ensure user can only edit people in their accessible campuses
+        from utils.campus_scope import apply_campus_filter
+        query = Person.query.filter_by(id=person_id, is_active=True)
+        scoped_query = apply_campus_filter(query, 'heartbeat')
+        if not scoped_query.first():
+            return jsonify({'error': 'Person not found or outside your campus scope'}), 403
         
         data = request.get_json()
         if not data:
@@ -13726,12 +14495,24 @@ def update_person(person_id):
             if existing and existing.id != person.id:
                 return jsonify({'error': 'Email already in use'}), 400
             person.email = data['email']
+        if 'phone' in data:
+            person.phone = data['phone']
         if 'campus' in data:
             person.campus = data['campus']
+        if 'department' in data:
+            person.department = data['department']
         if 'connect_group' in data:
             person.connect_group = data['connect_group']
         if 'dream_team_roles' in data:
-            person.dream_team_roles = data['dream_team_roles']
+            # Accept both array and string (comma-separated)
+            if isinstance(data['dream_team_roles'], list):
+                person.dream_team_roles = json.dumps(data['dream_team_roles'])
+            elif isinstance(data['dream_team_roles'], str):
+                person.dream_team_roles = json.dumps([r.strip() for r in data['dream_team_roles'].split(',') if r.strip()])
+            else:
+                person.dream_team_roles = None
+        if 'pastoral_notes' in data:
+            person.pastoral_notes = data['pastoral_notes']
         
         # Update discipleship milestones (convert empty strings to None)
         milestone_fields = [
@@ -13776,6 +14557,105 @@ def update_person(person_id):
         db.session.rollback()
         logger.error(f"Error updating person {person_id}: {e}")
         return jsonify({'error': 'Failed to update person'}), 500
+
+
+@app.route('/api/heartbeat/alerts', methods=['GET'])
+@login_required
+def get_ai_alerts():
+    """Get AI-generated alerts and recommendations for heartbeat monitoring"""
+    try:
+        from models import AIAlert
+        from utils.campus_scope import apply_campus_filter
+        
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get filters
+        campus_filter = request.args.get('campus', None)
+        priority_filter = request.args.get('priority', None)
+        status_filter = request.args.get('status', 'active')  # Default to active alerts
+        limit = int(request.args.get('limit', 50))
+        
+        # Build query
+        query = AIAlert.query
+        
+        # Apply campus scoping
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(AIAlert.campus == campus_filter)
+        else:
+            # Apply campus scoping based on user role
+            # Get user's accessible campuses
+            from utils.campus_scope import get_user_accessible_campuses
+            accessible_campuses = get_user_accessible_campuses(current_user, 'heartbeat')
+            if accessible_campuses and 'all_campuses' not in accessible_campuses:
+                query = query.filter(AIAlert.campus.in_(accessible_campuses))
+        
+        # Apply filters
+        if priority_filter:
+            query = query.filter(AIAlert.priority == priority_filter)
+        if status_filter:
+            query = query.filter(AIAlert.status == status_filter)
+        
+        # Order by priority (urgent first) and created_at
+        priority_order = {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}
+        alerts = query.order_by(
+            db.case((AIAlert.priority == 'urgent', 0),
+                   (AIAlert.priority == 'high', 1),
+                   (AIAlert.priority == 'medium', 2),
+                   (AIAlert.priority == 'low', 3),
+                   else_=4),
+            AIAlert.created_at.desc()
+        ).limit(limit).all()
+        
+        return jsonify({
+            'alerts': [alert.to_dict() for alert in alerts],
+            'total': len(alerts)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching AI alerts: {e}")
+        return jsonify({'error': 'Failed to fetch alerts'}), 500
+
+
+@app.route('/api/heartbeat/alerts/<int:alert_id>/acknowledge', methods=['POST'])
+@login_required
+def acknowledge_ai_alert(alert_id):
+    """Acknowledge an AI alert"""
+    try:
+        from models import AIAlert
+        
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        alert = AIAlert.query.get(alert_id)
+        if not alert:
+            return jsonify({'error': 'Alert not found'}), 404
+        
+        # Check campus access
+        from utils.campus_scope import get_user_accessible_campuses
+        accessible_campuses = get_user_accessible_campuses(current_user, 'heartbeat')
+        if accessible_campuses and 'all_campuses' not in accessible_campuses:
+            if alert.campus not in accessible_campuses:
+                return jsonify({'error': 'Alert not accessible'}), 403
+        
+        data = request.get_json() or {}
+        new_status = data.get('status', 'acknowledged')
+        
+        alert.status = new_status
+        alert.acknowledged_by = current_user.id
+        alert.acknowledged_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Alert acknowledged',
+            'alert': alert.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error acknowledging alert: {e}")
+        return jsonify({'error': 'Failed to acknowledge alert'}), 500
 
 
 @app.route('/api/engagement/log_attendance', methods=['POST'])
