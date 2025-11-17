@@ -34,6 +34,88 @@ const PulseBadge = ({ status, score }) => {
   );
 };
 
+// Simple donut chart component
+const DonutChart = ({ data, size = 120 }) => {
+  const { green, amber, red, total } = data;
+  const radius = size / 2 - 8;
+  const circumference = 2 * Math.PI * radius;
+  
+  const greenPercent = total > 0 ? (green / total) * 100 : 0;
+  const amberPercent = total > 0 ? (amber / total) * 100 : 0;
+  const redPercent = total > 0 ? (red / total) * 100 : 0;
+  
+  const greenOffset = circumference - (greenPercent / 100) * circumference;
+  const amberOffset = circumference - ((greenPercent + amberPercent) / 100) * circumference;
+  const redOffset = circumference - ((greenPercent + amberPercent + redPercent) / 100) * circumference;
+  
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="transform -rotate-90">
+        {/* Background circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="rgba(51, 65, 85, 0.5)"
+          strokeWidth="8"
+        />
+        {/* Red segment */}
+        {redPercent > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="#ef4444"
+            strokeWidth="8"
+            strokeDasharray={circumference}
+            strokeDashoffset={redOffset}
+            strokeLinecap="round"
+            className="transition-all duration-500"
+          />
+        )}
+        {/* Amber segment */}
+        {amberPercent > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="#f59e0b"
+            strokeWidth="8"
+            strokeDasharray={circumference}
+            strokeDashoffset={amberOffset}
+            strokeLinecap="round"
+            className="transition-all duration-500"
+          />
+        )}
+        {/* Green segment */}
+        {greenPercent > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="#10b981"
+            strokeWidth="8"
+            strokeDasharray={circumference}
+            strokeDashoffset={greenOffset}
+            strokeLinecap="round"
+            className="transition-all duration-500"
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">{total}</div>
+          <div className="text-xs text-slate-400">Total</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Heartbeat = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -202,18 +284,21 @@ const Heartbeat = () => {
     { value: 'seniors', label: 'Seniors' }
   ];
 
+  const healthyPercent = summary.total > 0 ? Math.round((summary.green / summary.total) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/20 text-2xl">
+            <h1 className="text-4xl font-bold text-white flex items-center gap-3">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-2xl shadow-lg">
                 💜
               </span>
-              Heartbeat
+              Heartbeat Dashboard
             </h1>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-2">
               Live view of your people&apos;s engagement health to help pastors see who&apos;s thriving and who may need a touch.
             </p>
           </div>
@@ -253,50 +338,77 @@ const Heartbeat = () => {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <div className="bg-slate-900/70 border border-slate-700/70 rounded-2xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">
-              Total people
+        {/* Summary Cards with Visual Chart */}
+        <div className="grid gap-6 md:grid-cols-5">
+          <div className="md:col-span-2 bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">
+                  Campus Overview
+                </div>
+                <div className="text-3xl font-bold text-white">
+                  {summary.total} {summary.total === 1 ? 'Person' : 'People'}
+                </div>
+              </div>
+              <DonutChart data={summary} size={100} />
             </div>
-            <div className="text-2xl font-semibold text-white">
-              {summary.total}
-            </div>
-            <div className="text-xs text-slate-500 mt-1">
-              {summary.total > 0
-                ? `${Math.round((summary.green / summary.total) * 100)}% healthy`
-                : 'No people yet'}
+            <div className="grid grid-cols-3 gap-3 mt-4">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-emerald-300">{summary.green}</div>
+                <div className="text-xs text-slate-400">Healthy</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-amber-300">{summary.amber}</div>
+                <div className="text-xs text-slate-400">Watch</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-red-300">{summary.red}</div>
+                <div className="text-xs text-slate-400">At Risk</div>
+              </div>
             </div>
           </div>
-          <div className="bg-emerald-900/20 border border-emerald-500/40 rounded-2xl p-4">
-            <div className="text-xs text-emerald-300 uppercase tracking-wide mb-1">
+
+          <div className="bg-emerald-900/30 border border-emerald-500/40 rounded-2xl p-6 shadow-lg backdrop-blur-sm">
+            <div className="text-xs text-emerald-300 uppercase tracking-wide mb-2">
               Healthy
             </div>
-            <div className="text-2xl font-semibold text-emerald-100">
+            <div className="text-4xl font-bold text-emerald-100 mb-2">
               {summary.green}
             </div>
-            <div className="text-xs text-emerald-400/70 mt-1">
+            <div className="text-sm text-emerald-400/80 mb-3">
+              {healthyPercent}% of total
+            </div>
+            <div className="text-xs text-emerald-300/70">
               Thriving & engaged
             </div>
           </div>
-          <div className="bg-amber-900/20 border border-amber-500/40 rounded-2xl p-4">
-            <div className="text-xs text-amber-300 uppercase tracking-wide mb-1">
+
+          <div className="bg-amber-900/30 border border-amber-500/40 rounded-2xl p-6 shadow-lg backdrop-blur-sm">
+            <div className="text-xs text-amber-300 uppercase tracking-wide mb-2">
               Watch
             </div>
-            <div className="text-2xl font-semibold text-amber-100">
+            <div className="text-4xl font-bold text-amber-100 mb-2">
               {summary.amber}
             </div>
-            <div className="text-xs text-amber-400/70 mt-1">
+            <div className="text-sm text-amber-400/80 mb-3">
+              {summary.total > 0 ? Math.round((summary.amber / summary.total) * 100) : 0}% of total
+            </div>
+            <div className="text-xs text-amber-300/70">
               Needs attention soon
             </div>
           </div>
-          <div className="bg-red-900/20 border border-red-500/40 rounded-2xl p-4">
-            <div className="text-xs text-red-300 uppercase tracking-wide mb-1">
+
+          <div className="bg-red-900/30 border border-red-500/40 rounded-2xl p-6 shadow-lg backdrop-blur-sm">
+            <div className="text-xs text-red-300 uppercase tracking-wide mb-2">
               At Risk
             </div>
-            <div className="text-2xl font-semibold text-red-100">
+            <div className="text-4xl font-bold text-red-100 mb-2">
               {summary.red}
             </div>
-            <div className="text-xs text-red-400/70 mt-1">
+            <div className="text-sm text-red-400/80 mb-3">
+              {summary.total > 0 ? Math.round((summary.red / summary.total) * 100) : 0}% of total
+            </div>
+            <div className="text-xs text-red-300/70">
               Urgent follow-up needed
             </div>
           </div>
@@ -304,34 +416,35 @@ const Heartbeat = () => {
 
         {/* AI Insights Section */}
         {aiInsights && (
-          <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/40 rounded-2xl p-5">
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">🤖</div>
+          <div className="bg-gradient-to-br from-purple-900/40 via-blue-900/30 to-purple-900/40 border border-purple-500/40 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
+            <div className="flex items-start gap-4">
+              <div className="text-3xl">🤖</div>
               <div className="flex-1">
-                <h2 className="text-lg font-semibold text-white mb-2">AI Campus Insights</h2>
+                <h2 className="text-xl font-semibold text-white mb-2">AI Campus Insights</h2>
                 <p className="text-sm text-purple-100 leading-relaxed">{aiInsights}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* People Needing Attention Section */}
+        {/* People Needing Attention - Enhanced Visual Section */}
         {needingAttention.length > 0 && (
-          <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-slate-900/70 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-white">
+                <h2 className="text-2xl font-semibold text-white flex items-center gap-2">
+                  <span className="text-red-400">⚠️</span>
                   People Needing Attention
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
                   Top priorities for follow-up this week
                 </p>
               </div>
-              <div className="text-xs text-slate-400">
-                {needingAttention.length} {needingAttention.length === 1 ? 'person' : 'people'}
+              <div className="px-4 py-2 bg-red-500/20 border border-red-500/40 rounded-full text-sm font-medium text-red-300">
+                {needingAttention.length} {needingAttention.length === 1 ? 'Priority' : 'Priorities'}
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-3 md:grid-cols-2">
               {needingAttention.map((person) => {
                 const lastSeen = person.last_seen
                   ? new Date(person.last_seen)
@@ -349,12 +462,12 @@ const Heartbeat = () => {
                     key={person.id}
                     type="button"
                     onClick={() => navigate(`/persons/${person.id}`)}
-                    className="w-full text-left bg-slate-800/50 hover:bg-slate-800/70 border border-slate-700/50 rounded-lg p-3 transition-colors"
+                    className="text-left bg-gradient-to-br from-slate-800/80 to-slate-900/80 hover:from-slate-800 hover:to-slate-900 border border-slate-700/60 hover:border-slate-600 rounded-xl p-4 transition-all shadow-md hover:shadow-lg"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-slate-100 font-medium truncate">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-slate-100 font-semibold truncate">
                             {person.full_name}
                           </span>
                           <PulseBadge
@@ -362,20 +475,24 @@ const Heartbeat = () => {
                             score={person.overall_engagement}
                           />
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <div className="flex items-center gap-3 text-xs text-slate-400 mb-2">
                           {person.department && (
-                            <span className="capitalize">{person.department.replace('_', ' ')}</span>
+                            <span className="capitalize px-2 py-0.5 bg-slate-700/50 rounded">
+                              {person.department.replace('_', ' ')}
+                            </span>
                           )}
                           {person.campus && <span>• {person.campus}</span>}
                           {daysSince !== null && (
-                            <span>• {daysSince === 0 ? 'Today' : `${daysSince} days ago`}</span>
+                            <span className={daysSince > 30 ? 'text-red-400 font-medium' : ''}>
+                              • {daysSince === 0 ? 'Today' : `${daysSince} days ago`}
+                            </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-300 mt-1.5 line-clamp-1">
+                        <p className="text-xs text-slate-300 line-clamp-2">
                           {primaryReason}
                         </p>
                       </div>
-                      <div className="text-slate-400 text-xs">→</div>
+                      <div className="text-slate-500 text-lg">→</div>
                     </div>
                   </button>
                 );
@@ -384,133 +501,48 @@ const Heartbeat = () => {
           </div>
         )}
 
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4 sm:p-5 space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400 uppercase tracking-wide">
-                  Filters
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Campus limits are applied by your role automatically.
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-              {campuses.length > 0 && (
-                <select
-                  value={filters.campus}
-                  onChange={(e) => handleFilterChange('campus', e.target.value)}
-                  className="bg-slate-800/70 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60"
-                >
-                  <option value="all_campuses">All campuses</option>
-                  {campuses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              <input
-                type="text"
-                placeholder="Search by name or email"
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-                className="flex-1 bg-slate-800/70 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60 placeholder:text-slate-500"
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-slate-800/70 pt-4">
-            {loading ? (
-              <div className="py-8 flex items-center justify-center">
-                <div className="flex items-center gap-3 text-slate-400 text-sm">
-                  <span className="inline-block w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
-                  Loading heartbeat...
-                </div>
-              </div>
-            ) : error ? (
-              <div className="py-6 text-center text-sm text-red-300 bg-red-900/20 rounded-lg border border-red-800/40">
-                {error}
-              </div>
-            ) : people.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400">
-                No people matched your filters yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead>
-                    <tr className="text-xs uppercase tracking-wide text-slate-400 border-b border-slate-800">
-                      <th className="py-2 pr-4">Person</th>
-                      <th className="py-2 px-4">Campus</th>
-                      <th className="py-2 px-4">Heartbeat</th>
-                      <th className="py-2 px-4">Last Seen</th>
-                      <th className="py-2 pl-4">Highlights</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {people.map((person) => {
-                      const lastSeen = person.last_seen
-                        ? new Date(person.last_seen)
-                        : null;
-
-                      const lastSeenLabel = lastSeen
-                        ? lastSeen.toLocaleDateString()
-                        : 'No attendance yet';
-
-                      const headlineReason =
-                        person.pulse_reasons && person.pulse_reasons.length > 0
-                          ? person.pulse_reasons[0]
-                          : 'No pulse reasons yet';
-
-                      return (
-                        <tr
-                          key={person.id}
-                          className="border-b border-slate-800/60 hover:bg-slate-800/40 transition-colors"
-                        >
-                          <td className="py-3 pr-4">
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/persons/${person.id}`)}
-                              className="flex flex-col text-left hover:text-blue-300 focus:outline-none"
-                            >
-                              <span className="text-slate-100 font-medium">
-                                {person.full_name}
-                              </span>
-                              <span className="text-xs text-slate-400">
-                                {person.email}
-                              </span>
-                            </button>
-                          </td>
-                          <td className="py-3 px-4 text-slate-300">
-                            {person.campus || '—'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <PulseBadge
-                              status={person.pulse_status}
-                              score={person.overall_engagement}
-                            />
-                          </td>
-                          <td className="py-3 px-4 text-slate-300">
-                            {lastSeenLabel}
-                          </td>
-                          <td className="py-3 pl-4 text-slate-300">
-                            <span className="block text-xs text-slate-300">
-                              {headlineReason}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+        {/* Quick Filters */}
+        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {campuses.length > 0 && (
+              <select
+                value={filters.campus}
+                onChange={(e) => handleFilterChange('campus', e.target.value)}
+                className="bg-slate-800/70 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60"
+              >
+                <option value="all_campuses">All campuses</option>
+                {campuses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             )}
+
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              className="flex-1 bg-slate-800/70 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60 placeholder:text-slate-500"
+            />
           </div>
         </div>
+
+        {loading && (
+          <div className="py-12 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-slate-400 text-sm">
+              <span className="inline-block w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+              Loading heartbeat data...
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="py-6 text-center text-sm text-red-300 bg-red-900/20 rounded-lg border border-red-800/40">
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -43,8 +43,11 @@ const People = () => {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPerson, setEditingPerson] = useState(null);
   const [savingPerson, setSavingPerson] = useState(false);
   const [addError, setAddError] = useState('');
+  const [editError, setEditError] = useState('');
   const [newPerson, setNewPerson] = useState({
     firstName: '',
     lastName: '',
@@ -55,6 +58,17 @@ const People = () => {
     department: '',
     connectGroup: '',
     dreamTeamRoles: ''
+  });
+  const [editPerson, setEditPerson] = useState({
+    full_name: '',
+    preferred_name: '',
+    email: '',
+    phone: '',
+    campus: '',
+    department: '',
+    connect_group: '',
+    dream_team_roles: '',
+    pastoral_notes: ''
   });
   const [pagination, setPagination] = useState({ page: 1, pageSize: 200, total: 0 });
   const [filters, setFilters] = useState({
@@ -474,18 +488,48 @@ const People = () => {
                             className="border-b border-slate-800/60 hover:bg-slate-800/40 transition-colors"
                           >
                             <td className="py-3 pr-4">
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/persons/${person.id}`)}
-                                className="flex flex-col text-left hover:text-blue-300 focus:outline-none"
-                              >
-                                <span className="text-slate-100 font-medium">
-                                  {person.full_name}
-                                </span>
-                                <span className="text-xs text-slate-400">
-                                  {person.email}
-                                </span>
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPerson(person);
+                                    setEditPerson({
+                                      full_name: person.full_name || '',
+                                      preferred_name: person.preferred_name || '',
+                                      email: person.email || '',
+                                      phone: person.phone || '',
+                                      campus: person.campus || '',
+                                      department: person.department || '',
+                                      connect_group: person.connect_group || '',
+                                      dream_team_roles: Array.isArray(person.dream_team_roles)
+                                        ? person.dream_team_roles.join(', ')
+                                        : person.dream_team_roles || '',
+                                      pastoral_notes: person.pastoral_notes || ''
+                                    });
+                                    setShowEditModal(true);
+                                  }}
+                                  className="flex flex-col text-left hover:text-blue-300 focus:outline-none flex-1 cursor-pointer"
+                                >
+                                  <span className="text-slate-100 font-medium">
+                                    {person.full_name}
+                                  </span>
+                                  <span className="text-xs text-slate-400">
+                                    {person.email || 'No email'}
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/persons/${person.id}`);
+                                  }}
+                                  className="text-slate-500 hover:text-blue-400 text-xs px-2 py-1 rounded border border-slate-700 hover:border-blue-500/50"
+                                  title="View health report"
+                                >
+                                  📊
+                                </button>
+                              </div>
                             </td>
                             <td className="py-3 px-4 text-slate-300">
                               {person.campus || '—'}
@@ -570,6 +614,95 @@ const People = () => {
           </div>
         </div>
       </div>
+
+  const handleEditPersonChange = (field, value) => {
+    setEditPerson((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveEdit = async () => {
+    setEditError('');
+    if (!editingPerson) return;
+
+    try {
+      setSavingPerson(true);
+      const dreamTeamRoles = editPerson.dream_team_roles
+        ? editPerson.dream_team_roles
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean)
+        : [];
+
+      const response = await fetch(`/api/persons/${editingPerson.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          full_name: editPerson.full_name,
+          preferred_name: editPerson.preferred_name || null,
+          email: editPerson.email || null,
+          phone: editPerson.phone || null,
+          campus: editPerson.campus,
+          department: editPerson.department || null,
+          connect_group: editPerson.connect_group || null,
+          dream_team_roles: dreamTeamRoles,
+          pastoral_notes: editPerson.pastoral_notes || null
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update person');
+      }
+
+      // Close modal and refresh list
+      setShowEditModal(false);
+      setEditingPerson(null);
+      // Trigger refresh by toggling a filter state to force re-fetch
+      setFilters((prev) => ({ ...prev }));
+    } catch (err) {
+      console.error('Edit person error:', err);
+      setEditError(err.message || 'Failed to save changes.');
+    } finally {
+      setSavingPerson(false);
+    }
+  };
+
+  const handleLoadPersonDetail = async (personId) => {
+    try {
+      const response = await fetch(`/api/persons/${personId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const person = data.person || {};
+      setEditingPerson(person);
+      setEditPerson({
+        full_name: person.full_name || '',
+        preferred_name: person.preferred_name || '',
+        email: person.email || '',
+        phone: person.phone || '',
+        campus: person.campus || '',
+        department: person.department || '',
+        connect_group: person.connect_group || '',
+        dream_team_roles: Array.isArray(person.dream_team_roles)
+          ? person.dream_team_roles.join(', ')
+          : person.dream_team_roles || '',
+        pastoral_notes: person.pastoral_notes || ''
+      });
+    } catch (err) {
+      console.error('Error loading person detail:', err);
+    }
+  };
+
+  // Load full person details when edit modal opens
+  useEffect(() => {
+    if (showEditModal && editingPerson && !editPerson.full_name) {
+      handleLoadPersonDetail(editingPerson.id);
+    }
+  }, [showEditModal, editingPerson]);
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
@@ -735,6 +868,188 @@ const People = () => {
               >
                 {savingPerson ? 'Saving…' : 'Save person'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingPerson && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm overflow-y-auto p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 my-8 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Edit Person</h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Update {editingPerson.full_name}&apos;s information
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingPerson) {
+                    setShowEditModal(false);
+                    setEditingPerson(null);
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-200 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {editError && (
+              <div className="text-xs text-red-200 bg-red-900/40 border border-red-500/50 rounded-lg px-3 py-2">
+                {editError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={editPerson.full_name}
+                  onChange={(e) => handleEditPersonChange('full_name', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Preferred Name
+                </label>
+                <input
+                  type="text"
+                  value={editPerson.preferred_name}
+                  onChange={(e) => handleEditPersonChange('preferred_name', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editPerson.email}
+                  onChange={(e) => handleEditPersonChange('email', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={editPerson.phone}
+                  onChange={(e) => handleEditPersonChange('phone', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Campus *
+                </label>
+                <select
+                  value={editPerson.campus}
+                  onChange={(e) => handleEditPersonChange('campus', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                >
+                  <option value="">Select campus</option>
+                  {campuses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Department
+                </label>
+                <select
+                  value={editPerson.department}
+                  onChange={(e) => handleEditPersonChange('department', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                >
+                  <option value="">Select department</option>
+                  <option value="kids">Kids</option>
+                  <option value="youth">Youth</option>
+                  <option value="young_adults">Young Adults</option>
+                  <option value="families">Families</option>
+                  <option value="adults">Adults</option>
+                  <option value="seniors">Seniors</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Connect Group
+                </label>
+                <input
+                  type="text"
+                  value={editPerson.connect_group}
+                  onChange={(e) => handleEditPersonChange('connect_group', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Dream Team Roles
+                </label>
+                <input
+                  type="text"
+                  placeholder="Comma separated, e.g. Host, Kids, Worship"
+                  value={editPerson.dream_team_roles}
+                  onChange={(e) => handleEditPersonChange('dream_team_roles', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60 placeholder:text-slate-500"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Pastoral Notes / Comments
+                </label>
+                <textarea
+                  value={editPerson.pastoral_notes}
+                  onChange={(e) => handleEditPersonChange('pastoral_notes', e.target.value)}
+                  rows={4}
+                  placeholder="Add notes, comments, or follow-up reminders..."
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60 placeholder:text-slate-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => navigate(`/persons/${editingPerson.id}`)}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              >
+                📊 View Health Report
+              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!savingPerson) {
+                      setShowEditModal(false);
+                      setEditingPerson(null);
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 border border-slate-600 hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={savingPerson || !editPerson.full_name || !editPerson.campus}
+                  className="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {savingPerson ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -14283,14 +14283,22 @@ def get_person_detail(person_id):
 @app.route('/api/persons/<person_id>', methods=['PUT'])
 @login_required
 def update_person(person_id):
-    """Update person details (admin only)"""
+    """Update person details (campus pastors and above)"""
     try:
-        if not current_user.has_permission('pulse', 'write'):
+        # Use query_access so campus pastors can edit people in their campus
+        if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
+        
+        # Apply campus scoping - ensure user can only edit people in their accessible campuses
+        from utils.campus_scope import apply_campus_filter
+        query = Person.query.filter_by(id=person_id, is_active=True)
+        scoped_query = apply_campus_filter(query, 'heartbeat')
+        if not scoped_query.first():
+            return jsonify({'error': 'Person not found or outside your campus scope'}), 403
         
         data = request.get_json()
         if not data:
@@ -14307,12 +14315,24 @@ def update_person(person_id):
             if existing and existing.id != person.id:
                 return jsonify({'error': 'Email already in use'}), 400
             person.email = data['email']
+        if 'phone' in data:
+            person.phone = data['phone']
         if 'campus' in data:
             person.campus = data['campus']
+        if 'department' in data:
+            person.department = data['department']
         if 'connect_group' in data:
             person.connect_group = data['connect_group']
         if 'dream_team_roles' in data:
-            person.dream_team_roles = data['dream_team_roles']
+            # Accept both array and string (comma-separated)
+            if isinstance(data['dream_team_roles'], list):
+                person.dream_team_roles = json.dumps(data['dream_team_roles'])
+            elif isinstance(data['dream_team_roles'], str):
+                person.dream_team_roles = json.dumps([r.strip() for r in data['dream_team_roles'].split(',') if r.strip()])
+            else:
+                person.dream_team_roles = None
+        if 'pastoral_notes' in data:
+            person.pastoral_notes = data['pastoral_notes']
         
         # Update discipleship milestones (convert empty strings to None)
         milestone_fields = [

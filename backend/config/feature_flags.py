@@ -33,6 +33,9 @@ class FeatureFlags:
     # Heartbeat dashboards and endpoints
     HEARTBEAT_ENABLED = _as_bool(os.environ.get('HEARTBEAT_ENABLED'), False)
     
+    # People directory and management
+    PEOPLE_ENABLED = _as_bool(os.environ.get('PEOPLE_ENABLED'), False)
+    
     # RBAC System
     RBAC_ENABLED = _as_bool(os.environ.get('RBAC_ENABLED'), True)
     
@@ -47,6 +50,7 @@ class FeatureFlags:
             'GROUPS_FOR_STAFF_ENABLED': cls.GROUPS_FOR_STAFF_ENABLED,
             'BEACON_MGMT_ENABLED': cls.BEACON_MGMT_ENABLED,
             'HEARTBEAT_ENABLED': cls.HEARTBEAT_ENABLED,
+            'PEOPLE_ENABLED': cls.PEOPLE_ENABLED,
             'RBAC_ENABLED': cls.RBAC_ENABLED,
             'CAMPUS_SCOPING_ENABLED': cls.CAMPUS_SCOPING_ENABLED
         }
