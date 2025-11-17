@@ -1542,10 +1542,17 @@ def admin_required(f):
 def admin_required_json(f):
     """Decorator to require admin access - returns JSON for API endpoints"""
     @wraps(f)
-    @login_required
     def decorated_function(*args, **kwargs):
+        # Check if user is authenticated via Flask-Login
+        if not current_user.is_authenticated:
+            logger.warning(f"Unauthenticated access attempt to {request.path} from {request.remote_addr}")
+            return jsonify({'error': 'Authentication required. Please sign in.'}), 401
+        
+        # Check if user has admin role
         if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            logger.warning(f"Non-admin access attempt to {request.path} by user {current_user.username} (role: {current_user.role})")
             return jsonify({'error': 'Administrator access required'}), 403
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -14714,7 +14721,16 @@ def google_oauth_callback():
         
         # CRITICAL: Mark session as modified and save it before redirecting
         session.modified = True
-        logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session")
+        
+        # Ensure Flask-Login session is preserved
+        # If user was authenticated via Flask-Login, make sure that session persists
+        if current_user.is_authenticated:
+            # Re-login the user to ensure Flask-Login session is fresh
+            from flask_login import login_user
+            login_user(current_user, remember=True)
+            logger.info(f"Google Drive OAuth successful for authenticated user {current_user.username} (ID: {user_id}), tokens stored in session")
+        else:
+            logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session (user not authenticated via Flask-Login)")
         
         # Return success page that handles both popup and redirect scenarios
         return '''
