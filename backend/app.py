@@ -8153,12 +8153,22 @@ def session_info():
     if current_user.is_authenticated:
         # Check if user needs Google Drive auth (admin users only)
         needs_drive_auth = False
+        drive_status = {
+            'authenticated': False,
+            'token_valid': False,
+            'has_token': False
+        }
+        
         if current_user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
             # Check if Google Drive is authenticated
             drive_authenticated = session.get('google_drive_authenticated', False)
+            drive_status['authenticated'] = drive_authenticated
+            drive_status['has_token'] = bool(session.get('google_drive_access_token'))
+            
             # Check if token is still valid
             token_expiry = session.get('google_drive_token_expiry', 0)
             token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
+            drive_status['token_valid'] = token_valid
             
             # Admin users need Drive auth if not authenticated or token expired
             needs_drive_auth = not (drive_authenticated and token_valid)
@@ -8170,6 +8180,7 @@ def session_info():
             "campus": current_user.campus,
             "full_name": current_user.full_name,
             "needs_drive_auth": needs_drive_auth,
+            "drive_status": drive_status,  # Debug info
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     else:
