@@ -136,12 +136,20 @@ const PersonHealthReport = () => {
         }
 
         const data = await response.json();
+        
+        // Check if response has error
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
         setPerson(data);
         setEngagement(data.engagement || {});
         setAiNextSteps(data.ai_next_steps || []);
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Person health report load error:', err);
+          console.error('Person ID:', personId);
+          console.error('Response status:', err.response?.status);
           setError(err.message || 'Unable to load person details right now.');
         }
       } finally {
