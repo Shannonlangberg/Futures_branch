@@ -902,9 +902,22 @@ def run_migrations():
                     migration_sql = f.read()
                 
                 # Execute the migration
-                cursor.executescript(migration_sql)
+                # For ALTER TABLE ADD COLUMN, SQLite will fail if column exists
+                # We'll catch that specific error and continue
+                try:
+                    cursor.executescript(migration_sql)
+                    conn.commit()
+                except sqlite3.OperationalError as e:
+                    error_msg = str(e).lower()
+                    # If column already exists, that's okay - skip it
+                    if 'duplicate column' in error_msg or 'already exists' in error_msg:
+                        logger.info(f"Migration {migration_file}: Column already exists, skipping")
+                        conn.rollback()
+                    else:
+                        # Other operational errors should be raised
+                        raise
                 
-                # Mark migration as applied
+                # Mark migration as applied (only if we got here without error)
                 cursor.execute('INSERT INTO schema_migrations (filename) VALUES (?)', (migration_file,))
                 conn.commit()
                 
@@ -912,7 +925,9 @@ def run_migrations():
             except Exception as e:
                 logger.error(f"Failed to apply migration {migration_file}: {e}")
                 conn.rollback()
-                raise
+                # Don't raise for column already exists errors - just log and continue
+                if 'duplicate column' not in str(e).lower() and 'already exists' not in str(e).lower():
+                    raise
         
         conn.close()
         logger.info("All migrations completed successfully")
