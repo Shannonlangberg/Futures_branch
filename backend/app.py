@@ -14400,6 +14400,37 @@ def get_events():
         logger.error(f"Error fetching events: {e}")
         return jsonify({'error': 'Failed to fetch events'}), 500
 
+@app.route('/api/resources/categories', methods=['GET'])
+@login_required
+def get_resource_categories():
+    """Get all resource categories"""
+    try:
+        # Check if user has access to resources (admin only)
+        if not current_user.has_permission('resources', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # For now, return empty array - resources functionality can be added later
+        # This prevents the "Unable to load" error
+        return jsonify({'categories': []})
+    except Exception as e:
+        logger.error(f"Error fetching resource categories: {e}")
+        return jsonify({'error': 'Failed to fetch resource categories'}), 500
+
+@app.route('/api/resources/<category_id>', methods=['GET'])
+@login_required
+def get_resource_category_files(category_id):
+    """Get files for a specific resource category"""
+    try:
+        # Check if user has access to resources (admin only)
+        if not current_user.has_permission('resources', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # For now, return empty array - resources functionality can be added later
+        return jsonify({'files': [], 'links': []})
+    except Exception as e:
+        logger.error(f"Error fetching resource category files: {e}")
+        return jsonify({'error': 'Failed to fetch resource files'}), 500
+
 @app.route('/api/events/categories', methods=['GET'])
 def get_event_categories():
     """Get all event categories"""
