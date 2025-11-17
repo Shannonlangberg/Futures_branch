@@ -8200,6 +8200,8 @@ def session_info():
             "full_name": current_user.full_name,
             "needs_drive_auth": needs_drive_auth,
             "drive_status": drive_status,  # Debug info
+            "user_id": current_user.id,  # Debug info
+            "session_keys": list(session.keys()),  # Debug info
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     else:
