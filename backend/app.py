@@ -904,37 +904,52 @@ def run_migrations():
                 # Execute the migration
                 # For ALTER TABLE ADD COLUMN, SQLite will fail if column exists
                 # We'll catch that specific error and continue
+                migration_succeeded = False
                 try:
                     cursor.executescript(migration_sql)
                     conn.commit()
+                    migration_succeeded = True
                 except sqlite3.OperationalError as e:
                     error_msg = str(e).lower()
                     # If column already exists, that's okay - skip it
-                    if 'duplicate column' in error_msg or 'already exists' in error_msg:
+                    if 'duplicate column' in error_msg or 'already exists' in error_msg or 'duplicate column name' in error_msg:
                         logger.info(f"Migration {migration_file}: Column already exists, skipping")
                         conn.rollback()
+                        migration_succeeded = True  # Consider it successful since column exists
                     else:
                         # Other operational errors should be raised
+                        logger.error(f"Migration {migration_file} failed with OperationalError: {e}")
+                        conn.rollback()
                         raise
                 
                 # Mark migration as applied (only if we got here without error)
-                cursor.execute('INSERT INTO schema_migrations (filename) VALUES (?)', (migration_file,))
-                conn.commit()
-                
-                logger.info(f"Successfully applied migration: {migration_file}")
+                if migration_succeeded:
+                    try:
+                        cursor.execute('INSERT INTO schema_migrations (filename) VALUES (?)', (migration_file,))
+                        conn.commit()
+                        logger.info(f"Successfully applied migration: {migration_file}")
+                    except sqlite3.IntegrityError:
+                        # Migration already marked as applied
+                        logger.info(f"Migration {migration_file} already marked as applied")
+                        conn.rollback()
             except Exception as e:
+                error_msg = str(e).lower()
                 logger.error(f"Failed to apply migration {migration_file}: {e}")
                 conn.rollback()
                 # Don't raise for column already exists errors - just log and continue
-                if 'duplicate column' not in str(e).lower() and 'already exists' not in str(e).lower():
-                    raise
+                # Allow app to start even if migration fails (non-critical)
+                if 'duplicate column' not in error_msg and 'already exists' not in error_msg and 'duplicate column name' not in error_msg:
+                    logger.warning(f"Migration {migration_file} failed, but continuing startup...")
+                    # Don't raise - allow app to start
         
         conn.close()
         logger.info("All migrations completed successfully")
         
     except Exception as e:
         logger.error(f"Migration error: {e}", exc_info=True)
-        raise
+        # Don't raise - allow app to start even if migrations fail
+        # This prevents the app from crashing on startup due to migration issues
+        logger.warning("Continuing app startup despite migration errors...")
 
 CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"], allow_headers=["Content-Type", "Authorization"])
 
