@@ -124,6 +124,8 @@ const Heartbeat = () => {
   const [needingAttention, setNeedingAttention] = useState([]);
   const [campuses, setCampuses] = useState([]);
   const [aiInsights, setAiInsights] = useState(null);
+  const [aiAlerts, setAiAlerts] = useState([]);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [summary, setSummary] = useState({
     total: 0,
     green: 0,
@@ -259,6 +261,48 @@ const Heartbeat = () => {
 
     return () => controller.abort();
   }, [filters.campus, filters.pulse_status, filters.department, filters.search]);
+
+  // Load AI alerts
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchAlerts = async () => {
+      try {
+        setLoadingAlerts(true);
+        const params = new URLSearchParams();
+        if (filters.campus && filters.campus !== 'all_campuses') {
+          params.append('campus', filters.campus);
+        }
+        params.append('status', 'active');
+        params.append('limit', '10');
+
+        const response = await fetch(`/api/heartbeat/alerts?${params.toString()}`, {
+          credentials: 'include',
+          signal: controller.signal
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAiAlerts(data.alerts || []);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Error loading AI alerts:', err);
+        }
+      } finally {
+        setLoadingAlerts(false);
+      }
+    };
+
+    fetchAlerts();
+    // Refresh alerts every 30 seconds
+    const interval = setInterval(fetchAlerts, 30000);
+
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [filters.campus]);
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -414,18 +458,95 @@ const Heartbeat = () => {
           </div>
         </div>
 
-        {/* AI Insights Section */}
-        {aiInsights && (
-          <div className="bg-gradient-to-br from-purple-900/40 via-blue-900/30 to-purple-900/40 border border-purple-500/40 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
-            <div className="flex items-start gap-4">
-              <div className="text-3xl">🤖</div>
-              <div className="flex-1">
-                <h2 className="text-xl font-semibold text-white mb-2">AI Campus Insights</h2>
-                <p className="text-sm text-purple-100 leading-relaxed">{aiInsights}</p>
-              </div>
+        {/* AI Monitoring Section - The AI Pastor */}
+        <div className="bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-blue-900/40 border border-indigo-500/40 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="text-3xl">🤖</div>
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-white mb-1">AI Monitoring Active</h2>
+              <p className="text-xs text-indigo-300/80">
+                Your AI assistant is watching {summary.total} people, acting like 100 new people pastors monitoring engagement and escalating to staff when needed.
+              </p>
             </div>
           </div>
-        )}
+
+          {/* AI Alerts */}
+          {aiAlerts.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-white">Active Alerts ({aiAlerts.length})</h3>
+                <span className="text-xs text-indigo-300/70">
+                  {aiAlerts.filter(a => a.priority === 'urgent' || a.priority === 'high').length} need immediate attention
+                </span>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {aiAlerts.slice(0, 5).map((alert) => {
+                  const priorityColors = {
+                    urgent: 'bg-red-500/20 border-red-500/50 text-red-200',
+                    high: 'bg-orange-500/20 border-orange-500/50 text-orange-200',
+                    medium: 'bg-amber-500/20 border-amber-500/50 text-amber-200',
+                    low: 'bg-blue-500/20 border-blue-500/50 text-blue-200'
+                  };
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`p-3 rounded-lg border ${priorityColors[alert.priority] || priorityColors.medium}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-semibold uppercase">
+                              {alert.priority}
+                            </span>
+                            <span className="text-xs">•</span>
+                            <span className="text-xs font-medium truncate">
+                              {alert.person_name}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold mb-1">{alert.title}</p>
+                          <p className="text-xs opacity-90 mb-2">{alert.message}</p>
+                          {alert.ai_recommendation && (
+                            <p className="text-xs opacity-75 italic">
+                              💡 {alert.ai_recommendation}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/persons/${alert.person_id}`)}
+                          className="text-xs px-2 py-1 rounded border border-current/30 hover:bg-white/10 transition"
+                        >
+                          View →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {aiAlerts.length > 5 && (
+                <p className="text-xs text-indigo-300/70 text-center pt-2">
+                  +{aiAlerts.length - 5} more alerts
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* AI Insights */}
+          {aiInsights && (
+            <div className="mt-4 pt-4 border-t border-indigo-500/30">
+              <h3 className="text-sm font-semibold text-white mb-2">Campus Health Overview</h3>
+              <p className="text-sm text-indigo-100 leading-relaxed">{aiInsights}</p>
+            </div>
+          )}
+
+          {aiAlerts.length === 0 && !loadingAlerts && (
+            <div className="mt-4 text-center py-4">
+              <p className="text-sm text-indigo-300/70">
+                ✨ All clear! No active alerts. AI is monitoring and will notify you when action is needed.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* People Needing Attention - Enhanced Visual Section */}
         {needingAttention.length > 0 && (

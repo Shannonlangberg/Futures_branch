@@ -15,6 +15,7 @@ from models import (
     ResourceLink,
     GoogleOAuthToken,
     create_person_with_engagement,
+    AIAlert,
 )
 from config.database import build_sqlalchemy_settings
 from datetime import datetime, timezone, timedelta
@@ -2239,6 +2240,174 @@ Be warm and specific. Use their data to give meaningful insights about Futures C
     except Exception as e:
         logger.error(f"Claude API error in generate_cross_campus_insights: {e}")
         return f"I'd be happy to analyze your church-wide data for Futures Church, but I'm having trouble connecting to my AI assistant right now. The data shows {analysis_data.get('total_attendance', 0)} total attendance across all campuses with an average of {analysis_data.get('averages', {}).get('attendance', 0):.1f} people per week."
+
+def monitor_person_heartbeat_ai(person, engagement_profile, previous_status=None, previous_engagement=None):
+    """
+    AI monitoring function - acts like 100 new people pastors watching each person
+    Detects engagement drops and generates alerts/recommendations
+    Called when heartbeat is recalculated
+    """
+    from models import AIAlert
+    
+    if not claude:
+        return  # Skip if AI not available
+    
+    try:
+        current_status = engagement_profile.pulse_status
+        current_engagement = engagement_profile.overall_engagement or 0
+        last_seen = engagement_profile.last_seen
+        
+        # Calculate days since last seen
+        days_since = None
+        if last_seen:
+            days_since = (datetime.utcnow() - last_seen).days
+        
+        # Detect if status dropped (green -> amber/red, amber -> red)
+        status_dropped = False
+        if previous_status:
+            if previous_status == 'green' and current_status in ['amber', 'red']:
+                status_dropped = True
+            elif previous_status == 'amber' and current_status == 'red':
+                status_dropped = True
+        
+        # Detect significant engagement drop (>20 points)
+        engagement_dropped = False
+        if previous_engagement and current_engagement < previous_engagement - 20:
+            engagement_dropped = True
+        
+        # Check if person needs escalation to staff
+        needs_escalation = False
+        priority = 'low'
+        
+        if current_status == 'red':
+            if days_since and days_since > 42:  # >6 weeks
+                needs_escalation = True
+                priority = 'urgent'
+            elif days_since and days_since > 28:  # >4 weeks
+                needs_escalation = True
+                priority = 'high'
+            else:
+                priority = 'medium'
+        elif current_status == 'amber' and days_since and days_since > 21:
+            priority = 'medium'
+        
+        # Only create alert if there's a significant change or urgent situation
+        should_alert = status_dropped or engagement_dropped or needs_escalation or (current_status == 'red' and days_since and days_since > 28)
+        
+        if not should_alert:
+            return
+        
+        # Check if we already have a recent active alert for this person
+        recent_alert = AIAlert.query.filter_by(
+            person_id=person.id,
+            status='active'
+        ).order_by(AIAlert.created_at.desc()).first()
+        
+        # Don't create duplicate alerts within 7 days
+        if recent_alert and recent_alert.created_at:
+            days_since_alert = (datetime.utcnow() - recent_alert.created_at).days
+            if days_since_alert < 7:
+                return
+        
+        # Build context for AI
+        attendance_log = engagement_profile._load_json(engagement_profile.attendance_log) if engagement_profile.attendance_log else []
+        recent_attendance = [r for r in attendance_log[-5:]] if attendance_log else []
+        
+        context = f"""Person: {person.full_name}
+Campus: {person.campus}
+Department: {person.department or 'Not set'}
+Connect Group: {person.connect_group or 'Not in a group'}
+Dream Team: {', '.join(json.loads(person.dream_team_roles)) if person.dream_team_roles else 'Not serving'}
+
+Current Status:
+- Pulse Status: {current_status.upper()} (was {previous_status or 'new'})
+- Engagement Score: {current_engagement:.0f} (was {previous_engagement or 'N/A'})
+- Days since last seen: {days_since if days_since is not None else 'Never'}
+- Recent attendance: {len(recent_attendance)} services in last 8 weeks
+
+Changes detected:
+- Status dropped: {status_dropped}
+- Engagement dropped: {engagement_dropped}
+- Needs staff escalation: {needs_escalation}
+"""
+        
+        # Generate AI recommendation
+        prompt = f"""You're an AI assistant acting as a caring new people pastor monitoring church members' spiritual health.
+
+{context}
+
+Generate a brief, caring alert and recommendation (2-3 sentences) for the campus pastor:
+1. What's happening with this person
+2. What action should be taken (specific, actionable)
+3. When to escalate to staff (if urgent)
+
+Be warm, specific, and actionable. Focus on pastoral care, not just data.
+
+Format as JSON:
+{{
+  "title": "Brief alert title",
+  "message": "What's happening with this person",
+  "recommendation": "Specific action to take"
+}}"""
+
+        try:
+            response = claude.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=300,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            ai_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
+            
+            # Parse JSON from response
+            import json
+            json_start = ai_text.find('{')
+            json_end = ai_text.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                ai_data = json.loads(ai_text[json_start:json_end])
+                title = ai_data.get('title', f'{person.full_name} needs attention')
+                message = ai_data.get('message', f'Engagement has dropped to {current_status}')
+                recommendation = ai_data.get('recommendation', 'Consider reaching out to check in')
+            else:
+                # Fallback if JSON parsing fails
+                title = f'{person.full_name} needs attention'
+                message = f'Pulse status is {current_status.upper()}. Last seen {days_since} days ago.' if days_since else f'Pulse status is {current_status.upper()}.'
+                recommendation = ai_text[:200] if len(ai_text) > 200 else ai_text
+        except Exception as e:
+            logger.error(f"Error generating AI recommendation: {e}")
+            title = f'{person.full_name} needs attention'
+            message = f'Pulse status is {current_status.upper()}. Last seen {days_since} days ago.' if days_since else f'Pulse status is {current_status.upper()}.'
+            recommendation = 'Consider reaching out to check in'
+        
+        # Determine alert type
+        if needs_escalation:
+            alert_type = 'escalate_staff'
+        elif status_dropped or engagement_dropped:
+            alert_type = 'engagement_drop'
+        else:
+            alert_type = 'needs_followup'
+        
+        # Create alert
+        alert = AIAlert(
+            person_id=person.id,
+            alert_type=alert_type,
+            priority=priority,
+            title=title,
+            message=message,
+            ai_recommendation=recommendation,
+            campus=person.campus,
+            status='active'
+        )
+        
+        db.session.add(alert)
+        db.session.flush()  # Flush to get ID but don't commit yet (caller will commit)
+        
+        logger.info(f"AI Alert created for {person.full_name}: {title} (Priority: {priority})")
+        
+    except Exception as e:
+        logger.error(f"Error in AI monitoring for person {person.id}: {e}")
+        # Don't fail the heartbeat recalculation if AI monitoring fails
+
 
 def generate_campus_heartbeat_insights(campus_id, total, green, amber, red, department_filter=None):
     """Generate AI insights for campus heartbeat health"""
@@ -13563,9 +13732,20 @@ def get_heartbeat_list():
                 db.session.add(engagement)
                 db.session.flush()
 
+            # Store previous values for AI monitoring
+            previous_status = engagement.pulse_status
+            previous_engagement = engagement.overall_engagement
+            
             # Ensure heartbeat is up to date
             engagement.recalculate_heartbeat()
             profile = engagement.to_dict()
+            
+            # Trigger AI monitoring if status changed (after commit)
+            if engagement.pulse_status != previous_status or (previous_engagement and abs(engagement.overall_engagement - previous_engagement) > 10):
+                try:
+                    monitor_person_heartbeat_ai(person, engagement, previous_status, previous_engagement)
+                except Exception as e:
+                    logger.error(f"Error in AI monitoring: {e}")
 
             # Apply pulse filter if specified
             if pulse_filter and profile['pulse_status'] != pulse_filter:
@@ -14377,6 +14557,105 @@ def update_person(person_id):
         db.session.rollback()
         logger.error(f"Error updating person {person_id}: {e}")
         return jsonify({'error': 'Failed to update person'}), 500
+
+
+@app.route('/api/heartbeat/alerts', methods=['GET'])
+@login_required
+def get_ai_alerts():
+    """Get AI-generated alerts and recommendations for heartbeat monitoring"""
+    try:
+        from models import AIAlert
+        from utils.campus_scope import apply_campus_filter
+        
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get filters
+        campus_filter = request.args.get('campus', None)
+        priority_filter = request.args.get('priority', None)
+        status_filter = request.args.get('status', 'active')  # Default to active alerts
+        limit = int(request.args.get('limit', 50))
+        
+        # Build query
+        query = AIAlert.query
+        
+        # Apply campus scoping
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(AIAlert.campus == campus_filter)
+        else:
+            # Apply campus scoping based on user role
+            # Get user's accessible campuses
+            from utils.campus_scope import get_user_accessible_campuses
+            accessible_campuses = get_user_accessible_campuses(current_user, 'heartbeat')
+            if accessible_campuses and 'all_campuses' not in accessible_campuses:
+                query = query.filter(AIAlert.campus.in_(accessible_campuses))
+        
+        # Apply filters
+        if priority_filter:
+            query = query.filter(AIAlert.priority == priority_filter)
+        if status_filter:
+            query = query.filter(AIAlert.status == status_filter)
+        
+        # Order by priority (urgent first) and created_at
+        priority_order = {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}
+        alerts = query.order_by(
+            db.case((AIAlert.priority == 'urgent', 0),
+                   (AIAlert.priority == 'high', 1),
+                   (AIAlert.priority == 'medium', 2),
+                   (AIAlert.priority == 'low', 3),
+                   else_=4),
+            AIAlert.created_at.desc()
+        ).limit(limit).all()
+        
+        return jsonify({
+            'alerts': [alert.to_dict() for alert in alerts],
+            'total': len(alerts)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching AI alerts: {e}")
+        return jsonify({'error': 'Failed to fetch alerts'}), 500
+
+
+@app.route('/api/heartbeat/alerts/<int:alert_id>/acknowledge', methods=['POST'])
+@login_required
+def acknowledge_ai_alert(alert_id):
+    """Acknowledge an AI alert"""
+    try:
+        from models import AIAlert
+        
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        alert = AIAlert.query.get(alert_id)
+        if not alert:
+            return jsonify({'error': 'Alert not found'}), 404
+        
+        # Check campus access
+        from utils.campus_scope import get_user_accessible_campuses
+        accessible_campuses = get_user_accessible_campuses(current_user, 'heartbeat')
+        if accessible_campuses and 'all_campuses' not in accessible_campuses:
+            if alert.campus not in accessible_campuses:
+                return jsonify({'error': 'Alert not accessible'}), 403
+        
+        data = request.get_json() or {}
+        new_status = data.get('status', 'acknowledged')
+        
+        alert.status = new_status
+        alert.acknowledged_by = current_user.id
+        alert.acknowledged_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Alert acknowledged',
+            'alert': alert.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error acknowledging alert: {e}")
+        return jsonify({'error': 'Failed to acknowledge alert'}), 500
 
 
 @app.route('/api/engagement/log_attendance', methods=['POST'])

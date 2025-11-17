@@ -292,6 +292,45 @@ class Event(db.Model):
         }
 
 
+class AIAlert(db.Model):
+    """AI-generated alerts and recommendations for people monitoring"""
+    __tablename__ = 'ai_alerts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    alert_type = db.Column(db.String(50), nullable=False)  # 'engagement_drop', 'needs_followup', 'escalate_staff', 'recommendation'
+    priority = db.Column(db.String(20), nullable=False)  # 'low', 'medium', 'high', 'urgent'
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    ai_recommendation = db.Column(db.Text)  # AI-generated action recommendation
+    campus = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(20), default='active')  # 'active', 'acknowledged', 'resolved', 'dismissed'
+    acknowledged_by = db.Column(db.String(100))  # User ID who acknowledged
+    acknowledged_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to person
+    person = db.relationship('Person', backref='ai_alerts')
+    
+    def to_dict(self):
+        """Convert alert to dictionary"""
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'alert_type': self.alert_type,
+            'priority': self.priority,
+            'title': self.title,
+            'message': self.message,
+            'ai_recommendation': self.ai_recommendation,
+            'campus': self.campus,
+            'status': self.status,
+            'acknowledged_by': self.acknowledged_by,
+            'acknowledged_at': self.acknowledged_at.isoformat() if self.acknowledged_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
 class ResourceCategory(db.Model):
     """Configurable resource category surfaced in the Resources hub"""
     __tablename__ = 'resource_categories'
