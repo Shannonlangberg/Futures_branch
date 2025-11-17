@@ -12,7 +12,7 @@ class Person(db.Model):
     id = db.Column(db.String(50), primary_key=True)
     full_name = db.Column(db.String(200), nullable=False)
     preferred_name = db.Column(db.String(100))
-    email = db.Column(db.String(200), unique=True, nullable=False)
+    email = db.Column(db.String(200), nullable=True)  # Made nullable and non-unique to allow kids/families
     phone = db.Column(db.String(50))
     campus = db.Column(db.String(100), nullable=False)
     department = db.Column(db.String(50))  # kids, youth, young_adults, families, adults, seniors
@@ -399,13 +399,15 @@ def create_person_with_engagement(
     birthday=None,
     pastoral_notes=None,
     tags=None,
-    department=None
+    department=None,
+    person_id=None
 ):
     """Create a person with an engagement profile"""
     import uuid
     
-    # Generate unique ID
-    person_id = str(uuid.uuid4())
+    # Generate unique ID if not provided (for PCO imports, we'll use PCO ID)
+    if not person_id:
+        person_id = str(uuid.uuid4())
     
     # Create person
     person = Person(

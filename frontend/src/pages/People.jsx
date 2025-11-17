@@ -56,7 +56,7 @@ const People = () => {
     connectGroup: '',
     dreamTeamRoles: ''
   });
-  const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0 });
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 200, total: 0 });
   const [filters, setFilters] = useState({
     campus: 'all_campuses',
     pulse_status: '',
@@ -250,10 +250,7 @@ const People = () => {
       setAddError('Please enter at least a first or last name.');
       return;
     }
-    if (!email) {
-      setAddError('Please enter an email address.');
-      return;
-    }
+    // Email is now optional (for kids/families)
     if (!campusValue) {
       setAddError('Please select a campus.');
       return;

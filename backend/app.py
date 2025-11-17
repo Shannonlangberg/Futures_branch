@@ -13946,11 +13946,7 @@ def import_people_from_pco():
 
                 if not first_name and not last_name:
                     skipped += 1
-                    continue
-
-                if not email:
-                    # Skip people with no email for now (we use email as unique key)
-                    skipped += 1
+                    errors.append(f"Row {idx}: Missing first name and last name")
                     continue
 
                 full_name = f"{first_name} {last_name}".strip()
@@ -13967,21 +13963,51 @@ def import_people_from_pco():
                 birthday_str = (row.get('Birthdate') or row.get('Birthday') or '').strip()
                 department = map_department(tags_list, status, birthday_str)
 
-                # Skip duplicate emails within the same CSV import
-                if email in seen_emails:
-                    skipped += 1
-                    continue
-
-                # Check if person already exists by email in the database
-                existing_person = Person.query.filter_by(email=email, is_active=True).first()
+                # Use Person ID as the unique identifier (from PCO)
+                pco_id = (row.get('Person ID') or '').strip()
+                
+                # Check if person already exists by PCO ID first
+                existing_person = None
+                if pco_id:
+                    # Check by PCO ID in tags
+                    import json
+                    all_persons = Person.query.filter_by(is_active=True).all()
+                    for p in all_persons:
+                        if p.tags:
+                            tags = json.loads(p.tags) if isinstance(p.tags, str) else p.tags
+                            if isinstance(tags, list) and f"pco:{pco_id}" in tags:
+                                existing_person = p
+                                break
+                
+                # If no PCO ID match, check by email (if email exists)
+                if not existing_person and email:
+                    # Skip duplicate emails within the same CSV import
+                    if email.lower() in seen_emails:
+                        skipped += 1
+                        errors.append(f"Row {idx}: Duplicate email '{email}' in CSV, skipping")
+                        continue
+                    
+                    # Check if person already exists by email in the database
+                    existing_person = Person.query.filter_by(email=email, is_active=True).first()
+                
                 if existing_person:
                     skipped += 1
+                    errors.append(f"Row {idx}: Person already exists (PCO ID: {pco_id or 'N/A'}, Email: {email or 'N/A'})")
                     continue
+                
+                # Normalize email (lowercase, or None if empty)
+                email_normalized = email.lower().strip() if email else None
+                if email_normalized:
+                    seen_emails.add(email_normalized)
 
+                # Use PCO Person ID as the person_id if available, otherwise generate UUID
+                import uuid
+                person_id = f"pco_{pco_id}" if pco_id else str(uuid.uuid4())
+                
                 # Create person + engagement
                 person, engagement = create_person_with_engagement(
                     full_name=full_name,
-                    email=email,
+                    email=email_normalized,  # Can be None now
                     campus=campus_code,
                     preferred_name=preferred_name,
                     phone=phone,
@@ -13991,21 +14017,22 @@ def import_people_from_pco():
                     pastoral_notes=None,
                     tags=tags_list,
                     department=department,
+                    person_id=person_id
                 )
 
-                # Optionally store PCO Person ID in tags for now
-                pco_id = (row.get('Person ID') or '').strip()
+                # Store PCO Person ID in tags for future reference
                 if pco_id:
-                    existing_tags = person.tags or '[]'
                     import json
-                    tag_values = json.loads(existing_tags)
+                    existing_tags = person.tags or '[]'
+                    tag_values = json.loads(existing_tags) if isinstance(existing_tags, str) else existing_tags
+                    if not isinstance(tag_values, list):
+                        tag_values = []
                     if f"pco:{pco_id}" not in tag_values:
                         tag_values.append(f"pco:{pco_id}")
                         person.tags = json.dumps(tag_values)
 
                 db.session.add(person)
                 db.session.add(engagement)
-                seen_emails.add(email)
                 created += 1
 
             except Exception as row_err:
@@ -14150,16 +14177,17 @@ def create_person():
         
         data = request.get_json()
         
-        # Validate required fields
-        required_fields = ['full_name', 'email', 'campus']
+        # Validate required fields (email is now optional)
+        required_fields = ['full_name', 'campus']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Check if email already exists
-        existing_person = Person.query.filter_by(email=data['email']).first()
-        if existing_person:
-            return jsonify({'error': 'Person with this email already exists'}), 400
+        # Check if email already exists (only if email provided)
+        if data.get('email'):
+            existing_person = Person.query.filter_by(email=data['email'], is_active=True).first()
+            if existing_person:
+                return jsonify({'error': 'Person with this email already exists'}), 400
         
         # Create person and engagement profile
         person, engagement = create_person_with_engagement(
