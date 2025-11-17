@@ -14409,13 +14409,23 @@ def get_admin_resource_categories():
         if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # Get all active categories from database
-        categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
-        categories_data = [category.to_dict() for category in categories]
+        # Try to get categories from database, but handle case where table doesn't exist yet
+        try:
+            categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
+            categories_data = [category.to_dict() for category in categories]
+        except Exception as db_error:
+            # Table might not exist yet - create it
+            logger.warning(f"ResourceCategory table might not exist: {db_error}")
+            try:
+                db.create_all()
+                categories_data = []
+            except Exception as create_error:
+                logger.error(f"Failed to create ResourceCategory table: {create_error}")
+                categories_data = []
         
         return jsonify({'categories': categories_data})
     except Exception as e:
-        logger.error(f"Error fetching resource categories: {e}")
+        logger.error(f"Error fetching resource categories: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
 @app.route('/api/admin/resource-categories', methods=['POST'])
@@ -14435,6 +14445,12 @@ def create_resource_category():
         
         if not data.get('slug'):
             return jsonify({'error': 'Slug is required'}), 400
+        
+        # Ensure table exists
+        try:
+            db.create_all()
+        except Exception as create_error:
+            logger.warning(f"Table creation check: {create_error}")
         
         # Check if slug already exists
         existing = ResourceCategory.query.filter_by(slug=data['slug']).first()
@@ -14523,13 +14539,23 @@ def get_resource_categories():
         if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # Get all active categories from database
-        categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
-        categories_data = [category.to_dict() for category in categories]
+        # Try to get categories from database, but handle case where table doesn't exist yet
+        try:
+            categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
+            categories_data = [category.to_dict() for category in categories]
+        except Exception as db_error:
+            # Table might not exist yet - create it
+            logger.warning(f"ResourceCategory table might not exist: {db_error}")
+            try:
+                db.create_all()
+                categories_data = []
+            except Exception as create_error:
+                logger.error(f"Failed to create ResourceCategory table: {create_error}")
+                categories_data = []
         
         return jsonify({'categories': categories_data})
     except Exception as e:
-        logger.error(f"Error fetching resource categories: {e}")
+        logger.error(f"Error fetching resource categories: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
 @app.route('/api/resources/<category_id>', methods=['GET'])
