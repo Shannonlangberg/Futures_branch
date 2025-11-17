@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentListIcon,
@@ -6,7 +7,10 @@ import {
   LifebuoyIcon,
   MegaphoneIcon,
   PlayCircleIcon,
-  SparklesIcon
+  SparklesIcon,
+  CurrencyDollarIcon,
+  BookOpenIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 
 const gradientBackground = 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950';
@@ -68,26 +72,40 @@ const Landing = () => {
     fetchCategoryPreview();
   }, []);
 
+  const navigate = useNavigate();
+
   const quickActions = useMemo(() => ([
     {
-      name: 'View Dashboards',
+      name: 'Dashboard',
       description: 'Explore ministry metrics and weekend pulse data visualisations.',
       href: '/dashboard',
       icon: DocumentChartBarIcon,
       highlight: true
     },
     {
-      name: 'Weekend Pulse Input',
+      name: 'Input',
       description: 'Submit the latest weekend figures and service insights.',
       href: '/stats',
       icon: ClipboardDocumentListIcon
     },
     {
-      name: 'Team Resources',
+      name: 'Resources',
       description: 'Find templates, playbooks, and media to support your teams.',
       href: '/resources',
-      icon: PlayCircleIcon,
+      icon: BookOpenIcon,
       highlight: true
+    },
+    {
+      name: 'Finance',
+      description: 'Submit tithe data and view financial reports.',
+      href: '/finance',
+      icon: CurrencyDollarIcon
+    },
+    {
+      name: 'Settings',
+      description: 'Manage your profile and account settings.',
+      href: '/profile',
+      icon: Cog6ToothIcon
     },
   ]), []);
 
@@ -184,14 +202,14 @@ const Landing = () => {
               </div>
               <span className="text-xs uppercase tracking-[0.2em] text-white/40">Quick links</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 sm:gap-6">
               {quickActions.map((action) => (
-                <a
+                <button
                   key={action.name}
-                  href={action.href}
+                  onClick={() => navigate(action.href)}
                   className={`
                     group rounded-2xl border border-white/10 p-5 sm:p-6 transition-transform duration-200
-                    bg-white/5 hover:bg-white/10 hover:-translate-y-1
+                    bg-white/5 hover:bg-white/10 hover:-translate-y-1 text-left
                     ${action.highlight ? 'shadow-lg shadow-blue-500/10' : 'shadow-sm shadow-black/10'}
                   `}
                 >
@@ -207,7 +225,7 @@ const Landing = () => {
                       {action.description}
                     </p>
                   </div>
-                </a>
+                </button>
               ))}
             </div>
           </section>

@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ResourceCategory
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -803,7 +803,11 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HT
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 # Configure SQLAlchemy database
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
+# Strip whitespace from DATABASE_URL to handle Railway environment variable issues
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
+if database_url:
+    database_url = database_url.strip()  # Remove leading/trailing whitespace
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure direct database connection for new tables (regions, campuses_new)
@@ -815,7 +819,7 @@ def get_db():
     import sqlite3
     
     # On Railway, check if DATABASE_URL points to a database with users table
-    database_url = os.getenv('DATABASE_URL', '')
+    database_url = os.getenv('DATABASE_URL', '').strip()
     if database_url and database_url.startswith('sqlite:///'):
         potential_path = database_url.replace('sqlite:///', '')
         if potential_path.startswith('/'):
@@ -842,7 +846,7 @@ def run_migrations():
         # Determine which database to use for migrations
         # Check if DATABASE_URL points to a database we should use
         db_path = CHURCH_VOICE_DB_PATH
-        database_url = os.getenv('DATABASE_URL', '')
+        database_url = os.getenv('DATABASE_URL', '').strip()
         if database_url and database_url.startswith('sqlite:///'):
             potential_path = database_url.replace('sqlite:///', '')
             if potential_path.startswith('/'):
@@ -981,6 +985,14 @@ login_manager.init_app(app)
 login_manager.login_view = 'api_login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Handle unauthorized API requests - return JSON instead of redirect"""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Authentication required. Please sign in.'}), 401
+    # For non-API routes, redirect to login
+    return redirect(url_for('api_login'))
 
 # User management functions
 def load_users_database():
@@ -1524,6 +1536,16 @@ def admin_required(f):
         if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
             flash('Administrator or Senior Leadership access required.', 'error')
             return redirect(url_for('serve_index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required_json(f):
+    """Decorator to require admin access - returns JSON for API endpoints"""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            return jsonify({'error': 'Administrator access required'}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -8129,12 +8151,25 @@ def debug_claude():
 @app.route('/api/session')
 def session_info():
     if current_user.is_authenticated:
+        # Check if user needs Google Drive auth (admin users only)
+        needs_drive_auth = False
+        if current_user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            # Check if Google Drive is authenticated
+            drive_authenticated = session.get('google_drive_authenticated', False)
+            # Check if token is still valid
+            token_expiry = session.get('google_drive_token_expiry', 0)
+            token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
+            
+            # Admin users need Drive auth if not authenticated or token expired
+            needs_drive_auth = not (drive_authenticated and token_valid)
+        
         return jsonify({
             "authenticated": True,
             "user": current_user.username,
             "role": current_user.role,
             "campus": current_user.campus,
             "full_name": current_user.full_name,
+            "needs_drive_auth": needs_drive_auth,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     else:
@@ -8144,6 +8179,7 @@ def session_info():
             "role": None,
             "campus": None,
             "full_name": None,
+            "needs_drive_auth": False,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
@@ -14395,6 +14431,356 @@ def get_events():
     except Exception as e:
         logger.error(f"Error fetching events: {e}")
         return jsonify({'error': 'Failed to fetch events'}), 500
+
+@app.route('/api/admin/resource-categories', methods=['GET'])
+@admin_required_json
+def get_admin_resource_categories():
+    """Get all resource categories (admin only)"""
+    try:
+        
+        # Try to get categories from database, but handle case where table doesn't exist yet
+        try:
+            categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
+            categories_data = [category.to_dict() for category in categories]
+        except Exception as db_error:
+            # Table might not exist yet - create it
+            logger.warning(f"ResourceCategory table might not exist: {db_error}")
+            try:
+                db.create_all()
+                categories_data = []
+            except Exception as create_error:
+                logger.error(f"Failed to create ResourceCategory table: {create_error}")
+                categories_data = []
+        
+        return jsonify({'categories': categories_data})
+    except Exception as e:
+        logger.error(f"Error fetching resource categories: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch resource categories'}), 500
+
+@app.route('/api/admin/resource-categories', methods=['POST'])
+@admin_required_json
+def create_resource_category():
+    """Create a new resource category (admin only)"""
+    try:
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data.get('displayName'):
+            return jsonify({'error': 'Display name is required'}), 400
+        
+        if not data.get('slug'):
+            return jsonify({'error': 'Slug is required'}), 400
+        
+        # Ensure table exists
+        try:
+            db.create_all()
+        except Exception as create_error:
+            logger.warning(f"Table creation check: {create_error}")
+        
+        # Check if slug already exists
+        existing = ResourceCategory.query.filter_by(slug=data['slug']).first()
+        if existing:
+            return jsonify({'error': 'A category with this slug already exists'}), 400
+        
+        # Create new category
+        category = ResourceCategory(
+            display_name=data['displayName'],
+            slug=data['slug'],
+            description=data.get('description', ''),
+            folder_id=data.get('folderId', ''),
+            sort_order=data.get('sortOrder', 0),
+            links=json.dumps(data.get('links', [])),
+            is_active=True
+        )
+        
+        db.session.add(category)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Resource category created successfully',
+            'category': category.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating resource category: {e}")
+        return jsonify({'error': f'Failed to create resource category: {str(e)}'}), 500
+
+@app.route('/api/admin/resource-categories/<category_id>', methods=['PUT'])
+@admin_required_json
+def update_resource_category(category_id):
+    """Update a resource category (admin only)"""
+    try:
+        
+        data = request.get_json()
+        
+        # Find category by slug or ID
+        category = ResourceCategory.query.filter(
+            (ResourceCategory.slug == category_id) | (ResourceCategory.id == category_id)
+        ).first()
+        
+        if not category:
+            return jsonify({'error': 'Resource category not found'}), 404
+        
+        # Update fields
+        if 'displayName' in data:
+            category.display_name = data['displayName']
+        if 'slug' in data:
+            # Check if new slug conflicts with another category
+            existing = ResourceCategory.query.filter_by(slug=data['slug']).first()
+            if existing and existing.id != category.id:
+                return jsonify({'error': 'A category with this slug already exists'}), 400
+            category.slug = data['slug']
+        if 'description' in data:
+            category.description = data.get('description', '')
+        if 'folderId' in data:
+            category.folder_id = data.get('folderId', '')
+        if 'sortOrder' in data:
+            category.sort_order = data.get('sortOrder', 0)
+        if 'links' in data:
+            category.links = json.dumps(data.get('links', []))
+        
+        category.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Resource category updated successfully',
+            'category': category.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating resource category: {e}")
+        return jsonify({'error': f'Failed to update resource category: {str(e)}'}), 500
+
+@app.route('/api/resources/categories', methods=['GET'])
+@admin_required_json
+def get_resource_categories():
+    """Get all resource categories"""
+    try:
+        
+        # Try to get categories from database, but handle case where table doesn't exist yet
+        try:
+            categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
+            categories_data = [category.to_dict() for category in categories]
+        except Exception as db_error:
+            # Table might not exist yet - create it
+            logger.warning(f"ResourceCategory table might not exist: {db_error}")
+            try:
+                db.create_all()
+                categories_data = []
+            except Exception as create_error:
+                logger.error(f"Failed to create ResourceCategory table: {create_error}")
+                categories_data = []
+        
+        return jsonify({'categories': categories_data})
+    except Exception as e:
+        logger.error(f"Error fetching resource categories: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch resource categories'}), 500
+
+@app.route('/api/google/auth-url', methods=['GET'])
+@admin_required_json
+def get_google_auth_url():
+    """Get Google Drive OAuth URL"""
+    try:
+        
+        # Check if OAuth credentials are configured
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+        redirect_uri = os.getenv('GOOGLE_OAUTH_REDIRECT_URI')
+        
+        if not client_id or not client_secret:
+            return jsonify({
+                'error': 'Google OAuth credentials not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.',
+                'auth_url': None
+            }), 503
+        
+        # Use request origin for redirect URI if not set
+        if not redirect_uri:
+            # Get the origin from the request
+            origin = request.headers.get('Origin') or request.host_url.rstrip('/')
+            redirect_uri = f"{origin}/api/google/callback"
+        
+        # Generate state token for security
+        import secrets
+        state_token = secrets.token_urlsafe(32)
+        session['google_oauth_state'] = state_token
+        session['google_oauth_user_id'] = current_user.id
+        
+        # Google OAuth scopes for Drive
+        scopes = [
+            'https://www.googleapis.com/auth/drive.readonly',
+            'https://www.googleapis.com/auth/drive.file'
+        ]
+        scope_string = ' '.join(scopes)
+        
+        # Build OAuth URL
+        auth_url = (
+            f"https://accounts.google.com/o/oauth2/v2/auth?"
+            f"client_id={client_id}&"
+            f"redirect_uri={redirect_uri}&"
+            f"response_type=code&"
+            f"scope={scope_string}&"
+            f"state={state_token}&"
+            f"access_type=offline&"
+            f"prompt=consent"
+        )
+        
+        return jsonify({
+            'auth_url': auth_url,
+            'state': state_token
+        })
+    except Exception as e:
+        logger.error(f"Error getting Google auth URL: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to get Google auth URL: {str(e)}'}), 500
+
+@app.route('/api/google/callback', methods=['GET'])
+def google_oauth_callback():
+    """Handle Google OAuth callback"""
+    try:
+        code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
+        
+        if error:
+            return jsonify({'error': f'OAuth error: {error}'}), 400
+        
+        if not code:
+            return jsonify({'error': 'Missing authorization code'}), 400
+        
+        # Verify state token
+        expected_state = session.get('google_oauth_state')
+        if not expected_state or state != expected_state:
+            return jsonify({'error': 'Invalid state token'}), 400
+        
+        user_id = session.get('google_oauth_user_id')
+        if not user_id:
+            return jsonify({'error': 'Session expired'}), 401
+        
+        # Exchange code for tokens
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+        redirect_uri = os.getenv('GOOGLE_OAUTH_REDIRECT_URI')
+        
+        if not redirect_uri:
+            origin = request.headers.get('Origin') or request.host_url.rstrip('/')
+            redirect_uri = f"{origin}/api/google/callback"
+        
+        # Exchange authorization code for tokens
+        token_url = 'https://oauth2.googleapis.com/token'
+        token_data = {
+            'code': code,
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'redirect_uri': redirect_uri,
+            'grant_type': 'authorization_code'
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        
+        if not token_response.ok:
+            logger.error(f"Token exchange failed: {token_response.text}")
+            return jsonify({'error': 'Failed to exchange authorization code'}), 500
+        
+        tokens = token_response.json()
+        
+        # Store tokens in session
+        session['google_drive_access_token'] = tokens.get('access_token')
+        session['google_drive_refresh_token'] = tokens.get('refresh_token')
+        session['google_drive_token_expiry'] = datetime.now(timezone.utc).timestamp() + tokens.get('expires_in', 3600)
+        session['google_drive_authenticated'] = True
+        
+        # Clear OAuth state
+        session.pop('google_oauth_state', None)
+        session.pop('google_oauth_user_id', None)
+        
+        # Return success page that handles both popup and redirect scenarios
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Google Drive Connected</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-align: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(10px);
+                    border-radius: 20px;
+                    padding: 40px;
+                    max-width: 400px;
+                }
+                h1 { margin-top: 0; }
+                .checkmark {
+                    font-size: 64px;
+                    margin-bottom: 20px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="checkmark">✓</div>
+                <h1>Google Drive Connected!</h1>
+                <p>You can close this window or return to the app.</p>
+            </div>
+            <script>
+                // Handle popup scenario (desktop)
+                if (window.opener) {
+                    window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                    setTimeout(() => window.close(), 2000);
+                } else {
+                    // Handle redirect scenario (mobile) - redirect back to app
+                    setTimeout(() => {
+                        // Try to go back, or redirect to home
+                        if (window.history.length > 1) {
+                            window.history.back();
+                        } else {
+                            window.location.href = '/';
+                        }
+                    }, 2000);
+                }
+            </script>
+        </body>
+        </html>
+        '''
+    except Exception as e:
+        logger.error(f"Error in Google OAuth callback: {e}", exc_info=True)
+        return jsonify({'error': f'OAuth callback failed: {str(e)}'}), 500
+
+@app.route('/api/resources/<category_id>', methods=['GET'])
+@admin_required_json
+def get_resource_category_files(category_id):
+    """Get files for a specific resource category"""
+    try:
+        
+        # Get category to retrieve links
+        category = ResourceCategory.query.filter(
+            (ResourceCategory.slug == category_id) | (ResourceCategory.id == category_id)
+        ).filter_by(is_active=True).first()
+        
+        if category:
+            links = json.loads(category.links) if category.links else []
+            # For now, return links from category - Google Drive files not yet implemented
+            return jsonify({
+                'files': [],  # Google Drive files not yet implemented
+                'links': links
+            })
+        else:
+            return jsonify({'files': [], 'links': []})
+    except Exception as e:
+        logger.error(f"Error fetching resource category files: {e}")
+        return jsonify({'error': 'Failed to fetch resource files'}), 500
 
 @app.route('/api/events/categories', methods=['GET'])
 def get_event_categories():

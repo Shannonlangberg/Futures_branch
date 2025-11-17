@@ -95,6 +95,12 @@ const Resources = () => {
         credentials: 'include',
       });
 
+      if (response.status === 401) {
+        setCategories([]);
+        setCategoriesError('Please sign in to view resources.');
+        return;
+      }
+
       if (response.status === 403) {
         setCategories([]);
         setCategoriesError('You do not have access to view resources.');
@@ -102,7 +108,9 @@ const Resources = () => {
       }
 
       if (!response.ok) {
-        throw new Error('Unable to load resource categories. Please try again.');
+        const payload = await response.json().catch(() => ({}));
+        const errorMsg = payload.error || 'Unable to load resource categories. Please try again.';
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
@@ -145,10 +153,14 @@ const Resources = () => {
 
         if (response.status === 401) {
           setFiles([]);
-          setLinks(normalizeLinks(payload.links));
-          setAuthRequired(true);
+          setLinks([]);
+          setFilesError('Please sign in to view resources.');
           return;
         }
+        
+        // 401 is for login, not Google Drive auth
+        // Google Drive auth is only needed if we're trying to fetch Drive files
+        // For now, we just show links, so no Drive auth needed
 
         if (!response.ok) {
           const message = payload.error || 'Unable to fetch files for this category.';
@@ -159,6 +171,8 @@ const Resources = () => {
         items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setFiles(items);
         setLinks(normalizeLinks(payload.links));
+        // Clear auth required flag - we successfully loaded data
+        setAuthRequired(false);
       } catch (error) {
         setFilesError(error.message || 'Something went wrong while loading files.');
         setFiles([]);
@@ -190,6 +204,18 @@ const Resources = () => {
         throw new Error('Missing Google authentication URL.');
       }
 
+      // Detect mobile devices
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
+                      (window.innerWidth <= 768 && window.innerHeight <= 1024);
+      
+      if (isMobile) {
+        // On mobile, use full-page redirect instead of popup
+        sessionStorage.setItem('google_oauth_in_progress', 'true');
+        window.location.href = authUrl;
+        return; // Don't set error - we're navigating away
+      }
+
+      // On desktop, use popup
       const authWindow = window.open(
         authUrl,
         'googleDriveAuth',
@@ -401,7 +427,10 @@ const Resources = () => {
       </div>
     );
 
-    if (authRequired) {
+    // Only show Google Drive auth if we actually need it (e.g., trying to fetch Drive files)
+    // For now, we're just showing links, so this shouldn't be needed
+    // But keep it for future when we implement Drive file fetching
+    if (authRequired && files.length === 0 && links.length === 0) {
       return (
         <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-400/30 rounded-3xl p-10 space-y-6">
           <div className="text-center space-y-6">
