@@ -813,6 +813,26 @@ CHURCH_VOICE_DB_PATH = os.path.join(os.path.dirname(__file__), 'instance', 'chur
 def get_db():
     """Get a direct sqlite3 connection to church_voice.db for new tables"""
     import sqlite3
+    
+    # On Railway, check if DATABASE_URL points to a database with users table
+    database_url = os.getenv('DATABASE_URL', '')
+    if database_url and database_url.startswith('sqlite:///'):
+        potential_path = database_url.replace('sqlite:///', '')
+        if potential_path.startswith('/'):
+            # Check if users table exists in this database
+            try:
+                test_conn = sqlite3.connect(potential_path)
+                test_cursor = test_conn.cursor()
+                test_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+                if test_cursor.fetchone():
+                    test_conn.close()
+                    # Users table exists here, use this database
+                    return sqlite3.connect(potential_path)
+                test_conn.close()
+            except:
+                pass  # Fall back to default
+    
+    # Default to CHURCH_VOICE_DB_PATH
     return sqlite3.connect(CHURCH_VOICE_DB_PATH)
 
 def run_migrations():
