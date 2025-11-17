@@ -1539,6 +1539,16 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def admin_required_json(f):
+    """Decorator to require admin access - returns JSON for API endpoints"""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            return jsonify({'error': 'Administrator access required'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
 def can_recall_data(campus=None):
     """Check if current user can recall data for specified campus"""
     if not current_user.is_authenticated:
@@ -14414,13 +14424,10 @@ def get_events():
         return jsonify({'error': 'Failed to fetch events'}), 500
 
 @app.route('/api/admin/resource-categories', methods=['GET'])
-@login_required
+@admin_required_json
 def get_admin_resource_categories():
     """Get all resource categories (admin only)"""
     try:
-        # Resources is admin-only - check if user is admin
-        if current_user.role != 'admin':
-            return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Try to get categories from database, but handle case where table doesn't exist yet
         try:
@@ -14442,13 +14449,10 @@ def get_admin_resource_categories():
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
 @app.route('/api/admin/resource-categories', methods=['POST'])
-@login_required
+@admin_required_json
 def create_resource_category():
     """Create a new resource category (admin only)"""
     try:
-        # Resources is admin-only - check if user is admin
-        if current_user.role != 'admin':
-            return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         
@@ -14494,13 +14498,10 @@ def create_resource_category():
         return jsonify({'error': f'Failed to create resource category: {str(e)}'}), 500
 
 @app.route('/api/admin/resource-categories/<category_id>', methods=['PUT'])
-@login_required
+@admin_required_json
 def update_resource_category(category_id):
     """Update a resource category (admin only)"""
     try:
-        # Resources is admin-only - check if user is admin
-        if current_user.role != 'admin':
-            return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         
@@ -14544,13 +14545,10 @@ def update_resource_category(category_id):
         return jsonify({'error': f'Failed to update resource category: {str(e)}'}), 500
 
 @app.route('/api/resources/categories', methods=['GET'])
-@login_required
+@admin_required_json
 def get_resource_categories():
     """Get all resource categories"""
     try:
-        # Resources is admin-only - check if user is admin
-        if current_user.role != 'admin':
-            return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Try to get categories from database, but handle case where table doesn't exist yet
         try:
@@ -14572,13 +14570,10 @@ def get_resource_categories():
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
 @app.route('/api/google/auth-url', methods=['GET'])
-@login_required
+@admin_required_json
 def get_google_auth_url():
     """Get Google Drive OAuth URL"""
     try:
-        # Resources is admin-only - check if user is admin
-        if current_user.role != 'admin':
-            return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Check if OAuth credentials are configured
         client_id = os.getenv('GOOGLE_CLIENT_ID')
@@ -14755,13 +14750,10 @@ def google_oauth_callback():
         return jsonify({'error': f'OAuth callback failed: {str(e)}'}), 500
 
 @app.route('/api/resources/<category_id>', methods=['GET'])
-@login_required
+@admin_required_json
 def get_resource_category_files(category_id):
     """Get files for a specific resource category"""
     try:
-        # Resources is admin-only - check if user is admin
-        if current_user.role != 'admin':
-            return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Get category to retrieve links
         category = ResourceCategory.query.filter(
