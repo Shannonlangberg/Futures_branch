@@ -8133,12 +8133,15 @@ def debug_claude():
 @app.route('/api/session')
 def session_info():
     if current_user.is_authenticated:
+        # For now, Google Drive auth is not required - set needs_drive_auth to False
+        # This prevents the Drive auth modal from showing on login
         return jsonify({
             "authenticated": True,
             "user": current_user.username,
             "role": current_user.role,
             "campus": current_user.campus,
             "full_name": current_user.full_name,
+            "needs_drive_auth": False,  # Google Drive OAuth not yet implemented
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     else:
@@ -8148,6 +8151,7 @@ def session_info():
             "role": None,
             "campus": None,
             "full_name": None,
+            "needs_drive_auth": False,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
