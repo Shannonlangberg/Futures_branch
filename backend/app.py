@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ResourceCategory
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -14409,9 +14409,11 @@ def get_admin_resource_categories():
         if current_user.role != 'admin':
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # For now, return empty array - resources functionality can be added later
-        # This prevents the "Unable to load" error
-        return jsonify({'categories': []})
+        # Get all active categories from database
+        categories = ResourceCategory.query.filter_by(is_active=True).order_by(ResourceCategory.sort_order.asc(), ResourceCategory.display_name.asc()).all()
+        categories_data = [category.to_dict() for category in categories]
+        
+        return jsonify({'categories': categories_data})
     except Exception as e:
         logger.error(f"Error fetching resource categories: {e}")
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
@@ -14427,23 +14429,40 @@ def create_resource_category():
         
         data = request.get_json()
         
-        # For now, just return success - full implementation can be added later
-        # This prevents the "Failed to save" error
+        # Validate required fields
+        if not data.get('displayName'):
+            return jsonify({'error': 'Display name is required'}), 400
+        
+        if not data.get('slug'):
+            return jsonify({'error': 'Slug is required'}), 400
+        
+        # Check if slug already exists
+        existing = ResourceCategory.query.filter_by(slug=data['slug']).first()
+        if existing:
+            return jsonify({'error': 'A category with this slug already exists'}), 400
+        
+        # Create new category
+        category = ResourceCategory(
+            display_name=data['displayName'],
+            slug=data['slug'],
+            description=data.get('description', ''),
+            folder_id=data.get('folderId', ''),
+            sort_order=data.get('sortOrder', 0),
+            links=json.dumps(data.get('links', [])),
+            is_active=True
+        )
+        
+        db.session.add(category)
+        db.session.commit()
+        
         return jsonify({
             'message': 'Resource category created successfully',
-            'category': {
-                'id': data.get('slug') or f"category-{int(datetime.now().timestamp())}",
-                'displayName': data.get('displayName', ''),
-                'slug': data.get('slug', ''),
-                'description': data.get('description', ''),
-                'folderId': data.get('folderId', ''),
-                'sortOrder': data.get('sortOrder', 0),
-                'links': data.get('links', [])
-            }
+            'category': category.to_dict()
         })
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error creating resource category: {e}")
-        return jsonify({'error': 'Failed to create resource category'}), 500
+        return jsonify({'error': f'Failed to create resource category: {str(e)}'}), 500
 
 @app.route('/api/admin/resource-categories/<category_id>', methods=['PUT'])
 @login_required
@@ -14456,23 +14475,44 @@ def update_resource_category(category_id):
         
         data = request.get_json()
         
-        # For now, just return success - full implementation can be added later
-        # This prevents the "Failed to save" error
+        # Find category by slug or ID
+        category = ResourceCategory.query.filter(
+            (ResourceCategory.slug == category_id) | (ResourceCategory.id == category_id)
+        ).first()
+        
+        if not category:
+            return jsonify({'error': 'Resource category not found'}), 404
+        
+        # Update fields
+        if 'displayName' in data:
+            category.display_name = data['displayName']
+        if 'slug' in data:
+            # Check if new slug conflicts with another category
+            existing = ResourceCategory.query.filter_by(slug=data['slug']).first()
+            if existing and existing.id != category.id:
+                return jsonify({'error': 'A category with this slug already exists'}), 400
+            category.slug = data['slug']
+        if 'description' in data:
+            category.description = data.get('description', '')
+        if 'folderId' in data:
+            category.folder_id = data.get('folderId', '')
+        if 'sortOrder' in data:
+            category.sort_order = data.get('sortOrder', 0)
+        if 'links' in data:
+            category.links = json.dumps(data.get('links', []))
+        
+        category.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
         return jsonify({
             'message': 'Resource category updated successfully',
-            'category': {
-                'id': category_id,
-                'displayName': data.get('displayName', ''),
-                'slug': data.get('slug', ''),
-                'description': data.get('description', ''),
-                'folderId': data.get('folderId', ''),
-                'sortOrder': data.get('sortOrder', 0),
-                'links': data.get('links', [])
-            }
+            'category': category.to_dict()
         })
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error updating resource category: {e}")
-        return jsonify({'error': 'Failed to update resource category'}), 500
+        return jsonify({'error': f'Failed to update resource category: {str(e)}'}), 500
 
 @app.route('/api/resources/categories', methods=['GET'])
 @login_required
