@@ -159,7 +159,7 @@ const PersonHealthReport = () => {
       if (daysSince > 21) {
         steps.push({
           action: 'Gentle check-in',
-          description: 'Consider reaching out to see how they're doing.',
+          description: "Consider reaching out to see how they're doing.",
           priority: 'medium'
         });
       }
