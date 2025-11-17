@@ -12691,6 +12691,8 @@ def update_person(person_id):
             person.email = data['email']
         if 'campus' in data:
             person.campus = data['campus']
+        if 'department' in data:
+            person.department = data['department'] if data['department'] else None
         if 'connect_group' in data:
             person.connect_group = data['connect_group']
         if 'dream_team_roles' in data:
