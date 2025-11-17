@@ -26,20 +26,6 @@ const Passport = () => {
     loadCampuses();
   }, []);
 
-  useEffect(() => {
-    if (campuses.length > 0) {
-      setCurrentPage(1); // Reset to first page when campus changes
-      loadCampusData();
-    }
-  }, [selectedCampus, campuses]);
-
-  useEffect(() => {
-    // Recalculate pagination when page changes
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    setPeopleNeedingAttention(allPeopleNeedingAttention.slice(startIndex, endIndex));
-  }, [currentPage, allPeopleNeedingAttention, itemsPerPage]);
-
   const loadCampuses = async () => {
     try {
       const response = await fetch('/api/campuses/public', {
@@ -116,6 +102,21 @@ const Passport = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (campuses.length > 0) {
+      setCurrentPage(1); // Reset to first page when campus changes
+      loadCampusData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCampus, campuses]);
+
+  useEffect(() => {
+    // Recalculate pagination when page changes
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setPeopleNeedingAttention(allPeopleNeedingAttention.slice(startIndex, endIndex));
+  }, [currentPage, allPeopleNeedingAttention, itemsPerPage]);
 
   const getPulseColor = (status) => {
     switch (status) {
