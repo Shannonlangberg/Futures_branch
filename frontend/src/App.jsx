@@ -14,6 +14,7 @@ import ConnectGroupLeader from './pages/ConnectGroupLeader';
 import People from './pages/People';
 import Passport from './pages/Passport';
 import PersonHealthReport from './pages/PersonHealthReport';
+import Landing from './pages/Landing';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -85,7 +86,8 @@ function App() {
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/home" element={<Landing />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/stats" element={<LogStats />} />
                   <Route path="/finance" element={<Finance />} />

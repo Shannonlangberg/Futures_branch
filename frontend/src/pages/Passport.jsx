@@ -17,6 +17,9 @@ const Passport = () => {
   const [selectedCampus, setSelectedCampus] = useState('all_campuses');
   const [campusData, setCampusData] = useState(null);
   const [peopleNeedingAttention, setPeopleNeedingAttention] = useState([]);
+  const [allPeopleNeedingAttention, setAllPeopleNeedingAttention] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,9 +28,17 @@ const Passport = () => {
 
   useEffect(() => {
     if (campuses.length > 0) {
+      setCurrentPage(1); // Reset to first page when campus changes
       loadCampusData();
     }
   }, [selectedCampus, campuses]);
+
+  useEffect(() => {
+    // Recalculate pagination when page changes
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setPeopleNeedingAttention(allPeopleNeedingAttention.slice(startIndex, endIndex));
+  }, [currentPage, allPeopleNeedingAttention, itemsPerPage]);
 
   const loadCampuses = async () => {
     try {
@@ -79,18 +90,25 @@ const Passport = () => {
           }
         });
         
-        // Get people needing attention (red and amber)
+        // Get people needing attention (red and amber) - ALL of them
         const needingAttention = persons
           .filter(p => p.pulse_status === 'red' || p.pulse_status === 'amber')
           .sort((a, b) => {
-            // Sort red first, then amber
+            // Sort red first, then amber, then by last_seen (most recent first)
             if (a.pulse_status === 'red' && b.pulse_status !== 'red') return -1;
             if (a.pulse_status !== 'red' && b.pulse_status === 'red') return 1;
-            return 0;
-          })
-          .slice(0, 10); // Top 10
+            // If same status, sort by last_seen (most recent first)
+            const aDate = a.last_seen ? new Date(a.last_seen) : new Date(0);
+            const bDate = b.last_seen ? new Date(b.last_seen) : new Date(0);
+            return bDate - aDate;
+          });
         
-        setPeopleNeedingAttention(needingAttention);
+        setAllPeopleNeedingAttention(needingAttention);
+        
+        // Calculate pagination
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        setPeopleNeedingAttention(needingAttention.slice(startIndex, endIndex));
       }
     } catch (err) {
       console.error('Error loading campus data:', err);
@@ -249,42 +267,74 @@ const Passport = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* People Needing Attention */}
           <div className="lg:col-span-2 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-6 h-6 text-yellow-400" />
-              People Needing Attention
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <ExclamationTriangleIcon className="w-6 h-6 text-yellow-400" />
+                People Needing Attention
+              </h2>
+              {allPeopleNeedingAttention.length > 0 && (
+                <span className="text-slate-400 text-sm">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, allPeopleNeedingAttention.length)} of {allPeopleNeedingAttention.length}
+                </span>
+              )}
+            </div>
             {peopleNeedingAttention.length > 0 ? (
-              <div className="space-y-3">
-                {peopleNeedingAttention.map((person) => (
-                  <div
-                    key={person.id}
-                    onClick={() => navigate(`/persons/${person.id}`)}
-                    className="bg-slate-800/50 p-4 rounded-lg hover:bg-slate-800/70 transition-all cursor-pointer border border-slate-700/50"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getPulseColor(person.pulse_status)}`}>
-                            {getPulseLabel(person.pulse_status)}
-                          </span>
-                          <span className="text-white font-semibold">
-                            {person.preferred_name || person.full_name}
-                          </span>
-                        </div>
-                        {person.pulse_reasons && person.pulse_reasons.length > 0 && (
-                          <div className="text-sm text-slate-400">
-                            {person.pulse_reasons[0]}
+              <>
+                <div className="space-y-3 mb-4">
+                  {peopleNeedingAttention.map((person) => (
+                    <div
+                      key={person.id}
+                      onClick={() => navigate(`/persons/${person.id}`)}
+                      className="bg-slate-800/50 p-4 rounded-lg hover:bg-slate-800/70 transition-all cursor-pointer border border-slate-700/50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getPulseColor(person.pulse_status)}`}>
+                              {getPulseLabel(person.pulse_status)}
+                            </span>
+                            <span className="text-white font-semibold">
+                              {person.preferred_name || person.full_name}
+                            </span>
                           </div>
-                        )}
-                        <div className="text-xs text-slate-500 mt-1">
-                          Last seen: {formatDate(person.last_seen)}
+                          {person.pulse_reasons && person.pulse_reasons.length > 0 && (
+                            <div className="text-sm text-slate-400">
+                              {person.pulse_reasons[0]}
+                            </div>
+                          )}
+                          <div className="text-xs text-slate-500 mt-1">
+                            Last seen: {formatDate(person.last_seen)}
+                          </div>
                         </div>
+                        <ArrowRightIcon className="w-5 h-5 text-slate-400" />
                       </div>
-                      <ArrowRightIcon className="w-5 h-5 text-slate-400" />
                     </div>
+                  ))}
+                </div>
+                
+                {/* Pagination */}
+                {allPeopleNeedingAttention.length > itemsPerPage && (
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-700/50">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-all"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-slate-400 text-sm">
+                      Page {currentPage} of {Math.ceil(allPeopleNeedingAttention.length / itemsPerPage)}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(Math.ceil(allPeopleNeedingAttention.length / itemsPerPage), prev + 1))}
+                      disabled={currentPage >= Math.ceil(allPeopleNeedingAttention.length / itemsPerPage)}
+                      className="px-4 py-2 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-all"
+                    >
+                      Next
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
               <div className="bg-slate-800/50 p-4 rounded-lg">
                 <p className="text-white">No people need attention at this time</p>
