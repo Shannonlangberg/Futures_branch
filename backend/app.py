@@ -1,23 +1,9 @@
 # app.py
 
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, has_request_context
+from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import (
-    db,
-    init_db,
-    Person,
-    EngagementProfile,
-    BeaconZone,
-    Event,
-    EventCategory,
-    ResourceCategory,
-    ResourceLink,
-    GoogleOAuthToken,
-    create_person_with_engagement,
-    AIAlert,
-)
-from config.database import build_sqlalchemy_settings
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -40,25 +26,13 @@ except Exception as e:
     raise
 
 import json
-import secrets
 from typing import Dict, List, Optional, Any
 import logging
-from sqlalchemy import func
 
 try:
     from dotenv import load_dotenv
 except Exception as e:
     print(f"[ERROR] Failed to import dotenv: {e}")
-    raise
-
-try:
-    from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import Flow
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
-    from google.auth.transport.requests import Request as GoogleAuthRequest
-except Exception as e:
-    print(f"[ERROR] Failed to import Google OAuth libraries: {e}")
     raise
 
 try:
@@ -76,10 +50,6 @@ except Exception as e:
 import requests
 import uuid
 from functools import wraps
-
-from utils.rbac import require_feature_flag
-from config.feature_flags import FeatureFlags
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
     from num2words import num2words
@@ -320,408 +290,6 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
-GOOGLE_DRIVE_SCOPE_ENV = os.getenv(
-    "GOOGLE_DRIVE_RESOURCE_SCOPES",
-    "https://www.googleapis.com/auth/drive.readonly"
-)
-RESOURCES_MAP_PATH = os.getenv(
-    "GOOGLE_RESOURCES_MAP_PATH",
-    os.path.join(os.path.dirname(__file__), "config", "resources_map.json")
-)
-RESOURCE_ALLOWED_ROLES = {
-    "admin",
-}
-
-RESOURCE_MANAGER_ROLES = {
-    "admin",
-}
-
-def _env_flag(key: str, default: bool = True) -> bool:
-    raw = os.getenv(key)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-ENABLE_RESOURCES = _env_flag("ENABLE_RESOURCES", True)
-# Enable Google OAuth by default - only disable if explicitly set to False
-ENABLE_GOOGLE_OAUTH = _env_flag("ENABLE_GOOGLE_OAUTH", True)
-
-DEFAULT_RESOURCES_MAP = {}
-
-
-def parse_scopes(scope_value: str) -> list:
-    """Parse drive scopes from env variable"""
-    if not scope_value:
-        return []
-    separators = [",", ";", " "]
-    scopes = [scope_value]
-    for sep in separators:
-        scopes = [item for token in scopes for item in token.split(sep)]
-    return [scope.strip() for scope in scopes if scope.strip()]
-
-
-GOOGLE_DRIVE_SCOPES = parse_scopes(GOOGLE_DRIVE_SCOPE_ENV)
-
-
-def get_google_client_config():
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        return None
-    return {
-        "web": {
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-        }
-    }
-
-
-def load_resources_map_file():
-    """Load resources map configuration from disk"""
-    path = RESOURCES_MAP_PATH
-    resources = {key: value.copy() for key, value in DEFAULT_RESOURCES_MAP.items()}
-    try:
-        if not os.path.exists(path):
-            logger.warning(f"Resources map file not found at {path}, using defaults")
-            return resources
-        with open(path, "r") as file:
-            data = json.load(file)
-            if not isinstance(data, dict):
-                logger.error("Resources map file must contain a JSON object")
-                return resources
-            for key, value in data.items():
-                if isinstance(value, dict):
-                    merged = resources.get(key, {}).copy()
-                    merged.update(value)
-                    resources[key] = merged
-                else:
-                    resources[key] = value
-            return resources
-    except Exception as exc:
-        logger.error(f"Failed to load resources map file: {exc}")
-        return resources
-
-
-RESOURCES_MAP = load_resources_map_file()
-
-
-def slugify_resource_identifier(value: Optional[str]) -> str:
-    if not value:
-        return ""
-    slug = re.sub(r'[^a-z0-9]+', '-', value.strip().lower())
-    slug = re.sub(r'-{2,}', '-', slug).strip('-')
-    return slug
-
-
-def ensure_unique_category_slug(base_slug: str, existing_id: Optional[int] = None) -> str:
-    candidate = base_slug or "category"
-    suffix = 1
-
-    while True:
-        query = ResourceCategory.query.filter(ResourceCategory.slug == candidate)
-        if existing_id:
-            query = query.filter(ResourceCategory.id != existing_id)
-        if not query.first():
-            return candidate
-        candidate = f"{base_slug}-{suffix}"
-        suffix += 1
-
-
-def _fetch_resource_categories_from_db() -> List[ResourceCategory]:
-    try:
-        return ResourceCategory.query.order_by(
-            ResourceCategory.sort_order.asc(),
-            ResourceCategory.display_name.asc()
-        ).all()
-    except Exception as exc:
-        logger.error(f"Failed to load resource categories from database: {exc}")
-        return []
-
-
-def _serialize_link_for_response(link: ResourceLink, index: int = 0) -> dict:
-    return {
-        "id": link.id,
-        "label": link.label,
-        "url": link.url,
-        "description": link.description or "",
-        "sortOrder": link.sort_order if link.sort_order is not None else index,
-    }
-
-
-def _serialize_config_link(raw_entry: dict, index: int) -> Optional[dict]:
-    if not isinstance(raw_entry, dict):
-        return None
-    label = (raw_entry.get("label") or raw_entry.get("name") or "").strip()
-    url = (raw_entry.get("url") or raw_entry.get("href") or "").strip()
-    if not label or not url:
-        return None
-    description = (raw_entry.get("description") or raw_entry.get("summary") or "").strip()
-    sort_order = raw_entry.get("sortOrder", raw_entry.get("sort_order", index))
-    return {
-        "id": raw_entry.get("id") or f"config-{index}",
-        "label": label,
-        "url": url,
-        "description": description,
-        "sortOrder": sort_order,
-    }
-
-
-def _extract_config_links(entry: dict) -> List[dict]:
-    raw_links = []
-    if isinstance(entry, dict):
-        raw_links = entry.get("links") or entry.get("manualLinks") or entry.get("quickLinks") or []
-    links: List[dict] = []
-    if isinstance(raw_links, list):
-        for idx, item in enumerate(raw_links):
-            serialized = _serialize_config_link(item, idx)
-            if serialized:
-                links.append(serialized)
-    return links
-
-
-def get_resource_categories_config(include_links: bool = False):
-    """Return current resources configuration, preferring database records."""
-    categories = _fetch_resource_categories_from_db()
-    if categories:
-        payload = {}
-        for category in categories:
-            entry = {
-                "id": category.slug,
-                "displayName": category.display_name,
-                "description": category.description or "",
-                "folderId": category.folder_id or "",
-                "sortOrder": category.sort_order or 0,
-            }
-            if include_links:
-                entry["links"] = [
-                    _serialize_link_for_response(link, idx)
-                    for idx, link in enumerate(category.links)
-                ]
-            payload[category.slug] = entry
-        return payload
-
-    if not DEFAULT_RESOURCES_MAP:
-        return load_resources_map_file()
-
-    global RESOURCES_MAP
-    if not RESOURCES_MAP:
-        RESOURCES_MAP = load_resources_map_file()
-    return RESOURCES_MAP
-
-
-def get_resource_category_by_identifier(identifier: str) -> Optional[ResourceCategory]:
-    if not identifier:
-        return None
-    identifier = identifier.strip()
-    if identifier.isdigit():
-        category = ResourceCategory.query.get(int(identifier))
-        if category:
-            return category
-    normalized_slug = slugify_resource_identifier(identifier)
-    if normalized_slug:
-        category = ResourceCategory.query.filter(
-            ResourceCategory.slug == normalized_slug
-        ).first()
-        if category:
-            return category
-    lowercase_identifier = identifier.lower()
-    return ResourceCategory.query.filter(
-        func.lower(ResourceCategory.display_name) == lowercase_identifier
-    ).first()
-
-
-def get_folder_for_category(category: str) -> Optional[str]:
-    """Retrieve Drive folder ID for category"""
-    category_model = get_resource_category_by_identifier(category)
-    if category_model:
-        return category_model.folder_id
-
-    config = get_resource_categories_config()
-    entry = config.get(category) or config.get(category.lower())
-    if not entry:
-        return None
-    return entry.get("folderId") or entry.get("folder_id")
-
-
-def get_category_metadata(category: str) -> dict:
-    category_model = get_resource_category_by_identifier(category)
-    if category_model:
-        return {
-            "id": category_model.slug,
-            "name": category_model.display_name,
-            "description": category_model.description or "",
-            "folderId": category_model.folder_id,
-            "links": [
-                _serialize_link_for_response(link, idx)
-                for idx, link in enumerate(category_model.links)
-            ],
-        }
-
-    config = get_resource_categories_config(include_links=True)
-    entry = config.get(category) or config.get(category.lower()) or {}
-    fallbacks = _extract_config_links(entry) if "links" not in entry else entry["links"]
-    return {
-        "id": entry.get("id") or category,
-        "name": entry.get("displayName") or entry.get("name") or category,
-        "description": entry.get("description", ""),
-        "folderId": entry.get("folderId") or entry.get("folder_id"),
-        "links": fallbacks,
-    }
-
-
-def _parse_links_payload(raw_links) -> List[dict]:
-    parsed: List[dict] = []
-    if not isinstance(raw_links, list):
-        return parsed
-    for idx, item in enumerate(raw_links):
-        if not isinstance(item, dict):
-            continue
-        label = (item.get("label") or item.get("name") or "").strip()
-        url = (item.get("url") or item.get("href") or "").strip()
-        if not label or not url:
-            continue
-        description = (item.get("description") or item.get("summary") or "").strip()
-        sort_order = item.get("sortOrder", item.get("sort_order", idx))
-        identifier = item.get("id")
-        link_id = None
-        try:
-            if identifier is not None:
-                link_id = int(identifier)
-        except (TypeError, ValueError):
-            link_id = None
-        parsed.append({
-            "id": link_id,
-            "label": label,
-            "url": url,
-            "description": description,
-            "sort_order": sort_order if isinstance(sort_order, int) else idx,
-        })
-    return parsed
-
-
-def get_next_category_sort_order() -> int:
-    try:
-        current_max = db.session.query(func.max(ResourceCategory.sort_order)).scalar()
-    except Exception:
-        return 0
-    return (current_max or 0) + 1
-
-
-def _category_to_admin_payload(category: ResourceCategory) -> dict:
-    return {
-        "id": category.id,
-        "slug": category.slug,
-        "displayName": category.display_name,
-        "description": category.description or "",
-        "folderId": category.folder_id or "",
-        "sortOrder": category.sort_order or 0,
-        "createdAt": category.created_at.isoformat() if category.created_at else None,
-        "updatedAt": category.updated_at.isoformat() if category.updated_at else None,
-        "links": [
-            {
-                "id": link.id,
-                "label": link.label,
-                "url": link.url,
-                "description": link.description or "",
-                "sortOrder": link.sort_order if link.sort_order is not None else idx,
-                "createdAt": link.created_at.isoformat() if link.created_at else None,
-                "updatedAt": link.updated_at.isoformat() if link.updated_at else None,
-            }
-            for idx, link in enumerate(category.links)
-        ]
-    }
-
-
-def current_user_can_access_resources() -> bool:
-    if not ENABLE_RESOURCES:
-        return False
-    return current_user.role in RESOURCE_ALLOWED_ROLES
-
-
-def save_google_credentials(user_id: str, credentials: Credentials, provider: str = "google_drive") -> bool:
-    """Persist Google credentials for user"""
-    try:
-        token = GoogleOAuthToken.query.filter_by(user_id=user_id, provider=provider).first()
-        if token:
-            token.token_json = credentials.to_json()
-        else:
-            token = GoogleOAuthToken(
-                user_id=user_id,
-                provider=provider,
-                token_json=credentials.to_json()
-            )
-            db.session.add(token)
-        db.session.commit()
-        return True
-    except Exception as exc:
-        logger.error(f"Failed to save Google credentials: {exc}")
-        db.session.rollback()
-        return False
-
-
-def get_google_credentials_for_user(user_id: str, provider: str = "google_drive") -> Optional[Credentials]:
-    """Load stored Google credentials for user and refresh if needed"""
-    try:
-        token = GoogleOAuthToken.query.filter_by(user_id=user_id, provider=provider).first()
-        if not token:
-            return None
-        token_info = json.loads(token.token_json)
-        credentials = Credentials.from_authorized_user_info(token_info, GOOGLE_DRIVE_SCOPES)
-        if credentials and credentials.expired and credentials.refresh_token:
-            try:
-                credentials.refresh(GoogleAuthRequest())
-                token.token_json = credentials.to_json()
-                db.session.commit()
-            except Exception as refresh_exc:
-                logger.error(f"Failed to refresh Google credentials: {refresh_exc}")
-                db.session.rollback()
-                return None
-        return credentials
-    except Exception as exc:
-        logger.error(f"Failed to load Google credentials: {exc}")
-        return None
-
-
-def build_google_flow(state: Optional[str] = None, redirect_uri: Optional[str] = None) -> Optional[Flow]:
-    config = get_google_client_config()
-    if not config:
-        return None
-    flow = Flow.from_client_config(config, scopes=GOOGLE_DRIVE_SCOPES)
-    flow.redirect_uri = redirect_uri or GOOGLE_OAUTH_REDIRECT_URI
-    if not flow.redirect_uri:
-        raise ValueError("Google OAuth redirect URI is not configured")
-    if state:
-        flow.state = state
-    return flow
-
-
-def resolve_google_redirect_uri() -> str:
-    """
-    Work out the correct redirect URI for Google OAuth.
-
-    - Honour GOOGLE_OAUTH_REDIRECT_URI when set.
-    - Fall back to the current request host/scheme (respecting X-Forwarded-Proto).
-    - Default to https when we cannot detect a scheme.
-    """
-    if GOOGLE_OAUTH_REDIRECT_URI:
-        return GOOGLE_OAUTH_REDIRECT_URI
-
-    if not has_request_context():
-        # Should not happen in normal request flow, but guard regardless.
-        return "https://localhost/api/google/callback"
-
-    scheme = request.headers.get("X-Forwarded-Proto")
-    if scheme and "," in scheme:
-        scheme = scheme.split(",")[0].strip()
-    if not scheme:
-        scheme = "https" if request.is_secure else "http"
-    return url_for("google_oauth_callback", _external=True, _scheme=scheme)
-
-
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -1228,53 +796,32 @@ def save_conversation_memory(memory: Dict[str, Any]):
 print("[DEBUG] Creating Flask app instance")
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'futures-church-secret-key-2025')
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.config.setdefault('PREFERRED_URL_SCHEME', 'https')
 
 # Configure session cookies
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE'] = True
-if 'SESSION_COOKIE_DOMAIN' not in app.config:
-    app.config['SESSION_COOKIE_DOMAIN'] = os.environ.get(
-        'SESSION_COOKIE_DOMAIN',
-        'futures-pulse-production.up.railway.app'
-    )
 
 # Configure SQLAlchemy database
-database_settings = build_sqlalchemy_settings()
-app.config.update(database_settings)
-app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
-logger.info(f"SQLAlchemy connected to {app.config['SQLALCHEMY_DATABASE_URI']}")
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Configure direct database connection - use same database as SQLAlchemy
+# Configure direct database connection for new tables (regions, campuses_new)
+# These are in church_voice.db, while SQLAlchemy uses futures_link.db
+CHURCH_VOICE_DB_PATH = os.path.join(os.path.dirname(__file__), 'instance', 'church_voice.db')
+
 def get_db():
-    """Get a direct sqlite3 connection to the same database SQLAlchemy uses"""
+    """Get a direct sqlite3 connection to church_voice.db for new tables"""
     import sqlite3
-    from urllib.parse import urlparse
-    
-    # Extract database path from SQLAlchemy URI
-    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-    if db_uri.startswith('sqlite:///'):
-        # Remove 'sqlite:///' prefix and handle absolute paths
-        db_path = db_uri.replace('sqlite:///', '')
-        # Handle 4 slashes for absolute paths (sqlite:////path)
-        if db_path.startswith('/'):
-            db_path = db_path
-        else:
-            # Relative path - resolve relative to backend directory
-            backend_dir = os.path.dirname(__file__)
-            db_path = os.path.join(backend_dir, db_path)
-    else:
-        # Fallback to old path if not SQLite
-        db_path = os.path.join(os.path.dirname(__file__), 'instance', 'church_voice.db')
-    
-    return sqlite3.connect(db_path)
+    return sqlite3.connect(CHURCH_VOICE_DB_PATH)
 
 def run_migrations():
     """Run SQL migrations on startup"""
     import sqlite3
     try:
+        # Ensure instance directory exists
+        os.makedirs(os.path.dirname(CHURCH_VOICE_DB_PATH), exist_ok=True)
+        
         # Get migrations directory
         migrations_dir = os.path.join(os.path.dirname(__file__), 'migrations')
         
@@ -1289,15 +836,7 @@ def run_migrations():
             logger.info("No migration files found")
             return
         
-        # Use get_db() to get the correct database connection (same as SQLAlchemy)
-        conn = get_db()
-        
-        # Ensure directory exists for the database file
-        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        if db_uri.startswith('sqlite:///'):
-            db_path = db_uri.replace('sqlite:///', '')
-            if db_path.startswith('/'):
-                os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        conn = sqlite3.connect(CHURCH_VOICE_DB_PATH)
         cursor = conn.cursor()
         
         # Create migrations tracking table if it doesn't exist
@@ -1361,29 +900,13 @@ run_migrations()
 # Seed database with initial data
 try:
     from seed_campuses import seed_campuses
-    # Extract database path from SQLAlchemy URI for seed_campuses
-    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-    if db_uri.startswith('sqlite:///'):
-        seed_db_path = db_uri.replace('sqlite:///', '')
-        if not seed_db_path.startswith('/'):
-            seed_db_path = os.path.join(os.path.dirname(__file__), seed_db_path)
-    else:
-        seed_db_path = None
-    seed_campuses(db_path=seed_db_path)
+    seed_campuses()
 except Exception as e:
     logger.warning(f"Failed to seed campuses: {e}")
 
 try:
     from seed_users import seed_users
-    # Extract database path from SQLAlchemy URI for seed_users
-    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-    if db_uri.startswith('sqlite:///'):
-        seed_db_path = db_uri.replace('sqlite:///', '')
-        if not seed_db_path.startswith('/'):
-            seed_db_path = os.path.join(os.path.dirname(__file__), seed_db_path)
-    else:
-        seed_db_path = None
-    seed_users(db_path=seed_db_path)
+    seed_users()
 except Exception as e:
     logger.warning(f"Failed to seed users: {e}")
 
@@ -1715,49 +1238,36 @@ def authenticate_user(username, password):
         cursor.execute('''
             SELECT id, username, password_hash, full_name, email, role, campus, active
             FROM users
-            WHERE TRIM(username) = ?
+            WHERE TRIM(username) = ? AND active = 1
         ''', (username,))
         
         row = cursor.fetchone()
         
-        if not row:
-            logger.warning(f"Authentication failed: User '{username}' not found in database")
-            conn.close()
-            return None
+        if row:
+            user_data = {
+                'id': str(row[0]),
+                'username': row[1],
+                'password_hash': row[2],
+                'full_name': row[3] or row[1],
+                'email': row[4] or '',
+                'role': row[5],
+                'campus': row[6] or '',
+                'active': bool(row[7])
+            }
+            
+            user = User(user_data)
+            if user.check_password(password):
+                # Update last login
+                cursor.execute('UPDATE users SET last_login = ? WHERE id = ?', 
+                             (datetime.now(), row[0]))
+                conn.commit()
+                conn.close()
+                return user
         
-        # Check if user is active
-        if not bool(row[7]):
-            logger.warning(f"Authentication failed: User '{username}' is inactive")
-            conn.close()
-            return None
-        
-        user_data = {
-            'id': str(row[0]),
-            'username': row[1],
-            'password_hash': row[2],
-            'full_name': row[3] or row[1],
-            'email': row[4] or '',
-            'role': row[5],
-            'campus': row[6] or '',
-            'active': bool(row[7])
-        }
-        
-        user = User(user_data)
-        if user.check_password(password):
-            # Update last login
-            cursor.execute('UPDATE users SET last_login = ? WHERE id = ?', 
-                         (datetime.now(), row[0]))
-            conn.commit()
-            conn.close()
-            logger.info(f"Authentication successful for user '{username}'")
-            return user
-        else:
-            logger.warning(f"Authentication failed: Invalid password for user '{username}'")
-            conn.close()
-            return None
-        
+        conn.close()
+        return None
     except Exception as e:
-        logger.error(f"Authentication error for user {username}: {e}", exc_info=True)
+        logger.error(f"Authentication error for user {username}: {e}")
         return None
 
 print("[DEBUG] User management functions and classes defined")
@@ -2240,319 +1750,6 @@ Be warm and specific. Use their data to give meaningful insights about Futures C
     except Exception as e:
         logger.error(f"Claude API error in generate_cross_campus_insights: {e}")
         return f"I'd be happy to analyze your church-wide data for Futures Church, but I'm having trouble connecting to my AI assistant right now. The data shows {analysis_data.get('total_attendance', 0)} total attendance across all campuses with an average of {analysis_data.get('averages', {}).get('attendance', 0):.1f} people per week."
-
-def monitor_person_heartbeat_ai(person, engagement_profile, previous_status=None, previous_engagement=None):
-    """
-    AI monitoring function - acts like 100 new people pastors watching each person
-    Detects engagement drops and generates alerts/recommendations
-    Called when heartbeat is recalculated
-    """
-    from models import AIAlert
-    
-    if not claude:
-        return  # Skip if AI not available
-    
-    try:
-        current_status = engagement_profile.pulse_status
-        current_engagement = engagement_profile.overall_engagement or 0
-        last_seen = engagement_profile.last_seen
-        
-        # Calculate days since last seen
-        days_since = None
-        if last_seen:
-            days_since = (datetime.utcnow() - last_seen).days
-        
-        # Detect if status dropped (green -> amber/red, amber -> red)
-        status_dropped = False
-        if previous_status:
-            if previous_status == 'green' and current_status in ['amber', 'red']:
-                status_dropped = True
-            elif previous_status == 'amber' and current_status == 'red':
-                status_dropped = True
-        
-        # Detect significant engagement drop (>20 points)
-        engagement_dropped = False
-        if previous_engagement and current_engagement < previous_engagement - 20:
-            engagement_dropped = True
-        
-        # Check if person needs escalation to staff
-        needs_escalation = False
-        priority = 'low'
-        
-        if current_status == 'red':
-            if days_since and days_since > 42:  # >6 weeks
-                needs_escalation = True
-                priority = 'urgent'
-            elif days_since and days_since > 28:  # >4 weeks
-                needs_escalation = True
-                priority = 'high'
-            else:
-                priority = 'medium'
-        elif current_status == 'amber' and days_since and days_since > 21:
-            priority = 'medium'
-        
-        # Only create alert if there's a significant change or urgent situation
-        should_alert = status_dropped or engagement_dropped or needs_escalation or (current_status == 'red' and days_since and days_since > 28)
-        
-        if not should_alert:
-            return
-        
-        # Check if we already have a recent active alert for this person
-        recent_alert = AIAlert.query.filter_by(
-            person_id=person.id,
-            status='active'
-        ).order_by(AIAlert.created_at.desc()).first()
-        
-        # Don't create duplicate alerts within 7 days
-        if recent_alert and recent_alert.created_at:
-            days_since_alert = (datetime.utcnow() - recent_alert.created_at).days
-            if days_since_alert < 7:
-                return
-        
-        # Build context for AI
-        attendance_log = engagement_profile._load_json(engagement_profile.attendance_log) if engagement_profile.attendance_log else []
-        recent_attendance = [r for r in attendance_log[-5:]] if attendance_log else []
-        
-        context = f"""Person: {person.full_name}
-Campus: {person.campus}
-Department: {person.department or 'Not set'}
-Connect Group: {person.connect_group or 'Not in a group'}
-Dream Team: {', '.join(json.loads(person.dream_team_roles)) if person.dream_team_roles else 'Not serving'}
-
-Current Status:
-- Pulse Status: {current_status.upper()} (was {previous_status or 'new'})
-- Engagement Score: {current_engagement:.0f} (was {previous_engagement or 'N/A'})
-- Days since last seen: {days_since if days_since is not None else 'Never'}
-- Recent attendance: {len(recent_attendance)} services in last 8 weeks
-
-Changes detected:
-- Status dropped: {status_dropped}
-- Engagement dropped: {engagement_dropped}
-- Needs staff escalation: {needs_escalation}
-"""
-        
-        # Generate AI recommendation
-        prompt = f"""You're an AI assistant acting as a caring new people pastor monitoring church members' spiritual health.
-
-{context}
-
-Generate a brief, caring alert and recommendation (2-3 sentences) for the campus pastor:
-1. What's happening with this person
-2. What action should be taken (specific, actionable)
-3. When to escalate to staff (if urgent)
-
-Be warm, specific, and actionable. Focus on pastoral care, not just data.
-
-Format as JSON:
-{{
-  "title": "Brief alert title",
-  "message": "What's happening with this person",
-  "recommendation": "Specific action to take"
-}}"""
-
-        try:
-            response = claude.messages.create(
-                model="claude-3-haiku-20240307",
-                max_tokens=300,
-                temperature=0.7,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            ai_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
-            
-            # Parse JSON from response
-            import json
-            json_start = ai_text.find('{')
-            json_end = ai_text.rfind('}') + 1
-            if json_start >= 0 and json_end > json_start:
-                ai_data = json.loads(ai_text[json_start:json_end])
-                title = ai_data.get('title', f'{person.full_name} needs attention')
-                message = ai_data.get('message', f'Engagement has dropped to {current_status}')
-                recommendation = ai_data.get('recommendation', 'Consider reaching out to check in')
-            else:
-                # Fallback if JSON parsing fails
-                title = f'{person.full_name} needs attention'
-                message = f'Pulse status is {current_status.upper()}. Last seen {days_since} days ago.' if days_since else f'Pulse status is {current_status.upper()}.'
-                recommendation = ai_text[:200] if len(ai_text) > 200 else ai_text
-        except Exception as e:
-            logger.error(f"Error generating AI recommendation: {e}")
-            title = f'{person.full_name} needs attention'
-            message = f'Pulse status is {current_status.upper()}. Last seen {days_since} days ago.' if days_since else f'Pulse status is {current_status.upper()}.'
-            recommendation = 'Consider reaching out to check in'
-        
-        # Determine alert type
-        if needs_escalation:
-            alert_type = 'escalate_staff'
-        elif status_dropped or engagement_dropped:
-            alert_type = 'engagement_drop'
-        else:
-            alert_type = 'needs_followup'
-        
-        # Create alert
-        alert = AIAlert(
-            person_id=person.id,
-            alert_type=alert_type,
-            priority=priority,
-            title=title,
-            message=message,
-            ai_recommendation=recommendation,
-            campus=person.campus,
-            status='active'
-        )
-        
-        db.session.add(alert)
-        db.session.flush()  # Flush to get ID but don't commit yet (caller will commit)
-        
-        logger.info(f"AI Alert created for {person.full_name}: {title} (Priority: {priority})")
-        
-    except Exception as e:
-        logger.error(f"Error in AI monitoring for person {person.id}: {e}")
-        # Don't fail the heartbeat recalculation if AI monitoring fails
-
-
-def generate_campus_heartbeat_insights(campus_id, total, green, amber, red, department_filter=None):
-    """Generate AI insights for campus heartbeat health"""
-    if not claude:
-        return None
-    
-    try:
-        campus_name = campus_id if campus_id != 'all_campuses' else 'All Campuses'
-        dept_context = f" (filtered to {department_filter.replace('_', ' ')} department)" if department_filter and department_filter != 'all' else ""
-        
-        health_percentage = (green / total * 100) if total > 0 else 0
-        risk_percentage = (red / total * 100) if total > 0 else 0
-        
-        prompt = f"""You're an AI assistant helping a campus pastor monitor their congregation's spiritual health.
-
-Campus: {campus_name}{dept_context}
-Total People: {total}
-- Healthy (Green): {green} ({health_percentage:.1f}%)
-- Watch (Amber): {amber} ({amber/total*100 if total > 0 else 0:.1f}%)
-- At Risk (Red): {red} ({risk_percentage:.1f}%)
-
-Generate a brief, encouraging insight (2-3 sentences) about:
-1. Overall campus health status
-2. What the pastor should focus on this week
-3. Any patterns or concerns to watch
-
-Be warm, pastoral, and actionable. Focus on helping them care for their people effectively."""
-        
-        response = claude.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=200,
-            temperature=0.7,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        insight_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
-        return insight_text
-    except Exception as e:
-        logger.error(f"Error generating campus heartbeat insights: {e}")
-        return None
-
-def generate_person_discipleship_next_steps(person_data, engagement_data):
-    """Generate AI-powered next steps based on person's discipleship journey"""
-    if not claude:
-        return []
-    
-    try:
-        # Build discipleship journey context
-        milestones = []
-        if person_data.get('dna_completed'):
-            milestones.append(f"Completed DNA on {person_data['dna_completed']}")
-        if person_data.get('baptised_on'):
-            milestones.append(f"Baptised on {person_data['baptised_on']}")
-        if person_data.get('filled_holy_spirit'):
-            milestones.append(f"Filled with Holy Spirit on {person_data['filled_holy_spirit']}")
-        if person_data.get('rise_attended'):
-            milestones.append(f"Attended RISE on {person_data['rise_attended']}")
-        if person_data.get('first_served_on'):
-            milestones.append(f"Started serving on {person_data['first_served_on']}")
-        
-        journey_status = "\n".join(milestones) if milestones else "No discipleship milestones completed yet"
-        
-        # Build engagement context
-        pulse_status = engagement_data.get('pulse_status', 'unknown')
-        last_seen = engagement_data.get('last_seen')
-        days_since = None
-        if last_seen:
-            try:
-                from datetime import datetime
-                if isinstance(last_seen, str):
-                    last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
-                else:
-                    last_seen_dt = last_seen
-                days_since = (datetime.now() - last_seen_dt.replace(tzinfo=None)).days
-            except:
-                days_since = None
-        
-        engagement_context = f"""
-Pulse Status: {pulse_status}
-Last Seen: {last_seen or 'Never'}
-Days Since Last Attendance: {days_since if days_since is not None else 'N/A'}
-Overall Engagement Score: {engagement_data.get('overall_engagement', 0):.0f}
-Attendance Frequency: {engagement_data.get('attendance_frequency', 0)*100:.0f}%
-"""
-        
-        # Connection context
-        connect_group = person_data.get('connect_group')
-        serving_roles = person_data.get('dream_team_roles', [])
-        connection_context = f"""
-Connect Group: {connect_group if connect_group else 'Not in a group'}
-Serving: {', '.join(serving_roles) if serving_roles else 'Not currently serving'}
-"""
-        
-        prompt = f"""You're an AI assistant helping a campus pastor guide someone on their discipleship journey.
-
-Person: {person_data.get('full_name', 'Unknown')}
-Campus: {person_data.get('campus', 'Unknown')}
-Department: {person_data.get('department', 'Unknown')}
-
-Discipleship Journey (Railroad):
-{journey_status}
-
-Engagement Health:
-{engagement_context}
-
-Current Connection:
-{connection_context}
-
-Based on their discipleship journey and current engagement, suggest 2-3 specific, actionable next steps. Consider:
-1. What's the next milestone in the discipleship railroad they should pursue?
-2. How can we help them grow based on their current engagement level?
-3. What practical steps can the pastor take this week?
-
-Format as a JSON array of objects, each with:
-- "action": short action title (e.g., "Invite to Connect Group")
-- "description": why this matters and what to do
-- "priority": "high", "medium", or "low"
-- "milestone": which discipleship milestone this relates to (or "engagement" if not milestone-specific)
-
-Return ONLY valid JSON, no markdown or extra text."""
-        
-        response = claude.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=400,
-            temperature=0.7,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        response_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
-        
-        # Parse JSON response
-        import json
-        # Try to extract JSON from response (in case it's wrapped in markdown)
-        json_start = response_text.find('[')
-        json_end = response_text.rfind(']') + 1
-        if json_start >= 0 and json_end > json_start:
-            json_str = response_text[json_start:json_end]
-            steps = json.loads(json_str)
-            return steps
-        else:
-            # Fallback: try parsing the whole response
-            steps = json.loads(response_text)
-            return steps
-    except Exception as e:
-        logger.error(f"Error generating person discipleship next steps: {e}")
-        # Return fallback rule-based steps
-        return []
 
 def preprocess_voice_text(text: str) -> str:
     """Preprocess voice input text to improve recognition accuracy with enhanced noise handling"""
@@ -7450,7 +6647,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         total_youth_attendance = sum(safe_int(row.get('Youth Attendance', 0)) for row in filtered_rows)
         total_youth_salvations = sum(safe_int(row.get('Youth Salvations', 0)) for row in filtered_rows)
         total_youth_new_people = sum(safe_int(row.get('Youth New People', 0)) for row in filtered_rows)
-        # ORIGINAL LOGIC: trust the "Kids Attendance" column that comes from the sheet
         total_kids_attendance = sum(safe_int(row.get('Kids Attendance', 0)) for row in filtered_rows)
         total_kids_leaders = sum(safe_int(row.get('Kids Leaders', 0)) for row in filtered_rows)
         total_new_kids = sum(safe_int(row.get('New Kids', 0)) for row in filtered_rows)
@@ -8177,527 +7373,6 @@ def serve_index():
     print("[DEBUG] Serving React app")
     return send_from_directory('static', 'index.html')
 
-@app.route('/api/resources/categories', methods=['GET'])
-@login_required
-def list_resource_categories():
-    """Return configured resource categories"""
-    if not ENABLE_RESOURCES:
-        return jsonify({"error": "Resources temporarily unavailable"}), 503
-    if not current_user_can_access_resources():
-        return jsonify({"error": "Forbidden"}), 403
-
-    config = get_resource_categories_config()
-    categories = []
-    for key, value in config.items():
-        if not isinstance(value, dict):
-            value = {}
-        categories.append({
-            "id": key,
-            "name": value.get("displayName") or value.get("name") or key,
-            "description": value.get("description", ""),
-            "sortOrder": value.get("sortOrder", value.get("sort_order", 0)),
-        })
-    categories.sort(key=lambda item: (item.get("sortOrder", 0), item["name"].lower()))
-    return jsonify({"categories": categories})
-
-
-@app.route('/api/admin/resource-categories', methods=['GET'])
-@login_required
-def admin_list_resource_categories():
-    """List resource categories for management UI"""
-    if current_user.role not in RESOURCE_MANAGER_ROLES:
-        return jsonify({"error": "Forbidden"}), 403
-
-    categories = _fetch_resource_categories_from_db()
-    return jsonify({
-        "categories": [_category_to_admin_payload(category) for category in categories]
-    })
-
-
-@app.route('/api/admin/resource-categories', methods=['POST'])
-@login_required
-def admin_create_resource_category():
-    """Create a new resource category"""
-    if current_user.role not in RESOURCE_MANAGER_ROLES:
-        return jsonify({"error": "Forbidden"}), 403
-
-    payload = request.get_json(silent=True) or {}
-    display_name = (payload.get("displayName") or payload.get("display_name") or "").strip()
-    if not display_name:
-        return jsonify({"error": "Display name is required"}), 400
-
-    slug_input = payload.get("slug") or payload.get("id") or display_name
-    base_slug = slugify_resource_identifier(slug_input) or slugify_resource_identifier(display_name)
-    if not base_slug:
-        base_slug = f"category-{uuid.uuid4().hex[:6]}"
-    slug = ensure_unique_category_slug(base_slug)
-
-    sort_order = payload.get("sortOrder", payload.get("sort_order"))
-    if not isinstance(sort_order, int):
-        sort_order = get_next_category_sort_order()
-
-    description = (payload.get("description") or "").strip()
-    folder_id = (payload.get("folderId") or payload.get("folder_id") or "").strip()
-    links_payload = _parse_links_payload(payload.get("links") or [])
-
-    try:
-        category = ResourceCategory(
-            slug=slug,
-            display_name=display_name,
-            description=description or None,
-            folder_id=folder_id or None,
-            sort_order=sort_order,
-        )
-        db.session.add(category)
-        db.session.flush()  # Ensure category.id is available for links
-
-        for idx, link_data in enumerate(links_payload):
-            link = ResourceLink(
-                category=category,
-                label=link_data["label"],
-                url=link_data["url"],
-                description=link_data["description"] or None,
-                sort_order=link_data["sort_order"] if link_data["sort_order"] is not None else idx,
-            )
-            db.session.add(link)
-
-        db.session.commit()
-    except Exception as exc:
-        db.session.rollback()
-        logger.error(f"Failed to create resource category: {exc}")
-        return jsonify({"error": "Unable to create resource category"}), 500
-
-    return jsonify({
-        "message": "Resource category created",
-        "category": _category_to_admin_payload(category)
-    }), 201
-
-
-@app.route('/api/admin/resource-categories/<string:identifier>', methods=['PUT', 'PATCH'])
-@login_required
-def admin_update_resource_category(identifier: str):
-    """Update an existing resource category"""
-    if current_user.role not in RESOURCE_MANAGER_ROLES:
-        return jsonify({"error": "Forbidden"}), 403
-
-    category = get_resource_category_by_identifier(identifier)
-    if not category:
-        return jsonify({"error": "Resource category not found"}), 404
-
-    payload = request.get_json(silent=True) or {}
-
-    display_name = payload.get("displayName") or payload.get("display_name")
-    if isinstance(display_name, str) and display_name.strip():
-        category.display_name = display_name.strip()
-
-    description = payload.get("description")
-    if description is not None:
-        category.description = description.strip() or None
-
-    folder_id = payload.get("folderId", payload.get("folder_id"))
-    if folder_id is not None:
-        folder_value = folder_id.strip()
-        category.folder_id = folder_value or None
-
-    sort_order = payload.get("sortOrder", payload.get("sort_order"))
-    if sort_order is not None:
-        try:
-            category.sort_order = int(sort_order)
-        except (TypeError, ValueError):
-            pass
-
-    slug_input = payload.get("slug")
-    if isinstance(slug_input, str) and slug_input.strip():
-        new_slug_base = slugify_resource_identifier(slug_input)
-        if not new_slug_base:
-            new_slug_base = slugify_resource_identifier(category.display_name)
-        if new_slug_base and new_slug_base != category.slug:
-            category.slug = ensure_unique_category_slug(new_slug_base, existing_id=category.id)
-
-    links_payload_raw = payload.get("links")
-    if links_payload_raw is not None:
-        new_links = _parse_links_payload(links_payload_raw)
-        existing_links = {link.id: link for link in category.links}
-        ids_to_keep = set()
-
-        for idx, link_data in enumerate(new_links):
-            link_id = link_data.get("id")
-            sort_order_value = link_data["sort_order"] if link_data["sort_order"] is not None else idx
-
-            if link_id and link_id in existing_links:
-                link = existing_links[link_id]
-                link.label = link_data["label"]
-                link.url = link_data["url"]
-                link.description = link_data["description"] or None
-                link.sort_order = sort_order_value
-                ids_to_keep.add(link.id)
-            else:
-                link = ResourceLink(
-                    category=category,
-                    label=link_data["label"],
-                    url=link_data["url"],
-                    description=link_data["description"] or None,
-                    sort_order=sort_order_value,
-                )
-                db.session.add(link)
-
-        # Remove links not retained
-        for link_id, link in existing_links.items():
-            if link_id not in ids_to_keep:
-                db.session.delete(link)
-
-    try:
-        db.session.commit()
-    except Exception as exc:
-        db.session.rollback()
-        logger.error(f"Failed to update resource category {identifier}: {exc}")
-        return jsonify({"error": "Unable to update resource category"}), 500
-
-    return jsonify({
-        "message": "Resource category updated",
-        "category": _category_to_admin_payload(category)
-    })
-
-
-@app.route('/api/admin/resource-categories/<string:identifier>', methods=['DELETE'])
-@login_required
-def admin_delete_resource_category(identifier: str):
-    """Delete a resource category"""
-    if current_user.role not in RESOURCE_MANAGER_ROLES:
-        return jsonify({"error": "Forbidden"}), 403
-
-    category = get_resource_category_by_identifier(identifier)
-    if not category:
-        return jsonify({"error": "Resource category not found"}), 404
-
-    try:
-        db.session.delete(category)
-        db.session.commit()
-    except Exception as exc:
-        db.session.rollback()
-        logger.error(f"Failed to delete resource category {identifier}: {exc}")
-        return jsonify({"error": "Unable to delete resource category"}), 500
-
-    return jsonify({"message": "Resource category deleted"})
-
-
-@app.route('/api/google/auth-url', methods=['GET'])
-@login_required
-def get_google_auth_url():
-    """Generate Google OAuth URL for Drive access"""
-    if not ENABLE_GOOGLE_OAUTH:
-        return jsonify({"error": "Google Drive integration is disabled"}), 503
-    if not current_user_can_access_resources():
-        return jsonify({"error": "Forbidden"}), 403
-
-    if not GOOGLE_DRIVE_SCOPES or not get_google_client_config():
-        return jsonify({"error": "Google OAuth is not configured"}), 503
-
-    requested_category = request.args.get("category")
-    state = secrets.token_urlsafe(32)
-    states = session.get('google_auth_states', [])
-    if not isinstance(states, list):
-        states = []
-    states.append(state)
-    # Keep only the most recent 5 states to avoid unbounded growth
-    session['google_auth_states'] = states[-5:]
-
-    session['google_auth_requested'] = datetime.utcnow().isoformat()
-
-    if requested_category:
-        category_map = session.get('google_auth_category_map', {})
-        if not isinstance(category_map, dict):
-            category_map = {}
-        category_map[state] = requested_category
-        # Keep category map in sync with valid states
-        # remove entries whose state no longer tracked
-        valid_states = set(session['google_auth_states'])
-        category_map = {k: v for k, v in category_map.items() if k in valid_states}
-        session['google_auth_category_map'] = category_map
-
-    redirect_uri = resolve_google_redirect_uri()
-    try:
-        flow = build_google_flow(state=state, redirect_uri=redirect_uri)
-    except ValueError as exc:
-        logger.error(f"Failed to create Google OAuth flow: {exc}")
-        return jsonify({"error": "Google OAuth redirect URI not configured"}), 503
-
-    authorization_url, oauthlib_state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'
-    )
-
-    # oauthlib may generate its own state; prefer that if provided
-    effective_state = oauthlib_state or state
-
-    # Replace the last stored state with the effective one
-    states = session.get('google_auth_states', [])
-    if states:
-        states[-1] = effective_state
-    else:
-        states = [effective_state]
-    session['google_auth_states'] = states[-5:]
-
-    if requested_category:
-        category_map = session.get('google_auth_category_map', {})
-        if not isinstance(category_map, dict):
-            category_map = {}
-        category_map[effective_state] = requested_category
-        valid_states = set(session['google_auth_states'])
-        category_map = {k: v for k, v in category_map.items() if k in valid_states}
-        session['google_auth_category_map'] = category_map
-
-    logger.info(
-        "Google OAuth auth-url generated | user=%s state=%s effective_state=%s category=%s session_id=%s",
-        getattr(current_user, 'id', 'anonymous'),
-        state,
-        effective_state,
-        requested_category,
-        session.get('_id')
-    )
-    return jsonify({"auth_url": authorization_url, "state": state})
-
-
-@app.route('/api/google/callback', methods=['GET'])
-@login_required
-def google_oauth_callback():
-    """Handle Google OAuth callback"""
-    if not ENABLE_GOOGLE_OAUTH:
-        return Response(
-            "<h3>OAuth Disabled</h3><p>Google Drive integration is currently disabled.</p>",
-            mimetype='text/html',
-            status=503
-        )
-
-    state = request.args.get('state')
-    code = request.args.get('code')
-    valid_states = session.get('google_auth_states', [])
-    if not isinstance(valid_states, list):
-        valid_states = []
-
-    if not state or state not in valid_states:
-        logger.warning(
-            "Google OAuth state mismatch | user=%s state_returned=%s expected=%s session_keys=%s",
-            getattr(current_user, 'id', 'anonymous'),
-            state,
-            valid_states,
-            list(session.keys())
-        )
-        return Response(
-            "<h3>OAuth Error</h3><p>State mismatch. Please close this window and try again.</p>",
-            mimetype='text/html',
-            status=400
-        )
-
-    # Remove the used state so it can't be reused
-    try:
-        valid_states.remove(state)
-    except ValueError:
-        pass
-    session['google_auth_states'] = valid_states
-
-    category_map = session.get('google_auth_category_map', {})
-    if isinstance(category_map, dict):
-        session['google_auth_category'] = category_map.pop(state, None)
-        session['google_auth_category_map'] = category_map
-
-    redirect_uri = resolve_google_redirect_uri()
-
-    if not code:
-        logger.warning(
-            "Google OAuth callback missing code parameter | user=%s state=%s session_id=%s",
-            getattr(current_user, 'id', 'anonymous'),
-            state,
-            session.get('_id')
-        )
-        return Response(
-            "<h3>OAuth Error</h3><p>Missing authorization code. Please close this window and try again.</p>",
-            mimetype='text/html',
-            status=400
-        )
-
-    try:
-        logger.info(
-            "Google OAuth callback starting token exchange | user=%s state=%s session_id=%s",
-            getattr(current_user, 'id', 'anonymous'),
-            state,
-            session.get('_id')
-        )
-        flow = build_google_flow(state=state, redirect_uri=redirect_uri)
-        flow.fetch_token(authorization_response=request.url)
-        credentials = flow.credentials
-    except Exception as exc:
-        message = str(exc)
-        if 'insecure_transport' in message:
-            logger.error("Google OAuth callback blocked due to insecure transport. request_url=%s", request.url)
-            return Response(
-                "<h3>OAuth Error</h3><p>Authentication must use HTTPS. Please ensure you're using the secure site URL and try again.</p>",
-                mimetype='text/html',
-                status=400
-            )
-
-        logger.exception("Google OAuth callback error")
-        return Response(
-            "<h3>OAuth Error</h3><p>Unable to complete Google authentication. Please close this window and try again.</p>",
-            mimetype='text/html',
-            status=500
-        )
-
-    if not save_google_credentials(current_user.id, credentials):
-        return Response(
-            "<h3>OAuth Error</h3><p>Unable to save Google credentials. Please contact support.</p>",
-            mimetype='text/html',
-            status=500
-        )
-
-    success_markup = """
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Google Authentication Complete</title>
-            <meta charset="UTF-8">
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
-                margin: 0;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-              }
-              .container {
-                text-align: center;
-                padding: 2rem;
-              }
-              .checkmark {
-                font-size: 4rem;
-                margin-bottom: 1rem;
-              }
-              h1 {
-                margin: 0.5rem 0;
-                font-size: 1.5rem;
-              }
-              p {
-                margin: 0.5rem 0;
-                opacity: 0.9;
-              }
-            </style>
-            <script>
-              (function() {
-                function notifyParent() {
-                  if (window.opener) {
-                    try {
-                      // Try to send message to parent window
-                      const origin = window.location.origin;
-                      window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                      
-                      // Also try with wildcard for cross-origin scenarios
-                      try {
-                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                      } catch (e) {
-                        // Ignore cross-origin errors
-                      }
-                    } catch (err) {
-                      console.warn('Unable to notify parent window:', err);
-                    }
-                  }
-                }
-                
-                // Notify immediately
-                notifyParent();
-                
-                // Show success message
-                document.addEventListener('DOMContentLoaded', function() {
-                  setTimeout(function() {
-                    window.close();
-                  }, 2000);
-                });
-              })();
-            </script>
-          </head>
-          <body>
-            <div class="container">
-              <div class="checkmark">✓</div>
-              <h1>Authentication Successful!</h1>
-              <p>You can close this window now.</p>
-            </div>
-          </body>
-        </html>
-    """
-    return Response(success_markup, mimetype='text/html')
-
-
-@app.route('/api/resources/<string:category>', methods=['GET'])
-@login_required
-def list_resources_for_category(category: str):
-    """List Google Drive files for a given resource category"""
-    if not ENABLE_RESOURCES:
-        return jsonify({"error": "Resources temporarily unavailable"}), 503
-    if not current_user_can_access_resources():
-        return jsonify({"error": "Forbidden"}), 403
-
-    category_meta = get_category_metadata(category)
-    manual_links = category_meta.pop("links", [])
-    folder_id = category_meta.get("folderId")
-
-    if not folder_id:
-        if manual_links:
-            return jsonify({
-                "category": category_meta,
-                "files": [],
-                "links": manual_links
-            })
-        return jsonify({"error": "Category not configured"}), 404
-
-    credentials = get_google_credentials_for_user(current_user.id)
-    if not credentials:
-        return jsonify({
-            "category": category_meta,
-            "files": [],
-            "links": manual_links,
-            "error": "Google authorization required"
-        }), 401
-
-    try:
-        service = build('drive', 'v3', credentials=credentials, cache_discovery=False)
-        response = service.files().list(
-            q=f"'{folder_id}' in parents and trashed = false",
-            fields="files(id, name, mimeType, webViewLink, iconLink, modifiedTime)",
-            orderBy="folder, name",
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True,
-            pageSize=100
-        ).execute()
-    except HttpError as http_error:
-        status = http_error.resp.status if getattr(http_error, "resp", None) else 500
-        logger.error(f"Google Drive API error: {http_error}")
-        return jsonify({"error": "Failed to fetch files from Google Drive"}), status
-    except Exception as exc:
-        logger.error(f"Unexpected error fetching Google Drive files: {exc}")
-        return jsonify({"error": "Failed to fetch files from Google Drive"}), 500
-
-    files = response.get('files', [])
-    items = []
-    for file in files:
-        items.append({
-            "id": file.get("id"),
-            "name": file.get("name"),
-            "mimeType": file.get("mimeType"),
-            "webViewLink": file.get("webViewLink"),
-            "iconLink": file.get("iconLink"),
-            "modifiedTime": file.get("modifiedTime"),
-        })
-
-    return jsonify({
-        "category": category_meta,
-        "files": items,
-        "links": manual_links
-    })
-
-
 @app.route('/api/login', methods=['POST'])
 def api_login():
     """API login endpoint for React frontend"""
@@ -8715,26 +7390,9 @@ def api_login():
     user = authenticate_user(username, password)
     if user:
         login_user(user, remember=True)
-
-        # Determine whether this user should complete Google Drive auth
-        needs_drive_auth = False
-        try:
-            if user.role in RESOURCE_ALLOWED_ROLES:
-                credentials = get_google_credentials_for_user(user.id)
-                needs_drive_auth = credentials is None
-        except Exception as auth_exc:
-            logger.warning(f"Failed to determine Google auth status during login for user {user.id}: {auth_exc}")
-            needs_drive_auth = True
-
         # Log successful login
         log_security_event(user.id, 'login_success', 'User logged in successfully')
-
-        return jsonify({
-            "success": True,
-            "redirect": "/",
-            "role": user.role,
-            "needs_drive_auth": needs_drive_auth
-        })
+        return jsonify({"success": True, "redirect": "/"})
     else:
         # Log failed login attempt
         log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
@@ -9414,23 +8072,13 @@ def debug_claude():
 @app.route('/api/session')
 def session_info():
     if current_user.is_authenticated:
-        needs_drive_auth = False
-        try:
-            if current_user.role in RESOURCE_ALLOWED_ROLES:
-                credentials = get_google_credentials_for_user(current_user.id)
-                needs_drive_auth = credentials is None
-        except Exception as auth_exc:
-            logger.warning(f"Failed to determine Google auth status for user {current_user.id}: {auth_exc}")
-            needs_drive_auth = True
-
         return jsonify({
             "authenticated": True,
             "user": current_user.username,
             "role": current_user.role,
             "campus": current_user.campus,
             "full_name": current_user.full_name,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "needs_drive_auth": needs_drive_auth
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
     else:
         return jsonify({
@@ -9439,20 +8087,8 @@ def session_info():
             "role": None,
             "campus": None,
             "full_name": None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "needs_drive_auth": False
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
-
-
-@app.route('/api/feature_flags', methods=['GET'])
-@login_required
-def get_feature_flags():
-    """Expose feature flag values to authenticated clients."""
-    try:
-        return jsonify(FeatureFlags.get_all_flags())
-    except Exception as e:
-        logger.error(f"Error loading feature flags: {e}")
-        return jsonify({'error': 'Failed to load feature flags'}), 500
 
 @app.route('/api/stats')
 @login_required
@@ -11431,8 +10067,6 @@ def quick_input():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
-                'Saints': safe_value('Saints'),
-                'Seniors': safe_value('Seniors'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -11682,8 +10316,6 @@ def quick_input_update():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
-                'Saints': safe_value('Saints'),
-                'Seniors': safe_value('Seniors'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -12172,35 +10804,11 @@ def create_user_api():
         conn = get_db()
         cursor = conn.cursor()
         
-        # Check if username already exists among active users (using TRIM for comparison)
-        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ? AND active = 1', (username,))
-        existing_user = cursor.fetchone()
-        if existing_user:
+        # Check if username already exists (using TRIM for comparison)
+        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ?', (username,))
+        if cursor.fetchone():
             conn.close()
             return jsonify({"error": "Username already exists"}), 400
-        
-        # Check if there's an inactive user with this username - if so, reactivate and update them
-        cursor.execute('SELECT id FROM users WHERE TRIM(username) = ? AND active = 0', (username,))
-        inactive_user = cursor.fetchone()
-        if inactive_user:
-            # Reactivate the existing user and update their details
-            user_id = inactive_user[0]
-            cursor.execute('''
-                UPDATE users 
-                SET password_hash = ?, full_name = ?, email = ?, role = ?, campus = ?, active = 1
-                WHERE id = ?
-            ''', (
-                generate_password_hash(password),
-                data.get('full_name', username).strip() if data.get('full_name') else username,
-                data.get('email', f"{username}@futures.church").strip() if data.get('email') else f"{username}@futures.church",
-                data.get('role', 'campus_pastor'),
-                data.get('campus', 'all_campuses'),
-                user_id
-            ))
-            conn.commit()
-            conn.close()
-            logger.info(f"Reactivated user: {username} (ID: {user_id})")
-            return jsonify({"success": True, "message": "User reactivated successfully"})
         
         # Insert new user
         cursor.execute('''
@@ -12232,19 +10840,12 @@ def edit_user_api(user_id):
     try:
         data = request.get_json()
         
-        # Convert user_id to integer if possible (database uses numeric IDs)
-        try:
-            user_id_int = int(user_id)
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid user_id format: {user_id}")
-            return jsonify({"error": "Invalid user ID"}), 400
-        
         # Update in database
         conn = get_db()
         cursor = conn.cursor()
         
         # Check if user exists
-        cursor.execute('SELECT id, username FROM users WHERE id = ?', (user_id_int,))
+        cursor.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
         existing_user = cursor.fetchone()
         
         if not existing_user:
@@ -12280,14 +10881,14 @@ def edit_user_api(user_id):
             params.append(data['campus'])
         
         if update_fields:
-            params.append(user_id_int)
+            params.append(user_id)
             query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
             cursor.execute(query, params)
             conn.commit()
         
         conn.close()
         
-        logger.info(f"Updated user ID: {user_id_int}")
+        logger.info(f"Updated user ID: {user_id}")
         return jsonify({"success": True, "message": "User updated successfully"})
     except Exception as e:
         logger.error(f"Edit user API error: {e}", exc_info=True)
@@ -12298,29 +10899,22 @@ def edit_user_api(user_id):
 def delete_user_api(user_id):
     """API endpoint for deleting a user"""
     try:
-        # Convert user_id to integer if possible (database uses numeric IDs)
-        try:
-            user_id_int = int(user_id)
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid user_id format: {user_id}")
-            return jsonify({"error": "Invalid user ID"}), 400
-        
         # Delete from database (soft delete by setting active = 0)
         conn = get_db()
         cursor = conn.cursor()
         
         # Check if user exists
-        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id_int,))
+        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
         if not cursor.fetchone():
             conn.close()
             return jsonify({"error": "User not found"}), 404
         
         # Soft delete (set active = 0)
-        cursor.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id_int,))
+        cursor.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id,))
         conn.commit()
         conn.close()
         
-        logger.info(f"Deleted user ID: {user_id_int}")
+        logger.info(f"Deleted user ID: {user_id}")
         return jsonify({"success": True, "message": "User deleted successfully"})
     except Exception as e:
         logger.error(f"Delete user API error: {e}", exc_info=True)
@@ -13649,6 +12243,14 @@ def generate_any_time_frame_leadership_report(start_date: datetime, end_date: da
 # Patch the review detection logic in query_data_internal
 # ... existing code ...
 
+# @app.route('/heartbeat')
+# def heartbeat():
+#     return render_template('heartbeat.html')
+
+# @app.route('/journey')
+# def journey():
+#     return render_template('journey.html')
+
 # Catch-all route for React Router - serve React app for all non-API routes
 @app.route('/<path:path>')
 def serve_react_app(path):
@@ -13675,37 +12277,21 @@ def serve_react_app(path):
 # Intelligent people-focused modules for Futures LINK
 # ============================================================================
 
-@app.route('/api/heartbeat', methods=['GET'])
-@login_required
-def get_heartbeat_list():
-    """List people with basic heartbeat info for pastors"""
+@app.route('/api/persons/demo', methods=['GET'])
+def get_persons_demo():
+    """Demo endpoint for testing Heartbeat interface (no auth required)"""
     try:
-        # Use query_access permission for heartbeat dashboards
-        if not current_user.has_permission('query_access'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-
+        # This is for demo/testing only - bypasses authentication
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
-        department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
-        page = int(request.args.get('page', 1))
-        page_size = min(int(request.args.get('page_size', 200)), 500)  # Increased default to 200 to show more people
-
-        # Build base query
+        
+        # Build query
         query = Person.query.filter_by(is_active=True)
-
-        # Apply explicit campus filter (e.g. admin switching campuses)
+        
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(Person.campus == campus_filter)
-
-        # Department filter
-        if department_filter and department_filter != 'all':
-            query = query.filter(Person.department == department_filter)
-
-        # Apply campus scoping based on user role/campus for heartbeat resource
-        from utils.campus_scope import apply_campus_filter
-        query = apply_campus_filter(query, 'heartbeat')
-
+        
         if search:
             search_term = f"%{search}%"
             query = query.filter(
@@ -13715,527 +12301,82 @@ def get_heartbeat_list():
                     Person.preferred_name.ilike(search_term)
                 )
             )
-
-        total = query.count()
-        persons = (
-            query.order_by(Person.full_name)
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all()
-        )
-
-        results = []
+        
+        persons = query.order_by(Person.full_name).all()
+        
+        # Include engagement profile data
+        result = []
         for person in persons:
-            engagement = person.engagement_profile
-            if not engagement:
-                engagement = EngagementProfile(person_id=person.id)
-                db.session.add(engagement)
-                db.session.flush()
-
-            # Store previous values for AI monitoring
-            previous_status = engagement.pulse_status
-            previous_engagement = engagement.overall_engagement
+            person_data = person.to_dict()
             
-            # Ensure heartbeat is up to date
-            engagement.recalculate_heartbeat()
-            profile = engagement.to_dict()
+            # Add engagement profile data
+            if person.engagement_profile:
+                engagement_data = person.engagement_profile.to_dict()
+                person_data['pulse_status'] = engagement_data['pulse_status']
+                person_data['last_seen'] = engagement_data['last_seen']
+                person_data['pulse_reasons'] = engagement_data['pulse_reasons']
+                person_data['attendance_frequency'] = engagement_data['attendance_frequency']
+                person_data['serving_frequency'] = engagement_data['serving_frequency']
+                person_data['overall_engagement'] = engagement_data['overall_engagement']
+            else:
+                person_data['pulse_status'] = 'red'
+                person_data['last_seen'] = None
+                person_data['pulse_reasons'] = ['No engagement data']
+                person_data['attendance_frequency'] = 0.0
+                person_data['serving_frequency'] = 0.0
+                person_data['overall_engagement'] = 0.0
             
-            # Trigger AI monitoring if status changed (after commit)
-            if engagement.pulse_status != previous_status or (previous_engagement and abs(engagement.overall_engagement - previous_engagement) > 10):
-                try:
-                    monitor_person_heartbeat_ai(person, engagement, previous_status, previous_engagement)
-                except Exception as e:
-                    logger.error(f"Error in AI monitoring: {e}")
-
             # Apply pulse filter if specified
-            if pulse_filter and profile['pulse_status'] != pulse_filter:
+            if pulse_filter and person_data['pulse_status'] != pulse_filter:
                 continue
-
-            results.append({
-                'id': person.id,
-                'full_name': person.full_name,
-                'email': person.email,
-                'campus': person.campus,
-                'department': person.department,
-                'pulse_status': profile['pulse_status'],
-                'overall_engagement': profile['overall_engagement'],
-                'last_seen': profile['last_seen'],
-                'pulse_reasons': profile['pulse_reasons'],
-            })
-
-        db.session.commit()
-
-        # Calculate summary stats for AI insights
-        summary_total = len(results)
-        summary_green = sum(1 for p in results if p['pulse_status'] == 'green')
-        summary_amber = sum(1 for p in results if p['pulse_status'] == 'amber')
-        summary_red = sum(1 for p in results if p['pulse_status'] == 'red')
-
-        # Generate AI insights for campus health (if Claude is available)
-        ai_insights = None
-        if claude and summary_total > 0:
-            try:
-                ai_insights = generate_campus_heartbeat_insights(
-                    campus_filter or 'all_campuses',
-                    summary_total,
-                    summary_green,
-                    summary_amber,
-                    summary_red,
-                    department_filter
-                )
-            except Exception as e:
-                logger.error(f"Error generating AI insights: {e}")
-                ai_insights = None
-
+            
+            result.append(person_data)
+        
         return jsonify({
-            'persons': results,
-            'total': total,
-            'page': page,
-            'page_size': page_size,
-            'ai_insights': ai_insights,
+            'persons': result,
+            'total': len(result),
             'filters': {
                 'campus': campus_filter,
                 'pulse_status': pulse_filter,
                 'search': search
             }
         })
-
+        
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error fetching heartbeat list: {e}")
-        return jsonify({'error': 'Failed to fetch heartbeat list'}), 500
+        logger.error(f"Error fetching persons (demo): {e}")
+        return jsonify({'error': 'Failed to fetch persons'}), 500
 
 
-@app.route('/api/heartbeat/<person_id>', methods=['GET'])
-@login_required
-def get_heartbeat_detail(person_id):
-    """Detailed heartbeat view for one person"""
+@app.route('/api/persons/demo/<person_id>', methods=['GET'])
+def get_person_detail_demo(person_id):
+    """Demo endpoint for person details (no auth required)"""
     try:
-        if not current_user.has_permission('query_access'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-
         person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
-
-        engagement = person.engagement_profile
-        if not engagement:
+        
+        # Get person data
+        person_data = person.to_dict()
+        
+        # Add full engagement profile
+        if person.engagement_profile:
+            engagement_data = person.engagement_profile.to_dict()
+            person_data['engagement'] = engagement_data
+        else:
+            # Create engagement profile if it doesn't exist
             engagement = EngagementProfile(person_id=person.id)
             db.session.add(engagement)
-            db.session.flush()
-
-        engagement.recalculate_heartbeat()
-        profile = engagement.to_dict()
-        db.session.commit()
-
-        # Build metrics shape (v1 mostly attendance-based)
-        now = datetime.utcnow()
-        attendance_log = profile['attendance_log']
-        recent_attendance = [
-            r for r in attendance_log
-            if 'timestamp' in r and (now - datetime.fromisoformat(r['timestamp'])).days <= 56
-        ]
-
-        metrics = {
-            'attendance': {
-                'services_last_8_weeks': len(recent_attendance),
-                'attendance_score': profile['overall_engagement'],
-                'last_seen': profile['last_seen'],
-                'timeline': attendance_log
-            },
-            # Placeholders for future metrics
-            'groups': {},
-            'bible': {},
-            'giving': {},
-            'serving': {}
-        }
-
-        return jsonify({
-            'person': {
-                'id': person.id,
-                'full_name': person.full_name,
-                'email': person.email,
-                'campus': person.campus
-            },
-            'summary': {
-                'pulse_status': profile['pulse_status'],
-                'overall_engagement': profile['overall_engagement'],
-                'pulse_reasons': profile['pulse_reasons'],
-                'last_seen': profile['last_seen']
-            },
-            'metrics': metrics
-        })
-
+            db.session.commit()
+            person_data['engagement'] = engagement.to_dict()
+        
+        return jsonify(person_data)
+        
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error fetching heartbeat detail: {e}")
-        return jsonify({'error': 'Failed to fetch heartbeat detail'}), 500
-
-
-@app.route('/api/people', methods=['GET'])
-@login_required
-def get_people_directory():
-    """
-    Paginated people directory for pastors, campus-scoped via RBAC.
-    
-    Returns basic person info plus heartbeat summary fields suitable
-    for People directory and Heartbeat dashboards.
-    """
-    try:
-        # Directory is available to roles that already have query/report access
-        if not current_user.has_permission('query_access'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-
-        campus_filter = request.args.get('campus', None)
-        pulse_filter = request.args.get('pulse_status', None)
-        department_filter = request.args.get('department', None)
-        search = request.args.get('search', '').strip()
-        page = int(request.args.get('page', 1))
-        page_size = min(int(request.args.get('page_size', 200)), 500)  # Increased default to 200 to show more people
-
-        # Build base query
-        query = Person.query.filter_by(is_active=True)
-
-        # Explicit campus filter (for cross-campus roles)
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter(Person.campus == campus_filter)
-
-        # Department filter
-        if department_filter and department_filter != 'all':
-            query = query.filter(Person.department == department_filter)
-
-        # Apply campus scoping based on user role/campus for heartbeat/people resource
-        from utils.campus_scope import apply_campus_filter
-        query = apply_campus_filter(query, 'heartbeat')
-
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                db.or_(
-                    Person.full_name.ilike(search_term),
-                    Person.email.ilike(search_term),
-                    Person.preferred_name.ilike(search_term)
-                )
-            )
-
-        total = query.count()
-        persons = (
-            query.order_by(Person.full_name)
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all()
-        )
-
-        results = []
-        for person in persons:
-            engagement = person.engagement_profile
-            if not engagement:
-                engagement = EngagementProfile(person_id=person.id)
-                db.session.add(engagement)
-                db.session.flush()
-
-            engagement.recalculate_heartbeat()
-            profile = engagement.to_dict()
-
-            # Apply pulse filter if specified
-            if pulse_filter and profile['pulse_status'] != pulse_filter:
-                continue
-
-            results.append({
-                'id': person.id,
-                'full_name': person.full_name,
-                'preferred_name': person.preferred_name,
-                'email': person.email,
-                'phone': person.phone,
-                'campus': person.campus,
-                'department': person.department,
-                'connect_group': person.connect_group,
-                'dream_team_roles': json.loads(person.dream_team_roles) if person.dream_team_roles else [],
-                'tags': json.loads(person.tags) if person.tags else [],
-                'pulse_status': profile['pulse_status'],
-                'overall_engagement': profile['overall_engagement'],
-                'last_seen': profile['last_seen'],
-            })
-
-        db.session.commit()
-
-        return jsonify({
-            'people': results,
-            'total': total,
-            'page': page,
-            'page_size': page_size,
-            'filters': {
-                'campus': campus_filter,
-                'pulse_status': pulse_filter,
-                'search': search
-            }
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error fetching people directory: {e}")
-        return jsonify({'error': 'Failed to fetch people directory'}), 500
-
-
-@app.route('/api/people/import_pco', methods=['POST'])
-@login_required
-def import_people_from_pco():
-    """
-    Import people from a Planning Center CSV export.
-    
-    Expected columns (simplified v1):
-      - Person ID
-      - First Name
-      - Last Name
-      - Nickname
-      - Campus Name
-      - Home Email / Work Email / Other Email
-      - Mobile Phone Number / Home Phone Number
-      - Tags :: Tags
-    """
-    try:
-        # Restrict bulk imports to senior leadership/admin roles
-        if current_user.role not in (
-            'admin',
-            'senior_leadership',
-            'senior_leader',
-            'senior_pastor',
-            'lead_pastor',
-        ):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file part in request'}), 400
-
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
-
-        import csv
-        import io
-
-        # Read CSV content (assuming UTF-8)
-        stream = io.StringIO(file.stream.read().decode('utf-8', errors='ignore'))
-        reader = csv.DictReader(stream)
-
-        created = 0
-        skipped = 0
-        errors = []
-        seen_emails = set()
-
-        # Campus mapping hook (PCO campus name -> internal campus code)
-        # Build mapping from active campuses so PCO "Copper Coast" maps to our ID.
-        active_campuses = get_active_campuses()
-        campus_name_to_id = {}
-        for c in active_campuses:
-            cid = c.get('id')
-            display = (c.get('name') or '').strip().lower()
-            full = (c.get('full_name') or '').strip().lower()
-            if cid:
-                if display:
-                    campus_name_to_id[display] = cid
-                if full:
-                    campus_name_to_id[full] = cid
-
-        def map_campus(pco_campus_name):
-            raw = (pco_campus_name or '').strip()
-            if not raw:
-                return 'all_campuses'
-            key = raw.lower()
-            return campus_name_to_id.get(key, raw)
-
-        def map_department(tags_list, status=None, birthday_str=None):
-            """
-            Map PCO tags/status to department.
-            Returns: kids, youth, young_adults, families, adults, seniors, or None
-            """
-            if not tags_list:
-                tags_list = []
-            
-            # Normalize tags to lowercase for matching
-            tags_lower = [t.lower() for t in tags_list]
-            status_lower = (status or '').lower()
-            
-            # Check tags for explicit department markers
-            for tag in tags_lower:
-                if any(word in tag for word in ['kids', 'children', 'child', 'grade', 'kindergarten', 'primary', 'elementary']):
-                    return 'kids'
-                if any(word in tag for word in ['youth', 'teen', 'teenager', 'high school']):
-                    return 'youth'
-                if any(word in tag for word in ['young adult', 'ya', 'collective', 'college', 'university']):
-                    return 'young_adults'
-                if any(word in tag for word in ['family', 'families', 'parent', 'married', 'couple']):
-                    return 'families'
-                if any(word in tag for word in ['senior', 'elder', 'retired', 'retirement']):
-                    return 'seniors'
-            
-            # Check status field
-            if status_lower:
-                if any(word in status_lower for word in ['kids', 'children', 'child']):
-                    return 'kids'
-                if any(word in status_lower for word in ['youth', 'teen']):
-                    return 'youth'
-                if any(word in status_lower for word in ['young adult', 'ya']):
-                    return 'young_adults'
-                if any(word in status_lower for word in ['family', 'families']):
-                    return 'families'
-                if any(word in status_lower for word in ['senior', 'elder']):
-                    return 'seniors'
-            
-            # Age-based fallback if birthday is available
-            if birthday_str:
-                try:
-                    from datetime import datetime
-                    birthday = datetime.strptime(birthday_str.strip(), '%Y-%m-%d')
-                    age = (datetime.now() - birthday).days // 365
-                    if age < 13:
-                        return 'kids'
-                    elif age < 18:
-                        return 'youth'
-                    elif age < 25:
-                        return 'young_adults'
-                    elif age < 65:
-                        return 'adults'
-                    else:
-                        return 'seniors'
-                except:
-                    pass
-            
-            # Default to adults if no indicators found
-            return 'adults'
-
-        for idx, row in enumerate(reader, start=1):
-            try:
-                first_name = (row.get('First Name') or row.get('Given Name') or '').strip()
-                last_name = (row.get('Last Name') or '').strip()
-                nickname = (row.get('Nickname') or '').strip()
-                campus_name = (row.get('Campus Name') or '').strip()
-
-                # Choose primary email
-                email = (
-                    (row.get('Home Email') or '').strip()
-                    or (row.get('Work Email') or '').strip()
-                    or (row.get('Other Email') or '').strip()
-                )
-
-                # Choose primary phone
-                phone = (
-                    (row.get('Mobile Phone Number') or '').strip()
-                    or (row.get('Home Phone Number') or '').strip()
-                )
-
-                if not first_name and not last_name:
-                    skipped += 1
-                    errors.append(f"Row {idx}: Missing first name and last name")
-                    continue
-
-                full_name = f"{first_name} {last_name}".strip()
-                preferred_name = nickname or first_name or full_name
-
-                campus_code = map_campus(campus_name)
-
-                # Tags :: Tags column: comma-separated list
-                raw_tags = (row.get('Tags :: Tags') or '').strip()
-                tags_list = [t.strip() for t in raw_tags.split(',') if t.strip()] if raw_tags else []
-
-                # Map department from tags/status/birthday
-                status = (row.get('Status') or row.get('Membership Status') or '').strip()
-                birthday_str = (row.get('Birthdate') or row.get('Birthday') or '').strip()
-                department = map_department(tags_list, status, birthday_str)
-
-                # Use Person ID as the unique identifier (from PCO)
-                pco_id = (row.get('Person ID') or '').strip()
-                
-                # Check if person already exists by PCO ID first
-                existing_person = None
-                if pco_id:
-                    # Check by PCO ID in tags
-                    import json
-                    all_persons = Person.query.filter_by(is_active=True).all()
-                    for p in all_persons:
-                        if p.tags:
-                            tags = json.loads(p.tags) if isinstance(p.tags, str) else p.tags
-                            if isinstance(tags, list) and f"pco:{pco_id}" in tags:
-                                existing_person = p
-                                break
-                
-                # If no PCO ID match, check by email (if email exists)
-                if not existing_person and email:
-                    # Skip duplicate emails within the same CSV import
-                    if email.lower() in seen_emails:
-                        skipped += 1
-                        errors.append(f"Row {idx}: Duplicate email '{email}' in CSV, skipping")
-                        continue
-                    
-                    # Check if person already exists by email in the database
-                    existing_person = Person.query.filter_by(email=email, is_active=True).first()
-                
-                if existing_person:
-                    skipped += 1
-                    errors.append(f"Row {idx}: Person already exists (PCO ID: {pco_id or 'N/A'}, Email: {email or 'N/A'})")
-                    continue
-                
-                # Normalize email (lowercase, or None if empty)
-                email_normalized = email.lower().strip() if email else None
-                if email_normalized:
-                    seen_emails.add(email_normalized)
-
-                # Use PCO Person ID as the person_id if available, otherwise generate UUID
-                import uuid
-                person_id = f"pco_{pco_id}" if pco_id else str(uuid.uuid4())
-                
-                # Create person + engagement
-                person, engagement = create_person_with_engagement(
-                    full_name=full_name,
-                    email=email_normalized,  # Can be None now
-                    campus=campus_code,
-                    preferred_name=preferred_name,
-                    phone=phone,
-                    connect_group=None,
-                    dream_team_roles=[],
-                    birthday=None,
-                    pastoral_notes=None,
-                    tags=tags_list,
-                    department=department,
-                    person_id=person_id
-                )
-
-                # Store PCO Person ID in tags for future reference
-                if pco_id:
-                    import json
-                    existing_tags = person.tags or '[]'
-                    tag_values = json.loads(existing_tags) if isinstance(existing_tags, str) else existing_tags
-                    if not isinstance(tag_values, list):
-                        tag_values = []
-                    if f"pco:{pco_id}" not in tag_values:
-                        tag_values.append(f"pco:{pco_id}")
-                        person.tags = json.dumps(tag_values)
-
-                db.session.add(person)
-                db.session.add(engagement)
-                created += 1
-
-            except Exception as row_err:
-                skipped += 1
-                errors.append(f"Row {idx}: {row_err}")
-
-        db.session.commit()
-
-        return jsonify({
-            'message': 'Import completed',
-            'created': created,
-            'skipped': skipped,
-            'errors': errors[:20],  # cap error list for response size
-        }), 201
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error importing people from PCO: {e}")
-        return jsonify({'error': 'Failed to import people from PCO CSV'}), 500
+        logger.error(f"Error fetching person detail (demo): {e}")
+        return jsonify({'error': 'Failed to fetch person details'}), 500
 
 
 @app.route('/api/persons/demo/<person_id>', methods=['PUT'])
-@require_feature_flag('HEARTBEAT_ENABLED')
 def update_person_demo(person_id):
     """Update person details (demo version - no auth required)"""
     try:
@@ -14318,15 +12459,68 @@ def get_persons():
         if not current_user.has_permission('pulse', 'read'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # NOTE: This legacy endpoint is superseded by /api/people and kept
-        # only for backwards compatibility with older UIs. Prefer /api/people.
+        # Get query parameters
+        campus_filter = request.args.get('campus', None)
+        pulse_filter = request.args.get('pulse_status', None)
+        search = request.args.get('search', '').strip()
+        include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+        
+        # Build query
+        if include_archived:
+            query = Person.query
+        else:
+            query = Person.query.filter_by(is_active=True)
+        
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(Person.campus == campus_filter)
+        
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Person.full_name.ilike(search_term),
+                    Person.email.ilike(search_term),
+                    Person.preferred_name.ilike(search_term)
+                )
+            )
+        
+        persons = query.order_by(Person.full_name).all()
+        
+        # Include engagement profile data
+        result = []
+        for person in persons:
+            person_data = person.to_dict()
+            
+            # Add engagement profile data
+            if person.engagement_profile:
+                engagement_data = person.engagement_profile.to_dict()
+                person_data['pulse_status'] = engagement_data.get('pulse_status', 'red')
+                person_data['last_seen'] = engagement_data.get('last_seen')
+                person_data['pulse_reasons'] = engagement_data.get('pulse_reasons', ['No engagement data'])
+                person_data['attendance_frequency'] = engagement_data.get('attendance_frequency', 0.0)
+                person_data['serving_frequency'] = engagement_data.get('serving_frequency', 0.0)
+                person_data['overall_engagement'] = engagement_data.get('overall_engagement', 0.0)
+            else:
+                person_data['pulse_status'] = 'red'
+                person_data['last_seen'] = None
+                person_data['pulse_reasons'] = ['No engagement data']
+                person_data['attendance_frequency'] = 0.0
+                person_data['serving_frequency'] = 0.0
+                person_data['overall_engagement'] = 0.0
+            
+            # Apply pulse filter if specified
+            if pulse_filter and person_data['pulse_status'] != pulse_filter:
+                continue
+            
+            result.append(person_data)
+        
         return jsonify({
-            'persons': [],
-            'total': 0,
+            'persons': result,
+            'total': len(result),
             'filters': {
-                'campus': None,
-                'pulse_status': None,
-                'search': None
+                'campus': campus_filter,
+                'pulse_status': pulse_filter,
+                'search': search
             }
         })
         
@@ -14340,34 +12534,21 @@ def get_persons():
 def create_person():
     """Create new person with engagement profile (admin only)"""
     try:
-        # Allow key leadership roles to add people; campus pastors can add
-        # people for their campus even though they don't have manage_users.
-        allowed_roles = {
-            'admin',
-            'senior_leadership',
-            'senior_leader',
-            'senior_pastor',
-            'lead_pastor',
-            'campus_pastor',
-            'pastor',
-            'staff',
-        }
-        if current_user.role not in allowed_roles:
+        if not current_user.has_permission('pulse', 'write'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         
-        # Validate required fields (email is now optional)
-        required_fields = ['full_name', 'campus']
+        # Validate required fields
+        required_fields = ['full_name', 'email', 'campus']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Check if email already exists (only if email provided)
-        if data.get('email'):
-            existing_person = Person.query.filter_by(email=data['email'], is_active=True).first()
-            if existing_person:
-                return jsonify({'error': 'Person with this email already exists'}), 400
+        # Check if email already exists
+        existing_person = Person.query.filter_by(email=data['email']).first()
+        if existing_person:
+            return jsonify({'error': 'Person with this email already exists'}), 400
         
         # Create person and engagement profile
         person, engagement = create_person_with_engagement(
@@ -14380,8 +12561,7 @@ def create_person():
             dream_team_roles=data.get('dream_team_roles', []),
             birthday=datetime.strptime(data['birthday'], '%Y-%m-%d').date() if data.get('birthday') else None,
             pastoral_notes=data.get('pastoral_notes'),
-            tags=data.get('tags', []),
-            department=data.get('department')
+            tags=data.get('tags', [])
         )
         
         # Add discipleship milestones if provided
@@ -14411,20 +12591,12 @@ def create_person():
 @app.route('/api/persons/<person_id>', methods=['GET'])
 @login_required
 def get_person_detail(person_id):
-    """Get detailed person info with full engagement profile"""
+    """Get detailed person info with full engagement profile (admin only)"""
     try:
-        # Use query_access for consistency with heartbeat/people endpoints
-        if not current_user.has_permission('query_access'):
+        if not current_user.has_permission('pulse', 'read'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # Build query with campus scoping
-        query = Person.query.filter_by(id=person_id, is_active=True)
-        
-        # Apply campus scoping based on user role/campus
-        from utils.campus_scope import apply_campus_filter
-        query = apply_campus_filter(query, 'heartbeat')
-        
-        person = query.first()
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
@@ -14442,17 +12614,6 @@ def get_person_detail(person_id):
             db.session.commit()
             person_data['engagement'] = engagement.to_dict()
         
-        # Generate AI-powered discipleship next steps
-        ai_next_steps = None
-        if claude:
-            try:
-                ai_next_steps = generate_person_discipleship_next_steps(person_data, person_data['engagement'])
-            except Exception as e:
-                logger.error(f"Error generating AI next steps: {e}")
-                ai_next_steps = None
-        
-        person_data['ai_next_steps'] = ai_next_steps
-        
         return jsonify(person_data)
         
     except Exception as e:
@@ -14463,22 +12624,14 @@ def get_person_detail(person_id):
 @app.route('/api/persons/<person_id>', methods=['PUT'])
 @login_required
 def update_person(person_id):
-    """Update person details (campus pastors and above)"""
+    """Update person details (admin only)"""
     try:
-        # Use query_access so campus pastors can edit people in their campus
-        if not current_user.has_permission('query_access'):
+        if not current_user.has_permission('pulse', 'write'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
             return jsonify({'error': 'Person not found'}), 404
-        
-        # Apply campus scoping - ensure user can only edit people in their accessible campuses
-        from utils.campus_scope import apply_campus_filter
-        query = Person.query.filter_by(id=person_id, is_active=True)
-        scoped_query = apply_campus_filter(query, 'heartbeat')
-        if not scoped_query.first():
-            return jsonify({'error': 'Person not found or outside your campus scope'}), 403
         
         data = request.get_json()
         if not data:
@@ -14495,24 +12648,12 @@ def update_person(person_id):
             if existing and existing.id != person.id:
                 return jsonify({'error': 'Email already in use'}), 400
             person.email = data['email']
-        if 'phone' in data:
-            person.phone = data['phone']
         if 'campus' in data:
             person.campus = data['campus']
-        if 'department' in data:
-            person.department = data['department']
         if 'connect_group' in data:
             person.connect_group = data['connect_group']
         if 'dream_team_roles' in data:
-            # Accept both array and string (comma-separated)
-            if isinstance(data['dream_team_roles'], list):
-                person.dream_team_roles = json.dumps(data['dream_team_roles'])
-            elif isinstance(data['dream_team_roles'], str):
-                person.dream_team_roles = json.dumps([r.strip() for r in data['dream_team_roles'].split(',') if r.strip()])
-            else:
-                person.dream_team_roles = None
-        if 'pastoral_notes' in data:
-            person.pastoral_notes = data['pastoral_notes']
+            person.dream_team_roles = data['dream_team_roles']
         
         # Update discipleship milestones (convert empty strings to None)
         milestone_fields = [
@@ -14559,107 +12700,92 @@ def update_person(person_id):
         return jsonify({'error': 'Failed to update person'}), 500
 
 
-@app.route('/api/heartbeat/alerts', methods=['GET'])
+@app.route('/api/persons/<person_id>/archive', methods=['POST'])
 @login_required
-def get_ai_alerts():
-    """Get AI-generated alerts and recommendations for heartbeat monitoring"""
+def archive_person(person_id):
+    """Archive a person (soft delete - sets is_active to False)"""
     try:
-        from models import AIAlert
-        from utils.campus_scope import apply_campus_filter
-        
-        if not current_user.has_permission('query_access'):
+        if not current_user.has_permission('pulse', 'write'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # Get filters
-        campus_filter = request.args.get('campus', None)
-        priority_filter = request.args.get('priority', None)
-        status_filter = request.args.get('status', 'active')  # Default to active alerts
-        limit = int(request.args.get('limit', 50))
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
         
-        # Build query
-        query = AIAlert.query
-        
-        # Apply campus scoping
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter(AIAlert.campus == campus_filter)
-        else:
-            # Apply campus scoping based on user role
-            # Get user's accessible campuses
-            from utils.campus_scope import get_user_accessible_campuses
-            accessible_campuses = get_user_accessible_campuses(current_user, 'heartbeat')
-            if accessible_campuses and 'all_campuses' not in accessible_campuses:
-                query = query.filter(AIAlert.campus.in_(accessible_campuses))
-        
-        # Apply filters
-        if priority_filter:
-            query = query.filter(AIAlert.priority == priority_filter)
-        if status_filter:
-            query = query.filter(AIAlert.status == status_filter)
-        
-        # Order by priority (urgent first) and created_at
-        priority_order = {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}
-        alerts = query.order_by(
-            db.case((AIAlert.priority == 'urgent', 0),
-                   (AIAlert.priority == 'high', 1),
-                   (AIAlert.priority == 'medium', 2),
-                   (AIAlert.priority == 'low', 3),
-                   else_=4),
-            AIAlert.created_at.desc()
-        ).limit(limit).all()
-        
-        return jsonify({
-            'alerts': [alert.to_dict() for alert in alerts],
-            'total': len(alerts)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error fetching AI alerts: {e}")
-        return jsonify({'error': 'Failed to fetch alerts'}), 500
-
-
-@app.route('/api/heartbeat/alerts/<int:alert_id>/acknowledge', methods=['POST'])
-@login_required
-def acknowledge_ai_alert(alert_id):
-    """Acknowledge an AI alert"""
-    try:
-        from models import AIAlert
-        
-        if not current_user.has_permission('query_access'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-        
-        alert = AIAlert.query.get(alert_id)
-        if not alert:
-            return jsonify({'error': 'Alert not found'}), 404
-        
-        # Check campus access
-        from utils.campus_scope import get_user_accessible_campuses
-        accessible_campuses = get_user_accessible_campuses(current_user, 'heartbeat')
-        if accessible_campuses and 'all_campuses' not in accessible_campuses:
-            if alert.campus not in accessible_campuses:
-                return jsonify({'error': 'Alert not accessible'}), 403
-        
-        data = request.get_json() or {}
-        new_status = data.get('status', 'acknowledged')
-        
-        alert.status = new_status
-        alert.acknowledged_by = current_user.id
-        alert.acknowledged_at = datetime.utcnow()
-        
+        person.is_active = False
         db.session.commit()
         
+        logger.info(f"Person {person_id} archived by user {current_user.id}")
         return jsonify({
-            'message': 'Alert acknowledged',
-            'alert': alert.to_dict()
+            'message': 'Person archived successfully',
+            'person': person.to_dict()
         })
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error acknowledging alert: {e}")
-        return jsonify({'error': 'Failed to acknowledge alert'}), 500
+        logger.error(f"Error archiving person {person_id}: {e}")
+        return jsonify({'error': 'Failed to archive person'}), 500
+
+
+@app.route('/api/persons/<person_id>/restore', methods=['POST'])
+@login_required
+def restore_person(person_id):
+    """Restore an archived person (sets is_active to True)"""
+    try:
+        if not current_user.has_permission('pulse', 'write'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        person.is_active = True
+        db.session.commit()
+        
+        logger.info(f"Person {person_id} restored by user {current_user.id}")
+        return jsonify({
+            'message': 'Person restored successfully',
+            'person': person.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error restoring person {person_id}: {e}")
+        return jsonify({'error': 'Failed to restore person'}), 500
+
+
+@app.route('/api/persons/<person_id>', methods=['DELETE'])
+@login_required
+def delete_person(person_id):
+    """Permanently delete a person from the database (hard delete)"""
+    try:
+        if not current_user.has_permission('pulse', 'write'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Delete engagement profile first (cascade should handle this, but being explicit)
+        if person.engagement_profile:
+            db.session.delete(person.engagement_profile)
+        
+        # Delete the person
+        db.session.delete(person)
+        db.session.commit()
+        
+        logger.info(f"Person {person_id} permanently deleted by user {current_user.id}")
+        return jsonify({
+            'message': 'Person permanently deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting person {person_id}: {e}")
+        return jsonify({'error': 'Failed to delete person'}), 500
 
 
 @app.route('/api/engagement/log_attendance', methods=['POST'])
-@require_feature_flag('BEACON_MGMT_ENABLED')
 def log_attendance():
     """Log attendance via beacon detection (public endpoint for mobile app)"""
     try:
@@ -14764,19 +12890,19 @@ def log_serving():
             db.session.add(engagement)
         
         # Parse serving date
-        serving_date = datetime.now()
+        serving_date = datetime.now().date()
         if data.get('date'):
             try:
-                serving_date = datetime.strptime(data['date'], '%Y-%m-%d')
+                serving_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
             except ValueError:
                 return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
         
         # Add serving record
         engagement.add_serving_record(
             role=data['role'],
-            location=data['location'],
             campus=data['campus'],
-            serving_date=serving_date
+            serving_date=serving_date,
+            location=data.get('location')
         )
         
         db.session.commit()
@@ -14795,6 +12921,626 @@ def log_serving():
         db.session.rollback()
         logger.error(f"Error logging serving: {e}")
         return jsonify({'error': 'Failed to log serving activity'}), 500
+
+
+@app.route('/api/engagement/log_bible', methods=['POST'])
+def log_bible():
+    """Log Bible reading (public endpoint for mobile app)"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if 'person_email' not in data:
+            return jsonify({'error': 'Missing required field: person_email'}), 400
+        
+        # Find person by email
+        person = Person.query.filter_by(email=data['person_email'], is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Parse reading date
+        reading_date = None
+        if data.get('date'):
+            try:
+                reading_date = datetime.fromisoformat(data['date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    reading_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                except ValueError:
+                    pass  # Use current date if invalid
+        
+        # Add Bible reading record
+        engagement.add_bible_reading(reading_date=reading_date)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Bible reading logged successfully',
+            'person_id': person.id,
+            'date': reading_date.isoformat() if reading_date else datetime.now().date().isoformat(),
+            'pulse_status': engagement.pulse_status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging Bible reading: {e}")
+        return jsonify({'error': 'Failed to log Bible reading'}), 500
+
+
+@app.route('/api/engagement/log_giving', methods=['POST'])
+def log_giving():
+    """Log giving (public endpoint for mobile app or Stripe webhook)"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if 'person_email' not in data:
+            return jsonify({'error': 'Missing required field: person_email'}), 400
+        if 'amount' not in data:
+            return jsonify({'error': 'Missing required field: amount'}), 400
+        
+        # Find person by email
+        person = Person.query.filter_by(email=data['person_email'], is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Parse giving date
+        giving_date = None
+        if data.get('date'):
+            try:
+                giving_date = datetime.fromisoformat(data['date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    giving_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                except ValueError:
+                    pass  # Use current date if invalid
+        
+        # Add giving record
+        engagement.add_giving(
+            amount=data['amount'],
+            giving_date=giving_date,
+            campus=data.get('campus', person.campus)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Giving logged successfully',
+            'person_id': person.id,
+            'amount': float(data['amount']),
+            'date': giving_date.isoformat() if giving_date else datetime.now().date().isoformat(),
+            'pulse_status': engagement.pulse_status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging giving: {e}")
+        return jsonify({'error': 'Failed to log giving'}), 500
+
+
+@app.route('/api/engagement/log_group_attendance', methods=['POST'])
+def log_group_attendance():
+    """Log connect group attendance (for leader portal)"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['person_id', 'group_id']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Find person
+        person = Person.query.filter_by(id=data['person_id'], is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Verify person is in the group
+        if person.connect_group != data['group_id']:
+            return jsonify({'error': 'Person is not a member of this group'}), 400
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Parse attendance date
+        attendance_date = None
+        if data.get('date'):
+            try:
+                attendance_date = datetime.fromisoformat(data['date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    attendance_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                except ValueError:
+                    pass  # Use current date if invalid
+        
+        # Add group attendance record
+        engagement.add_group_attendance(
+            group_id=data['group_id'],
+            attendance_date=attendance_date,
+            present=data.get('present', True)
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Group attendance logged successfully',
+            'person_id': person.id,
+            'group_id': data['group_id'],
+            'date': attendance_date.isoformat() if attendance_date else datetime.now().date().isoformat(),
+            'present': data.get('present', True),
+            'pulse_status': engagement.pulse_status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging group attendance: {e}")
+        return jsonify({'error': 'Failed to log group attendance'}), 500
+
+
+# ============================================================================
+# CONNECT GROUPS API ROUTES
+# ============================================================================
+
+@app.route('/api/connect-groups', methods=['GET'])
+@login_required
+def get_connect_groups():
+    """Get list of connect groups (campus-scoped)"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        campus_filter = request.args.get('campus', None)
+        is_active = request.args.get('is_active', 'true').lower() == 'true'
+        
+        # Build query
+        query = ConnectGroup.query
+        
+        # Apply campus scoping
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'groups')
+        
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(ConnectGroup.campus == campus_filter)
+        
+        if is_active:
+            query = query.filter(ConnectGroup.is_active == True)
+        
+        groups = query.order_by(ConnectGroup.name).all()
+        
+        return jsonify({
+            'groups': [g.to_dict() for g in groups],
+            'total': len(groups)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching connect groups: {e}")
+        return jsonify({'error': 'Failed to fetch connect groups'}), 500
+
+
+@app.route('/api/connect-groups', methods=['POST'])
+@login_required
+def create_connect_group():
+    """Create new connect group"""
+    try:
+        if not current_user.has_permission('groups', 'create'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['name', 'campus', 'leader_id']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Generate group ID
+        import uuid
+        group_id = f"cg_{data['campus'].lower().replace(' ', '_')}_{str(uuid.uuid4())[:8]}"
+        
+        # Verify leader exists
+        leader = Person.query.filter_by(id=data['leader_id'], is_active=True).first()
+        if not leader:
+            return jsonify({'error': 'Leader not found'}), 404
+        
+        # Create group
+        group = ConnectGroup(
+            id=group_id,
+            name=data['name'],
+            campus=data['campus'],
+            leader_id=data['leader_id'],
+            co_leader_id=data.get('co_leader_id'),
+            meeting_day=data.get('meeting_day'),
+            meeting_time=data.get('meeting_time'),
+            meeting_frequency=data.get('meeting_frequency', 'weekly'),
+            location=data.get('location'),
+            leader_access_code=data.get('leader_access_code')  # Simple password for leader portal
+        )
+        
+        db.session.add(group)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Connect group created successfully',
+            'group': group.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating connect group: {e}")
+        return jsonify({'error': 'Failed to create connect group'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>', methods=['GET'])
+@login_required
+def get_connect_group(group_id):
+    """Get connect group details with members"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        # Get members
+        members = group.get_members()
+        
+        # Get meetings (sorted by date, most recent first)
+        meetings = ConnectGroupMeeting.query.filter_by(group_id=group_id).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
+        
+        group_data = group.to_dict()
+        group_data['members'] = [m.to_dict() for m in members]
+        group_data['meetings'] = [m.to_dict() for m in meetings]
+        
+        return jsonify(group_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching connect group: {e}")
+        return jsonify({'error': 'Failed to fetch connect group'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>', methods=['PUT'])
+@login_required
+def update_connect_group(group_id):
+    """Update connect group"""
+    try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        data = request.get_json()
+        
+        # Update fields
+        if 'name' in data:
+            group.name = data['name']
+        if 'leader_id' in data:
+            leader = Person.query.filter_by(id=data['leader_id'], is_active=True).first()
+            if not leader:
+                return jsonify({'error': 'Leader not found'}), 404
+            group.leader_id = data['leader_id']
+        if 'co_leader_id' in data:
+            if data['co_leader_id']:
+                co_leader = Person.query.filter_by(id=data['co_leader_id'], is_active=True).first()
+                if not co_leader:
+                    return jsonify({'error': 'Co-leader not found'}), 404
+            group.co_leader_id = data['co_leader_id']
+        if 'meeting_day' in data:
+            group.meeting_day = data['meeting_day']
+        if 'meeting_time' in data:
+            group.meeting_time = data['meeting_time']
+        if 'meeting_frequency' in data:
+            group.meeting_frequency = data['meeting_frequency']
+        if 'location' in data:
+            group.location = data['location']
+        if 'leader_access_code' in data:
+            group.leader_access_code = data['leader_access_code']
+        if 'is_active' in data:
+            group.is_active = data['is_active']
+        
+        group.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Connect group updated successfully',
+            'group': group.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating connect group: {e}")
+        return jsonify({'error': 'Failed to update connect group'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/members', methods=['POST'])
+@login_required
+def add_group_member(group_id):
+    """Add member to connect group"""
+    try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        data = request.get_json()
+        person_id = data.get('person_id')
+        
+        if not person_id:
+            return jsonify({'error': 'Missing person_id'}), 400
+        
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Update person's connect_group
+        person.connect_group = group_id
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Member added successfully',
+            'person': person.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error adding group member: {e}")
+        return jsonify({'error': 'Failed to add member'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/members/<person_id>', methods=['DELETE'])
+@login_required
+def remove_group_member(group_id, person_id):
+    """Remove member from connect group"""
+    try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        if person.connect_group != group_id:
+            return jsonify({'error': 'Person is not a member of this group'}), 400
+        
+        person.connect_group = None
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Member removed successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error removing group member: {e}")
+        return jsonify({'error': 'Failed to remove member'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/meetings', methods=['POST'])
+def create_group_meeting(group_id):
+    """Create a connect group meeting (allows leader access via email + access code)"""
+    try:
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        data = request.get_json()
+        
+        # Check permissions - either logged-in admin/staff OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                leader_email = group.leader.email if group.leader else None
+                co_leader_email = group.co_leader.email if group.co_leader else None
+                is_leader = (leader_email == current_user.email) or (co_leader_email == current_user.email)
+                is_authenticated_user = current_user.has_permission('groups', 'edit')
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code
+        if not is_authenticated_user and not is_leader:
+            leader_email = group.leader.email if group.leader else None
+            co_leader_email = group.co_leader.email if group.co_leader else None
+            provided_email = data.get('leader_email', '').lower()
+            provided_code = data.get('access_code', '')
+            
+            if provided_email and (provided_email == leader_email.lower() or provided_email == co_leader_email.lower()):
+                # Verify access code if set
+                if group.leader_access_code:
+                    if provided_code != group.leader_access_code:
+                        return jsonify({'error': 'Invalid access code'}), 403
+                is_leader = True
+            else:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        if not (is_authenticated_user or is_leader):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Parse meeting date
+        meeting_date = datetime.now().date()
+        if data.get('meeting_date'):
+            try:
+                meeting_date = datetime.fromisoformat(data['meeting_date']).date()
+            except (ValueError, AttributeError):
+                try:
+                    meeting_date = datetime.strptime(data['meeting_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        # Create meeting
+        meeting = ConnectGroupMeeting(
+            group_id=group_id,
+            meeting_date=meeting_date,
+            notes=data.get('notes')
+        )
+        
+        db.session.add(meeting)
+        db.session.flush()  # Get meeting ID
+        
+        # Create attendance records for all group members
+        members = group.get_members()
+        for member in members:
+            attendance = ConnectGroupAttendance(
+                meeting_id=meeting.id,
+                person_id=member.id,
+                present=False  # Default to absent, leader will mark present
+            )
+            db.session.add(attendance)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Meeting created successfully',
+            'meeting': meeting.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating group meeting: {e}")
+        return jsonify({'error': 'Failed to create meeting'}), 500
+
+
+@app.route('/api/connect-groups/meetings/<meeting_id>', methods=['GET'])
+def get_group_meeting(meeting_id):
+    """Get meeting details with attendance"""
+    try:
+        meeting = ConnectGroupMeeting.query.filter_by(id=meeting_id).first()
+        if not meeting:
+            return jsonify({'error': 'Meeting not found'}), 404
+        
+        group = meeting.group
+        
+        # Get attendance records
+        attendance_records = ConnectGroupAttendance.query.filter_by(meeting_id=meeting_id).all()
+        
+        meeting_data = meeting.to_dict()
+        meeting_data['attendance'] = [att.to_dict() for att in attendance_records]
+        
+        return jsonify(meeting_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching meeting: {e}")
+        return jsonify({'error': 'Failed to fetch meeting'}), 500
+
+
+@app.route('/api/connect-groups/meetings/<meeting_id>/attendance', methods=['POST'])
+def submit_meeting_attendance(meeting_id):
+    """Submit attendance for a meeting (allows leader access via email + access code)"""
+    try:
+        meeting = ConnectGroupMeeting.query.filter_by(id=meeting_id).first()
+        if not meeting:
+            return jsonify({'error': 'Meeting not found'}), 404
+        
+        group = meeting.group
+        data = request.get_json()
+        
+        # Check permissions - either logged-in admin/staff OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                leader_email = group.leader.email if group.leader else None
+                co_leader_email = group.co_leader.email if group.co_leader else None
+                is_leader = (leader_email == current_user.email) or (co_leader_email == current_user.email)
+                is_authenticated_user = current_user.has_permission('groups', 'edit')
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code
+        if not is_authenticated_user and not is_leader:
+            leader_email = group.leader.email if group.leader else None
+            co_leader_email = group.co_leader.email if group.co_leader else None
+            provided_email = data.get('leader_email', '').lower()
+            provided_code = data.get('access_code', '')
+            
+            if provided_email and (provided_email == leader_email.lower() or provided_email == co_leader_email.lower()):
+                # Verify access code if set
+                if group.leader_access_code:
+                    if provided_code != group.leader_access_code:
+                        return jsonify({'error': 'Invalid access code'}), 403
+                is_leader = True
+            else:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        if not (is_authenticated_user or is_leader):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        attendance_list = data.get('attendance', [])  # [{person_id, present, notes?}]
+        
+        if not attendance_list:
+            return jsonify({'error': 'No attendance data provided'}), 400
+        
+        # Update attendance records
+        for att_data in attendance_list:
+            person_id = att_data.get('person_id')
+            present = att_data.get('present', False)
+            
+            if not person_id:
+                continue
+            
+            # Find or create attendance record
+            attendance = ConnectGroupAttendance.query.filter_by(
+                meeting_id=meeting_id,
+                person_id=person_id
+            ).first()
+            
+            if attendance:
+                attendance.present = present
+                attendance.notes = att_data.get('notes')
+            else:
+                # Create new attendance record
+                attendance = ConnectGroupAttendance(
+                    meeting_id=meeting_id,
+                    person_id=person_id,
+                    present=present,
+                    notes=att_data.get('notes')
+                )
+                db.session.add(attendance)
+            
+            # Update engagement profile if present
+            if present:
+                person = Person.query.filter_by(id=person_id).first()
+                if person and person.engagement_profile:
+                    person.engagement_profile.add_group_attendance(
+                        group_id=group.id,
+                        attendance_date=meeting.meeting_date,
+                        present=True
+                    )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Attendance submitted successfully',
+            'meeting': meeting.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error submitting attendance: {e}")
+        return jsonify({'error': 'Failed to submit attendance'}), 500
 
 
 @app.route('/api/pulse/<person_id>', methods=['GET'])
@@ -14838,7 +13584,6 @@ def get_pulse_status(person_id):
 
 @app.route('/api/beacon_zones', methods=['GET'])
 @login_required
-@require_feature_flag('BEACON_MGMT_ENABLED')
 def get_beacon_zones():
     """Get all beacon zones (admin only)"""
     try:
@@ -14863,7 +13608,7 @@ def get_beacon_zones():
         return jsonify({'error': 'Failed to fetch beacon zones'}), 500
 
 
-@app.route('/api/passport/user/<person_email>', methods=['GET'])
+@app.route('/api/passport/<person_email>', methods=['GET'])
 def get_passport_data(person_email):
     """Get passport/discipleship data for a user (public endpoint)"""
     try:
@@ -14958,14 +13703,6 @@ app.register_blueprint(serving_bp)
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
 
-# PASSPORT MODULE ROUTES (register BEFORE the old passport route to avoid conflicts)
-try:
-    from passport_api import passport_bp
-    app.register_blueprint(passport_bp)
-    logger.info("Passport API routes registered")
-except Exception as e:
-    logger.warning(f"Failed to register Passport API routes: {e}")
-
 # USER MANAGEMENT ROUTES
 @app.route('/api/users', methods=['GET'])
 @login_required
@@ -14975,149 +13712,28 @@ def get_users():
         if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
             return jsonify({'error': 'Unauthorized'}), 403
         
-        # Get users from database instead of JSON file
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        # Check if users table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-        if not cursor.fetchone():
-            conn.close()
-            logger.warning("Users table does not exist yet")
-            return jsonify({'users': [], 'success': True})
-        
-        cursor.execute('''
-            SELECT id, username, email, full_name, role, campus, active, created_at, last_login
-            FROM users
-            ORDER BY full_name
-        ''')
-        
+        users_db = load_users_database()
         users_list = []
-        # Try to load users.json for role names, but don't fail if it doesn't exist
-        try:
-            users_data = load_users()  # Still need this for role names
-        except Exception as e:
-            logger.warning(f"Could not load users.json for role names: {e}")
-            users_data = {"roles": {}}
         
-        for row in cursor.fetchall():
-            try:
-                user_id, username, email, full_name, role, campus, active, created_at, last_login = row
-                
-                # Format last login for display
-                last_login_display = "Never"
-                if last_login:
-                    try:
-                        # Convert to readable format
-                        if isinstance(last_login, str):
-                            last_login_dt = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
-                        else:
-                            last_login_dt = last_login
-                        last_login_display = last_login_dt.strftime('%Y-%m-%d %H:%M')
-                    except:
-                        last_login_display = "Unknown"
-                
-                # Format created_at safely
-                created_date_str = 'Unknown'
-                if created_at:
-                    try:
-                        if isinstance(created_at, str):
-                            created_date_str = created_at[:10] if len(created_at) >= 10 else 'Unknown'
-                        else:
-                            created_date_str = created_at.strftime('%Y-%m-%d')
-                    except:
-                        created_date_str = 'Unknown'
-                
-                user_info = {
-                    'id': str(user_id),  # Convert to string for frontend compatibility
-                    'username': username or 'Unknown',
-                    'email': email or 'N/A',
-                    'full_name': full_name or username or 'Unknown',
-                    'role': role or 'user',
-                    'campus': campus or '',
-                    'active': bool(active) if active is not None else True,
-                    'created_date': created_date_str,
-                    'last_login': last_login_display
-                }
-                users_list.append(user_info)
-            except Exception as row_error:
-                logger.error(f"Error processing user row: {row_error}, row: {row}")
-                continue
+        for user_id, user_data in users_db.get('users', {}).items():
+            # Don't send password hash to frontend
+            user_info = {
+                'id': user_data.get('id'),
+                'username': user_data.get('username'),
+                'email': user_data.get('email', ''),
+                'full_name': user_data.get('full_name'),
+                'role': user_data.get('role'),
+                'campus': user_data.get('campus'),
+                'active': user_data.get('active', True),
+                'last_login': user_data.get('last_login'),
+                'created_date': user_data.get('created_date')
+            }
+            users_list.append(user_info)
         
-        conn.close()
         return jsonify({'users': users_list, 'success': True})
     except Exception as e:
-        logger.error(f"Error fetching users: {e}", exc_info=True)
-        return jsonify({'error': f'Failed to fetch users: {str(e)}'}), 500
-
-# ADMIN UTILITY ROUTES
-@app.route('/api/admin/reset-admin-password', methods=['POST'])
-def reset_admin_password():
-    """Utility endpoint to reset admin password - only works if no users exist or in development"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        # Check if any users exist
-        cursor.execute('SELECT COUNT(*) FROM users')
-        user_count = cursor.fetchone()[0]
-        
-        # Allow reset if no users exist, or if admin user doesn't exist or is inactive
-        # This is safe because it only affects the admin user
-        if user_count > 0:
-            cursor.execute('SELECT id, active FROM users WHERE username = ?', ('admin',))
-            admin_check = cursor.fetchone()
-            if admin_check and admin_check[1]:
-                # Admin exists and is active - only allow in non-production or if explicitly requested
-                # For now, allow it since we're fixing a broken state
-                pass
-        
-        # Generate new password hash
-        from werkzeug.security import generate_password_hash
-        new_password = 'futures2025'
-        password_hash = generate_password_hash(new_password)
-        
-        # Check if admin exists
-        cursor.execute('SELECT id FROM users WHERE username = ?', ('admin',))
-        admin_user = cursor.fetchone()
-        
-        if admin_user:
-            # Update existing admin
-            cursor.execute('''
-                UPDATE users 
-                SET password_hash = ?, active = 1
-                WHERE username = ?
-            ''', (password_hash, 'admin'))
-            action = "updated"
-        else:
-            # Create new admin user
-            cursor.execute('''
-                INSERT INTO users (username, password_hash, full_name, email, role, campus, active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                'admin',
-                password_hash,
-                'Administrator',
-                'admin@futures.church',
-                'admin',
-                'all_campuses',
-                1
-            ))
-            action = "created"
-        
-        conn.commit()
-        conn.close()
-        
-        logger.info(f"Admin user {action} with password reset")
-        return jsonify({
-            "success": True,
-            "message": f"Admin user {action} successfully",
-            "username": "admin",
-            "password": new_password
-        })
-    except Exception as e:
-        logger.error(f"Error resetting admin password: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error fetching users: {e}")
+        return jsonify({'error': 'Failed to fetch users'}), 500
 
 # COMMUNICATIONS PLATFORM ROUTES
 @app.route('/api/communications/campaigns', methods=['GET'])
@@ -15378,7 +13994,6 @@ def get_devotion_plans():
 
 # BLUETOOTH BEACON SYSTEM ROUTES
 @app.route('/api/beacons/attendance', methods=['POST'])
-@require_feature_flag('BEACON_MGMT_ENABLED')
 def log_beacon_attendance():
     """Log attendance via beacon detection (public endpoint for mobile app)"""
     try:
@@ -15422,7 +14037,6 @@ def log_beacon_attendance():
         return jsonify({'error': 'Failed to log attendance'}), 500
 
 @app.route('/api/beacons/zones', methods=['GET'])
-@require_feature_flag('BEACON_MGMT_ENABLED')
 def get_beacon_zones_public():
     """Get all active beacon zones (public endpoint)"""
     try:
@@ -15443,7 +14057,6 @@ def get_beacon_zones_public():
 
 @app.route('/api/beacons/zones', methods=['POST'])
 @admin_required
-@require_feature_flag('BEACON_MGMT_ENABLED')
 def create_beacon_zone():
     """Create a new beacon zone (admin only)"""
     try:

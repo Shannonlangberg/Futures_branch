@@ -31,33 +31,13 @@ const MainLayout = ({ children }) => {
   const [userRole, setUserRole] = useState('user');
   const [userName, setUserName] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [featureFlags, setFeatureFlags] = useState({});
   const location = useLocation();
 
   // Fetch user session data on component mount
   useEffect(() => {
-    const fetchFeatureFlags = async () => {
-      try {
-        const response = await fetch('/api/feature_flags', {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setFeatureFlags(data || {});
-        } else {
-          setFeatureFlags({});
-        }
-      } catch (error) {
-        console.error('Error fetching feature flags:', error);
-        setFeatureFlags({});
-      }
-    };
-
     const fetchSessionData = async () => {
       try {
-        const response = await fetch('/api/session', {
-          credentials: 'include'
-        });
+        const response = await fetch('/api/session');
         const data = await response.json();
         if (data.authenticated) {
           setUserRole(data.role || 'user');
@@ -69,13 +49,9 @@ const MainLayout = ({ children }) => {
             role: data.role || 'user',
             campus: data.campus || 'all_campuses'
           });
-          await fetchFeatureFlags();
-        } else {
-          setFeatureFlags({});
         }
       } catch (error) {
         console.error('Error fetching session data:', error);
-        setFeatureFlags({});
       }
     };
 
@@ -116,15 +92,13 @@ const MainLayout = ({ children }) => {
   const getNavigationItems = () => {
     const allItems = [
       // Core navigation - simplified to only show essential items
-      { name: 'Home', href: '/', icon: HomeIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance', 'user'] },
       { name: 'Dashboard', href: '/dashboard', icon: DocumentChartBarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
       { name: 'Input', href: '/stats', icon: ClipboardIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
       { name: 'Finance', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'] },
-      { name: 'People', href: '/people', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureFlag: 'PEOPLE_ENABLED' },
-      { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'finance'], featureFlag: 'HEARTBEAT_ENABLED' },
-      { name: 'Resources', href: '/resources', icon: BookOpenIcon, roles: ['admin'] },
+      { name: 'Connect Groups', href: '/connect-groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'] },
       
       // Hidden items - commented out for now
+      // { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'finance'] },
       // { name: 'Devotions Admin', href: '/devotions/admin', icon: BookOpenIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'staff'], featureFlag: 'DEVOTIONS_ADMIN_ENABLED' },
       // { name: 'Connect Groups', href: '/groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'staff'], featureFlag: 'GROUPS_FOR_STAFF_ENABLED' },
       // { name: 'Beacon Management', href: '/beacons', icon: SignalIcon, roles: ['admin'], featureFlag: 'BEACON_MGMT_ENABLED' },
@@ -147,9 +121,8 @@ const MainLayout = ({ children }) => {
       
       // Check feature flag if specified
       if (item.featureFlag) {
-        if (!featureFlags[item.featureFlag]) {
-          return false;
-        }
+        // For now, we'll assume all feature flags are enabled
+        // In a real implementation, you'd fetch this from the API
       }
       
       return true;
@@ -175,12 +148,6 @@ const MainLayout = ({ children }) => {
         { name: 'Data Export', href: '/export', icon: DocumentChartBarIcon, show: true },
         { name: 'Users', href: '/users', icon: UserGroupIcon, show: true },
         { name: 'Campuses', href: '/campuses', icon: BuildingOfficeIcon, show: true }
-      );
-    }
-
-    if (userRole === 'admin') {
-      items.push(
-        { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, show: true }
       );
     }
 

@@ -1,0 +1,516 @@
+import React, { useState, useEffect } from 'react';
+import {
+  UserGroupIcon,
+  CalendarIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
+  MapPinIcon
+} from '@heroicons/react/24/outline';
+
+const ConnectGroupLeader = () => {
+  const [email, setEmail] = useState('');
+  const [accessCode, setAccessCode] = useState('');
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [myGroups, setMyGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
+  const [attendance, setAttendance] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      // Find groups where user is leader/co-leader
+      const response = await fetch('/api/connect-groups?is_active=true', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const groups = data.groups || [];
+        
+        // Find groups where this email matches leader or co-leader
+        const userGroups = groups.filter(group => {
+          const leaderEmail = group.leader_email?.toLowerCase();
+          const coLeaderEmail = group.co_leader_email?.toLowerCase();
+          const inputEmail = email.toLowerCase();
+          
+          if (leaderEmail === inputEmail || coLeaderEmail === inputEmail) {
+            // Verify access code if provided
+            if (accessCode && group.leader_access_code) {
+              return group.leader_access_code === accessCode;
+            }
+            // If no access code set, allow login
+            return !group.leader_access_code || group.leader_access_code === accessCode;
+          }
+          return false;
+        });
+
+        if (userGroups.length > 0) {
+          setMyGroups(userGroups);
+          setLoggedIn(true);
+        } else {
+          setError('No groups found for this email, or incorrect access code');
+        }
+      } else {
+        setError('Failed to load groups');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Failed to connect to server');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadGroupDetails = async (group) => {
+    try {
+      const response = await fetch(`/api/connect-groups/${group.id}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedGroup(data);
+        // Also load meetings if available
+        if (data.meetings) {
+          // Meetings are already included in the response
+        }
+      }
+    } catch (err) {
+      console.error('Error loading group details:', err);
+    }
+  };
+
+  const handleCreateMeeting = async (group) => {
+    const meetingDate = prompt('Enter meeting date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    if (!meetingDate) return;
+
+    try {
+      const response = await fetch(`/api/connect-groups/${group.id}/meetings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          meeting_date: meetingDate,
+          notes: '',
+          leader_email: email,
+          access_code: accessCode
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        await loadGroupDetails(group);
+        setSelectedMeeting(data.meeting);
+        // Load attendance for this meeting
+        loadMeetingAttendance(data.meeting.id);
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to create meeting');
+      }
+    } catch (err) {
+      console.error('Error creating meeting:', err);
+      alert('Failed to create meeting');
+    }
+  };
+
+  const loadMeetingAttendance = async (meetingId) => {
+    try {
+      // Get meeting details which includes attendance
+      const response = await fetch(`/api/connect-groups/meetings/${meetingId}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedMeeting(data);
+        // Initialize attendance for all members if not already set
+        // Use selectedGroup from state (it should be set by loadGroupDetails)
+        if (selectedGroup && selectedGroup.members) {
+          const existingAttendance = data.attendance || [];
+          const allAttendance = selectedGroup.members.map(member => {
+            const existing = existingAttendance.find(a => a.person_id === member.id);
+            return existing || {
+              person_id: member.id,
+              present: false,
+              notes: ''
+            };
+          });
+          setAttendance(allAttendance);
+        } else {
+          // If we don't have selectedGroup yet, just use what we got
+          setAttendance(data.attendance || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading attendance:', err);
+    }
+  };
+
+  const handleSubmitAttendance = async () => {
+    if (!selectedMeeting) return;
+
+    try {
+      const attendanceData = attendance.map(att => ({
+        person_id: att.person_id,
+        present: att.present,
+        notes: att.notes || ''
+      }));
+
+      const response = await fetch(
+        `/api/connect-groups/meetings/${selectedMeeting.id}/attendance`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            attendance: attendanceData,
+            leader_email: email,
+            access_code: accessCode
+          })
+        }
+      );
+
+      if (response.ok) {
+        alert('Attendance submitted successfully!');
+        await loadGroupDetails(selectedGroup);
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to submit attendance');
+      }
+    } catch (err) {
+      console.error('Error submitting attendance:', err);
+      alert('Failed to submit attendance');
+    }
+  };
+
+  const toggleAttendance = (personId) => {
+    setAttendance(prev => prev.map(att => 
+      att.person_id === personId 
+        ? { ...att, present: !att.present }
+        : att
+    ));
+  };
+
+  if (!loggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8">
+          <div className="text-center mb-8">
+            <UserGroupIcon className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-white mb-2">Connect Group Leader Portal</h1>
+            <p className="text-slate-400">Log in to manage your connect group</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            {error && (
+              <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                placeholder="your.email@example.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Access Code (if set)
+              </label>
+              <input
+                type="password"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                placeholder="Enter access code"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Your group admin may have set an access code. If not, leave blank.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors font-medium"
+            >
+              {loading ? 'Logging in...' : 'Log In'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2 flex items-center">
+                <UserGroupIcon className="w-10 h-10 mr-3 text-blue-500" />
+                My Connect Groups
+              </h1>
+              <p className="text-slate-400">Manage your connect groups and take attendance</p>
+            </div>
+            <button
+              onClick={() => {
+                setLoggedIn(false);
+                setMyGroups([]);
+                setSelectedGroup(null);
+                setSelectedMeeting(null);
+              }}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+
+        {/* Groups List */}
+        {!selectedGroup && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {myGroups.map(group => (
+              <div
+                key={group.id}
+                className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-blue-500/50 transition-colors cursor-pointer"
+                onClick={() => loadGroupDetails(group)}
+              >
+                <h3 className="text-xl font-semibold text-white mb-4">{group.name}</h3>
+                <div className="space-y-2 text-sm text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <MapPinIcon className="w-4 h-4 text-slate-400" />
+                    <span>{group.campus}</span>
+                  </div>
+                  {group.meeting_day && group.meeting_time && (
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4 text-slate-400" />
+                      <span>{group.meeting_day} {group.meeting_time}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <UserGroupIcon className="w-4 h-4 text-slate-400" />
+                    <span>{group.member_count || 0} members</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Group Details & Meetings */}
+        {selectedGroup && !selectedMeeting && (
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">{selectedGroup.name}</h2>
+              <button
+                onClick={() => setSelectedGroup(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                ← Back to Groups
+              </button>
+            </div>
+
+            {/* Group Info */}
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="text-sm text-slate-400">Campus</label>
+                <p className="text-white">{selectedGroup.campus}</p>
+              </div>
+              {selectedGroup.meeting_day && (
+                <div>
+                  <label className="text-sm text-slate-400">Meeting Schedule</label>
+                  <p className="text-white">
+                    {selectedGroup.meeting_day} {selectedGroup.meeting_time || ''} ({selectedGroup.meeting_frequency || 'weekly'})
+                  </p>
+                </div>
+              )}
+              {selectedGroup.location && (
+                <div>
+                  <label className="text-sm text-slate-400">Location</label>
+                  <p className="text-white">{selectedGroup.location}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Members */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Members ({selectedGroup.members?.length || 0})
+              </h3>
+              {selectedGroup.members && selectedGroup.members.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedGroup.members.map(member => (
+                    <div
+                      key={member.id}
+                      className="p-3 bg-slate-700/50 rounded-lg"
+                    >
+                      <p className="text-white font-medium">{member.full_name}</p>
+                      {member.email && (
+                        <p className="text-sm text-slate-400">{member.email}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-400">No members yet</p>
+              )}
+            </div>
+
+            {/* Meetings */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Meetings</h3>
+                <button
+                  onClick={() => handleCreateMeeting(selectedGroup)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                >
+                  + Create Meeting
+                </button>
+              </div>
+              {selectedGroup.meetings && selectedGroup.meetings.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedGroup.meetings
+                    .sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
+                    .map(meeting => (
+                      <div
+                        key={meeting.id}
+                        className="p-4 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors"
+                        onClick={() => loadMeetingAttendance(meeting.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-medium">
+                              {new Date(meeting.meeting_date).toLocaleDateString()}
+                            </p>
+                            <p className="text-sm text-slate-400">
+                              {meeting.attendance_count || 0} of {meeting.total_members || 0} present
+                            </p>
+                          </div>
+                          <button className="text-blue-400 hover:text-blue-300">
+                            Take Attendance →
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-slate-400">No meetings yet. Create one to get started!</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Attendance Taking */}
+        {selectedMeeting && (
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Attendance - {new Date(selectedMeeting.meeting_date).toLocaleDateString()}
+                </h2>
+                <p className="text-slate-400">{selectedGroup.name}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedMeeting(null);
+                  setAttendance([]);
+                }}
+                className="text-slate-400 hover:text-white"
+              >
+                ← Back
+              </button>
+            </div>
+
+            {/* Attendance List */}
+            <div className="space-y-2 mb-6">
+              {selectedGroup.members?.map(member => {
+                const memberAttendance = attendance.find(a => a.person_id === member.id) || {
+                  person_id: member.id,
+                  present: false,
+                  notes: ''
+                };
+                
+                return (
+                  <div
+                    key={member.id}
+                    className={`p-4 rounded-lg border-2 transition-colors ${
+                      memberAttendance.present
+                        ? 'bg-emerald-500/10 border-emerald-500/50'
+                        : 'bg-slate-700/50 border-slate-600/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-white font-medium">{member.full_name}</p>
+                        {member.email && (
+                          <p className="text-sm text-slate-400">{member.email}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => toggleAttendance(member.id)}
+                        className={`ml-4 p-2 rounded-lg transition-colors ${
+                          memberAttendance.present
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-slate-600 text-slate-400'
+                        }`}
+                      >
+                        {memberAttendance.present ? (
+                          <CheckCircleIcon className="w-6 h-6" />
+                        ) : (
+                          <XCircleIcon className="w-6 h-6" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Submit Button */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleSubmitAttendance}
+                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+              >
+                Submit Attendance
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedMeeting(null);
+                  setAttendance([]);
+                }}
+                className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ConnectGroupLeader;
+
