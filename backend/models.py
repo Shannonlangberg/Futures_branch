@@ -579,10 +579,16 @@ def init_db(app):
     """Initialize database"""
     db.init_app(app)
     
-    with app.app_context():
-        # Create tables
-        db.create_all()
-        print("[DEBUG] Database tables created successfully")
+    try:
+        with app.app_context():
+            # Create tables
+            db.create_all()
+            print("[DEBUG] Database tables created successfully")
+    except Exception as e:
+        print(f"[ERROR] Database initialization error: {e}")
+        # Don't raise - allow app to start even if table creation fails
+        import traceback
+        traceback.print_exc()
 
 
 def create_person_with_engagement(
