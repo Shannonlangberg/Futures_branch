@@ -13372,6 +13372,7 @@ def get_heartbeat_list():
 
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
+        department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
         page = int(request.args.get('page', 1))
         page_size = min(int(request.args.get('page_size', 50)), 200)
@@ -13382,6 +13383,10 @@ def get_heartbeat_list():
         # Apply explicit campus filter (e.g. admin switching campuses)
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(Person.campus == campus_filter)
+
+        # Department filter
+        if department_filter and department_filter != 'all':
+            query = query.filter(Person.department == department_filter)
 
         # Apply campus scoping based on user role/campus for heartbeat resource
         from utils.campus_scope import apply_campus_filter
@@ -13426,6 +13431,7 @@ def get_heartbeat_list():
                 'full_name': person.full_name,
                 'email': person.email,
                 'campus': person.campus,
+                'department': person.department,
                 'pulse_status': profile['pulse_status'],
                 'overall_engagement': profile['overall_engagement'],
                 'last_seen': profile['last_seen'],
@@ -13534,6 +13540,7 @@ def get_people_directory():
 
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
+        department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
         page = int(request.args.get('page', 1))
         page_size = min(int(request.args.get('page_size', 50)), 200)
@@ -13544,6 +13551,10 @@ def get_people_directory():
         # Explicit campus filter (for cross-campus roles)
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(Person.campus == campus_filter)
+
+        # Department filter
+        if department_filter and department_filter != 'all':
+            query = query.filter(Person.department == department_filter)
 
         # Apply campus scoping based on user role/campus for heartbeat/people resource
         from utils.campus_scope import apply_campus_filter
@@ -13589,6 +13600,7 @@ def get_people_directory():
                 'email': person.email,
                 'phone': person.phone,
                 'campus': person.campus,
+                'department': person.department,
                 'connect_group': person.connect_group,
                 'dream_team_roles': json.loads(person.dream_team_roles) if person.dream_team_roles else [],
                 'tags': json.loads(person.tags) if person.tags else [],
@@ -13684,6 +13696,66 @@ def import_people_from_pco():
             key = raw.lower()
             return campus_name_to_id.get(key, raw)
 
+        def map_department(tags_list, status=None, birthday_str=None):
+            """
+            Map PCO tags/status to department.
+            Returns: kids, youth, young_adults, families, adults, seniors, or None
+            """
+            if not tags_list:
+                tags_list = []
+            
+            # Normalize tags to lowercase for matching
+            tags_lower = [t.lower() for t in tags_list]
+            status_lower = (status or '').lower()
+            
+            # Check tags for explicit department markers
+            for tag in tags_lower:
+                if any(word in tag for word in ['kids', 'children', 'child', 'grade', 'kindergarten', 'primary', 'elementary']):
+                    return 'kids'
+                if any(word in tag for word in ['youth', 'teen', 'teenager', 'high school']):
+                    return 'youth'
+                if any(word in tag for word in ['young adult', 'ya', 'collective', 'college', 'university']):
+                    return 'young_adults'
+                if any(word in tag for word in ['family', 'families', 'parent', 'married', 'couple']):
+                    return 'families'
+                if any(word in tag for word in ['senior', 'elder', 'retired', 'retirement']):
+                    return 'seniors'
+            
+            # Check status field
+            if status_lower:
+                if any(word in status_lower for word in ['kids', 'children', 'child']):
+                    return 'kids'
+                if any(word in status_lower for word in ['youth', 'teen']):
+                    return 'youth'
+                if any(word in status_lower for word in ['young adult', 'ya']):
+                    return 'young_adults'
+                if any(word in status_lower for word in ['family', 'families']):
+                    return 'families'
+                if any(word in status_lower for word in ['senior', 'elder']):
+                    return 'seniors'
+            
+            # Age-based fallback if birthday is available
+            if birthday_str:
+                try:
+                    from datetime import datetime
+                    birthday = datetime.strptime(birthday_str.strip(), '%Y-%m-%d')
+                    age = (datetime.now() - birthday).days // 365
+                    if age < 13:
+                        return 'kids'
+                    elif age < 18:
+                        return 'youth'
+                    elif age < 25:
+                        return 'young_adults'
+                    elif age < 65:
+                        return 'adults'
+                    else:
+                        return 'seniors'
+                except:
+                    pass
+            
+            # Default to adults if no indicators found
+            return 'adults'
+
         for idx, row in enumerate(reader, start=1):
             try:
                 first_name = (row.get('First Name') or row.get('Given Name') or '').strip()
@@ -13722,6 +13794,11 @@ def import_people_from_pco():
                 raw_tags = (row.get('Tags :: Tags') or '').strip()
                 tags_list = [t.strip() for t in raw_tags.split(',') if t.strip()] if raw_tags else []
 
+                # Map department from tags/status/birthday
+                status = (row.get('Status') or row.get('Membership Status') or '').strip()
+                birthday_str = (row.get('Birthdate') or row.get('Birthday') or '').strip()
+                department = map_department(tags_list, status, birthday_str)
+
                 # Skip duplicate emails within the same CSV import
                 if email in seen_emails:
                     skipped += 1
@@ -13745,6 +13822,7 @@ def import_people_from_pco():
                     birthday=None,
                     pastoral_notes=None,
                     tags=tags_list,
+                    department=department,
                 )
 
                 # Optionally store PCO Person ID in tags for now
@@ -13926,7 +14004,8 @@ def create_person():
             dream_team_roles=data.get('dream_team_roles', []),
             birthday=datetime.strptime(data['birthday'], '%Y-%m-%d').date() if data.get('birthday') else None,
             pastoral_notes=data.get('pastoral_notes'),
-            tags=data.get('tags', [])
+            tags=data.get('tags', []),
+            department=data.get('department')
         )
         
         # Add discipleship milestones if provided

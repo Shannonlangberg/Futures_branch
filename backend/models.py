@@ -15,6 +15,7 @@ class Person(db.Model):
     email = db.Column(db.String(200), unique=True, nullable=False)
     phone = db.Column(db.String(50))
     campus = db.Column(db.String(100), nullable=False)
+    department = db.Column(db.String(50))  # kids, youth, young_adults, families, adults, seniors
     connect_group = db.Column(db.String(200))
     dream_team_roles = db.Column(db.Text)  # JSON array stored as text
     birthday = db.Column(db.Date)
@@ -43,6 +44,7 @@ class Person(db.Model):
             'email': self.email,
             'phone': self.phone,
             'campus': self.campus,
+            'department': self.department,
             'connect_group': self.connect_group,
             'dream_team_roles': json.loads(self.dream_team_roles) if self.dream_team_roles else [],
             'birthday': self.birthday.isoformat() if self.birthday else None,
@@ -396,7 +398,8 @@ def create_person_with_engagement(
     dream_team_roles=None,
     birthday=None,
     pastoral_notes=None,
-    tags=None
+    tags=None,
+    department=None
 ):
     """Create a person with an engagement profile"""
     import uuid
@@ -410,6 +413,7 @@ def create_person_with_engagement(
         full_name=full_name,
         email=email,
         campus=campus,
+        department=department,
         preferred_name=preferred_name,
         phone=phone,
         connect_group=connect_group,

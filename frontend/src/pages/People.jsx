@@ -52,6 +52,7 @@ const People = () => {
     email: '',
     phone: '',
     campus: '',
+    department: '',
     connectGroup: '',
     dreamTeamRoles: ''
   });
@@ -59,6 +60,7 @@ const People = () => {
   const [filters, setFilters] = useState({
     campus: 'all_campuses',
     pulse_status: '',
+    department: 'all',
     search: ''
   });
 
@@ -109,6 +111,9 @@ const People = () => {
         if (filters.pulse_status) {
           params.append('pulse_status', filters.pulse_status);
         }
+        if (filters.department && filters.department !== 'all') {
+          params.append('department', filters.department);
+        }
         if (filters.search.trim()) {
           params.append('search', filters.search.trim());
         }
@@ -142,7 +147,7 @@ const People = () => {
 
     fetchPeople();
     return () => controller.abort();
-  }, [filters.campus, filters.pulse_status, filters.search, pagination.page, pagination.pageSize]);
+  }, [filters.campus, filters.pulse_status, filters.department, filters.search, pagination.page, pagination.pageSize]);
 
   const handleFilterChange = (field, value) => {
     setPagination((prev) => ({ ...prev, page: 1 }));
@@ -157,6 +162,16 @@ const People = () => {
     { value: 'green', label: 'Healthy' },
     { value: 'amber', label: 'Watch' },
     { value: 'red', label: 'At Risk' }
+  ];
+
+  const departmentFilters = [
+    { value: 'all', label: 'All' },
+    { value: 'kids', label: 'Kids' },
+    { value: 'youth', label: 'Youth' },
+    { value: 'young_adults', label: 'Young Adults' },
+    { value: 'families', label: 'Families' },
+    { value: 'adults', label: 'Adults' },
+    { value: 'seniors', label: 'Seniors' }
   ];
 
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / pagination.pageSize));
@@ -266,6 +281,7 @@ const People = () => {
           email,
           phone: newPerson.phone || null,
           campus: campusValue,
+          department: newPerson.department || null,
           connect_group: newPerson.connectGroup || null,
           dream_team_roles: dreamTeamRoles
         })
@@ -286,6 +302,7 @@ const People = () => {
         email: '',
         phone: '',
         campus: campusValue,
+        department: '',
         connectGroup: '',
         dreamTeamRoles: ''
       });
@@ -325,6 +342,23 @@ const People = () => {
                 {pf.label}
               </button>
             ))}
+            <div className="w-full sm:w-auto border-l border-slate-700 pl-2 sm:pl-0 sm:border-l-0">
+              <span className="text-xs text-slate-400 mr-2">Department:</span>
+              {departmentFilters.map((df) => (
+                <button
+                  key={df.value}
+                  type="button"
+                  onClick={() => handleFilterChange('department', df.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition mr-1 ${
+                    filters.department === df.value
+                      ? 'bg-purple-500/20 text-purple-200 border-purple-500/60'
+                      : 'bg-slate-800/60 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  {df.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={openAddModal}
@@ -641,6 +675,24 @@ const People = () => {
                       {c.name}
                     </option>
                   ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                  Department
+                </label>
+                <select
+                  value={newPerson.department}
+                  onChange={(e) => handleNewPersonChange('department', e.target.value)}
+                  className="w-full bg-slate-800/80 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                >
+                  <option value="">Select department</option>
+                  <option value="kids">Kids</option>
+                  <option value="youth">Youth</option>
+                  <option value="young_adults">Young Adults</option>
+                  <option value="families">Families</option>
+                  <option value="adults">Adults</option>
+                  <option value="seniors">Seniors</option>
                 </select>
               </div>
               <div className="md:col-span-2">

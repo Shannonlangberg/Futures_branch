@@ -49,6 +49,7 @@ const Heartbeat = () => {
   const [filters, setFilters] = useState({
     campus: 'all_campuses',
     pulse_status: '',
+    department: 'all',
     search: ''
   });
 
@@ -99,6 +100,9 @@ const Heartbeat = () => {
         if (filters.pulse_status) {
           params.append('pulse_status', filters.pulse_status);
         }
+        if (filters.department && filters.department !== 'all') {
+          params.append('department', filters.department);
+        }
         if (filters.search.trim()) {
           params.append('search', filters.search.trim());
         }
@@ -141,7 +145,7 @@ const Heartbeat = () => {
     fetchHeartbeat();
 
     return () => controller.abort();
-  }, [filters.campus, filters.pulse_status, filters.search]);
+  }, [filters.campus, filters.pulse_status, filters.department, filters.search]);
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -155,6 +159,16 @@ const Heartbeat = () => {
     { value: 'green', label: 'Healthy' },
     { value: 'amber', label: 'Watch' },
     { value: 'red', label: 'At Risk' }
+  ];
+
+  const departmentFilters = [
+    { value: 'all', label: 'All' },
+    { value: 'kids', label: 'Kids' },
+    { value: 'youth', label: 'Youth' },
+    { value: 'young_adults', label: 'Young Adults' },
+    { value: 'families', label: 'Families' },
+    { value: 'adults', label: 'Adults' },
+    { value: 'seniors', label: 'Seniors' }
   ];
 
   return (
@@ -188,6 +202,23 @@ const Heartbeat = () => {
                 {pf.label}
               </button>
             ))}
+            <div className="w-full sm:w-auto border-l border-slate-700 pl-2 sm:pl-0 sm:border-l-0">
+              <span className="text-xs text-slate-400 mr-2">Department:</span>
+              {departmentFilters.map((df) => (
+                <button
+                  key={df.value}
+                  type="button"
+                  onClick={() => handleFilterChange('department', df.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition mr-1 ${
+                    filters.department === df.value
+                      ? 'bg-purple-500/20 text-purple-200 border-purple-500/60'
+                      : 'bg-slate-800/60 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  {df.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
