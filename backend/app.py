@@ -14662,11 +14662,18 @@ def google_oauth_callback():
         # Verify state token
         expected_state = session.get('google_oauth_state')
         if not expected_state or state != expected_state:
+            logger.warning(f"Invalid state token: expected {expected_state}, got {state}")
             return jsonify({'error': 'Invalid state token'}), 400
         
         user_id = session.get('google_oauth_user_id')
         if not user_id:
-            return jsonify({'error': 'Session expired'}), 401
+            # Try to get user from Flask-Login session
+            if current_user.is_authenticated:
+                user_id = current_user.id
+                logger.info(f"Using Flask-Login user ID: {user_id}")
+            else:
+                logger.warning("No user_id in session and user not authenticated via Flask-Login")
+                return jsonify({'error': 'Session expired. Please log in again.'}), 401
         
         # Exchange code for tokens
         client_id = os.getenv('GOOGLE_CLIENT_ID')
