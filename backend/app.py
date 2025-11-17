@@ -839,8 +839,22 @@ def run_migrations():
     """Run SQL migrations on startup"""
     import sqlite3
     try:
-        # Ensure instance directory exists
-        os.makedirs(os.path.dirname(CHURCH_VOICE_DB_PATH), exist_ok=True)
+        # Determine which database to use for migrations
+        # Check if DATABASE_URL points to a database we should use
+        db_path = CHURCH_VOICE_DB_PATH
+        database_url = os.getenv('DATABASE_URL', '')
+        if database_url and database_url.startswith('sqlite:///'):
+            potential_path = database_url.replace('sqlite:///', '')
+            if potential_path.startswith('/'):
+                # On Railway, use the DATABASE_URL database
+                db_path = potential_path
+        
+        # Ensure instance directory exists (for default path)
+        if db_path == CHURCH_VOICE_DB_PATH:
+            os.makedirs(os.path.dirname(CHURCH_VOICE_DB_PATH), exist_ok=True)
+        else:
+            # For absolute paths, ensure parent directory exists
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
         # Get migrations directory
         migrations_dir = os.path.join(os.path.dirname(__file__), 'migrations')
@@ -856,7 +870,8 @@ def run_migrations():
             logger.info("No migration files found")
             return
         
-        conn = sqlite3.connect(CHURCH_VOICE_DB_PATH)
+        logger.info(f"Running migrations on database: {db_path}")
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         # Create migrations tracking table if it doesn't exist
