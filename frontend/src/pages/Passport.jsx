@@ -4,82 +4,135 @@ import {
   CheckCircleIcon, 
   ClockIcon,
   ArrowRightIcon,
-  AcademicCapIcon
+  AcademicCapIcon,
+  HeartIcon,
+  ExclamationTriangleIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 
 const Passport = () => {
-  const [userInfo, setUserInfo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authorized, setAuthorized] = useState(false);
+  const [campuses, setCampuses] = useState([]);
+  const [selectedCampus, setSelectedCampus] = useState('all_campuses');
+  const [campusData, setCampusData] = useState(null);
+  const [peopleNeedingAttention, setPeopleNeedingAttention] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const verifyAccess = async () => {
-      try {
-        const response = await fetch('/api/session', {
-          credentials: 'include'
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.role === 'admin') {
-            setAuthorized(true);
-          } else {
-            navigate('/dashboard', { replace: true });
-          }
-        } else {
-          navigate('/dashboard', { replace: true });
-        }
-      } catch (error) {
-        console.error('Failed to verify access to Passport:', error);
-        navigate('/dashboard', { replace: true });
-      } finally {
-        setAuthChecked(true);
-      }
-    };
-
-    verifyAccess();
-  }, [navigate]);
+    loadCampuses();
+  }, []);
 
   useEffect(() => {
-    if (authorized) {
-      loadUserInfo();
+    if (campuses.length > 0) {
+      loadCampusData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authorized]);
+  }, [selectedCampus, campuses]);
 
-  const loadUserInfo = async () => {
+  const loadCampuses = async () => {
     try {
-      // Get Passport info using existing Futures Pulse session
-      const response = await fetch('/api/passport/info', {
+      const response = await fetch('/api/campuses/public', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCampuses(data.campuses || []);
+      }
+    } catch (err) {
+      console.error('Error loading campuses:', err);
+    }
+  };
+
+  const loadCampusData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load people data for the selected campus
+      const params = new URLSearchParams();
+      if (selectedCampus !== 'all_campuses') {
+        params.append('campus', selectedCampus);
+      }
+      
+      const response = await fetch(`/api/persons?${params.toString()}`, {
         credentials: 'include'
       });
       
       if (response.ok) {
         const data = await response.json();
-        setUserInfo(data);
-      } else {
-        console.error('Failed to load passport info');
+        const persons = data.persons || [];
+        
+        // Calculate campus overview
+        const total = persons.length;
+        const healthy = persons.filter(p => p.pulse_status === 'green').length;
+        const watch = persons.filter(p => p.pulse_status === 'amber').length;
+        const atRisk = persons.filter(p => p.pulse_status === 'red').length;
+        
+        setCampusData({
+          total,
+          healthy,
+          watch,
+          atRisk,
+          pulseDistribution: {
+            green: healthy,
+            amber: watch,
+            red: atRisk
+          }
+        });
+        
+        // Get people needing attention (red and amber)
+        const needingAttention = persons
+          .filter(p => p.pulse_status === 'red' || p.pulse_status === 'amber')
+          .sort((a, b) => {
+            // Sort red first, then amber
+            if (a.pulse_status === 'red' && b.pulse_status !== 'red') return -1;
+            if (a.pulse_status !== 'red' && b.pulse_status === 'red') return 1;
+            return 0;
+          })
+          .slice(0, 10); // Top 10
+        
+        setPeopleNeedingAttention(needingAttention);
       }
-    } catch (error) {
-      console.error('Failed to load passport data:', error);
+    } catch (err) {
+      console.error('Error loading campus data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!authChecked || loading) {
+  const getPulseColor = (status) => {
+    switch (status) {
+      case 'green': return 'text-green-400 bg-green-500/20 border-green-500/30';
+      case 'amber': return 'text-yellow-400 bg-yellow-500/20 border-yellow-500/30';
+      case 'red': return 'text-red-400 bg-red-500/20 border-red-500/30';
+      default: return 'text-slate-400 bg-slate-500/20 border-slate-500/30';
+    }
+  };
+
+  const getPulseLabel = (status) => {
+    switch (status) {
+      case 'green': return 'Healthy';
+      case 'amber': return 'Watch';
+      case 'red': return 'At Risk';
+      default: return 'Unknown';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Never';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    } catch {
+      return 'Never';
+    }
+  };
+
+  if (loading && !campusData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
-        <div className="text-white text-xl">Loading Passport...</div>
+        <div className="text-white text-xl">Loading Passport Dashboard...</div>
       </div>
     );
-  }
-
-  if (!authorized) {
-    return null;
   }
 
   return (
@@ -94,88 +147,177 @@ const Passport = () => {
       {/* Header */}
       <div className="relative bg-gradient-to-r from-blue-600/90 via-purple-600/90 to-pink-600/90 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-              <AcademicCapIcon className="w-8 h-8 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                <AcademicCapIcon className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-5xl font-bold text-white tracking-tight">
+                  Futures Pulse Passport
+                </h1>
+                <p className="text-white/80 text-xl font-medium">
+                  Discipleship & Leadership Tracking
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-5xl font-bold text-white tracking-tight">
-                Futures Pulse Passport
-              </h1>
-              <p className="text-white/80 text-xl font-medium">
-                Discipleship & Leadership Tracking
-              </p>
+            
+            {/* Campus Selector */}
+            <div className="min-w-[200px]">
+              <select
+                value={selectedCampus}
+                onChange={(e) => setSelectedCampus(e.target.value)}
+                className="w-full px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg text-white focus:outline-none focus:border-white/50"
+              >
+                <option value="all_campuses">All Campuses</option>
+                {campuses.map(campus => (
+                  <option key={campus.id} value={campus.id}>
+                    {campus.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
       </div>
 
       <div className="relative max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Push Queue */}
-          <div className="lg:col-span-2 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-            <h2 className="text-2xl font-bold text-white mb-4">Push Queue</h2>
-            <p className="text-slate-400 mb-4">People ready to move to the next track stop</p>
-            <div className="space-y-3">
-              <div className="bg-slate-800/50 p-4 rounded-lg">
-                <p className="text-white">No candidates ready yet</p>
-                <p className="text-sm text-slate-400 mt-1">Complete assignments to see people in the push queue</p>
-              </div>
+        {/* Summary Cards */}
+        {campusData && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+              <div className="text-slate-400 text-sm mb-2">Total People</div>
+              <div className="text-4xl font-bold text-white">{campusData.total}</div>
             </div>
+            <div className="bg-green-500/10 backdrop-blur-sm rounded-2xl p-6 border border-green-500/30">
+              <div className="text-green-400 text-sm mb-2">Healthy</div>
+              <div className="text-4xl font-bold text-green-400">{campusData.healthy}</div>
+            </div>
+            <div className="bg-yellow-500/10 backdrop-blur-sm rounded-2xl p-6 border border-yellow-500/30">
+              <div className="text-yellow-400 text-sm mb-2">Watch</div>
+              <div className="text-4xl font-bold text-yellow-400">{campusData.watch}</div>
+            </div>
+            <div className="bg-red-500/10 backdrop-blur-sm rounded-2xl p-6 border border-red-500/30">
+              <div className="text-red-400 text-sm mb-2">At Risk</div>
+              <div className="text-4xl font-bold text-red-400">{campusData.atRisk}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Pulse Distribution Chart */}
+        {campusData && (
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 mb-8">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <ChartBarIcon className="w-6 h-6" />
+              Pulse Status Distribution
+            </h2>
+            <div className="flex items-end gap-4 h-32">
+              {campusData.total > 0 ? (
+                <>
+                  <div className="flex-1 flex flex-col items-center">
+                    <div 
+                      className="w-full bg-green-500/30 rounded-t-lg transition-all hover:bg-green-500/40"
+                      style={{ height: `${(campusData.healthy / campusData.total) * 100}%` }}
+                    ></div>
+                    <div className="text-white text-sm mt-2">{campusData.healthy}</div>
+                    <div className="text-slate-400 text-xs">Healthy</div>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center">
+                    <div 
+                      className="w-full bg-yellow-500/30 rounded-t-lg transition-all hover:bg-yellow-500/40"
+                      style={{ height: `${(campusData.watch / campusData.total) * 100}%` }}
+                    ></div>
+                    <div className="text-white text-sm mt-2">{campusData.watch}</div>
+                    <div className="text-slate-400 text-xs">Watch</div>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center">
+                    <div 
+                      className="w-full bg-red-500/30 rounded-t-lg transition-all hover:bg-red-500/40"
+                      style={{ height: `${(campusData.atRisk / campusData.total) * 100}%` }}
+                    ></div>
+                    <div className="text-white text-sm mt-2">{campusData.atRisk}</div>
+                    <div className="text-slate-400 text-xs">At Risk</div>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full text-center text-slate-400">No data available</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* People Needing Attention */}
+          <div className="lg:col-span-2 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <ExclamationTriangleIcon className="w-6 h-6 text-yellow-400" />
+              People Needing Attention
+            </h2>
+            {peopleNeedingAttention.length > 0 ? (
+              <div className="space-y-3">
+                {peopleNeedingAttention.map((person) => (
+                  <div
+                    key={person.id}
+                    onClick={() => navigate(`/persons/${person.id}`)}
+                    className="bg-slate-800/50 p-4 rounded-lg hover:bg-slate-800/70 transition-all cursor-pointer border border-slate-700/50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getPulseColor(person.pulse_status)}`}>
+                            {getPulseLabel(person.pulse_status)}
+                          </span>
+                          <span className="text-white font-semibold">
+                            {person.preferred_name || person.full_name}
+                          </span>
+                        </div>
+                        {person.pulse_reasons && person.pulse_reasons.length > 0 && (
+                          <div className="text-sm text-slate-400">
+                            {person.pulse_reasons[0]}
+                          </div>
+                        )}
+                        <div className="text-xs text-slate-500 mt-1">
+                          Last seen: {formatDate(person.last_seen)}
+                        </div>
+                      </div>
+                      <ArrowRightIcon className="w-5 h-5 text-slate-400" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-slate-800/50 p-4 rounded-lg">
+                <p className="text-white">No people need attention at this time</p>
+                <p className="text-sm text-slate-400 mt-1">All people are healthy!</p>
+              </div>
+            )}
           </div>
 
           {/* Quick Actions */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <h2 className="text-2xl font-bold text-white mb-4">Quick Actions</h2>
             <div className="space-y-3">
-              <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all">
-                View Inbox
-              </button>
-              <button className="w-full bg-slate-700/50 text-white py-3 px-4 rounded-lg hover:bg-slate-700 transition-all">
+              <button
+                onClick={() => navigate('/people')}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all flex items-center justify-center gap-2"
+              >
+                <UserGroupIcon className="w-5 h-5" />
                 View People
               </button>
-              <button className="w-full bg-slate-700/50 text-white py-3 px-4 rounded-lg hover:bg-slate-700 transition-all">
-                View Reports
+              <button
+                onClick={() => navigate('/people?pulse=red')}
+                className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 py-3 px-4 rounded-lg transition-all border border-red-500/30 flex items-center justify-center gap-2"
+              >
+                <ExclamationTriangleIcon className="w-5 h-5" />
+                At Risk People
               </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Info Notice */}
-        <div className="mt-8 bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-              <AcademicCapIcon className="w-6 h-6 text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white mb-2">Futures Pulse Passport</h3>
-              <p className="text-slate-300 mb-4">
-                You're already logged in to Futures Pulse! This Passport system uses your existing session.
-              </p>
-              <p className="text-slate-300 mb-2">
-                <strong>Features:</strong>
-              </p>
-              <ul className="list-disc list-inside text-slate-300 space-y-2 mb-4 ml-4">
-                <li>Track discipleship progression like a passport</li>
-                <li>Assign mentors and award digital stamps</li>
-                <li>Push people through track stops</li>
-                <li>View mentor capacity and assignments</li>
-              </ul>
-              {userInfo && (
-                <div className="bg-slate-800/50 rounded-lg p-4 mt-4">
-                  <p className="text-slate-300 text-sm mb-2">
-                    <strong>Logged in as:</strong> {userInfo.user?.full_name || userInfo.user?.username} ({userInfo.user?.role})
-                  </p>
-                  <p className="text-slate-400 text-sm">
-                    <strong>Status:</strong> {userInfo.backend_status} | Frontend: {userInfo.frontend_status}
-                  </p>
-                </div>
-              )}
-              <div className="bg-slate-800/50 rounded-lg p-4 mt-4">
-                <p className="text-slate-400 text-sm">
-                  <strong>Note:</strong> Passport backend is ready. Full integration with Futures Pulse auth in progress...
-                </p>
-              </div>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="w-full bg-slate-700/50 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                <ChartBarIcon className="w-5 h-5" />
+                View Dashboard
+              </button>
             </div>
           </div>
         </div>

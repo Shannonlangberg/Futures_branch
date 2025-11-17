@@ -13,6 +13,7 @@ import ConnectGroups from './pages/ConnectGroups';
 import ConnectGroupLeader from './pages/ConnectGroupLeader';
 import People from './pages/People';
 import Passport from './pages/Passport';
+import PersonHealthReport from './pages/PersonHealthReport';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -93,6 +94,7 @@ function App() {
                   <Route path="/export" element={<DataExport />} />
                   <Route path="/profile" element={<MyProfile />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/persons/:id" element={<PersonHealthReport />} />
                   <Route path="/passport" element={<Passport />} />
                   <Route path="/journey" element={<Passport />} />
                   <Route path="/connect-groups" element={<ConnectGroups />} />
