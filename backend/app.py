@@ -1546,13 +1546,20 @@ def admin_required_json(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # Check if user is authenticated via Flask-Login
-        if not current_user.is_authenticated:
-            logger.warning(f"Unauthenticated access attempt to {request.path} from {request.remote_addr}")
+        is_auth = current_user.is_authenticated
+        user_id = getattr(current_user, 'id', None)
+        username = getattr(current_user, 'username', None)
+        role = getattr(current_user, 'role', None)
+        
+        logger.info(f"admin_required_json check for {request.path}: authenticated={is_auth}, user_id={user_id}, username={username}, role={role}, session_keys={list(session.keys())}")
+        
+        if not is_auth:
+            logger.warning(f"Unauthenticated access attempt to {request.path} from {request.remote_addr}. Session keys: {list(session.keys())}")
             return jsonify({'error': 'Authentication required. Please sign in.'}), 401
         
         # Check if user has admin role
-        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
-            logger.warning(f"Non-admin access attempt to {request.path} by user {current_user.username} (role: {current_user.role})")
+        if role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            logger.warning(f"Non-admin access attempt to {request.path} by user {username} (role: {role})")
             return jsonify({'error': 'Administrator access required'}), 403
         
         return f(*args, **kwargs)
