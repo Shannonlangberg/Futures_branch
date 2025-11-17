@@ -2240,6 +2240,151 @@ Be warm and specific. Use their data to give meaningful insights about Futures C
         logger.error(f"Claude API error in generate_cross_campus_insights: {e}")
         return f"I'd be happy to analyze your church-wide data for Futures Church, but I'm having trouble connecting to my AI assistant right now. The data shows {analysis_data.get('total_attendance', 0)} total attendance across all campuses with an average of {analysis_data.get('averages', {}).get('attendance', 0):.1f} people per week."
 
+def generate_campus_heartbeat_insights(campus_id, total, green, amber, red, department_filter=None):
+    """Generate AI insights for campus heartbeat health"""
+    if not claude:
+        return None
+    
+    try:
+        campus_name = campus_id if campus_id != 'all_campuses' else 'All Campuses'
+        dept_context = f" (filtered to {department_filter.replace('_', ' ')} department)" if department_filter and department_filter != 'all' else ""
+        
+        health_percentage = (green / total * 100) if total > 0 else 0
+        risk_percentage = (red / total * 100) if total > 0 else 0
+        
+        prompt = f"""You're an AI assistant helping a campus pastor monitor their congregation's spiritual health.
+
+Campus: {campus_name}{dept_context}
+Total People: {total}
+- Healthy (Green): {green} ({health_percentage:.1f}%)
+- Watch (Amber): {amber} ({amber/total*100 if total > 0 else 0:.1f}%)
+- At Risk (Red): {red} ({risk_percentage:.1f}%)
+
+Generate a brief, encouraging insight (2-3 sentences) about:
+1. Overall campus health status
+2. What the pastor should focus on this week
+3. Any patterns or concerns to watch
+
+Be warm, pastoral, and actionable. Focus on helping them care for their people effectively."""
+        
+        response = claude.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=200,
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        insight_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
+        return insight_text
+    except Exception as e:
+        logger.error(f"Error generating campus heartbeat insights: {e}")
+        return None
+
+def generate_person_discipleship_next_steps(person_data, engagement_data):
+    """Generate AI-powered next steps based on person's discipleship journey"""
+    if not claude:
+        return []
+    
+    try:
+        # Build discipleship journey context
+        milestones = []
+        if person_data.get('dna_completed'):
+            milestones.append(f"Completed DNA on {person_data['dna_completed']}")
+        if person_data.get('baptised_on'):
+            milestones.append(f"Baptised on {person_data['baptised_on']}")
+        if person_data.get('filled_holy_spirit'):
+            milestones.append(f"Filled with Holy Spirit on {person_data['filled_holy_spirit']}")
+        if person_data.get('rise_attended'):
+            milestones.append(f"Attended RISE on {person_data['rise_attended']}")
+        if person_data.get('first_served_on'):
+            milestones.append(f"Started serving on {person_data['first_served_on']}")
+        
+        journey_status = "\n".join(milestones) if milestones else "No discipleship milestones completed yet"
+        
+        # Build engagement context
+        pulse_status = engagement_data.get('pulse_status', 'unknown')
+        last_seen = engagement_data.get('last_seen')
+        days_since = None
+        if last_seen:
+            try:
+                from datetime import datetime
+                if isinstance(last_seen, str):
+                    last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                else:
+                    last_seen_dt = last_seen
+                days_since = (datetime.now() - last_seen_dt.replace(tzinfo=None)).days
+            except:
+                days_since = None
+        
+        engagement_context = f"""
+Pulse Status: {pulse_status}
+Last Seen: {last_seen or 'Never'}
+Days Since Last Attendance: {days_since if days_since is not None else 'N/A'}
+Overall Engagement Score: {engagement_data.get('overall_engagement', 0):.0f}
+Attendance Frequency: {engagement_data.get('attendance_frequency', 0)*100:.0f}%
+"""
+        
+        # Connection context
+        connect_group = person_data.get('connect_group')
+        serving_roles = person_data.get('dream_team_roles', [])
+        connection_context = f"""
+Connect Group: {connect_group if connect_group else 'Not in a group'}
+Serving: {', '.join(serving_roles) if serving_roles else 'Not currently serving'}
+"""
+        
+        prompt = f"""You're an AI assistant helping a campus pastor guide someone on their discipleship journey.
+
+Person: {person_data.get('full_name', 'Unknown')}
+Campus: {person_data.get('campus', 'Unknown')}
+Department: {person_data.get('department', 'Unknown')}
+
+Discipleship Journey (Railroad):
+{journey_status}
+
+Engagement Health:
+{engagement_context}
+
+Current Connection:
+{connection_context}
+
+Based on their discipleship journey and current engagement, suggest 2-3 specific, actionable next steps. Consider:
+1. What's the next milestone in the discipleship railroad they should pursue?
+2. How can we help them grow based on their current engagement level?
+3. What practical steps can the pastor take this week?
+
+Format as a JSON array of objects, each with:
+- "action": short action title (e.g., "Invite to Connect Group")
+- "description": why this matters and what to do
+- "priority": "high", "medium", or "low"
+- "milestone": which discipleship milestone this relates to (or "engagement" if not milestone-specific)
+
+Return ONLY valid JSON, no markdown or extra text."""
+        
+        response = claude.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=400,
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        response_text = response.content[0].text.strip() if hasattr(response.content[0], 'text') else str(response.content[0])
+        
+        # Parse JSON response
+        import json
+        # Try to extract JSON from response (in case it's wrapped in markdown)
+        json_start = response_text.find('[')
+        json_end = response_text.rfind(']') + 1
+        if json_start >= 0 and json_end > json_start:
+            json_str = response_text[json_start:json_end]
+            steps = json.loads(json_str)
+            return steps
+        else:
+            # Fallback: try parsing the whole response
+            steps = json.loads(response_text)
+            return steps
+    except Exception as e:
+        logger.error(f"Error generating person discipleship next steps: {e}")
+        # Return fallback rule-based steps
+        return []
+
 def preprocess_voice_text(text: str) -> str:
     """Preprocess voice input text to improve recognition accuracy with enhanced noise handling"""
     # Convert to lowercase for consistent processing
@@ -13440,11 +13585,34 @@ def get_heartbeat_list():
 
         db.session.commit()
 
+        # Calculate summary stats for AI insights
+        summary_total = len(results)
+        summary_green = sum(1 for p in results if p['pulse_status'] == 'green')
+        summary_amber = sum(1 for p in results if p['pulse_status'] == 'amber')
+        summary_red = sum(1 for p in results if p['pulse_status'] == 'red')
+
+        # Generate AI insights for campus health (if Claude is available)
+        ai_insights = None
+        if claude and summary_total > 0:
+            try:
+                ai_insights = generate_campus_heartbeat_insights(
+                    campus_filter or 'all_campuses',
+                    summary_total,
+                    summary_green,
+                    summary_amber,
+                    summary_red,
+                    department_filter
+                )
+            except Exception as e:
+                logger.error(f"Error generating AI insights: {e}")
+                ai_insights = None
+
         return jsonify({
             'persons': results,
             'total': total,
             'page': page,
             'page_size': page_size,
+            'ai_insights': ai_insights,
             'filters': {
                 'campus': campus_filter,
                 'pulse_status': pulse_filter,
@@ -14065,6 +14233,17 @@ def get_person_detail(person_id):
             db.session.add(engagement)
             db.session.commit()
             person_data['engagement'] = engagement.to_dict()
+        
+        # Generate AI-powered discipleship next steps
+        ai_next_steps = None
+        if claude:
+            try:
+                ai_next_steps = generate_person_discipleship_next_steps(person_data, person_data['engagement'])
+            except Exception as e:
+                logger.error(f"Error generating AI next steps: {e}")
+                ai_next_steps = None
+        
+        person_data['ai_next_steps'] = ai_next_steps
         
         return jsonify(person_data)
         

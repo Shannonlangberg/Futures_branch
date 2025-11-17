@@ -41,6 +41,7 @@ const PersonHealthReport = () => {
   const [error, setError] = useState('');
   const [person, setPerson] = useState(null);
   const [engagement, setEngagement] = useState(null);
+  const [aiNextSteps, setAiNextSteps] = useState([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,6 +66,7 @@ const PersonHealthReport = () => {
         const data = await response.json();
         setPerson(data);
         setEngagement(data.engagement || {});
+        setAiNextSteps(data.ai_next_steps || []);
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Person health report load error:', err);
@@ -279,25 +281,57 @@ const PersonHealthReport = () => {
             </div>
 
             {/* Next Steps */}
-            {nextSteps.length > 0 && (
+            {(aiNextSteps.length > 0 || nextSteps.length > 0) && (
               <div className="bg-slate-900/70 border border-slate-700/70 rounded-2xl p-5">
-                <h2 className="text-lg font-semibold text-white mb-3">Suggested Next Steps</h2>
+                <div className="flex items-center gap-2 mb-3">
+                  <h2 className="text-lg font-semibold text-white">Suggested Next Steps</h2>
+                  {aiNextSteps.length > 0 && (
+                    <span className="text-xs text-purple-300 bg-purple-500/20 px-2 py-1 rounded-full">
+                      AI-Powered
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-2">
-                  {nextSteps.map((step, idx) => (
-                    <div
-                      key={idx}
-                      className={`text-sm rounded-lg p-3 border ${
-                        step.priority === 'high'
-                          ? 'bg-red-900/20 border-red-500/40 text-red-200'
-                          : step.priority === 'medium'
-                          ? 'bg-amber-900/20 border-amber-500/40 text-amber-200'
-                          : 'bg-slate-800/50 border-slate-700/50 text-slate-300'
-                      }`}
-                    >
-                      <div className="font-medium mb-1">{step.action}</div>
-                      <div className="text-xs opacity-90">{step.description}</div>
-                    </div>
-                  ))}
+                  {aiNextSteps.length > 0
+                    ? aiNextSteps.map((step, idx) => (
+                        <div
+                          key={idx}
+                          className={`text-sm rounded-lg p-3 border ${
+                            step.priority === 'high'
+                              ? 'bg-red-900/20 border-red-500/40 text-red-200'
+                              : step.priority === 'medium'
+                              ? 'bg-amber-900/20 border-amber-500/40 text-amber-200'
+                              : 'bg-slate-800/50 border-slate-700/50 text-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="font-medium mb-1">{step.action}</div>
+                              <div className="text-xs opacity-90">{step.description}</div>
+                              {step.milestone && (
+                                <div className="text-xs text-slate-400 mt-1">
+                                  Related to: {step.milestone}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    : nextSteps.map((step, idx) => (
+                        <div
+                          key={idx}
+                          className={`text-sm rounded-lg p-3 border ${
+                            step.priority === 'high'
+                              ? 'bg-red-900/20 border-red-500/40 text-red-200'
+                              : step.priority === 'medium'
+                              ? 'bg-amber-900/20 border-amber-500/40 text-amber-200'
+                              : 'bg-slate-800/50 border-slate-700/50 text-slate-300'
+                          }`}
+                        >
+                          <div className="font-medium mb-1">{step.action}</div>
+                          <div className="text-xs opacity-90">{step.description}</div>
+                        </div>
+                      ))}
                 </div>
               </div>
             )}

@@ -41,6 +41,7 @@ const Heartbeat = () => {
   const [people, setPeople] = useState([]);
   const [needingAttention, setNeedingAttention] = useState([]);
   const [campuses, setCampuses] = useState([]);
+  const [aiInsights, setAiInsights] = useState(null);
   const [summary, setSummary] = useState({
     total: 0,
     green: 0,
@@ -120,6 +121,7 @@ const Heartbeat = () => {
         const data = await response.json();
         const persons = data.persons || [];
         setPeople(persons);
+        setAiInsights(data.ai_insights || null);
 
         // Build simple summary for cards
         const counts = persons.reduce(
@@ -299,6 +301,19 @@ const Heartbeat = () => {
             </div>
           </div>
         </div>
+
+        {/* AI Insights Section */}
+        {aiInsights && (
+          <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/40 rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">🤖</div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-white mb-2">AI Campus Insights</h2>
+                <p className="text-sm text-purple-100 leading-relaxed">{aiInsights}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* People Needing Attention Section */}
         {needingAttention.length > 0 && (
