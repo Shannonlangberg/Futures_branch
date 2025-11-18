@@ -613,6 +613,35 @@ const LogStats = () => {
                   </div>
                 </div>
 
+                {/* Saints */}
+                <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
+                  <div className="flex items-center mb-6">
+                    <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center mr-4">
+                      <span className="text-xl">👥</span>
+                    </div>
+                    <h4 className="text-xl font-bold text-white">Saints</h4>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-white font-semibold min-w-[150px]">
+                        Saints:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={quickInputStats['Saints']}
+                        onChange={(e) => setQuickInputStats(prev => ({
+                          ...prev,
+                          'Saints': e.target.value
+                        }))}
+                        placeholder="0"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* New People */}
                 <div className="bg-slate-700/30 rounded-lg p-4">
                   <h4 className="text-white font-semibold mb-3">New People</h4>
@@ -885,23 +914,6 @@ const LogStats = () => {
                         onChange={(e) => setQuickInputStats(prev => ({
                           ...prev,
                           'Youth Salvations': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                        style={{ color: '#ffffff' }}
-                      />
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        Saints:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Saints']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Saints': e.target.value
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"

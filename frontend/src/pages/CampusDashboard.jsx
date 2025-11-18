@@ -226,7 +226,8 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   const kidsAttendance = Math.round(data.stats?.avg_kids_attendance || 0); // Kids only
   const kidsLeaders = Math.round(data.stats?.avg_kids_leaders || 0); // Leaders only
   const kidsTotalForSunday = kidsAttendance + kidsLeaders; // Kids + leaders
-  const sundayCombinedAttendance = sundayAdultAttendance + kidsTotalForSunday;
+  const saintsAttendance = Math.round(data.stats?.avg_saints || 0); // Saints average
+  const sundayCombinedAttendance = sundayAdultAttendance + kidsTotalForSunday + saintsAttendance;
   const totalAttendance = sundayAdultAttendance + youthAttendance + kidsTotalForSunday; // Weekend = Sunday + Youth + Kids (kids = kids + leaders)
   const attendancePercentage = totalPeople > 0 ? Math.round((totalAttendance / totalPeople) * 100) : 0;
   const connectGroupPercentage = sundayAdultAttendance > 0 ? Math.round((data.stats?.avg_connect_groups || 0) / sundayAdultAttendance * 100) : 0;
@@ -412,6 +413,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   total: sundayCombinedAttendance, 
                   adults: sundayAdultAttendance,
                   kids: kidsTotalForSunday, // Kids + leaders for clarity in modal
+                  saints: saintsAttendance,
                   services: services,
                   campus: campusName
                 });
@@ -425,12 +427,15 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   </div>
                   <div className="text-purple-400 text-sm font-semibold">Sunday</div>
                 </div>
-                <h3 className="text-white/80 text-sm font-medium mb-2">Sunday Attendance (Adults + Kids)</h3>
+                <h3 className="text-white/80 text-sm font-medium mb-2">Sunday Attendance</h3>
                 <div className="text-4xl font-bold text-white mb-2">
                   {sundayCombinedAttendance.toLocaleString()}
                 </div>
                 <p className="text-purple-200/80 text-sm">
-                  {services.length > 1 ? `${services.length} services • Average per service (adults + kids)` : 'Average per service (adults + kids)'}
+                  Adults + Kids + Saints = Total
+                </p>
+                <p className="text-purple-200/60 text-xs mt-1">
+                  {services.length > 1 ? `${services.length} services • Average per service` : 'Average per service'}
                 </p>
               </div>
             </div>
@@ -949,17 +954,17 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               {modalType === 'sunday-attendance' && (
                 <div className="space-y-6">
                   <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                    <h3 className="text-xl font-bold text-white mb-4">Sunday Attendance (Adults + Kids)</h3>
+                    <h3 className="text-xl font-bold text-white mb-4">Sunday Attendance</h3>
                     <div className="text-4xl font-bold text-purple-400 mb-2">
                       {modalData.total.toLocaleString()}
                     </div>
                     <p className="text-white/60">
                       {isRollup 
-                        ? 'Average attendance across all campuses (adults + kids, excluding youth)' 
-                        : 'Average per service including kids ministry'}
+                        ? 'Average attendance across all campuses (adults + kids + saints, excluding youth)' 
+                        : 'Average per service: Adults + Kids + Saints'}
                     </p>
                     <p className="text-white/50 text-sm mt-2">
-                      Adults: {(modalData?.adults ?? sundayAdultAttendance).toLocaleString()} • Kids (incl. leaders): {(modalData?.kids ?? kidsTotalForSunday).toLocaleString()}
+                      Adults: {(modalData?.adults ?? sundayAdultAttendance).toLocaleString()} • Kids (incl. leaders): {(modalData?.kids ?? kidsTotalForSunday).toLocaleString()} • Saints: {(modalData?.saints ?? saintsAttendance).toLocaleString()}
                     </p>
                   </div>
                   

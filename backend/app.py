@@ -4806,6 +4806,7 @@ def calculate_stats_from_filtered_rows(filtered_rows: List[dict]) -> dict:
         'new_kids_salvations': 0,
         'connect_groups': 0,
         'dream_team': 0,
+        'saints': 0,
         'tithe': 0,
         'baptisms': 0,
         'child_dedications': 0,
@@ -4851,6 +4852,7 @@ def calculate_stats_from_filtered_rows(filtered_rows: List[dict]) -> dict:
                 'new_kids_salvations': get_stat_value(['New Kids Salvations', 'new_kids_salvations']),
                 'connect_groups': get_stat_value(['Connect Groups', 'groups']),
                 'dream_team': get_stat_value(['Dream Team', 'team', 'Volunteers', 'volunteers']),
+                'saints': get_stat_value(['Saints', 'saints']),
                 'tithe': get_stat_value(['Tithe']),
                 'baptisms': get_stat_value(['Baptisms']),
                 'child_dedications': get_stat_value(['Child Dedications'])
@@ -5678,6 +5680,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             # Ministry metrics
             'connect_groups': 0,
             'dream_team': 0,
+            'saints': 0,
             
             # Financial data
             'tithe': 0,
@@ -5864,6 +5867,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     # Ministry metrics
                     period_stats['connect_groups'] += get_stat_value(row, ['Connect Groups', 'connect_groups'])
                     period_stats['dream_team'] += get_stat_value(row, ['Dream Team', 'dream_team', 'Volunteers', 'volunteers'])
+                    period_stats['saints'] += get_stat_value(row, ['Saints', 'saints'])
                     
                     # Financial data - handle empty strings and convert to number
                     tithe_value = row.get('Tithe', '')
@@ -6096,6 +6100,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             # Ministry metrics - average per SERVICE
             period_stats['avg_connect_groups'] = period_stats['connect_groups'] / period_stats['entry_count']
             period_stats['avg_dream_team'] = period_stats['dream_team'] / period_stats['entry_count']
+            period_stats['avg_saints'] = period_stats['saints'] / period_stats['entry_count']
             
             # Financial data - average per SERVICE
             period_stats['avg_tithe'] = period_stats['tithe'] / period_stats['entry_count']
@@ -6129,6 +6134,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             period_stats['avg_new_kids_salvations'] = 0
             period_stats['avg_connect_groups'] = 0
             period_stats['avg_dream_team'] = 0
+            period_stats['avg_saints'] = 0
             period_stats['avg_tithe'] = 0
             period_stats['avg_baptisms'] = 0
             period_stats['avg_child_dedications'] = 0
