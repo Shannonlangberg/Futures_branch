@@ -24,9 +24,10 @@ const LogStats = () => {
     'Kids Leaders': '',
     'New Kids': '',
     'Kids Salvations': '',
+    'Packs Out': '',
+    'Cards Returned': '',
     'First Time': '',
     'Visitors': '',
-    'Info Gathered': '',
     'First Time Decision': '',
     'Rededication': '',
     'Salvation Cards Returned': '',
@@ -45,9 +46,19 @@ const LogStats = () => {
   const [recentEntries, setRecentEntries] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
 
+  // Get service times for selected campus
+  const getCampusServiceTimes = () => {
+    const campus = campuses.find(c => c.id === selectedCampus);
+    if (campus && campus.service_times) {
+      return campus.service_times;
+    }
+    // Default to all service times if campus not found
+    return ['9:00 AM', '10:00 AM', '11:00 AM', '5:00 PM', '5:30 PM'];
+  };
+
   // Calculate total attendance from service times
   const calculateTotalAttendance = () => {
-    const serviceTimes = ['9:00 AM', '10:00 AM', '11:00 AM', '5:00 PM', '5:30 PM'];
+    const serviceTimes = getCampusServiceTimes();
     return serviceTimes.reduce((total, serviceTime) => {
       const value = parseInt(quickInputStats[serviceTime]) || 0;
       return total + value;
@@ -56,7 +67,8 @@ const LogStats = () => {
 
   // Calculate total kids attendance from service times
   const calculateTotalKidsAttendance = () => {
-    const kidsServiceTimes = ['Kids 9:00 AM', 'Kids 10:00 AM', 'Kids 11:00 AM', 'Kids 5:00 PM', 'Kids 5:30 PM'];
+    const serviceTimes = getCampusServiceTimes();
+    const kidsServiceTimes = serviceTimes.map(st => `Kids ${st}`);
     return kidsServiceTimes.reduce((total, serviceTime) => {
       const value = parseInt(quickInputStats[serviceTime]) || 0;
       return total + value;
@@ -140,9 +152,10 @@ const LogStats = () => {
       'Kids Leaders': 'Kids Leaders',
       'New Kids': 'New Kids',
       'New Kids Salvations': 'Kids Salvations',
+      'Packs Out': 'Packs Out',
+      'Cards Back': 'Cards Returned',
       'First Time Visitors': 'First Time',
       'Visitors': 'Visitors',
-      'Cards Back': 'Info Gathered',
       'First Time Christians': 'First Time Decision',
       'Rededications': 'Rededication',
       'Salvation Cards Returned': 'Salvation Cards Returned',
@@ -216,9 +229,10 @@ const LogStats = () => {
         'Kids Leaders': 'Kids Leaders',
         'New Kids': 'New Kids',
         'Kids Salvations': 'New Kids Salvations',
+        'Packs Out': 'Packs Out',
+        'Cards Returned': 'Cards Back',
         'First Time': 'First Time Visitors',
         'Visitors': 'Visitors',
-        'Info Gathered': 'Cards Back',
         'First Time Decision': 'First Time Christians',
         'Rededication': 'Rededications',
         'Salvation Cards Returned': 'Salvation Cards Returned',
@@ -307,9 +321,10 @@ const LogStats = () => {
           'Kids Leaders': '',
           'New Kids': '',
           'Kids Salvations': '',
+          'Packs Out': '',
+          'Cards Returned': '',
           'First Time': '',
           'Visitors': '',
-          'Info Gathered': '',
           'First Time Decision': '',
           'Rededication': '',
           'Youth Total': '',
@@ -552,6 +567,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -566,86 +582,25 @@ const LogStats = () => {
                     <h4 className="text-xl font-bold text-white">Service Attendance (Adults)</h4>
                   </div>
                   <div className="space-y-3 sm:space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        9:00 AM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['9:00 AM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          '9:00 AM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        10:00 AM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['10:00 AM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          '10:00 AM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        11:00 AM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['11:00 AM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          '11:00 AM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        5:00 PM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['5:00 PM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          '5:00 PM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        5:30 PM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['5:30 PM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          '5:30 PM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
+                    {getCampusServiceTimes().map((serviceTime) => (
+                      <div key={serviceTime} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
+                          {serviceTime}:
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={quickInputStats[serviceTime] || ''}
+                          onChange={(e) => setQuickInputStats(prev => ({
+                            ...prev,
+                            [serviceTime]: e.target.value
+                          }))}
+                          placeholder="0"
+                          className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                          style={{ color: '#ffffff' }}
+                        />
+                      </div>
+                    ))}
 
                     <div className="flex items-center justify-between border-t border-slate-600 pt-3">
                       <label className="text-white font-semibold min-w-[150px]">
@@ -664,7 +619,41 @@ const LogStats = () => {
                   <div className="space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        First Time Visitors:
+                        Packs Out:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={quickInputStats['Packs Out']}
+                        onChange={(e) => setQuickInputStats(prev => ({
+                          ...prev,
+                          'Packs Out': e.target.value
+                        }))}
+                        placeholder="0"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
+                      />
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
+                        Cards Returned:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={quickInputStats['Cards Returned']}
+                        onChange={(e) => setQuickInputStats(prev => ({
+                          ...prev,
+                          'Cards Returned': e.target.value
+                        }))}
+                        placeholder="0"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
+                      />
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
+                        First Time:
                       </label>
                       <input
                         type="text"
@@ -676,6 +665,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -692,22 +682,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
-                        Cards Returned:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Info Gathered']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Info Gathered': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -731,6 +706,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -747,6 +723,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -763,6 +740,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -777,86 +755,28 @@ const LogStats = () => {
                     <h4 className="text-xl font-bold text-white">Kids</h4>
                   </div>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-semibold min-w-[150px]">
-                        Kids 9:00 AM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Kids 9:00 AM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Kids 9:00 AM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-semibold min-w-[150px]">
-                        Kids 10:00 AM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Kids 10:00 AM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Kids 10:00 AM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-semibold min-w-[150px]">
-                        Kids 11:00 AM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Kids 11:00 AM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Kids 11:00 AM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-semibold min-w-[150px]">
-                        Kids 5:00 PM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Kids 5:00 PM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Kids 5:00 PM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-white font-semibold min-w-[150px]">
-                        Kids 5:30 PM:
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={quickInputStats['Kids 5:30 PM']}
-                        onChange={(e) => setQuickInputStats(prev => ({
-                          ...prev,
-                          'Kids 5:30 PM': e.target.value
-                        }))}
-                        placeholder="0"
-                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
-                      />
-                    </div>
+                    {getCampusServiceTimes().map((serviceTime) => {
+                      const kidsServiceTime = `Kids ${serviceTime}`;
+                      return (
+                        <div key={kidsServiceTime} className="flex items-center justify-between">
+                          <label className="text-white font-semibold min-w-[150px]">
+                            {kidsServiceTime}:
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={quickInputStats[kidsServiceTime] || ''}
+                            onChange={(e) => setQuickInputStats(prev => ({
+                              ...prev,
+                              [kidsServiceTime]: e.target.value
+                            }))}
+                            placeholder="0"
+                            className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                            style={{ color: '#ffffff' }}
+                          />
+                        </div>
+                      );
+                    })}
                     <div className="border-t border-white/20 pt-4 mt-4">
                       <div className="flex items-center justify-between">
                         <label className="text-white font-semibold min-w-[150px]">
@@ -918,7 +838,7 @@ const LogStats = () => {
 
                 {/* Youth */}
                 <div className="bg-slate-700/30 rounded-lg p-4">
-                  <h4 className="text-white font-semibold mb-3">Youth</h4>
+                  <h4 className="text-white font-semibold mb-3">Youth (Friday)</h4>
                   <div className="space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
@@ -934,6 +854,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -950,6 +871,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -966,6 +888,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -982,6 +905,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -1005,6 +929,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1021,6 +946,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1037,6 +963,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -1060,6 +987,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1076,6 +1004,7 @@ const LogStats = () => {
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
                       />
                     </div>
                   </div>
