@@ -1389,6 +1389,14 @@ def get_active_campuses():
     """Get list of active campuses for dropdowns"""
     active_campuses = []
     
+    # Load service times from campuses.json
+    campuses_db = load_campuses_database()
+    service_times_map = {}
+    if campuses_db and 'campuses' in campuses_db:
+        for campus_id, campus_data in campuses_db['campuses'].items():
+            if 'service_times' in campus_data:
+                service_times_map[campus_id] = campus_data['service_times']
+    
     try:
         # Try to load from database first
         conn = get_db()
@@ -1402,12 +1410,14 @@ def get_active_campuses():
         ''')
         
         for row in cursor.fetchall():
+            campus_id = row[0]
             active_campuses.append({
-                'id': row[0],
+                'id': campus_id,
                 'name': row[2],  # display_name
                 'full_name': row[1],  # name
                 'region_id': row[3],  # region_id
-                'region_code': row[4]  # region_code (AU, US, etc.)
+                'region_code': row[4],  # region_code (AU, US, etc.)
+                'service_times': service_times_map.get(campus_id, [])
             })
         
         conn.close()
@@ -1419,7 +1429,8 @@ def get_active_campuses():
                 'name': 'All Campuses',
                 'full_name': 'All Campuses',
                 'region_id': None,
-                'region_code': None
+                'region_code': None,
+                'service_times': []
             })
         
     except Exception as e:
@@ -1432,7 +1443,8 @@ def get_active_campuses():
                 active_campuses.append({
                     'id': campus_id,
                     'name': campus_data.get('display_name', campus_data.get('name', campus_id)),
-                    'full_name': campus_data.get('name', campus_id)
+                    'full_name': campus_data.get('name', campus_id),
+                    'service_times': campus_data.get('service_times', [])
                 })
         
         # Sort by name, but put "All Campuses" first if it exists
@@ -8883,7 +8895,11 @@ def get_campuses():
         default_campus = "all_campuses"
     
     return jsonify({
-        "campuses": [{'id': c['id'], 'name': c['name']} for c in filtered_campuses],
+        "campuses": [{
+            'id': c['id'], 
+            'name': c['name'],
+            'service_times': c.get('service_times', [])
+        } for c in filtered_campuses],
         "default": default_campus
     })
 
