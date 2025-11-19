@@ -582,8 +582,13 @@ def create_qr_code():
         
         created_qr_codes = []
         
+        code_type = data.get('type', 'qr')  # 'qr' or 'nfc'
+        
         for i in range(count):
-            qr_code_id = f"qr_{campus}_{uuid.uuid4().hex[:12]}"
+            if code_type == 'nfc':
+                qr_code_id = f"nfc_{campus}_{uuid.uuid4().hex[:12]}"
+            else:
+                qr_code_id = f"qr_{campus}_{uuid.uuid4().hex[:12]}"
             
             qr_code = GivingQRCode(
                 qr_code_id=qr_code_id,
@@ -662,5 +667,43 @@ def qr_code_redirect(qr_code_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error handling QR redirect: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@giving_bp.route('/nfc/<nfc_code_id>', methods=['GET'])
+def nfc_code_redirect(nfc_code_id):
+    """
+    NFC code redirect endpoint - opens giving page with NFC context
+    Public endpoint - no auth required
+    Supports both nfc_ prefixed IDs and direct QR code IDs (for compatibility)
+    """
+    try:
+        # Try to find by NFC ID first, then fall back to QR code ID
+        nfc_code = GivingQRCode.query.filter_by(qr_code_id=nfc_code_id, is_active=True).first()
+        
+        # If not found, try with nfc_ prefix
+        if not nfc_code and not nfc_code_id.startswith('nfc_'):
+            nfc_code = GivingQRCode.query.filter_by(qr_code_id=f'nfc_{nfc_code_id}', is_active=True).first()
+        
+        if not nfc_code:
+            return jsonify({'error': 'Invalid NFC code'}), 404
+        
+        # Update scan count
+        nfc_code.scan_count += 1
+        nfc_code.last_scan_at = datetime.utcnow()
+        db.session.commit()
+        
+        # Return redirect info - frontend will handle showing giving page
+        return jsonify({
+            'success': True,
+            'qr_code': nfc_code.to_dict(),  # Reuse same structure
+            'redirect_to': '/give',
+            'campus': nfc_code.campus,
+            'service_date': date.today().isoformat()  # Assume today's service
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error handling NFC redirect: {e}")
         return jsonify({'error': str(e)}), 500
 

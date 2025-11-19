@@ -204,3 +204,4 @@ def submit_group_attendance():
         logger.error(f"Error submitting group attendance: {e}")
         return jsonify({'error': str(e)}), 500
 
+

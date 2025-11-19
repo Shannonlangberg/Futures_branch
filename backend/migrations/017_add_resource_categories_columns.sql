@@ -12,3 +12,4 @@ ALTER TABLE resource_categories ADD COLUMN is_active BOOLEAN DEFAULT 1;
 UPDATE resource_categories SET links = '[]' WHERE links IS NULL;
 UPDATE resource_categories SET is_active = 1 WHERE is_active IS NULL;
 
+

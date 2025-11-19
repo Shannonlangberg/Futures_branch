@@ -173,3 +173,4 @@ If you want to test the dashboard without real data, you can:
 3. **Add notifications**: Alert pastors when someone moves to "at_risk" or "critical"
 4. **Create reports**: Build reports showing trends over time
 
+

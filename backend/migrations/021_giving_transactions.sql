@@ -43,3 +43,4 @@ CREATE TABLE IF NOT EXISTS giving_qr_codes (
 CREATE INDEX IF NOT EXISTS idx_giving_qr_codes_campus ON giving_qr_codes(campus);
 CREATE INDEX IF NOT EXISTS idx_giving_qr_codes_active ON giving_qr_codes(is_active);
 
+

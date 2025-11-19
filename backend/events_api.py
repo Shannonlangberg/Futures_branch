@@ -110,3 +110,4 @@ def rsvp_event():
         logger.error(f"Error recording RSVP: {e}")
         return jsonify({'error': str(e)}), 500
 
+

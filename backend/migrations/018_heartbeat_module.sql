@@ -173,3 +173,4 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_status ON heartbeat_snapshots(status);
 CREATE INDEX IF NOT EXISTS idx_care_cases_person ON heartbeat_care_cases(person_id);
 CREATE INDEX IF NOT EXISTS idx_care_cases_status ON heartbeat_care_cases(status);
 
+

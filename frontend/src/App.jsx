@@ -21,6 +21,7 @@ import PathwayManager from './pages/PathwayManager';
 import Landing from './pages/Landing';
 import ConnectGroups from './pages/ConnectGroups';
 import ConnectGroupLeader from './pages/ConnectGroupLeader';
+import Give from './pages/Give';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
 
@@ -366,6 +367,9 @@ function App() {
         
         {/* Connect Group Leader Portal - Standalone (no MainLayout) */}
         <Route path="/connect-group-leader" element={<ConnectGroupLeader />} />
+        
+        {/* Public Give Page - No auth required */}
+        <Route path="/give" element={<Give />} />
         
         <Route
           path="/*"

@@ -12,6 +12,7 @@ import {
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import { Line, Bar, Pie, Doughnut } from 'react-chartjs-2';
+import QRCode from 'qrcode';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -44,6 +45,9 @@ const GivingAnalytics = () => {
   const [qrAnalytics, setQrAnalytics] = useState(null);
   const [campuses, setCampuses] = useState([]);
   const [qrCodes, setQrCodes] = useState([]);
+  const [qrCodeImages, setQrCodeImages] = useState({});
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedQRCode, setSelectedQRCode] = useState(null);
   
   // Filters
   const [selectedCampus, setSelectedCampus] = useState('all_campuses');
@@ -133,30 +137,69 @@ const GivingAnalytics = () => {
     }
   };
 
-  const handleCreateQRCode = async () => {
+  const handleCreateQRCode = async (codeType = 'qr') => {
     const campus = prompt('Enter campus:');
+    if (!campus) return;
+    
     const zone = prompt('Enter zone (optional):') || null;
     const seatNumber = prompt('Enter seat number (optional):') || null;
-    const count = parseInt(prompt('How many QR codes?', '1')) || 1;
-
-    if (!campus) return;
+    const count = parseInt(prompt('How many codes?', '1')) || 1;
 
     try {
       const response = await fetch('/api/giving/qr-codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ campus, zone, seat_number: seatNumber, count })
+        body: JSON.stringify({ 
+          campus, 
+          zone, 
+          seat_number: seatNumber, 
+          count,
+          type: codeType  // 'qr' or 'nfc'
+        })
       });
       const data = await response.json();
       if (data.success) {
-        alert(`Created ${count} QR code(s)`);
+        alert(`Created ${count} ${codeType.toUpperCase()} code(s)`);
         loadQRCodes();
+        // Generate QR images for new codes
+        generateQRImages(data.qr_codes || []);
       }
     } catch (error) {
-      alert('Error creating QR codes');
+      alert('Error creating codes');
     }
   };
+
+  const generateQRImages = async (codes) => {
+    const images = {};
+    for (const code of codes) {
+      try {
+        const url = `${window.location.origin}/give?${code.qr_code_id.startsWith('nfc_') ? 'nfc' : 'qr'}=${code.qr_code_id}`;
+        const qrImage = await QRCode.toDataURL(url, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        images[code.qr_code_id] = qrImage;
+      } catch (error) {
+        console.error('Error generating QR code:', error);
+      }
+    }
+    setQrCodeImages(prev => ({ ...prev, ...images }));
+  };
+
+  useEffect(() => {
+    // Generate QR images for existing codes
+    if (qrCodes.length > 0) {
+      const codesToGenerate = qrCodes.filter(q => !qrCodeImages[q.qr_code_id]);
+      if (codesToGenerate.length > 0) {
+        generateQRImages(codesToGenerate);
+      }
+    }
+  }, [qrCodes]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-AU', {
@@ -529,12 +572,22 @@ const GivingAnalytics = () => {
           <>
             <div className="mb-6 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-white">Tap to Give Analytics</h2>
-              <button
-                onClick={handleCreateQRCode}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
-              >
-                Generate QR Codes
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleCreateQRCode('qr')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center gap-2"
+                >
+                  <QrCodeIcon className="h-5 w-5" />
+                  Generate QR Codes
+                </button>
+                <button
+                  onClick={() => handleCreateQRCode('nfc')}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold flex items-center gap-2"
+                >
+                  <DevicePhoneMobileIcon className="h-5 w-5" />
+                  Generate NFC Tags
+                </button>
+              </div>
             </div>
 
             {/* QR Stats */}
@@ -606,17 +659,28 @@ const GivingAnalytics = () => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-700">
+                      <th className="text-left py-3 px-4 text-slate-300">Type</th>
                       <th className="text-left py-3 px-4 text-slate-300">Campus</th>
                       <th className="text-left py-3 px-4 text-slate-300">Zone</th>
                       <th className="text-left py-3 px-4 text-slate-300">Seat</th>
                       <th className="text-left py-3 px-4 text-slate-300">Scans</th>
                       <th className="text-left py-3 px-4 text-slate-300">Last Scan</th>
-                      <th className="text-left py-3 px-4 text-slate-300">QR URL</th>
+                      <th className="text-left py-3 px-4 text-slate-300">QR Code</th>
+                      <th className="text-left py-3 px-4 text-slate-300">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {qrCodes.filter(q => q.is_active).map(qr => (
                       <tr key={qr.id} className="border-b border-slate-700/50">
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            qr.qr_code_id.startsWith('nfc_') 
+                              ? 'bg-purple-500/20 text-purple-300' 
+                              : 'bg-blue-500/20 text-blue-300'
+                          }`}>
+                            {qr.qr_code_id.startsWith('nfc_') ? 'NFC' : 'QR'}
+                          </span>
+                        </td>
                         <td className="py-3 px-4 text-white">{qr.campus}</td>
                         <td className="py-3 px-4 text-slate-300">{qr.zone || '-'}</td>
                         <td className="py-3 px-4 text-slate-300">{qr.seat_number || '-'}</td>
@@ -625,13 +689,28 @@ const GivingAnalytics = () => {
                           {qr.last_scan_at ? new Date(qr.last_scan_at).toLocaleDateString() : 'Never'}
                         </td>
                         <td className="py-3 px-4">
+                          {qrCodeImages[qr.qr_code_id] ? (
+                            <button
+                              onClick={() => {
+                                setSelectedQRCode(qr);
+                                setShowQRModal(true);
+                              }}
+                              className="text-blue-400 hover:text-blue-300 text-sm underline"
+                            >
+                              View QR Code
+                            </button>
+                          ) : (
+                            <span className="text-slate-500 text-sm">Generating...</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
                           <a
-                            href={`${window.location.origin}${qr.qr_url}`}
+                            href={`${window.location.origin}/give?${qr.qr_code_id.startsWith('nfc_') ? 'nfc' : 'qr'}=${qr.qr_code_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-400 hover:text-blue-300 text-sm"
                           >
-                            View QR
+                            Test Link
                           </a>
                         </td>
                       </tr>
@@ -641,6 +720,54 @@ const GivingAnalytics = () => {
               </div>
             </div>
           </>
+        )}
+
+        {/* QR Code Modal */}
+        {showQRModal && selectedQRCode && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">
+                  {selectedQRCode.qr_code_id.startsWith('nfc_') ? 'NFC Tag' : 'QR Code'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowQRModal(false);
+                    setSelectedQRCode(null);
+                  }}
+                  className="text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+              {qrCodeImages[selectedQRCode.qr_code_id] ? (
+                <div className="text-center">
+                  <div className="bg-white p-4 rounded-lg inline-block mb-4">
+                    <img 
+                      src={qrCodeImages[selectedQRCode.qr_code_id]} 
+                      alt="QR Code" 
+                      className="w-64 h-64"
+                    />
+                  </div>
+                  <p className="text-slate-300 text-sm mb-2">
+                    {selectedQRCode.campus} - {selectedQRCode.zone || 'No zone'} - {selectedQRCode.seat_number || 'No seat'}
+                  </p>
+                  <p className="text-slate-400 text-xs mb-4">
+                    Scan this QR code or tap NFC tag to give
+                  </p>
+                  <a
+                    href={qrCodeImages[selectedQRCode.qr_code_id]}
+                    download={`${selectedQRCode.qr_code_id}.png`}
+                    className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold"
+                  >
+                    Download QR Code
+                  </a>
+                </div>
+              ) : (
+                <div className="text-center text-slate-400">Generating QR code...</div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Transactions Tab */}

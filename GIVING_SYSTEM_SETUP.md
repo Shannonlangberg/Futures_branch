@@ -207,3 +207,4 @@ Or add it to your MainLayout navigation menu.
 - Transactions sync with Heartbeat engagement profiles
 - Giving frequency is tracked for spiritual health scores (amounts are private)
 
+
