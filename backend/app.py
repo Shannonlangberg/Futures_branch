@@ -13887,15 +13887,22 @@ def submit_meeting_attendance(meeting_id):
                     if not engagement:
                         engagement = EngagementProfile(person_id=person.id)
                         db.session.add(engagement)
+                        logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
                     
                     # Add group attendance to engagement profile (feeds to heartbeat)
-                    engagement.add_group_attendance(
-                        group_id=group.id,
-                        attendance_date=meeting.meeting_date,
-                        present=True
-                    )
+                    try:
+                        engagement.add_group_attendance(
+                            group_id=group.id,
+                            attendance_date=meeting.meeting_date,
+                            present=True
+                        )
+                        logger.info(f"Added group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {meeting.meeting_date}")
+                    except Exception as e:
+                        logger.error(f"Error adding group attendance for {person.full_name}: {e}")
+                        raise
         
         db.session.commit()
+        logger.info(f"Successfully committed attendance for meeting {meeting_id}")
         
         return jsonify({
             'message': 'Attendance submitted successfully',

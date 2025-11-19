@@ -181,11 +181,25 @@ class EngagementProfile(db.Model):
             self.last_seen = attendance_datetime
         
         group_log = self._load_json(self.group_attendance_log)
-        group_log.append({
-            'group_id': group_id,
-            'date': attendance_date.isoformat(),
-            'present': present
-        })
+        
+        # Check for duplicate entries (same group_id and date)
+        existing_entry = None
+        for entry in group_log:
+            if entry.get('group_id') == group_id and entry.get('date') == attendance_date.isoformat():
+                existing_entry = entry
+                break
+        
+        if existing_entry:
+            # Update existing entry
+            existing_entry['present'] = present
+        else:
+            # Add new entry
+            group_log.append({
+                'group_id': group_id,
+                'date': attendance_date.isoformat(),
+                'present': present
+            })
+        
         self.group_attendance_log = self._dump_json(group_log)
         self.recalculate_heartbeat()
     
