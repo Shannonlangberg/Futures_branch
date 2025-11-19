@@ -14694,123 +14694,127 @@ def get_connect_group_health(group_id):
         total_absent = sum(d['absent'] for d in attendance_data)
         total_attendance = total_present + total_absent
         
-        # Get all group members with their info (including leaders)
-        all_members_dict = {}
-        for member in members:
-            all_members_dict[member.id] = {
-                'person_id': member.id,
-                'person_name': member.full_name
-            }
-        # Add leaders
-        for leader_id in leader_ids:
-            if leader_id and leader_id not in all_members_dict:
-                leader = Person.query.get(leader_id)
-                if leader:
-                    all_members_dict[leader_id] = {
-                        'person_id': leader_id,
-                        'person_name': leader.full_name
-                    }
-        
-        # Get all meetings for this group (from ConnectGroupMeeting)
-        try:
-            all_meetings = ConnectGroupMeeting.query.filter_by(
-                group_id=group_id
-            ).filter(
-                ConnectGroupMeeting.meeting_date >= start_date,
-                ConnectGroupMeeting.meeting_date <= end_date
-            ).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
-        except Exception as e:
-            logger.warning(f"Error querying ConnectGroupMeeting for group {group_id}: {e}")
-            all_meetings = []
-        
-        # Build a map of attendance by date and person
-        attendance_by_date_person = defaultdict(dict)  # {date: {person_id: status}}
-        
-        for record in attendance_records:
-            try:
-                if not record.date:
-                    continue
-                date_key = record.date.isoformat() if hasattr(record.date, 'isoformat') else str(record.date)
-                attendance_by_date_person[date_key][record.person_id] = record.status
-            except Exception as e:
-                logger.warning(f"Error processing attendance record {record.id if hasattr(record, 'id') else 'unknown'}: {e}")
-                continue
-        
-        # Build detailed attendance breakdown
+        # Build detailed attendance breakdown (wrap in try-catch to not fail entire endpoint)
         detailed_attendance = []
-        
-        # Process all meetings
-        for meeting in all_meetings:
-            if not meeting or not meeting.meeting_date:
-                continue
-                
+        try:
+            # Get all group members with their info (including leaders)
+            all_members_dict = {}
+            for member in members:
+                all_members_dict[member.id] = {
+                    'person_id': member.id,
+                    'person_name': member.full_name
+                }
+            # Add leaders
+            for leader_id in leader_ids:
+                if leader_id and leader_id not in all_members_dict:
+                    leader = Person.query.get(leader_id)
+                    if leader:
+                        all_members_dict[leader_id] = {
+                            'person_id': leader_id,
+                            'person_name': leader.full_name
+                        }
+            
+            # Get all meetings for this group (from ConnectGroupMeeting)
             try:
-                # Handle both date objects and strings
-                if isinstance(meeting.meeting_date, str):
-                    from datetime import datetime
-                    meeting_date = datetime.strptime(meeting.meeting_date, '%Y-%m-%d').date()
-                else:
-                    meeting_date = meeting.meeting_date
-                
-                date_key = meeting_date.isoformat()
-                present_list = []
-                absent_list = []
-                
-                # Check each member's attendance status
-                for person_id, person_info in all_members_dict.items():
-                    status = attendance_by_date_person.get(date_key, {}).get(person_id)
-                    
-                    if status == 'present':
-                        present_list.append(person_info)
-                    elif status == 'absent':
-                        absent_list.append(person_info)
-                    else:
-                        # No record = absent (they should have been marked)
-                        absent_list.append(person_info)
-                
-                detailed_attendance.append({
-                    'date': date_key,
-                    'present': present_list,
-                    'absent': absent_list,
-                    'total_present': len(present_list),
-                    'total_absent': len(absent_list),
-                    'total': len(present_list) + len(absent_list)
-                })
+                all_meetings = ConnectGroupMeeting.query.filter_by(
+                    group_id=group_id
+                ).filter(
+                    ConnectGroupMeeting.meeting_date >= start_date,
+                    ConnectGroupMeeting.meeting_date <= end_date
+                ).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
             except Exception as e:
-                logger.warning(f"Error processing meeting {meeting.id if meeting else 'unknown'}: {e}")
-                continue
-        
-        # Also include dates that have attendance records but no meeting record
-        # (in case meetings weren't created in ConnectGroupMeeting)
-        for date_key in attendance_by_date_person.keys():
-            # Check if we already have this date from meetings
-            if not any(m['date'] == date_key for m in detailed_attendance):
-                present_list = []
-                absent_list = []
-                
-                # Check each member's attendance status
-                for person_id, person_info in all_members_dict.items():
-                    status = attendance_by_date_person[date_key].get(person_id)
+                logger.warning(f"Error querying ConnectGroupMeeting for group {group_id}: {e}")
+                all_meetings = []
+            
+            # Build a map of attendance by date and person
+            attendance_by_date_person = defaultdict(dict)  # {date: {person_id: status}}
+            
+            for record in attendance_records:
+                try:
+                    if not record.date:
+                        continue
+                    date_key = record.date.isoformat() if hasattr(record.date, 'isoformat') else str(record.date)
+                    attendance_by_date_person[date_key][record.person_id] = record.status
+                except Exception as e:
+                    logger.warning(f"Error processing attendance record {record.id if hasattr(record, 'id') else 'unknown'}: {e}")
+                    continue
+            
+            # Process all meetings
+            for meeting in all_meetings:
+                if not meeting or not meeting.meeting_date:
+                    continue
                     
-                    if status == 'present':
-                        present_list.append(person_info)
-                    elif status == 'absent':
-                        absent_list.append(person_info)
+                try:
+                    # Handle both date objects and strings
+                    if isinstance(meeting.meeting_date, str):
+                        from datetime import datetime
+                        meeting_date = datetime.strptime(meeting.meeting_date, '%Y-%m-%d').date()
                     else:
-                        # No record = absent
-                        absent_list.append(person_info)
-                
-                detailed_attendance.append({
-                    'date': date_key,
-                    'present': present_list,
-                    'absent': absent_list,
-                    'total_present': len(present_list),
-                    'total_absent': len(absent_list),
-                    'total': len(present_list) + len(absent_list)
-                })
-        
-        # Sort by date (most recent first)
-        detailed_attendance.sort(key=lambda x: x['date'], reverse=True)
+                        meeting_date = meeting.meeting_date
+                    
+                    date_key = meeting_date.isoformat()
+                    present_list = []
+                    absent_list = []
+                    
+                    # Check each member's attendance status
+                    for person_id, person_info in all_members_dict.items():
+                        status = attendance_by_date_person.get(date_key, {}).get(person_id)
+                        
+                        if status == 'present':
+                            present_list.append(person_info)
+                        elif status == 'absent':
+                            absent_list.append(person_info)
+                        else:
+                            # No record = absent (they should have been marked)
+                            absent_list.append(person_info)
+                    
+                    detailed_attendance.append({
+                        'date': date_key,
+                        'present': present_list,
+                        'absent': absent_list,
+                        'total_present': len(present_list),
+                        'total_absent': len(absent_list),
+                        'total': len(present_list) + len(absent_list)
+                    })
+                except Exception as e:
+                    logger.warning(f"Error processing meeting {meeting.id if meeting else 'unknown'}: {e}")
+                    continue
+            
+            # Also include dates that have attendance records but no meeting record
+            # (in case meetings weren't created in ConnectGroupMeeting)
+            for date_key in attendance_by_date_person.keys():
+                # Check if we already have this date from meetings
+                if not any(m['date'] == date_key for m in detailed_attendance):
+                    present_list = []
+                    absent_list = []
+                    
+                    # Check each member's attendance status
+                    for person_id, person_info in all_members_dict.items():
+                        status = attendance_by_date_person[date_key].get(person_id)
+                        
+                        if status == 'present':
+                            present_list.append(person_info)
+                        elif status == 'absent':
+                            absent_list.append(person_info)
+                        else:
+                            # No record = absent
+                            absent_list.append(person_info)
+                    
+                    detailed_attendance.append({
+                        'date': date_key,
+                        'present': present_list,
+                        'absent': absent_list,
+                        'total_present': len(present_list),
+                        'total_absent': len(absent_list),
+                        'total': len(present_list) + len(absent_list)
+                    })
+            
+            # Sort by date (most recent first)
+            detailed_attendance.sort(key=lambda x: x['date'], reverse=True)
+        except Exception as e:
+            logger.error(f"Error building detailed attendance breakdown for group {group_id}: {e}", exc_info=True)
+            # Continue with empty detailed_attendance - at least return other data
+            detailed_attendance = []
         
         return jsonify({
             'group_id': group.id,
