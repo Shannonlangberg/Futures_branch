@@ -6,7 +6,7 @@ Used by Settings page and mobile app.
 """
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from models import db, BeaconZone, Person
+from models import db, BeaconZone, BeaconSchedule, Person
 from datetime import datetime
 import logging
 
@@ -250,6 +250,16 @@ def detect_beacon():
             except ValueError:
                 pass
         
+        # Get active schedule for this beacon at detection time
+        schedule = zone.get_active_schedule(detection_time)
+        if not schedule:
+            return jsonify({
+                'error': 'No active schedule found for this beacon at this time',
+                'message': 'Beacon is not configured for this day/time. Please check beacon schedules.'
+            }), 400
+        
+        event_type = schedule.event_type
+        
         # Create Heartbeat attendance event
         from models import AttendanceEvent
         from heartbeat_engine import HeartbeatEngine
@@ -274,20 +284,46 @@ def detect_beacon():
             
             service = Service.query.filter(
                 Service.campus_id == campus_id,
-                Service.type == 'sunday',
+                Service.type == event_type,  # Use event_type from schedule
                 Service.starts_at >= service_start,
                 Service.starts_at <= service_end
             ).order_by(Service.starts_at.desc()).first()
         
-        # If no service found, create one for today
+        # If no service found, create one based on schedule
         if not service and Service:
-            # Create service for this Sunday
-            service_date = detection_time.replace(hour=10, minute=0, second=0, microsecond=0)
+            # Use schedule's start_time if available, otherwise default
+            if schedule.start_time:
+                service_date = detection_time.replace(
+                    hour=schedule.start_time.hour,
+                    minute=schedule.start_time.minute,
+                    second=0,
+                    microsecond=0
+                )
+            else:
+                # Default based on event type
+                if event_type == 'sunday':
+                    service_date = detection_time.replace(hour=10, minute=0, second=0, microsecond=0)
+                elif event_type == 'youth':
+                    service_date = detection_time.replace(hour=19, minute=0, second=0, microsecond=0)
+                else:
+                    service_date = detection_time.replace(hour=19, minute=0, second=0, microsecond=0)
+            
+            # Calculate end time
+            if schedule.end_time:
+                end_time = detection_time.replace(
+                    hour=schedule.end_time.hour,
+                    minute=schedule.end_time.minute,
+                    second=0,
+                    microsecond=0
+                )
+            else:
+                end_time = service_date + timedelta(hours=2)
+            
             service = Service(
                 campus_id=campus_id,
-                type='sunday',
+                type=event_type,
                 starts_at=service_date,
-                ends_at=service_date + timedelta(hours=2)
+                ends_at=end_time
             )
             db.session.add(service)
             db.session.flush()
@@ -344,6 +380,7 @@ def detect_beacon():
             'person_id': person.id,
             'zone': zone.zone_name,
             'campus': zone.campus,
+            'event_type': event_type,
             'timestamp': detection_time.isoformat()
         }
         
@@ -355,5 +392,171 @@ def detect_beacon():
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error detecting beacon: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+# SCHEDULE MANAGEMENT ENDPOINTS
+
+@beacon_bp.route('/<int:beacon_id>/schedules', methods=['GET'])
+@login_required
+def get_beacon_schedules(beacon_id):
+    """Get all schedules for a beacon zone"""
+    try:
+        if not current_user.has_permission('beacons', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        beacon = BeaconZone.query.get(beacon_id)
+        if not beacon:
+            return jsonify({'error': 'Beacon zone not found'}), 404
+        
+        schedules = beacon.schedules.filter_by(is_active=True).all()
+        
+        return jsonify({
+            'schedules': [s.to_dict() for s in schedules],
+            'count': len(schedules)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting schedules: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@beacon_bp.route('/<int:beacon_id>/schedules', methods=['POST'])
+@login_required
+def create_beacon_schedule(beacon_id):
+    """Create a new schedule for a beacon zone"""
+    try:
+        if not current_user.has_permission('beacons', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        beacon = BeaconZone.query.get(beacon_id)
+        if not beacon:
+            return jsonify({'error': 'Beacon zone not found'}), 404
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        if 'event_type' not in data:
+            return jsonify({'error': 'Missing required field: event_type'}), 400
+        
+        # Parse times if provided
+        start_time = None
+        end_time = None
+        
+        if data.get('start_time'):
+            try:
+                from datetime import time as dt_time
+                time_parts = data['start_time'].split(':')
+                start_time = dt_time(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
+            except (ValueError, IndexError):
+                return jsonify({'error': 'Invalid start_time format. Use HH:MM:SS'}), 400
+        
+        if data.get('end_time'):
+            try:
+                from datetime import time as dt_time
+                time_parts = data['end_time'].split(':')
+                end_time = dt_time(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
+            except (ValueError, IndexError):
+                return jsonify({'error': 'Invalid end_time format. Use HH:MM:SS'}), 400
+        
+        # Create schedule
+        schedule = BeaconSchedule(
+            beacon_zone_id=beacon_id,
+            event_type=data['event_type'],
+            day_of_week=data.get('day_of_week'),
+            start_time=start_time,
+            end_time=end_time,
+            is_active=data.get('is_active', True)
+        )
+        
+        db.session.add(schedule)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Schedule created successfully',
+            'schedule': schedule.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating schedule: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@beacon_bp.route('/schedules/<int:schedule_id>', methods=['PUT'])
+@login_required
+def update_beacon_schedule(schedule_id):
+    """Update a beacon schedule"""
+    try:
+        if not current_user.has_permission('beacons', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        schedule = BeaconSchedule.query.get(schedule_id)
+        if not schedule:
+            return jsonify({'error': 'Schedule not found'}), 404
+        
+        data = request.get_json()
+        
+        # Update fields
+        if 'event_type' in data:
+            schedule.event_type = data['event_type']
+        if 'day_of_week' in data:
+            schedule.day_of_week = data['day_of_week'] if data['day_of_week'] else None
+        if 'start_time' in data:
+            if data['start_time']:
+                try:
+                    from datetime import time as dt_time
+                    time_parts = data['start_time'].split(':')
+                    schedule.start_time = dt_time(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
+                except (ValueError, IndexError):
+                    return jsonify({'error': 'Invalid start_time format'}), 400
+            else:
+                schedule.start_time = None
+        if 'end_time' in data:
+            if data['end_time']:
+                try:
+                    from datetime import time as dt_time
+                    time_parts = data['end_time'].split(':')
+                    schedule.end_time = dt_time(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
+                except (ValueError, IndexError):
+                    return jsonify({'error': 'Invalid end_time format'}), 400
+            else:
+                schedule.end_time = None
+        if 'is_active' in data:
+            schedule.is_active = bool(data['is_active'])
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Schedule updated successfully',
+            'schedule': schedule.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating schedule: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@beacon_bp.route('/schedules/<int:schedule_id>', methods=['DELETE'])
+@login_required
+def delete_beacon_schedule(schedule_id):
+    """Delete a beacon schedule"""
+    try:
+        if not current_user.has_permission('beacons', 'delete'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        schedule = BeaconSchedule.query.get(schedule_id)
+        if not schedule:
+            return jsonify({'error': 'Schedule not found'}), 404
+        
+        db.session.delete(schedule)
+        db.session.commit()
+        
+        return jsonify({'message': 'Schedule deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting schedule: {e}")
         return jsonify({'error': str(e)}), 500
 

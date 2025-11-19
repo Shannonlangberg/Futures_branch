@@ -381,6 +381,9 @@ class BeaconZone(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # Relationship to schedules
+    schedules = db.relationship('BeaconSchedule', backref='beacon_zone', lazy='dynamic', cascade='all, delete-orphan')
+    
     @classmethod
     def find_zone(cls, uuid, major, minor):
         """Find beacon zone by UUID, major, and minor"""
@@ -391,8 +394,41 @@ class BeaconZone(db.Model):
             is_active=True
         ).first()
     
+    def get_active_schedule(self, detection_time=None):
+        """
+        Get the active schedule for this beacon at the given time.
+        Returns the schedule that matches the current day/time, or None.
+        """
+        if detection_time is None:
+            detection_time = datetime.utcnow()
+        
+        day_name = detection_time.strftime('%A')  # 'Monday', 'Tuesday', etc.
+        current_time = detection_time.time()
+        
+        # Find schedules that match
+        matching_schedules = self.schedules.filter_by(is_active=True).all()
+        
+        for schedule in matching_schedules:
+            # Check day of week
+            if schedule.day_of_week and schedule.day_of_week != day_name:
+                continue
+            
+            # Check time window
+            if schedule.start_time and schedule.end_time:
+                if not (schedule.start_time <= current_time <= schedule.end_time):
+                    continue
+            elif schedule.start_time:
+                # Only start time specified - check if we're after it
+                if current_time < schedule.start_time:
+                    continue
+            
+            return schedule
+        
+        return None
+    
     def to_dict(self):
         """Convert beacon zone to dictionary"""
+        schedules_list = [s.to_dict() for s in self.schedules.filter_by(is_active=True).all()]
         return {
             'id': self.id,
             'zone_name': self.zone_name,
@@ -401,7 +437,37 @@ class BeaconZone(db.Model):
             'beacon_major': self.beacon_major,
             'beacon_minor': self.beacon_minor,
             'is_active': self.is_active,
+            'schedules': schedules_list,
             'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class BeaconSchedule(db.Model):
+    """Schedule for beacon zones - defines when a beacon logs which event type"""
+    __tablename__ = 'beacon_schedules'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    beacon_zone_id = db.Column(db.Integer, db.ForeignKey('beacon_zones.id'), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)  # 'sunday', 'youth', 'prayer_night', 'kids', etc.
+    day_of_week = db.Column(db.String(20))  # 'Sunday', 'Monday', 'Friday', etc. (NULL = any day)
+    start_time = db.Column(db.Time)  # e.g., '19:00:00' for 7 PM
+    end_time = db.Column(db.Time)  # e.g., '22:00:00' for 10 PM
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        """Convert schedule to dictionary"""
+        return {
+            'id': self.id,
+            'beacon_zone_id': self.beacon_zone_id,
+            'event_type': self.event_type,
+            'day_of_week': self.day_of_week,
+            'start_time': self.start_time.strftime('%H:%M:%S') if self.start_time else None,
+            'end_time': self.end_time.strftime('%H:%M:%S') if self.end_time else None,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 
