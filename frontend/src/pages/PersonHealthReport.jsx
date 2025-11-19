@@ -138,6 +138,10 @@ const PersonHealthReport = () => {
   const [aiSuggestion, setAiSuggestion] = useState(null);
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showConnectGroupModal, setShowConnectGroupModal] = useState(false);
+  const [connectGroups, setConnectGroups] = useState([]);
+  const [loadingConnectGroups, setLoadingConnectGroups] = useState(false);
+  const [stepToAssign, setStepToAssign] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [watchedEpisodes, setWatchedEpisodes] = useState([]);
   const [loadingWatched, setLoadingWatched] = useState(false);
@@ -335,6 +339,73 @@ const PersonHealthReport = () => {
     } catch (err) {
       console.error('Error completing step:', err);
       alert(isEditingCompletion ? 'Failed to update completion date' : 'Failed to complete step');
+    }
+  };
+
+  const loadConnectGroups = async () => {
+    if (!data?.person?.campus) {
+      alert('Person campus not found');
+      return;
+    }
+
+    try {
+      setLoadingConnectGroups(true);
+      const response = await fetch(`/api/connect-groups?campus=${data.person.campus}&is_active=true`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setConnectGroups(result.groups || []);
+      } else {
+        alert('Failed to load connect groups');
+      }
+    } catch (err) {
+      console.error('Error loading connect groups:', err);
+      alert('Failed to load connect groups');
+    } finally {
+      setLoadingConnectGroups(false);
+    }
+  };
+
+  const handleAssignConnectGroupClick = async (step) => {
+    setStepToAssign(step);
+    await loadConnectGroups();
+    setShowConnectGroupModal(true);
+  };
+
+  const handleAssignConnectGroup = async (groupId) => {
+    if (!data?.person?.id) {
+      alert('Person ID not found');
+      return;
+    }
+
+    try {
+      // Update person's connect group - this will auto-complete the step via backend
+      const response = await fetch(`/api/persons/${data.person.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          connect_group: groupId
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setShowConnectGroupModal(false);
+        setStepToAssign(null);
+        await fetchPersonData();
+        alert('Connect group assigned successfully! The step will be marked as complete.');
+      } else {
+        alert(result.error || 'Failed to assign connect group');
+      }
+    } catch (err) {
+      console.error('Error assigning connect group:', err);
+      alert('Failed to assign connect group');
     }
   };
 
@@ -924,6 +995,11 @@ const PersonHealthReport = () => {
                     pathway.pathway.steps.map((step) => {
                       const isCompleted = step.is_completed || false;
                       const isCurrent = pathway.next_step && pathway.next_step.id === step.id;
+                      // Check if this is the "Joined Connect Group" step
+                      const isConnectGroupStep = step.milestone_type === 'group_join' || 
+                                                 (step.step_name && step.step_name.toLowerCase().includes('connect group'));
+                      // Show Assign button for connect group step if not completed
+                      const showAssignButton = isConnectGroupStep && !isCompleted;
                       
                       return (
                         <div
@@ -968,20 +1044,34 @@ const PersonHealthReport = () => {
                               </div>
                             )}
                           </div>
-                          {isCurrent && (
-                            <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
-                              Current
-                            </span>
-                          )}
-                          {!isCompleted && !isCurrent && (
-                            <button
-                              onClick={() => handleCompleteStepClick(step.id)}
-                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
-                              title="Mark as completed"
-                            >
-                              Complete
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {isCurrent && !showAssignButton && (
+                              <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
+                                Current
+                              </span>
+                            )}
+                            {showAssignButton ? (
+                              <button
+                                onClick={() => handleAssignConnectGroupClick(step)}
+                                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-semibold"
+                                title="Assign to a connect group"
+                              >
+                                Assign
+                              </button>
+                            ) : !isCompleted && !isCurrent && !isConnectGroupStep ? (
+                              <button
+                                onClick={() => handleCompleteStepClick(step.id)}
+                                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
+                                title="Mark as completed"
+                              >
+                                Complete
+                              </button>
+                            ) : isCurrent && isConnectGroupStep ? (
+                              <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
+                                Current
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       );
                     })
