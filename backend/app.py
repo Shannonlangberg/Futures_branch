@@ -14099,6 +14099,14 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import giving_api: {e}")
 
+# PATHWAY API ROUTES (Discipleship pathways)
+try:
+    from pathway_api import pathway_bp
+    app.register_blueprint(pathway_bp)
+    logger.info("Pathway API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import pathway_api: {e}")
+
 # USER MANAGEMENT ROUTES
 @app.route('/api/users', methods=['GET'])
 @login_required
