@@ -14961,19 +14961,19 @@ def google_oauth_callback():
                     if (window.opener && !window.opener.closed) {
                         console.log('[OAuth Callback] Redirecting opener to dashboard...');
                         try {
-                            // Directly redirect the parent window to dashboard
-                            window.opener.location.href = '/dashboard';
+                            // Directly redirect the parent window to homepage
+                            window.opener.location.href = '/';
                             console.log('[OAuth Callback] Opener redirected successfully');
                         } catch (e) {
                             console.error('[OAuth Callback] Error redirecting opener:', e);
                             // Fallback: try postMessage
                             window.opener.postMessage({ 
                                 type: 'redirect',
-                                url: '/dashboard'
+                                url: '/'
                             }, window.location.origin);
                             window.opener.postMessage({ 
                                 type: 'redirect',
-                                url: '/dashboard'
+                                url: '/'
                             }, '*');
                         }
                         
@@ -14988,11 +14988,11 @@ def google_oauth_callback():
                         }, 500);
                     } else if (window.parent && window.parent !== window) {
                         // Iframe scenario
-                        window.parent.location.href = '/dashboard';
+                        window.parent.location.href = '/';
                     } else {
                         // No opener - redirect this window (shouldn't happen but fallback)
                         console.log('[OAuth Callback] No opener found, redirecting this window...');
-                        window.location.href = '/dashboard';
+                        window.location.href = '/';
                     }
                 })();
             </script>

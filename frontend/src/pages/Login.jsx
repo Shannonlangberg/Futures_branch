@@ -123,7 +123,7 @@ const Login = ({ onLogin }) => {
             if (onLogin) {
               onLogin();
             }
-            window.location.href = '/dashboard';
+            window.location.href = '/';
           }, 500);
         }
       }, 500);
@@ -183,7 +183,7 @@ const Login = ({ onLogin }) => {
         if (onLogin) {
           onLogin();
         }
-        window.location.href = event.data.url || '/dashboard';
+        window.location.href = event.data.url || '/';
       }
       
       // Also handle old success message format for backwards compatibility
@@ -195,7 +195,7 @@ const Login = ({ onLogin }) => {
         if (onLogin) {
           onLogin();
         }
-        window.location.href = '/dashboard';
+        window.location.href = '/';
       }
     };
 
