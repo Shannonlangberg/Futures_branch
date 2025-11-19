@@ -14727,8 +14727,14 @@ def get_connect_group_health(group_id):
         attendance_by_date_person = defaultdict(dict)  # {date: {person_id: status}}
         
         for record in attendance_records:
-            date_key = record.date.isoformat()
-            attendance_by_date_person[date_key][record.person_id] = record.status
+            try:
+                if not record.date:
+                    continue
+                date_key = record.date.isoformat() if hasattr(record.date, 'isoformat') else str(record.date)
+                attendance_by_date_person[date_key][record.person_id] = record.status
+            except Exception as e:
+                logger.warning(f"Error processing attendance record {record.id if hasattr(record, 'id') else 'unknown'}: {e}")
+                continue
         
         # Build detailed attendance breakdown
         detailed_attendance = []
