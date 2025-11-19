@@ -1065,7 +1065,8 @@ const PersonHealthReport = () => {
                   return (
                     <div className="space-y-3">
                       <div className="text-sm text-slate-400 mb-4">
-                        Showing {categoryEvents.length} event{categoryEvents.length !== 1 ? 's' : ''} (Last 12 weeks)
+                        Showing {categoryEvents.length} event{categoryEvents.length !== 1 ? 's' : ''}
+                        {selectedCategory === 'spiritual' ? ' (All milestones)' : ' (Last 12 weeks)'}
                       </div>
                       {categoryEvents.map((event, idx) => {
                         const eventDate = new Date(event.date || event.created_at);
