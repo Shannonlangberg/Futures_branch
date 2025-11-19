@@ -239,7 +239,7 @@ export default function PassportScreen() {
                       </View>
                       {!isCompleted && (
                         <View style={styles.stepActions}>
-                          {isCurrent && (
+                          {isCurrent && !showAssignButton && (
                             <Text style={styles.currentBadge}>Current</Text>
                           )}
                           {showAssignButton ? (
@@ -259,6 +259,8 @@ export default function PassportScreen() {
                             >
                               <Text style={styles.completeButtonText}>Complete</Text>
                             </TouchableOpacity>
+                          ) : isCurrent ? (
+                            <Text style={styles.currentBadge}>Current</Text>
                           ) : null}
                         </View>
                       )}
