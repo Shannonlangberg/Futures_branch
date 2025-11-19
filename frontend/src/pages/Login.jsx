@@ -109,24 +109,23 @@ const Login = ({ onLogin }) => {
 
       authWindow.focus();
 
-      // SIMPLE APPROACH: Just watch for popup to close, then redirect
-      // The popup will directly redirect us, but if that fails, we check when it closes
+      // AGGRESSIVE APPROACH: Watch for popup to close AND check session
+      // The popup will send messages, but if that fails, we redirect when popup closes
       const checkWindow = setInterval(() => {
         if (authWindow.closed) {
           clearInterval(checkWindow);
-          console.log('[Login] Popup closed, redirecting to dashboard...');
+          console.log('[Login] ✅ Popup closed, redirecting to homepage...');
           setIsDriveConnecting(false);
           setIsDriveAuthRequired(false);
           
-          // Small delay to ensure session is saved, then redirect
-          setTimeout(() => {
-            if (onLogin) {
-              onLogin();
-            }
-            window.location.href = '/';
-          }, 500);
+          // Immediately redirect - session should be saved by now
+          if (onLogin) {
+            onLogin();
+          }
+          // No delay - just redirect immediately
+          window.location.href = '/';
         }
-      }, 500);
+      }, 200); // Check more frequently (every 200ms instead of 500ms)
 
       // Safety timeout to clear interval
       setTimeout(() => {
@@ -175,27 +174,17 @@ const Login = ({ onLogin }) => {
       console.log('[Login] Message from allowed origin:', event.origin);
       
       // Handle redirect message from popup
-      if (event.data && event.data.type === 'redirect') {
-        console.log('[Login] Received redirect message, going to:', event.data.url);
+      if (event.data && (event.data.type === 'redirect' || event.data.type === 'googleAuthSuccess')) {
+        const redirectUrl = event.data.url || event.data.redirect || '/';
+        console.log('[Login] ✅ Received redirect message, going to:', redirectUrl);
         setIsDriveConnecting(false);
         setDriveError('');
         setIsDriveAuthRequired(false);
         if (onLogin) {
           onLogin();
         }
-        window.location.href = event.data.url || '/';
-      }
-      
-      // Also handle old success message format for backwards compatibility
-      if (event.data && event.data.type === 'googleAuthSuccess') {
-        console.log('[Login] Received success message, redirecting to dashboard...');
-        setIsDriveConnecting(false);
-        setDriveError('');
-        setIsDriveAuthRequired(false);
-        if (onLogin) {
-          onLogin();
-        }
-        window.location.href = '/';
+        // Immediate redirect - no delay
+        window.location.href = redirectUrl;
       }
     };
 

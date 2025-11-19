@@ -14965,35 +14965,88 @@ def google_oauth_callback():
                 (function() {
                     console.log('[OAuth Callback] Starting redirect...');
                     
-                    // DIRECT APPROACH: Redirect the opener window immediately
+                    // MULTIPLE METHODS: Try everything to ensure redirect works
                     if (window.opener && !window.opener.closed) {
-                        console.log('[OAuth Callback] Redirecting opener to dashboard...');
+                        console.log('[OAuth Callback] Opener found, attempting redirect...');
+                        
+                        // Method 1: Try direct location redirect (most reliable)
                         try {
-                            // Directly redirect the parent window to homepage
                             window.opener.location.href = '/';
-                            console.log('[OAuth Callback] Opener redirected successfully');
+                            console.log('[OAuth Callback] Method 1: Direct location redirect attempted');
                         } catch (e) {
-                            console.error('[OAuth Callback] Error redirecting opener:', e);
-                            // Fallback: try postMessage
-                            window.opener.postMessage({ 
-                                type: 'redirect',
-                                url: '/'
-                            }, window.location.origin);
-                            window.opener.postMessage({ 
-                                type: 'redirect',
-                                url: '/'
-                            }, '*');
+                            console.error('[OAuth Callback] Method 1 failed:', e);
                         }
                         
-                        // Close popup after a short delay
+                        // Method 2: Try postMessage with redirect command
+                        try {
+                            window.opener.postMessage({ 
+                                type: 'redirect',
+                                url: '/',
+                                timestamp: Date.now()
+                            }, window.location.origin);
+                            console.log('[OAuth Callback] Method 2: postMessage with origin sent');
+                        } catch (e) {
+                            console.error('[OAuth Callback] Method 2 failed:', e);
+                        }
+                        
+                        // Method 3: Try postMessage with wildcard (less secure but more reliable)
+                        try {
+                            window.opener.postMessage({ 
+                                type: 'redirect',
+                                url: '/',
+                                timestamp: Date.now()
+                            }, '*');
+                            console.log('[OAuth Callback] Method 3: postMessage with wildcard sent');
+                        } catch (e) {
+                            console.error('[OAuth Callback] Method 3 failed:', e);
+                        }
+                        
+                        // Method 4: Try old success message format for backwards compatibility
+                        try {
+                            window.opener.postMessage({ 
+                                type: 'googleAuthSuccess',
+                                redirect: '/',
+                                timestamp: Date.now()
+                            }, window.location.origin);
+                            window.opener.postMessage({ 
+                                type: 'googleAuthSuccess',
+                                redirect: '/',
+                                timestamp: Date.now()
+                            }, '*');
+                            console.log('[OAuth Callback] Method 4: Legacy success message sent');
+                        } catch (e) {
+                            console.error('[OAuth Callback] Method 4 failed:', e);
+                        }
+                        
+                        // Send messages multiple times to ensure delivery
                         setTimeout(() => {
                             try {
+                                window.opener.postMessage({ type: 'redirect', url: '/' }, '*');
+                                window.opener.postMessage({ type: 'googleAuthSuccess', redirect: '/' }, '*');
+                            } catch (e) {
+                                console.error('[OAuth Callback] Retry failed:', e);
+                            }
+                        }, 200);
+                        
+                        setTimeout(() => {
+                            try {
+                                window.opener.postMessage({ type: 'redirect', url: '/' }, '*');
+                                window.opener.postMessage({ type: 'googleAuthSuccess', redirect: '/' }, '*');
+                            } catch (e) {
+                                console.error('[OAuth Callback] Retry 2 failed:', e);
+                            }
+                        }, 500);
+                        
+                        // Close popup after ensuring messages are sent
+                        setTimeout(() => {
+                            try {
+                                console.log('[OAuth Callback] Closing popup...');
                                 window.close();
                             } catch (e) {
                                 console.log('[OAuth Callback] Could not close window:', e);
                                 window.location.href = 'about:blank';
                             }
-                        }, 500);
+                        }, 1000);
                     } else if (window.parent && window.parent !== window) {
                         // Iframe scenario
                         window.parent.location.href = '/';
