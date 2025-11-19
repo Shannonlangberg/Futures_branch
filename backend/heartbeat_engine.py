@@ -328,8 +328,9 @@ class HeartbeatEngine:
         active_groups = data['active_groups']
         connect_attendance = data['connect_attendance']
         
-        # Check if in active group
+        # Check if in active group OR has attendance records (attendance is proof of membership)
         in_group = len(active_groups) > 0
+        has_attendance = len(connect_attendance) > 0
         
         # Calculate attendance rate in groups
         if connect_attendance:
@@ -339,11 +340,20 @@ class HeartbeatEngine:
         else:
             group_attendance_rate = 0.0
         
+        # Give credit for attendance even if group isn't marked as "active" in system
+        # Attendance records are proof of group membership
         connect_score = 0.0
-        if in_group:
-            connect_score = 40.0 * group_attendance_rate
+        if in_group or has_attendance:
+            # If they have attendance, they're in a group (even if not marked active)
+            # Calculate score based on attendance rate
+            # Target: attend at least once every 2 weeks (6 times in 12 weeks)
+            weeks_in_range = (end_date - start_date).days / 7
+            target_attendances = max(1, int(weeks_in_range / 2))
+            attendance_count = len([a for a in connect_attendance if a.status == 'present']) if connect_attendance else 0
+            attendance_rate = min(attendance_count / target_attendances, 1.0) if target_attendances > 0 else 0.0
+            connect_score = 40.0 * attendance_rate
         else:
-            connect_score = 0.0  # Not in a group
+            connect_score = 0.0  # Not in a group and no attendance
         
         scores.append(('connect', connect_score))
         
