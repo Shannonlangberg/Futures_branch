@@ -13961,10 +13961,122 @@ def submit_meeting_attendance(meeting_id):
                 )
                 db.session.add(attendance)
             
-            # Update engagement profile if present (creates profile if it doesn't exist)
-            if present:
-                person = Person.query.filter_by(id=person_id, is_active=True).first()
-                if person:
+            # Update engagement profile and heartbeat records (for both present and absent)
+            person = Person.query.filter_by(id=person_id, is_active=True).first()
+            if person:
+                # Get or create engagement profile (needed for both present and absent tracking)
+                engagement = person.engagement_profile
+                if not engagement:
+                    engagement = EngagementProfile(person_id=person.id)
+                    db.session.add(engagement)
+                    db.session.flush()  # Flush to get the ID
+                    logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
+                
+                # Track attendance (present or absent) in Heartbeat system
+                try:
+                    from models import ConnectAttendance, HeartbeatConnectGroup, Campus as HeartbeatCampus
+                    
+                    # Get or create Heartbeat campus
+                    campus_normalized = group.campus.lower().replace(' ', '_')
+                    heartbeat_campus = HeartbeatCampus.query.filter_by(id=campus_normalized).first()
+                    if not heartbeat_campus:
+                        heartbeat_campus = HeartbeatCampus(
+                            id=campus_normalized,
+                            name=group.campus,
+                            timezone='Australia/Adelaide',
+                            is_active=True
+                        )
+                        db.session.add(heartbeat_campus)
+                        db.session.flush()
+                        logger.info(f"Created Heartbeat campus: {campus_normalized}")
+                    
+                    # Find or create HeartbeatConnectGroup
+                    heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+                        name=group.name,
+                        leader_person_id=group.leader_id,
+                        campus_id=heartbeat_campus.id
+                    ).first()
+                    
+                    if not heartbeat_group:
+                        # Try matching by name and campus only (in case leader changed)
+                        heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+                            name=group.name,
+                            campus_id=heartbeat_campus.id,
+                            is_active=True
+                        ).first()
+                        if heartbeat_group:
+                            logger.info(f"Found HeartbeatConnectGroup by name/campus (leader may have changed): {heartbeat_group.id}")
+                    
+                    if not heartbeat_group:
+                        heartbeat_group = HeartbeatConnectGroup(
+                            campus_id=heartbeat_campus.id,
+                            name=group.name,
+                            leader_person_id=group.leader_id,
+                            type='home',
+                            day_of_week=group.meeting_day,
+                            is_active=group.is_active if hasattr(group, 'is_active') else True
+                        )
+                        db.session.add(heartbeat_group)
+                        db.session.flush()
+                        logger.info(f"Created NEW HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
+                    else:
+                        logger.info(f"Found existing HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
+                    
+                    # Ensure meeting_date is a date object
+                    attendance_date = meeting.meeting_date
+                    if isinstance(attendance_date, str):
+                        from datetime import datetime as dt
+                        attendance_date = dt.fromisoformat(attendance_date).date()
+                    elif isinstance(attendance_date, datetime):
+                        attendance_date = attendance_date.date()
+                    
+                    # CRITICAL FIX: If meeting date is in the future, use today's date instead
+                    today = datetime.utcnow().date()
+                    if attendance_date > today:
+                        logger.warning(f"Meeting date {attendance_date} is in the future. Using today's date {today} for attendance record.")
+                        attendance_date = today
+                    
+                    # Determine status: 'present' or 'absent'
+                    attendance_status = 'present' if present else 'absent'
+                    
+                    # Create or update ConnectAttendance record (for both present and absent)
+                    existing_attendance = ConnectAttendance.query.filter_by(
+                        person_id=person_id,
+                        connect_group_id=heartbeat_group.id,
+                        date=attendance_date
+                    ).first()
+                    
+                    if existing_attendance:
+                        existing_attendance.status = attendance_status
+                        logger.info(f"Updated ConnectAttendance record for {person.full_name} - Status: {attendance_status}, Date: {attendance_date}")
+                    else:
+                        connect_attendance = ConnectAttendance(
+                            person_id=person_id,
+                            connect_group_id=heartbeat_group.id,
+                            date=attendance_date,
+                            status=attendance_status
+                        )
+                        db.session.add(connect_attendance)
+                        db.session.flush()
+                        logger.info(f"Created ConnectAttendance record for {person.full_name} - Status: {attendance_status}, Date: {attendance_date}")
+                    
+                    # Recalculate heartbeat if present (only recalc on present to avoid spam)
+                    if present:
+                        try:
+                            from heartbeat_engine import HeartbeatEngine
+                            HeartbeatEngine().calculate_heartbeat(person_id)
+                            logger.info(f"Recalculated heartbeat for {person.full_name} after attendance update")
+                        except ImportError as import_error:
+                            logger.error(f"Cannot import HeartbeatEngine - {import_error}")
+                        except Exception as hb_recalc_error:
+                            logger.error(f"Error recalculating heartbeat for {person.full_name}: {hb_recalc_error}", exc_info=True)
+                
+                except Exception as heartbeat_error:
+                    logger.error(f"Error updating Heartbeat system for {person.full_name}: {heartbeat_error}", exc_info=True)
+                
+                # Update EngagementProfile (legacy system) - only if present
+                if present:
+                    try:
                     # Get or create engagement profile
                     engagement = person.engagement_profile
                     if not engagement:
