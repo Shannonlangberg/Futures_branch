@@ -14730,24 +14730,39 @@ def get_connect_group_health(group_id):
         
         # Convert to list sorted by date
         attendance_data = []
-        current_date = start_date
-        while current_date <= end_date:
-            date_key = current_date.isoformat()
-            stats = daily_stats.get(date_key, {'present': 0, 'absent': 0, 'total': 0})
-            attendance_data.append({
-                'date': date_key,
-                'present': stats['present'],
-                'absent': stats['absent'],
-                'total': stats['total'],
-                'attendance_rate': (stats['present'] / stats['total'] * 100) if stats['total'] > 0 else 0
-            })
-            current_date += timedelta(days=1)
+        try:
+            current_date = start_date
+            while current_date <= end_date:
+                try:
+                    date_key = current_date.isoformat() if hasattr(current_date, 'isoformat') else str(current_date)
+                    stats = daily_stats.get(date_key, {'present': 0, 'absent': 0, 'total': 0})
+                    attendance_data.append({
+                        'date': date_key,
+                        'present': stats.get('present', 0),
+                        'absent': stats.get('absent', 0),
+                        'total': stats.get('total', 0),
+                        'attendance_rate': (stats.get('present', 0) / stats.get('total', 1) * 100) if stats.get('total', 0) > 0 else 0
+                    })
+                    current_date += timedelta(days=1)
+                except Exception as e:
+                    logger.warning(f"Error processing date {current_date}: {e}")
+                    current_date += timedelta(days=1)
+        except Exception as e:
+            logger.error(f"Error building attendance_data: {e}", exc_info=True)
+            attendance_data = []
         
         # Calculate summary stats
-        total_meetings = len([d for d in attendance_data if d['total'] > 0])
-        total_present = sum(d['present'] for d in attendance_data)
-        total_absent = sum(d['absent'] for d in attendance_data)
-        total_attendance = total_present + total_absent
+        try:
+            total_meetings = len([d for d in attendance_data if d.get('total', 0) > 0])
+            total_present = sum(d.get('present', 0) for d in attendance_data)
+            total_absent = sum(d.get('absent', 0) for d in attendance_data)
+            total_attendance = total_present + total_absent
+        except Exception as e:
+            logger.error(f"Error calculating summary stats: {e}", exc_info=True)
+            total_meetings = 0
+            total_present = 0
+            total_absent = 0
+            total_attendance = 0
         
         # Build detailed attendance breakdown (wrap in try-catch to not fail entire endpoint)
         detailed_attendance = []
