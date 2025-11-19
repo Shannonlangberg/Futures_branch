@@ -14057,10 +14057,13 @@ def submit_meeting_attendance(meeting_id):
         
         # Get the latest heartbeat scores for the recalculated people to show in response
         heartbeat_results = []
+        recalculated_person_ids = set()  # Track person IDs that were recalculated
         for att_data in attendance_list:
             if att_data.get('present', False):
                 person_id = att_data.get('person_id')
-                if person_id and person_id in [p for p in recalculated_people]:
+                person = Person.query.filter_by(id=person_id, is_active=True).first()
+                if person and person.full_name in recalculated_people:
+                    recalculated_person_ids.add(person_id)
                     try:
                         from models import HeartbeatSnapshot
                         snapshot = HeartbeatSnapshot.query.filter_by(
@@ -14069,12 +14072,20 @@ def submit_meeting_attendance(meeting_id):
                         if snapshot:
                             heartbeat_results.append({
                                 'person_id': person_id,
+                                'person_name': person.full_name,
                                 'total_score': snapshot.total_score,
                                 'engagement_score': snapshot.engagement_score,
-                                'status': snapshot.status
+                                'gather_score': snapshot.gather_score,
+                                'spiritual_score': snapshot.spiritual_score,
+                                'care_score': snapshot.care_score,
+                                'status': snapshot.status,
+                                'calculated_at': snapshot.calculated_at.isoformat() if snapshot.calculated_at else None
                             })
-                    except:
-                        pass
+                            logger.info(f"Added heartbeat result for {person.full_name}: engagement={snapshot.engagement_score}, total={snapshot.total_score}")
+                        else:
+                            logger.warning(f"No HeartbeatSnapshot found for {person.full_name} after recalculation")
+                    except Exception as e:
+                        logger.error(f"Error getting heartbeat snapshot for {person.full_name}: {e}", exc_info=True)
         
         return jsonify({
             'message': 'Attendance submitted successfully',
