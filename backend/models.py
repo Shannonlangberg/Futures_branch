@@ -1449,7 +1449,7 @@ class TVSeries(db.Model):
     # Relationships
     episodes = db.relationship('TVEpisode', backref='series', lazy='dynamic', order_by='TVEpisode.order_index', cascade='all, delete-orphan')
     tags = db.relationship('TVTag', secondary='tv_series_tags', lazy='dynamic', backref='series')
-    discipleship_links = db.relationship('TVEpisodeDiscipleshipLink', backref='series', lazy='dynamic')
+    # Note: discipleship_links are accessed through episodes, not directly from series
     
     def to_dict(self, include_episodes=False):
         """Convert series to dictionary"""
