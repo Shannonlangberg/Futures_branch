@@ -7516,7 +7516,22 @@ def api_login():
         logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
         # Log successful login
         log_security_event(user.id, 'login_success', 'User logged in successfully')
-        return jsonify({"success": True, "redirect": "/"})
+        
+        # Check if admin user needs Google Drive auth
+        needs_drive_auth = False
+        if user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            # Check if Google Drive is authenticated
+            drive_authenticated = session.get('google_drive_authenticated', False)
+            token_expiry = session.get('google_drive_token_expiry', 0)
+            token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
+            # Admin users need Drive auth if not authenticated or token expired
+            needs_drive_auth = not (drive_authenticated and token_valid)
+        
+        return jsonify({
+            "success": True, 
+            "redirect": "/",
+            "needs_drive_auth": needs_drive_auth
+        })
     else:
         # Log failed login attempt
         log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
@@ -14670,9 +14685,13 @@ def get_google_auth_url():
         session['google_oauth_user_id'] = current_user.id
         
         # Google OAuth scopes for Drive
+        # drive.readonly: Read files and folders
+        # drive.file: Create and manage files/folders that the app creates
+        # drive: Full access to create, link, and see all Google Drive folders
         scopes = [
             'https://www.googleapis.com/auth/drive.readonly',
-            'https://www.googleapis.com/auth/drive.file'
+            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive'
         ]
         scope_string = ' '.join(scopes)
         
@@ -14810,26 +14829,30 @@ def google_oauth_callback():
             <div class="container">
                 <div class="checkmark">✓</div>
                 <h1>Google Drive Connected!</h1>
-                <p>You can close this window or return to the app.</p>
+                <p>Closing window and refreshing...</p>
             </div>
             <script>
-                // Immediately try to notify parent/opener
-                try {
-                    if (window.opener) {
-                        // Desktop popup scenario
-                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                        setTimeout(() => window.close(), 500);
-                    } else if (window.parent && window.parent !== window) {
-                        // Iframe scenario
-                        window.parent.postMessage({ type: 'googleAuthSuccess' }, '*');
+                (function() {
+                    // Immediately try to notify parent/opener
+                    try {
+                        if (window.opener && !window.opener.closed) {
+                            // Desktop popup scenario - notify parent and close
+                            window.opener.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
+                            // Close popup after a brief delay
+                            setTimeout(() => {
+                                window.close();
+                            }, 300);
+                            return;
+                        } else if (window.parent && window.parent !== window) {
+                            // Iframe scenario
+                            window.parent.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
+                            return;
+                        }
+                    } catch (e) {
+                        console.log('Could not post message:', e);
                     }
-                } catch (e) {
-                    console.log('Could not post message:', e);
-                }
-                
-                // For mobile redirects, always redirect back to app immediately
-                // This ensures we get back to the app even if postMessage fails
-                if (!window.opener) {
+                    
+                    // For mobile redirects or if popup detection fails, redirect back to app
                     // Store success in sessionStorage for the app to detect
                     try {
                         sessionStorage.setItem('google_oauth_success', 'true');
@@ -14837,9 +14860,9 @@ def google_oauth_callback():
                         console.log('Could not set sessionStorage:', e);
                     }
                     
-                    // Redirect immediately with a flag to force auth refresh
-                    window.location.href = '/?oauth_success=true';
-                }
+                    // Redirect to login page which will detect the success and refresh
+                    window.location.href = '/login?oauth_success=true';
+                })();
             </script>
         </body>
         </html>

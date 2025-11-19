@@ -13,6 +13,43 @@ const Login = ({ onLogin }) => {
   const [driveError, setDriveError] = useState('');
   const navigate = useNavigate();
 
+  // Check if returning from OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthSuccess = urlParams.get('oauth_success');
+    const oauthInProgress = sessionStorage.getItem('google_oauth_in_progress');
+    
+    if (oauthSuccess || oauthInProgress) {
+      // Clean up URL and sessionStorage
+      window.history.replaceState({}, '', '/login');
+      sessionStorage.removeItem('google_oauth_in_progress');
+      
+      // Check if user is authenticated, then redirect to dashboard
+      fetch('/api/session', { credentials: 'include' })
+        .then(res => res.json())
+        .then((sessionData) => {
+          if (sessionData && sessionData.authenticated) {
+            // User is authenticated, redirect to dashboard
+            if (onLogin) {
+              onLogin();
+            }
+            navigate('/dashboard');
+          } else {
+            // Not authenticated yet, refresh to check again
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          }
+        })
+        .catch(() => {
+          // On error, refresh to check auth status
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+        });
+    }
+  }, [navigate, onLogin]);
+
   // Start Google Drive OAuth for admins who need it
   const startGoogleAuth = async () => {
     try {
@@ -73,15 +110,32 @@ const Login = ({ onLogin }) => {
       authWindow.focus();
 
       // Fallback: if window closes without us seeing a message,
-      // still move the user into the app.
+      // check auth status and redirect to dashboard
       const checkWindow = setInterval(() => {
         if (authWindow.closed) {
           clearInterval(checkWindow);
           setIsDriveConnecting(false);
-          if (onLogin) {
-            onLogin();
-          }
-          navigate('/dashboard');
+          // Wait a moment for session to update, then check auth and redirect
+          setTimeout(() => {
+            fetch('/api/session', { credentials: 'include' })
+              .then(res => res.json())
+              .then((sessionData) => {
+                if (sessionData && sessionData.authenticated) {
+                  // User is authenticated, redirect to dashboard
+                  if (onLogin) {
+                    onLogin();
+                  }
+                  navigate('/dashboard');
+                } else {
+                  // Not authenticated yet, refresh to check again
+                  window.location.reload();
+                }
+              })
+              .catch(() => {
+                // On error, refresh to check auth status
+                window.location.reload();
+              });
+          }, 500);
         }
       }, 700);
 
@@ -91,26 +145,43 @@ const Login = ({ onLogin }) => {
       }, 5 * 60 * 1000);
     } catch (err) {
       console.error('Google auth error during login:', err);
-      setDriveError('Unable to complete Google authentication. You can continue without Drive.');
+      setDriveError('Unable to complete Google authentication. Please try again.');
       setIsDriveConnecting(false);
-      if (onLogin) {
-        onLogin();
-      }
-      navigate('/dashboard');
+      // Don't navigate on error - let user try again or contact admin
     }
   };
 
-  // If the popup posts a success message, send the user straight in
+  // If the popup posts a success message, redirect to dashboard
   useEffect(() => {
     const handleMessage = (event) => {
+      // Accept messages from same origin
       if (event.origin !== window.location.origin) return;
       if (event.data && event.data.type === 'googleAuthSuccess') {
         setIsDriveConnecting(false);
         setDriveError('');
-        if (onLogin) {
-          onLogin();
-        }
-        navigate('/dashboard');
+        setIsDriveAuthRequired(false);
+        
+        // Wait a moment for session to update, then check auth and redirect
+        setTimeout(() => {
+          fetch('/api/session', { credentials: 'include' })
+            .then(res => res.json())
+            .then((sessionData) => {
+              if (sessionData && sessionData.authenticated) {
+                // User is authenticated, redirect to dashboard
+                if (onLogin) {
+                  onLogin();
+                }
+                navigate('/dashboard');
+              } else {
+                // Not authenticated yet, refresh to check again
+                window.location.reload();
+              }
+            })
+            .catch(() => {
+              // On error, refresh to check auth status
+              window.location.reload();
+            });
+        }, 500);
       }
     };
 
@@ -158,11 +229,12 @@ const Login = ({ onLogin }) => {
         const needsDriveAuth = !!data.needs_drive_auth;
 
         if (needsDriveAuth) {
-          // For admins needing Drive, start Google auth before redirecting
+          // For admins needing Drive, show prompt and start Google auth
           setIsDriveAuthRequired(true);
-          await startGoogleAuth();
+          // Don't navigate yet - wait for Google auth to complete
+          // The startGoogleAuth function will handle navigation after success
         } else {
-          // Normal login flow
+          // Normal login flow - no Drive auth needed
           if (onLogin) {
             onLogin();
           }
@@ -269,14 +341,36 @@ const Login = ({ onLogin }) => {
               </div>
             )}
 
-            {/* Google Drive Auth Status */}
-            {isDriveAuthRequired && (
+            {/* Google Drive Auth Prompt */}
+            {isDriveAuthRequired && !isDriveConnecting && (
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-blue-200 text-sm font-medium mb-1">
+                    Connect Google Drive
+                  </p>
+                  <p className="text-blue-300/80 text-xs">
+                    Your admin account needs to connect with Google Drive to access resources. Click below to authorize.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={startGoogleAuth}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
+                >
+                  <span className="text-lg">🔗</span>
+                  Connect with Google
+                </button>
+              </div>
+            )}
+
+            {/* Google Drive Connecting Status */}
+            {isDriveConnecting && (
               <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 space-y-1">
                 <p className="text-blue-200 text-sm font-medium">
                   Connecting Google Drive for your admin account…
                 </p>
                 <p className="text-blue-300/80 text-xs">
-                  A Google popup should appear. Once you approve access, we&apos;ll take you straight to your dashboard.
+                  A Google popup should appear. Once you approve access, the page will refresh automatically.
                 </p>
               </div>
             )}
