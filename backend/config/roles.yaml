@@ -94,7 +94,7 @@ roles:
       
       # New resources - campus-scoped
       devotions_admin: ["view", "edit", "publish"]
-      groups: ["view", "edit"]
+      groups: ["*"]  # Full access to connect groups
       beacons: []  # No access
       
       # Existing resources
@@ -172,6 +172,28 @@ roles:
       heartbeat: ["view_own"]
       passport: ["view_own", "edit_own"]
 
+  connect_group_leader:
+    name: "Connect Group Leader"
+    description: "Connect group leader with access to their group and attendance marking"
+    permissions:
+      # No system access
+      users: []
+      campuses: ["view"]
+      
+      # New resources - group leader access
+      devotions_admin: []
+      groups: ["view_own_groups", "edit_own_groups"]  # Can view and edit their own groups
+      beacons: []
+      
+      # Existing resources
+      serving: []
+      communications: []
+      prayer_requests: []
+      events: ["view"]
+      finance: []
+      heartbeat: ["view_own", "edit_own"]  # Can mark attendance which feeds to heartbeat
+      passport: []
+
 # Resource definitions
 resources:
   devotions_admin:
@@ -182,7 +204,7 @@ resources:
   groups:
     name: "Connect Groups"
     description: "Manage connect groups and memberships"
-    actions: ["view", "edit", "create", "delete", "view_self_groups"]
+    actions: ["view", "edit", "create", "delete", "view_self_groups", "view_own_groups", "edit_own_groups"]
     
   beacons:
     name: "Beacon Management"

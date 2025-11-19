@@ -24,7 +24,8 @@ const UserManagement = () => {
     { value: 'senior_leadership', label: 'Senior Leadership' },
     { value: 'campus_pastor', label: 'Campus Pastor' },
     { value: 'pastor', label: 'Pastor' },
-    { value: 'finance', label: 'Finance' }
+    { value: 'finance', label: 'Finance' },
+    { value: 'connect_group_leader', label: 'Connect Group Leader' }
   ];
 
   useEffect(() => {

@@ -1178,8 +1178,19 @@ class User(UserMixin):
         from werkzeug.security import check_password_hash
         return check_password_hash(self.password_hash, password)
         
-    def has_permission(self, permission_type, campus=None):
-        """Check if user has specific permission based on role"""
+    def has_permission(self, permission_type, action=None, campus=None):
+        """Check if user has specific permission based on role
+        
+        Supports both old-style (permission_type only) and RBAC-style (resource, action) calls:
+        - Old: has_permission('log_stats')
+        - RBAC: has_permission('groups', 'view')
+        """
+        # If action is provided, this is an RBAC-style call (resource, action)
+        if action is not None:
+            from utils.rbac import rbac_manager
+            return rbac_manager.has_permission(self.role, permission_type, action)
+        
+        # Legacy permission system for backward compatibility
         # Define permissions for each role
         role_permissions = {
             'admin': {
@@ -1190,7 +1201,9 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True
+                'view_all_campuses': True,
+                'system_settings': True,
+                'admin_access': True
             },
             'senior_leadership': {
                 'log_stats': True,
@@ -1200,7 +1213,9 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True
+                'view_all_campuses': True,
+                'system_settings': True,
+                'admin_access': True
             },
             'senior_leader': {
                 'log_stats': True,
@@ -1210,7 +1225,9 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True
+                'view_all_campuses': True,
+                'system_settings': True,
+                'admin_access': True
             },
             'senior_pastor': {
                 'log_stats': True,
@@ -1220,7 +1237,9 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True
+                'view_all_campuses': True,
+                'system_settings': True,
+                'admin_access': True
             },
             'lead_pastor': {
                 'log_stats': True,
@@ -1230,7 +1249,9 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True
+                'view_all_campuses': True,
+                'system_settings': True,
+                'admin_access': True
             },
             'finance': {
                 'log_stats': False,
@@ -1240,7 +1261,9 @@ class User(UserMixin):
                 'finance_access': True,  # Can ONLY submit finance data
                 'manage_users': False,
                 'manage_campuses': False,
-                'view_all_campuses': False
+                'view_all_campuses': False,
+                'system_settings': False,
+                'admin_access': False
             },
             'campus_pastor': {
                 'log_stats': True,  # Can log stats for their campus
@@ -1250,7 +1273,9 @@ class User(UserMixin):
                 'finance_access': False,
                 'manage_users': False,
                 'manage_campuses': False,
-                'view_all_campuses': False
+                'view_all_campuses': False,
+                'system_settings': False,
+                'admin_access': False
             },
             'pastor': {
                 'log_stats': True,  # Can log stats
@@ -1260,7 +1285,21 @@ class User(UserMixin):
                 'finance_access': False,
                 'manage_users': False,
                 'manage_campuses': False,
-                'view_all_campuses': False
+                'view_all_campuses': False,
+                'system_settings': False,
+                'admin_access': False
+            },
+            'connect_group_leader': {
+                'log_stats': False,
+                'recall_stats': False,
+                'dashboard_access': False,
+                'query_access': False,
+                'finance_access': False,
+                'manage_users': False,
+                'manage_campuses': False,
+                'view_all_campuses': False,
+                'system_settings': False,
+                'admin_access': False
             }
         }
         
@@ -4001,6 +4040,7 @@ def generate_monthly_report(campus: str, year: int, month: int) -> dict:
                 'youth_attendance': safe_int_stat(entry.get('Youth Attendance')),
                 'youth_salvations': safe_int_stat(entry.get('Youth Salvations')),
                 'youth_new_people': safe_int_stat(entry.get('Youth New People')),
+                'youth_leaders': safe_int_stat(entry.get('Youth Leaders')),
                 'kids_attendance': safe_int_stat(entry.get('Kids Attendance') or entry.get('Kids Total')),
                 'kids_leaders': safe_int_stat(entry.get('Kids Leaders')),
                 'new_kids': safe_int_stat(entry.get('New Kids')),
@@ -4898,6 +4938,7 @@ def calculate_stats_from_filtered_rows(filtered_rows: List[dict]) -> dict:
                 'youth_attendance': get_stat_value(['Youth Attendance', 'youth']),
                 'youth_salvations': get_stat_value(['Youth Salvations', 'youth_salvations']),
                 'youth_new_people': get_stat_value(['Youth New People', 'youth_new']),
+                'youth_leaders': get_stat_value(['Youth Leaders', 'youth_leaders']),
                 'kids_attendance': get_stat_value(['Kids Attendance', 'Kids Total', 'kids']),
                 'kids_leaders': get_stat_value(['Kids Leaders', 'kids_leaders']),
                 'new_kids': get_stat_value(['New Kids', 'new_kids']),
@@ -5721,6 +5762,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             'youth_attendance': 0,
             'youth_salvations': 0,
             'youth_new_people': 0,
+            'youth_leaders': 0,
             
             # Kids breakdown
             'kids_attendance': 0,
@@ -5906,6 +5948,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     period_stats['youth_attendance'] += get_stat_value(row, ['Youth Attendance', 'youth_attendance'])
                     period_stats['youth_salvations'] += get_stat_value(row, ['Youth Salvations', 'youth_salvations'])
                     period_stats['youth_new_people'] += get_stat_value(row, ['Youth New People', 'youth_new_people'])
+                    period_stats['youth_leaders'] += get_stat_value(row, ['Youth Leaders', 'youth_leaders'])
                     
                     # Kids breakdown
                     period_stats['kids_attendance'] += calculate_kids_attendance(row)
@@ -6142,6 +6185,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             period_stats['avg_youth_attendance'] = period_stats['youth_attendance'] / period_stats['entry_count']
             period_stats['avg_youth_salvations'] = period_stats['youth_salvations'] / period_stats['entry_count']
             period_stats['avg_youth_new_people'] = period_stats['youth_new_people'] / period_stats['entry_count']
+            period_stats['avg_youth_leaders'] = period_stats['youth_leaders'] / period_stats['entry_count']
             
             # Kids breakdown - average per SERVICE for attendance
             period_stats['avg_kids_attendance'] = period_stats['kids_attendance'] / period_stats['entry_count']
@@ -6808,6 +6852,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         total_youth_attendance = sum(safe_int(row.get('Youth Attendance', 0)) for row in filtered_rows)
         total_youth_salvations = sum(safe_int(row.get('Youth Salvations', 0)) for row in filtered_rows)
         total_youth_new_people = sum(safe_int(row.get('Youth New People', 0)) for row in filtered_rows)
+        total_youth_leaders = sum(safe_int(row.get('Youth Leaders', 0)) for row in filtered_rows)
         total_kids_attendance = sum(safe_int(row.get('Kids Attendance', 0)) for row in filtered_rows)
         total_kids_leaders = sum(safe_int(row.get('Kids Leaders', 0)) for row in filtered_rows)
         total_new_kids = sum(safe_int(row.get('New Kids', 0)) for row in filtered_rows)
@@ -6855,6 +6900,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 'youth_attendance': total_youth_attendance,
                 'youth_salvations': total_youth_salvations,
                 'youth_new_people': total_youth_new_people,
+                'youth_leaders': total_youth_leaders,
                 'kids_attendance': total_kids_attendance,
                 'kids_leaders': total_kids_leaders,
                 'new_kids': total_new_kids,
@@ -8912,8 +8958,8 @@ def process_voice():
             
             # Create row in exact column order matching full structure:
             # A=Timestamp, B=Date, C=Campus, D=Total Attendance, E=First Time Visitors, F=Visitors, G=Cards Back,
-            # H=First Time Christians, I=Rededications, J=Youth Attendance, K=Youth Salvations, L=Youth New People,
-            # M=Kids Attendance, N=Kids Leaders, O=New Kids, P=New Kids Salvations, Q=Connect Groups, R=Dream Team, S=Tithe, T=Baptisms, U=Child Dedications
+            # H=First Time Christians, I=Rededications, J=Youth Attendance, K=Youth Salvations, L=Youth New People, M=Youth Leaders,
+            # N=Kids Attendance, O=Kids Leaders, P=New Kids, Q=New Kids Salvations, R=Connect Groups, S=Dream Team, T=Tithe, U=Baptisms, V=Child Dedications
             row = [
                 timestamp,  # A - Timestamp
                 date,  # B - Date (Sunday date)
@@ -8927,15 +8973,16 @@ def process_voice():
                 result.get("Youth Attendance", ""),  # J - Youth Attendance
                 result.get("Youth Salvations", ""),  # K - Youth Salvations
                 result.get("Youth New People", ""),  # L - Youth New People
-                result.get("Kids Attendance", ""),  # M - Kids Attendance
-                result.get("Kids Leaders", ""),  # N - Kids Leaders
-                result.get("New Kids", ""),  # O - New Kids
-                result.get("New Kids Salvations", ""),  # P - New Kids Salvations
-                result.get("Connect Groups", ""),  # Q - Connect Groups
-                result.get("Dream Team", ""),  # R - Dream Team
-                result.get("Tithe", ""),  # S - Tithe
-                result.get("Baptisms", ""),  # T - Baptisms
-                result.get("Child Dedications", "")  # U - Child Dedications
+                result.get("Youth Leaders", ""),  # M - Youth Leaders
+                result.get("Kids Attendance", ""),  # N - Kids Attendance
+                result.get("Kids Leaders", ""),  # O - Kids Leaders
+                result.get("New Kids", ""),  # P - New Kids
+                result.get("New Kids Salvations", ""),  # Q - New Kids Salvations
+                result.get("Connect Groups", ""),  # R - Connect Groups
+                result.get("Dream Team", ""),  # S - Dream Team
+                result.get("Tithe", ""),  # T - Tithe
+                result.get("Baptisms", ""),  # U - Baptisms
+                result.get("Child Dedications", "")  # V - Child Dedications
             ]
             sheet.append_row(row, value_input_option='USER_ENTERED', table_range='A1')
         except Exception as e:
@@ -10338,6 +10385,7 @@ def quick_input():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
+                'Youth Leaders': safe_value('Youth Leaders'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -10588,6 +10636,7 @@ def quick_input_update():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
+                'Youth Leaders': safe_value('Youth Leaders'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -10755,7 +10804,7 @@ def get_sheets_headers():
                 'expected_headers': [
                     'Timestamp', 'Date', 'Campus', 'Total Attendance', 'First Time Visitors', 
                     'Visitors', 'Cards Back', 'First Time Christians', 'Rededications',
-                    'Youth Attendance', 'Youth Salvations', 'Youth New People', 'Kids Attendance',
+                    'Youth Attendance', 'Youth Salvations', 'Youth New People', 'Youth Leaders', 'Kids Attendance',
                     'Kids Leaders', 'New Kids', 'New Kids Salvations', 'Connect Groups', 
                     'Dream Team', 'Tithe', 'Baptisms', 'Child Dedications'
                 ],
@@ -11931,7 +11980,7 @@ def generate_cross_campus_report(review_type: str, date_range: str) -> dict:
         average = analysis_data.get("averages", {}).get(avg_key, 0)
         
         # Include all stats that have data or are important to show (including tithe)
-        if total > 0 or label in ["Total Attendance", "First Time Visitors", "New People", "New Christians", "Rededications", "Youth Attendance", "Youth Salvations", "Youth New People", "Kids Attendance", "Kids Leaders", "New Kids", "New Kids Salvations", "Connect Groups", "Dream Team", "Tithe", "Baptisms", "Child Dedications", "Cards Back"]:
+        if total > 0 or label in ["Total Attendance", "First Time Visitors", "New People", "New Christians", "Rededications", "Youth Attendance", "Youth Salvations", "Youth New People", "Youth Leaders", "Kids Attendance", "Kids Leaders", "New Kids", "New Kids Salvations", "Connect Groups", "Dream Team", "Tithe", "Baptisms", "Child Dedications", "Cards Back"]:
             comprehensive_stats[avg_key] = {
                 "total": total,
                 "average": round(average, 1),
@@ -13511,7 +13560,11 @@ def log_group_attendance():
 def get_connect_groups():
     """Get list of connect groups (campus-scoped)"""
     try:
-        if not current_user.has_permission('groups', 'view'):
+        # Check if user has view permission or view_own_groups permission
+        has_view = current_user.has_permission('groups', 'view')
+        has_view_own = current_user.has_permission('groups', 'view_own_groups')
+        
+        if not has_view and not has_view_own:
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         campus_filter = request.args.get('campus', None)
@@ -13520,9 +13573,22 @@ def get_connect_groups():
         # Build query
         query = ConnectGroup.query
         
-        # Apply campus scoping
-        from utils.campus_scope import apply_campus_filter
-        query = apply_campus_filter(query, 'groups')
+        # If user only has view_own_groups, filter to groups they lead
+        if has_view_own and not has_view:
+            # Get person ID from current user's email
+            user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
+            if user_person:
+                query = query.filter(
+                    (ConnectGroup.leader_id == user_person.id) | 
+                    (ConnectGroup.co_leader_id == user_person.id)
+                )
+            else:
+                # No person record found, return empty
+                return jsonify({'groups': [], 'total': 0})
+        else:
+            # Apply campus scoping for users with full view access
+            from utils.campus_scope import apply_campus_filter
+            query = apply_campus_filter(query, 'groups')
         
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(ConnectGroup.campus == campus_filter)
@@ -13600,12 +13666,22 @@ def create_connect_group():
 def get_connect_group(group_id):
     """Get connect group details with members"""
     try:
-        if not current_user.has_permission('groups', 'view'):
+        # Check if user has view permission or view_own_groups permission
+        has_view = current_user.has_permission('groups', 'view')
+        has_view_own = current_user.has_permission('groups', 'view_own_groups')
+        
+        if not has_view and not has_view_own:
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
+        
+        # If user only has view_own_groups, verify they're the leader
+        if has_view_own and not has_view:
+            user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
+            if not user_person or (group.leader_id != user_person.id and group.co_leader_id != user_person.id):
+                return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Get members
         members = group.get_members()
@@ -13629,12 +13705,22 @@ def get_connect_group(group_id):
 def update_connect_group(group_id):
     """Update connect group"""
     try:
-        if not current_user.has_permission('groups', 'edit'):
+        # Check if user has edit permission or edit_own_groups permission
+        has_edit = current_user.has_permission('groups', 'edit')
+        has_edit_own = current_user.has_permission('groups', 'edit_own_groups')
+        
+        if not has_edit and not has_edit_own:
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
+        
+        # If user only has edit_own_groups, verify they're the leader
+        if has_edit_own and not has_edit:
+            user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
+            if not user_person or (group.leader_id != user_person.id and group.co_leader_id != user_person.id):
+                return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         

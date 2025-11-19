@@ -19,6 +19,7 @@ import BeaconManagement from './pages/BeaconManagement';
 import PathwayManager from './pages/PathwayManager';
 import Landing from './pages/Landing';
 import ConnectGroups from './pages/ConnectGroups';
+import ConnectGroupLeader from './pages/ConnectGroupLeader';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
 
@@ -382,6 +383,7 @@ function App() {
                   <Route path="/heartbeat" element={<Heartbeat />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/connect-groups" element={<ConnectGroups />} />
+                  <Route path="/connect-group-leader" element={<ConnectGroupLeader />} />
                   <Route path="/persons/:personId" element={<PersonHealthReport />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
