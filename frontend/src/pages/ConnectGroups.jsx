@@ -52,6 +52,7 @@ const ConnectGroups = () => {
   const [showHealthModal, setShowHealthModal] = useState(false);
   const [healthData, setHealthData] = useState(null);
   const [loadingHealth, setLoadingHealth] = useState(false);
+  const [selectedGroupForHealth, setSelectedGroupForHealth] = useState(null);
 
   useEffect(() => {
     loadCampuses();
@@ -60,15 +61,15 @@ const ConnectGroups = () => {
   }, [campusFilter]);
 
   useEffect(() => {
-    if (showHealthModal) {
-      loadHealthData();
+    if (showHealthModal && selectedGroupForHealth) {
+      loadHealthData(selectedGroupForHealth.id);
     }
-  }, [showHealthModal]);
+  }, [showHealthModal, selectedGroupForHealth]);
 
-  const loadHealthData = async () => {
+  const loadHealthData = async (groupId) => {
     try {
       setLoadingHealth(true);
-      const response = await fetch('/api/connect-groups/health', {
+      const response = await fetch(`/api/connect-groups/${groupId}/health`, {
         credentials: 'include'
       });
       if (response.ok) {
@@ -76,12 +77,19 @@ const ConnectGroups = () => {
         setHealthData(data);
       } else {
         console.error('Failed to load health data');
+        setHealthData(null);
       }
     } catch (err) {
       console.error('Error loading health data:', err);
+      setHealthData(null);
     } finally {
       setLoadingHealth(false);
     }
+  };
+
+  const handleOpenHealthModal = (group) => {
+    setSelectedGroupForHealth(group);
+    setShowHealthModal(true);
   };
 
   // Close dropdowns when clicking outside
@@ -309,15 +317,6 @@ const ConnectGroups = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowHealthModal(true)}
-                className="flex items-center px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Connect Health
-              </button>
-              <button
                 onClick={() => handleOpenModal()}
                 className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
@@ -420,11 +419,19 @@ const ConnectGroups = () => {
 
               <div className="mt-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
                 <button
-                  onClick={() => handleOpenModal(group)}
-                  className="flex-1 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg transition-colors text-sm"
+                  onClick={() => handleOpenHealthModal(group)}
+                  className="flex-1 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg transition-colors text-sm"
                 >
-                  <PencilIcon className="w-4 h-4 inline mr-1" />
-                  Edit
+                  <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Health
+                </button>
+                <button
+                  onClick={() => handleOpenModal(group)}
+                  className="px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg transition-colors text-sm"
+                >
+                  <PencilIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleArchiveGroup(group)}
@@ -1100,10 +1107,14 @@ const ConnectGroups = () => {
                     <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
-                    Connect Health Dashboard
+                    {selectedGroupForHealth ? `${selectedGroupForHealth.name} - Connect Health` : 'Connect Health Dashboard'}
                   </h2>
                   <button
-                    onClick={() => setShowHealthModal(false)}
+                    onClick={() => {
+                      setShowHealthModal(false);
+                      setSelectedGroupForHealth(null);
+                      setHealthData(null);
+                    }}
                     className="text-slate-400 hover:text-white"
                   >
                     <XMarkIcon className="w-6 h-6" />
@@ -1119,12 +1130,77 @@ const ConnectGroups = () => {
                   </div>
                 ) : healthData ? (
                   <>
+                    {/* Connect Heartbeat Section */}
+                    {healthData.heartbeat && (
+                      <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/40 rounded-xl p-6">
+                        <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                          <span>❤️</span>
+                          Connect Heartbeat
+                          {healthData.heartbeat.member_count > 0 && (
+                            <span className="text-sm text-purple-300 font-normal">
+                              (Average of {healthData.heartbeat.member_count} {healthData.heartbeat.member_count === 1 ? 'member' : 'members'})
+                            </span>
+                          )}
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-purple-500/30">
+                            <div className="text-xs text-purple-300 mb-1">Total Score</div>
+                            <div className="text-2xl font-bold text-white">
+                              {healthData.heartbeat.average_total_score.toFixed(1)}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">out of 100</div>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-blue-500/30">
+                            <div className="text-xs text-blue-300 mb-1">Engagement</div>
+                            <div className="text-2xl font-bold text-white">
+                              {healthData.heartbeat.average_engagement_score.toFixed(1)}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">out of 25</div>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-green-500/30">
+                            <div className="text-xs text-green-300 mb-1">Gather</div>
+                            <div className="text-2xl font-bold text-white">
+                              {healthData.heartbeat.average_gather_score.toFixed(1)}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">out of 25</div>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-yellow-500/30">
+                            <div className="text-xs text-yellow-300 mb-1">Spiritual</div>
+                            <div className="text-2xl font-bold text-white">
+                              {healthData.heartbeat.average_spiritual_score.toFixed(1)}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">out of 25</div>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-pink-500/30">
+                            <div className="text-xs text-pink-300 mb-1">Care</div>
+                            <div className="text-2xl font-bold text-white">
+                              {healthData.heartbeat.average_care_score.toFixed(1)}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">out of 25</div>
+                          </div>
+                        </div>
+                        {healthData.heartbeat.status_breakdown && Object.keys(healthData.heartbeat.status_breakdown).length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-purple-500/30">
+                            <div className="text-sm text-purple-300 mb-2">Status Breakdown:</div>
+                            <div className="flex flex-wrap gap-2">
+                              {Object.entries(healthData.heartbeat.status_breakdown).map(([status, count]) => (
+                                <div key={status} className="px-3 py-1 bg-slate-800/50 rounded-lg border border-purple-500/30">
+                                  <span className="text-white font-medium capitalize">{status}:</span>
+                                  <span className="text-purple-300 ml-1">{count}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/30 border border-purple-500/40 rounded-xl p-4">
-                        <div className="text-sm text-purple-300 mb-1">Overall Attendance Rate</div>
+                        <div className="text-sm text-purple-300 mb-1">Attendance Rate</div>
                         <div className="text-3xl font-bold text-white">
-                          {healthData.summary.overall_attendance_rate.toFixed(1)}%
+                          {healthData.summary.attendance_rate.toFixed(1)}%
                         </div>
                       </div>
                       <div className="bg-gradient-to-br from-green-900/30 to-green-800/30 border border-green-500/40 rounded-xl p-4">
@@ -1201,59 +1277,6 @@ const ConnectGroups = () => {
                             {new Date(healthData.date_range.start).toLocaleDateString()} - {new Date(healthData.date_range.end).toLocaleDateString()}
                           </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Group Stats Table */}
-                    <div className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-6">
-                      <h3 className="text-xl font-semibold text-white mb-4">Group Performance</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b border-slate-600">
-                              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Group Name</th>
-                              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Campus</th>
-                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Present</th>
-                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Absent</th>
-                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Total</th>
-                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Rate</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {healthData.group_stats.map((group, idx) => (
-                              <tr
-                                key={idx}
-                                className={`border-b border-slate-700/50 hover:bg-slate-700/30 ${
-                                  group.attendance_rate < 50 ? 'bg-red-500/10' :
-                                  group.attendance_rate < 70 ? 'bg-amber-500/10' :
-                                  'bg-green-500/10'
-                                }`}
-                              >
-                                <td className="py-3 px-4 text-white font-medium">{group.group_name}</td>
-                                <td className="py-3 px-4 text-slate-300">{group.campus || 'N/A'}</td>
-                                <td className="py-3 px-4 text-right text-green-400">{group.present}</td>
-                                <td className="py-3 px-4 text-right text-red-400">{group.absent}</td>
-                                <td className="py-3 px-4 text-right text-slate-300">{group.total}</td>
-                                <td className="py-3 px-4 text-right">
-                                  <span className={`font-semibold ${
-                                    group.attendance_rate >= 70 ? 'text-green-400' :
-                                    group.attendance_rate >= 50 ? 'text-amber-400' :
-                                    'text-red-400'
-                                  }`}>
-                                    {group.attendance_rate.toFixed(1)}%
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                            {healthData.group_stats.length === 0 && (
-                              <tr>
-                                <td colSpan="6" className="py-8 text-center text-slate-400">
-                                  No attendance data available
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
                       </div>
                     </div>
                   </>

@@ -12932,8 +12932,21 @@ def get_person_by_email(email):
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
-        # Get person data
-        person_data = person.to_dict()
+        # Get person data (handle errors in to_dict)
+        try:
+            person_data = person.to_dict()
+        except Exception as e:
+            logger.error(f"Error calling to_dict() for person {person.id}: {e}", exc_info=True)
+            # Return basic person data if to_dict fails
+            person_data = {
+                'id': person.id,
+                'full_name': person.full_name,
+                'preferred_name': person.preferred_name,
+                'email': person.email,
+                'phone': person.phone,
+                'campus': person.campus,
+                'department': getattr(person, 'department', None),
+            }
         
         # Add engagement profile if it exists (handle gracefully if table structure doesn't match)
         try:
@@ -12953,11 +12966,86 @@ def get_person_by_email(email):
             logger.warning(f"Engagement profile not available for {email}: {e}")
             person_data['engagement'] = None
         
+        # Add pathway/journey data if available
+        # Check if person has pathway progress (from engagement or milestones)
+        try:
+            # Pathway data is typically derived from milestones and engagement
+            pathway_data = {
+                'milestones': {
+                    'baptised_on': person_data.get('baptised_on'),
+                    'dna_completed': person_data.get('dna_completed'),
+                    'filled_holy_spirit': person_data.get('filled_holy_spirit'),
+                    'rise_attended': person_data.get('rise_attended'),
+                    'first_served_on': person_data.get('first_served_on'),
+                },
+                'connect_group': person_data.get('connect_group'),
+            }
+            person_data['pathway'] = pathway_data
+        except Exception as e:
+            logger.warning(f"Error adding pathway data: {e}")
+            person_data['pathway'] = None
+        
         return jsonify(person_data)
         
     except Exception as e:
         logger.error(f"Error fetching person by email {email}: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch person profile'}), 500
+
+
+@app.route('/api/pathways/my-pathway', methods=['GET'])
+def get_my_pathway():
+    """Get pathway/journey data for a person by email - public endpoint for mobile app"""
+    try:
+        email = request.args.get('email', '').strip()
+        if not email:
+            return jsonify({'error': 'Email parameter required'}), 400
+        
+        # Find person by email (case-insensitive)
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        
+        if not person:
+            return jsonify({'pathway': None, 'error': 'Person not found'}), 404
+        
+        # Build pathway data from person milestones
+        pathway_data = {
+            'id': f"pathway_{person.id}",
+            'pathway_name': 'Spiritual Journey',
+            'person_id': person.id,
+            'person_name': person.full_name,
+            'milestones': {
+                'baptised_on': person.baptised_on.isoformat() if person.baptised_on else None,
+                'dna_completed': person.dna_completed.isoformat() if person.dna_completed else None,
+                'filled_holy_spirit': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None,
+                'rise_attended': person.rise_attended.isoformat() if person.rise_attended else None,
+                'first_served_on': person.first_served_on.isoformat() if person.first_served_on else None,
+            },
+            'connect_group': person.connect_group,
+            'steps': [],
+            'completed_steps': 0,
+            'total_steps': 5,
+            'progress_percentage': 0,
+        }
+        
+        # Calculate progress based on milestones
+        completed = sum([
+            1 if person.baptised_on else 0,
+            1 if person.dna_completed else 0,
+            1 if person.filled_holy_spirit else 0,
+            1 if person.rise_attended else 0,
+            1 if person.connect_group else 0,
+        ])
+        
+        pathway_data['completed_steps'] = completed
+        pathway_data['progress_percentage'] = int((completed / 5) * 100)
+        
+        return jsonify({'pathway': pathway_data})
+        
+    except Exception as e:
+        logger.error(f"Error fetching pathway for email {email}: {e}", exc_info=True)
+        return jsonify({'pathway': None, 'error': 'Failed to fetch pathway data'}), 500
 
 
 @app.route('/api/persons/<person_id>', methods=['PUT'])
@@ -13675,22 +13763,34 @@ def log_group_attendance():
 # ============================================================================
 
 @app.route('/api/connect-groups', methods=['GET'])
-@login_required
 def get_connect_groups():
-    """Get list of connect groups (campus-scoped)"""
+    """Get list of connect groups (campus-scoped) - public endpoint for mobile app"""
     try:
-        if not current_user.has_permission('groups', 'view'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-        
         campus_filter = request.args.get('campus', None)
         is_active = request.args.get('is_active', 'true').lower() == 'true'
         
         # Build query
         query = ConnectGroup.query
         
-        # Apply campus scoping
-        from utils.campus_scope import apply_campus_filter
-        query = apply_campus_filter(query, 'groups')
+        # Apply campus scoping if user is logged in (optional for mobile app)
+        try:
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+                try:
+                    if not current_user.has_permission('groups', 'view'):
+                        return jsonify({'error': 'Insufficient permissions'}), 403
+                except AttributeError:
+                    # User object doesn't have has_permission, skip permission check
+                    pass
+                
+                # Apply campus scoping
+                try:
+                    from utils.campus_scope import apply_campus_filter
+                    query = apply_campus_filter(query, 'groups')
+                except Exception as filter_error:
+                    logger.warning(f"Campus filter failed: {filter_error}")
+        except Exception as scope_error:
+            # If scoping fails, just continue without it (for mobile app access)
+            logger.warning(f"Campus scoping failed: {scope_error}")
         
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(ConnectGroup.campus == campus_filter)
@@ -13700,14 +13800,29 @@ def get_connect_groups():
         
         groups = query.order_by(ConnectGroup.name).all()
         
+        # Convert to dicts safely
+        groups_data = []
+        for g in groups:
+            try:
+                groups_data.append(g.to_dict())
+            except Exception as e:
+                logger.warning(f"Error serializing group {g.id}: {e}")
+                # Include basic info even if to_dict fails
+                groups_data.append({
+                    'id': getattr(g, 'id', ''),
+                    'name': getattr(g, 'name', ''),
+                    'campus': getattr(g, 'campus', ''),
+                })
+        
         return jsonify({
-            'groups': [g.to_dict() for g in groups],
-            'total': len(groups)
+            'groups': groups_data,
+            'total': len(groups_data)
         })
         
     except Exception as e:
-        logger.error(f"Error fetching connect groups: {e}")
-        return jsonify({'error': 'Failed to fetch connect groups'}), 500
+        logger.error(f"Error fetching connect groups: {e}", exc_info=True)
+        # Return empty array instead of 500 error for mobile app
+        return jsonify({'groups': [], 'total': 0}), 200
 
 
 @app.route('/api/connect-groups', methods=['POST'])
@@ -13770,6 +13885,109 @@ def create_connect_group():
         db.session.rollback()
         logger.error(f"Error creating connect group: {e}")
         return jsonify({'error': 'Failed to create connect group'}), 500
+
+
+@app.route('/api/connect-groups/my-groups', methods=['GET'])
+def get_my_groups():
+    """Get connect groups for a person by email - public endpoint for mobile app"""
+    try:
+        email = request.args.get('email', '').strip()
+        if not email:
+            return jsonify({'error': 'Email parameter required'}), 400
+        
+        # Find person by email (case-insensitive)
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        
+        if not person:
+            return jsonify({'groups': [], 'total': 0}), 200
+        
+        groups_data = []
+        
+        # Check if person has a connect_group assigned (from Pulse)
+        # Note: Pulse stores the group NAME, not ID, so we match by name
+        if person.connect_group:
+            try:
+                # First try by ID (in case it is an ID)
+                group = ConnectGroup.query.filter_by(
+                    id=person.connect_group,
+                    is_active=True
+                ).first()
+                
+                # If not found by ID, try by name (Pulse stores names)
+                if not group:
+                    group = ConnectGroup.query.filter(
+                        db.func.lower(ConnectGroup.name) == person.connect_group.lower(),
+                        ConnectGroup.is_active == True
+                    ).first()
+                
+                if group:
+                    try:
+                        group_dict = group.to_dict()
+                        # Add member count
+                        try:
+                            group_dict['member_count'] = group.get_member_count()
+                        except:
+                            group_dict['member_count'] = 0
+                        groups_data.append(group_dict)
+                    except Exception as e:
+                        logger.warning(f"Error serializing group {group.id}: {e}")
+                        # Include basic info
+                        groups_data.append({
+                            'id': group.id,
+                            'name': group.name,
+                            'campus': group.campus,
+                        })
+            except Exception as e:
+                logger.warning(f"Error fetching assigned group {person.connect_group}: {e}")
+        
+        # Also check if person is a leader or co-leader
+        try:
+            # Check as leader
+            led_groups = ConnectGroup.query.filter_by(
+                leader_id=person.id,
+                is_active=True
+            ).all()
+            
+            for group in led_groups:
+                if group.id not in [g.get('id') for g in groups_data]:
+                    try:
+                        group_dict = group.to_dict()
+                        group_dict['member_count'] = group.get_member_count()
+                        group_dict['role'] = 'leader'
+                        groups_data.append(group_dict)
+                    except Exception as e:
+                        logger.warning(f"Error serializing leader group {group.id}: {e}")
+            
+            # Check as co-leader
+            co_led_groups = ConnectGroup.query.filter_by(
+                co_leader_id=person.id,
+                is_active=True
+            ).all()
+            
+            for group in co_led_groups:
+                if group.id not in [g.get('id') for g in groups_data]:
+                    try:
+                        group_dict = group.to_dict()
+                        group_dict['member_count'] = group.get_member_count()
+                        group_dict['role'] = 'co_leader'
+                        groups_data.append(group_dict)
+                    except Exception as e:
+                        logger.warning(f"Error serializing co-leader group {group.id}: {e}")
+        except Exception as e:
+            logger.warning(f"Error checking leadership groups: {e}")
+        
+        return jsonify({
+            'groups': groups_data,
+            'total': len(groups_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching my groups for email {email}: {e}", exc_info=True)
+        # Return empty array instead of 500 error for mobile app
+        return jsonify({'groups': [], 'total': 0}), 200
 
 
 @app.route('/api/connect-groups/<group_id>', methods=['GET'])
@@ -14139,6 +14357,163 @@ def get_connect_groups_health():
         db.session.rollback()
         logger.error(f"Error getting connect groups health: {e}", exc_info=True)
         return jsonify({'error': 'Failed to get connect groups health data'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/health', methods=['GET'])
+@login_required
+def get_connect_group_health(group_id):
+    """Get health data for a specific connect group (average heartbeat + attendance chart)"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        from models import ConnectAttendance, HeartbeatConnectGroup, HeartbeatSnapshot
+        from datetime import date, timedelta
+        from collections import defaultdict
+        
+        # Get the connect group
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Connect group not found'}), 404
+        
+        # Get all members (including leaders)
+        members = group.get_members()
+        leader_ids = []
+        if group.leader_id:
+            leader_ids.append(group.leader_id)
+        if group.co_leader_id:
+            leader_ids.append(group.co_leader_id)
+        
+        # Get all person IDs (members + leaders)
+        all_person_ids = [m.id for m in members] + leader_ids
+        all_person_ids = list(set(all_person_ids))  # Remove duplicates
+        
+        # Calculate average heartbeat for all members and leaders
+        heartbeat_scores = []
+        heartbeat_data = {
+            'average_total_score': 0,
+            'average_engagement_score': 0,
+            'average_gather_score': 0,
+            'average_spiritual_score': 0,
+            'average_care_score': 0,
+            'member_count': 0,
+            'status_breakdown': {}
+        }
+        
+        for person_id in all_person_ids:
+            snapshot = HeartbeatSnapshot.query.filter_by(
+                person_id=person_id
+            ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+            
+            if snapshot:
+                heartbeat_scores.append({
+                    'person_id': person_id,
+                    'total_score': snapshot.total_score,
+                    'engagement_score': snapshot.engagement_score,
+                    'gather_score': snapshot.gather_score,
+                    'spiritual_score': snapshot.spiritual_score,
+                    'care_score': snapshot.care_score,
+                    'status': snapshot.status
+                })
+                # Track status breakdown
+                status = snapshot.status or 'unknown'
+                heartbeat_data['status_breakdown'][status] = heartbeat_data['status_breakdown'].get(status, 0) + 1
+        
+        if heartbeat_scores:
+            heartbeat_data['average_total_score'] = sum(s['total_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+            heartbeat_data['average_engagement_score'] = sum(s['engagement_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+            heartbeat_data['average_gather_score'] = sum(s['gather_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+            heartbeat_data['average_spiritual_score'] = sum(s['spiritual_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+            heartbeat_data['average_care_score'] = sum(s['care_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+            heartbeat_data['member_count'] = len(heartbeat_scores)
+        
+        # Get the HeartbeatConnectGroup to match attendance records
+        heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+            name=group.name,
+            campus_id=group.campus
+        ).first()
+        
+        # If not found by name, try to find by leader
+        if not heartbeat_group and group.leader_id:
+            heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+                leader_id=group.leader_id
+            ).first()
+        
+        # Get date range (last 3 months)
+        end_date = date.today()
+        start_date = end_date - timedelta(days=90)
+        
+        # Get attendance records for this specific group
+        attendance_records = []
+        if heartbeat_group:
+            attendance_records = ConnectAttendance.query.filter(
+                ConnectAttendance.connect_group_id == heartbeat_group.id,
+                ConnectAttendance.date >= start_date,
+                ConnectAttendance.date <= end_date
+            ).all()
+        else:
+            # Fallback: try to match by person IDs if we can't find the heartbeat group
+            # This handles cases where the group exists but hasn't been synced to HeartbeatConnectGroup
+            attendance_records = ConnectAttendance.query.filter(
+                ConnectAttendance.person_id.in_(all_person_ids),
+                ConnectAttendance.date >= start_date,
+                ConnectAttendance.date <= end_date
+            ).all()
+        
+        # Group by date and status
+        daily_stats = defaultdict(lambda: {'present': 0, 'absent': 0, 'total': 0})
+        
+        for record in attendance_records:
+            date_key = record.date.isoformat()
+            if record.status == 'present':
+                daily_stats[date_key]['present'] += 1
+            elif record.status == 'absent':
+                daily_stats[date_key]['absent'] += 1
+            daily_stats[date_key]['total'] += 1
+        
+        # Convert to list sorted by date
+        attendance_data = []
+        current_date = start_date
+        while current_date <= end_date:
+            date_key = current_date.isoformat()
+            stats = daily_stats.get(date_key, {'present': 0, 'absent': 0, 'total': 0})
+            attendance_data.append({
+                'date': date_key,
+                'present': stats['present'],
+                'absent': stats['absent'],
+                'total': stats['total'],
+                'attendance_rate': (stats['present'] / stats['total'] * 100) if stats['total'] > 0 else 0
+            })
+            current_date += timedelta(days=1)
+        
+        # Calculate summary stats
+        total_meetings = len([d for d in attendance_data if d['total'] > 0])
+        total_present = sum(d['present'] for d in attendance_data)
+        total_absent = sum(d['absent'] for d in attendance_data)
+        total_attendance = total_present + total_absent
+        
+        return jsonify({
+            'group_id': group.id,
+            'group_name': group.name,
+            'date_range': {
+                'start': start_date.isoformat(),
+                'end': end_date.isoformat()
+            },
+            'heartbeat': heartbeat_data,
+            'daily_attendance': attendance_data,
+            'summary': {
+                'total_meetings': total_meetings,
+                'total_present': total_present,
+                'total_absent': total_absent,
+                'total_attendance': total_attendance,
+                'attendance_rate': (total_present / total_attendance * 100) if total_attendance > 0 else 0
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error getting connect group health for {group_id}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to get connect group health data'}), 500
 
 
 @app.route('/api/connect-groups/meetings/<meeting_id>', methods=['GET'])
@@ -15187,17 +15562,17 @@ def get_events():
         
         # Filter by status
         if status == 'upcoming':
-            query = query.filter(Event.start_datetime > datetime.now())
+            query = query.filter(Event.start_time > datetime.now())
         elif status == 'past':
-            query = query.filter(Event.start_datetime < datetime.now())
+            query = query.filter(Event.start_time < datetime.now())
         elif status == 'cancelled':
             query = query.filter_by(is_cancelled=True)
         
         # Filter by upcoming/past
         if upcoming == 'true':
-            query = query.filter(Event.start_datetime > datetime.now())
+            query = query.filter(Event.start_time > datetime.now())
         elif upcoming == 'false':
-            query = query.filter(Event.start_datetime < datetime.now())
+            query = query.filter(Event.start_time < datetime.now())
         
         # Filter by cancelled
         if cancelled == 'true':
