@@ -14858,15 +14858,19 @@ def google_oauth_callback():
             </div>
             <script>
                 (function() {
-                    // Immediately try to notify parent/opener
+                    // Immediately try to notify parent/opener (the login page)
                     try {
                         if (window.opener && !window.opener.closed) {
-                            // Desktop popup scenario - notify parent and close
-                            window.opener.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
-                            // Close popup after a brief delay
+                            // Desktop popup scenario - notify parent window (login page)
+                            // Send message with current origin to ensure it's received
+                            const origin = window.location.origin;
+                            window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
+                            console.log('Sent success message to opener');
+                            
+                            // Give the parent window a moment to receive the message, then close
                             setTimeout(() => {
                                 window.close();
-                            }, 300);
+                            }, 500);
                             return;
                         } else if (window.parent && window.parent !== window) {
                             // Iframe scenario

@@ -125,7 +125,8 @@ const Login = ({ onLogin }) => {
                   if (onLogin) {
                     onLogin();
                   }
-                  navigate('/dashboard');
+                  // Use window.location for full page navigation
+                  window.location.href = '/dashboard';
                 } else {
                   // Not authenticated yet, refresh to check again
                   window.location.reload();
@@ -135,9 +136,9 @@ const Login = ({ onLogin }) => {
                 // On error, refresh to check auth status
                 window.location.reload();
               });
-          }, 500);
+          }, 800);
         }
-      }, 700);
+      }, 500);
 
       // Safety timeout to clear interval
       setTimeout(() => {
@@ -154,40 +155,37 @@ const Login = ({ onLogin }) => {
   // If the popup posts a success message, redirect to dashboard
   useEffect(() => {
     const handleMessage = (event) => {
-      // Accept messages from same origin
-      if (event.origin !== window.location.origin) return;
+      // Accept messages from same origin (allow Railway domain variations)
+      const allowedOrigins = [
+        window.location.origin,
+        'https://futuresbranch-production.up.railway.app',
+        'https://futures-pulse-production.up.railway.app',
+        'https://futures.pulse.com'
+      ];
+      
+      if (!allowedOrigins.some(origin => event.origin === origin || event.origin.startsWith(origin))) {
+        return;
+      }
+      
       if (event.data && event.data.type === 'googleAuthSuccess') {
+        console.log('Received Google OAuth success message, redirecting...');
         setIsDriveConnecting(false);
         setDriveError('');
         setIsDriveAuthRequired(false);
         
-        // Wait a moment for session to update, then check auth and redirect
-        setTimeout(() => {
-          fetch('/api/session', { credentials: 'include' })
-            .then(res => res.json())
-            .then((sessionData) => {
-              if (sessionData && sessionData.authenticated) {
-                // User is authenticated, redirect to dashboard
-                if (onLogin) {
-                  onLogin();
-                }
-                navigate('/dashboard');
-              } else {
-                // Not authenticated yet, refresh to check again
-                window.location.reload();
-              }
-            })
-            .catch(() => {
-              // On error, refresh to check auth status
-              window.location.reload();
-            });
-        }, 500);
+        // Immediately redirect to dashboard - the session is already updated
+        // The popup will close itself, we just need to redirect this tab
+        if (onLogin) {
+          onLogin();
+        }
+        // Use window.location for a full page navigation to ensure clean state
+        window.location.href = '/dashboard';
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [navigate, onLogin]);
+  }, [onLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
