@@ -677,6 +677,116 @@ const PersonHealthReport = () => {
               </div>
             )}
 
+            {/* Missed Connect Groups */}
+            {(() => {
+              const missedMeetings = (recent_activity?.connect_groups || []).filter(c => c.status === 'absent');
+              const presentMeetings = (recent_activity?.connect_groups || []).filter(c => c.status === 'present');
+              const totalMeetings = missedMeetings.length + presentMeetings.length;
+              const attendanceRate = totalMeetings > 0 ? ((presentMeetings.length / totalMeetings) * 100).toFixed(1) : 0;
+
+              if (missedMeetings.length > 0 || totalMeetings > 0) {
+                return (
+                  <div className="bg-gradient-to-br from-amber-900/20 to-orange-900/20 border border-amber-500/40 rounded-2xl p-6 shadow-xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                        <span>📅</span>
+                        Connect Group Attendance
+                      </h2>
+                      {totalMeetings > 0 && (
+                        <div className="text-right">
+                          <div className="text-sm text-amber-300 font-semibold">{attendanceRate}% Attendance</div>
+                          <div className="text-xs text-amber-400/70">
+                            {presentMeetings.length} present / {totalMeetings} total
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {totalMeetings > 0 && (
+                      <div className="mb-6">
+                        <div className="w-full bg-slate-900/50 rounded-full h-3 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-500"
+                            style={{ width: `${attendanceRate}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {missedMeetings.length > 0 ? (
+                      <div>
+                        <h3 className="text-lg font-semibold text-amber-300 mb-3 flex items-center gap-2">
+                          <span>❌</span>
+                          Missed Meetings ({missedMeetings.length})
+                        </h3>
+                        <div className="space-y-2">
+                          {missedMeetings
+                            .sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at))
+                            .slice(0, 10)
+                            .map((meeting, idx) => {
+                              const meetingDate = new Date(meeting.date || meeting.created_at);
+                              const daysAgo = Math.floor((new Date() - meetingDate) / (1000 * 60 * 60 * 24));
+                              
+                              return (
+                                <div
+                                  key={idx}
+                                  className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex items-center justify-between"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-300 font-bold">
+                                      ❌
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-amber-200">
+                                        {meeting.connect_group?.name || 'Connect Group'}
+                                      </div>
+                                      <div className="text-sm text-amber-300/70">
+                                        {meetingDate.toLocaleDateString('en-US', { 
+                                          weekday: 'short', 
+                                          year: 'numeric', 
+                                          month: 'short', 
+                                          day: 'numeric' 
+                                        })}
+                                        {daysAgo >= 0 && daysAgo <= 30 && (
+                                          <span className="ml-2">
+                                            ({daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`})
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-amber-400/60 px-2 py-1 bg-amber-500/10 rounded">
+                                    Absent
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                        {missedMeetings.length > 10 && (
+                          <div className="mt-3 text-sm text-amber-300/70 text-center">
+                            Showing 10 of {missedMeetings.length} missed meetings
+                          </div>
+                        )}
+                      </div>
+                    ) : totalMeetings > 0 ? (
+                      <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
+                        <div className="text-2xl mb-2">✅</div>
+                        <div className="text-green-300 font-semibold">No missed meetings!</div>
+                        <div className="text-sm text-green-300/70 mt-1">
+                          {presentMeetings.length} meeting{presentMeetings.length !== 1 ? 's' : ''} attended
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-700/30 border border-slate-600/50 rounded-lg p-4 text-center">
+                        <div className="text-slate-400 text-sm">No connect group attendance records yet</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {/* Discipleship Pathway */}
             {hasPathway ? (
               <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-500/40 rounded-2xl p-6 shadow-xl">

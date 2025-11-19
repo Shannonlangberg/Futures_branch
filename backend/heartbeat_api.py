@@ -217,11 +217,22 @@ def get_person_heartbeat(person_id):
             AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
         ).order_by(AttendanceEvent.created_at.desc()).limit(10).all()
         
-        # Recent connect attendance
+        # Recent connect attendance (include more to show missed meetings)
         recent_connect = ConnectAttendance.query.filter(
             ConnectAttendance.person_id == person_id,
             ConnectAttendance.date >= twelve_weeks_ago
-        ).order_by(ConnectAttendance.date.desc()).limit(10).all()
+        ).order_by(ConnectAttendance.date.desc()).limit(20).all()
+        
+        # Enrich with group names
+        for att in recent_connect:
+            if att.connect_group:
+                att_dict = att.to_dict()
+                att_dict['connect_group'] = {
+                    'id': att.connect_group.id,
+                    'name': att.connect_group.name
+                }
+                # Replace the to_dict result with enriched version
+                att._enriched_dict = att_dict
         
         # Recent serving
         recent_serving = ServingAssignment.query.filter(
@@ -317,7 +328,10 @@ def get_person_heartbeat(person_id):
             'pathway': pathway_progress.to_dict() if pathway_progress else None,
             'recent_activity': {
                 'attendance': [a.to_dict() for a in recent_attendance],
-                'connect_groups': [c.to_dict() for c in recent_connect],
+                'connect_groups': [
+                    (c._enriched_dict if hasattr(c, '_enriched_dict') else c.to_dict()) 
+                    for c in recent_connect
+                ],
                 'serving': [s.to_dict() for s in recent_serving],
                 'discipleship_steps': all_discipleship_steps,
                 'open_care_cases': [c.to_dict() for c in open_cases]
