@@ -243,9 +243,14 @@ def get_person_heartbeat(person_id):
         ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
         
         # Recent discipleship steps from DiscipleshipStep table
+        # Get ALL discipleship steps (not just recent ones) to ensure we capture all milestones
         recent_steps = DiscipleshipStep.query.filter(
             DiscipleshipStep.person_id == person_id
-        ).order_by(DiscipleshipStep.date.desc()).limit(10).all()
+        ).order_by(DiscipleshipStep.date.desc()).all()  # Removed limit to get all steps
+        
+        logger.info(f"DEBUG: Found {len(recent_steps)} DiscipleshipStep records for person {person_id}")
+        for step in recent_steps:
+            logger.info(f"  DiscipleshipStep: type={step.type}, date={step.date}, description={step.description}")
         
         # Also include Person-level milestones (baptism, DNA, etc.) as spiritual events
         # Include ALL milestones regardless of date (not just last 12 weeks) since these are significant life events
