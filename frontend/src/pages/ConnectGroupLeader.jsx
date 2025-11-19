@@ -197,14 +197,52 @@ const ConnectGroupLeader = () => {
         const data = await response.json();
         setSelectedMeeting(data);
         setCurrentView('attendance');
-        // Initialize attendance for all members if not already set
+        // Initialize attendance for all members AND leaders if not already set
         // Use selectedGroup from state (it should be set by loadGroupDetails)
-        if (selectedGroup && selectedGroup.members) {
+        if (selectedGroup) {
           const existingAttendance = data.attendance || [];
-          const allAttendance = selectedGroup.members.map(member => {
-            const existing = existingAttendance.find(a => a.person_id === member.id);
+          
+          // Create a list of all people who should have attendance (members + leaders)
+          const allPeople = [];
+          
+          // Add leader if exists
+          if (selectedGroup.leader_id && selectedGroup.leader_name) {
+            allPeople.push({
+              id: selectedGroup.leader_id,
+              full_name: selectedGroup.leader_name,
+              email: selectedGroup.leader_email || null,
+              is_leader: true
+            });
+          }
+          
+          // Add co-leader if exists
+          if (selectedGroup.co_leader_id && selectedGroup.co_leader_name) {
+            allPeople.push({
+              id: selectedGroup.co_leader_id,
+              full_name: selectedGroup.co_leader_name,
+              email: selectedGroup.co_leader_email || null,
+              is_leader: true
+            });
+          }
+          
+          // Add all members
+          if (selectedGroup.members) {
+            selectedGroup.members.forEach(member => {
+              // Don't duplicate if leader/co-leader is also in members list
+              if (!allPeople.find(p => p.id === member.id)) {
+                allPeople.push({
+                  ...member,
+                  is_leader: false
+                });
+              }
+            });
+          }
+          
+          // Initialize attendance for all people
+          const allAttendance = allPeople.map(person => {
+            const existing = existingAttendance.find(a => a.person_id === person.id);
             return existing || {
-              person_id: member.id,
+              person_id: person.id,
               present: false,
               notes: ''
             };
@@ -686,47 +724,95 @@ const ConnectGroupLeader = () => {
 
             {/* Attendance List */}
             <div className="space-y-2 mb-6">
-              {selectedGroup.members?.map(member => {
-                const memberAttendance = attendance.find(a => a.person_id === member.id) || {
-                  person_id: member.id,
-                  present: false,
-                  notes: ''
-                };
+              {(() => {
+                // Create a list of all people (leaders + members) for attendance
+                const allPeople = [];
                 
-                return (
-                  <div
-                    key={member.id}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      memberAttendance.present
-                        ? 'bg-emerald-500/10 border-emerald-500/50'
-                        : 'bg-slate-700/50 border-slate-600/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="text-white font-medium">{member.full_name}</p>
-                        {member.email && (
-                          <p className="text-sm text-slate-400">{member.email}</p>
-                        )}
+                // Add leader if exists
+                if (selectedGroup.leader_id && selectedGroup.leader_name) {
+                  allPeople.push({
+                    id: selectedGroup.leader_id,
+                    full_name: selectedGroup.leader_name,
+                    email: selectedGroup.leader_email || null,
+                    is_leader: true,
+                    role: 'Leader'
+                  });
+                }
+                
+                // Add co-leader if exists
+                if (selectedGroup.co_leader_id && selectedGroup.co_leader_name) {
+                  allPeople.push({
+                    id: selectedGroup.co_leader_id,
+                    full_name: selectedGroup.co_leader_name,
+                    email: selectedGroup.co_leader_email || null,
+                    is_leader: true,
+                    role: 'Co-Leader'
+                  });
+                }
+                
+                // Add all members
+                if (selectedGroup.members) {
+                  selectedGroup.members.forEach(member => {
+                    // Don't duplicate if leader/co-leader is also in members list
+                    if (!allPeople.find(p => p.id === member.id)) {
+                      allPeople.push({
+                        ...member,
+                        is_leader: false,
+                        role: 'Member'
+                      });
+                    }
+                  });
+                }
+                
+                return allPeople.map(person => {
+                  const personAttendance = attendance.find(a => a.person_id === person.id) || {
+                    person_id: person.id,
+                    present: false,
+                    notes: ''
+                  };
+                  
+                  return (
+                    <div
+                      key={person.id}
+                      className={`p-4 rounded-lg border-2 transition-colors ${
+                        personAttendance.present
+                          ? 'bg-emerald-500/10 border-emerald-500/50'
+                          : 'bg-slate-700/50 border-slate-600/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-white font-medium">{person.full_name}</p>
+                            {person.is_leader && (
+                              <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-300 rounded">
+                                {person.role}
+                              </span>
+                            )}
+                          </div>
+                          {person.email && (
+                            <p className="text-sm text-slate-400">{person.email}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => toggleAttendance(person.id)}
+                          className={`ml-4 p-2 rounded-lg transition-colors ${
+                            personAttendance.present
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-slate-600 text-slate-400'
+                          }`}
+                        >
+                          {personAttendance.present ? (
+                            <CheckCircleIcon className="w-6 h-6" />
+                          ) : (
+                            <XCircleIcon className="w-6 h-6" />
+                          )}
+                        </button>
                       </div>
-                      <button
-                        onClick={() => toggleAttendance(member.id)}
-                        className={`ml-4 p-2 rounded-lg transition-colors ${
-                          memberAttendance.present
-                            ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-slate-600 text-slate-400'
-                        }`}
-                      >
-                        {memberAttendance.present ? (
-                          <CheckCircleIcon className="w-6 h-6" />
-                        ) : (
-                          <XCircleIcon className="w-6 h-6" />
-                        )}
-                      </button>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
 
             {/* Submit Button */}
