@@ -22,10 +22,10 @@ pathway_bp = Blueprint('pathway', __name__, url_prefix='/api/pathways')
 @pathway_bp.route('', methods=['GET'])
 @login_required
 def get_pathways():
-    """Get all pathways (admin only)"""
+    """Get all pathways"""
     try:
-        if not current_user.has_permission('heartbeat', 'view'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
+        # Allow any logged-in user to view pathways (they can see their own progress)
+        # Only restrict creation/editing, not viewing
         
         category_filter = request.args.get('category')
         is_template = request.args.get('is_template')
@@ -47,7 +47,16 @@ def get_pathways():
         }), 200
         
     except Exception as e:
-        logger.error(f"Error getting pathways: {e}")
+        logger.error(f"Error getting pathways: {e}", exc_info=True)
+        # Check if it's a table doesn't exist error
+        error_str = str(e).lower()
+        if 'no such table' in error_str or 'does not exist' in error_str:
+            return jsonify({
+                'error': 'Pathways table not found. Please run migrations first.',
+                'details': str(e),
+                'pathways': [],
+                'count': 0
+            }), 500
         return jsonify({'error': str(e)}), 500
 
 
@@ -56,7 +65,10 @@ def get_pathways():
 def create_pathway():
     """Create a new pathway (admin only)"""
     try:
-        if not current_user.has_permission('heartbeat', 'edit'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'edit') or 
+                current_user.has_permission('heartbeat', 'create') or
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()

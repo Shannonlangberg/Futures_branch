@@ -1004,6 +1004,12 @@ try:
 except Exception as e:
     logger.warning(f"Failed to seed users: {e}")
 
+try:
+    from seed_pathways import main as seed_pathways
+    seed_pathways()
+except Exception as e:
+    logger.warning(f"Failed to seed pathways: {e}")
+
 # Configure Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
