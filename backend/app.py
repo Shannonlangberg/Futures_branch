@@ -13343,7 +13343,6 @@ def update_person(person_id):
         if 'birthday' in data:
             if data['birthday']:
                 try:
-                    from datetime import datetime
                     person.birthday = datetime.strptime(data['birthday'], '%Y-%m-%d').date()
                 except ValueError:
                     return jsonify({'error': 'Invalid birthday format'}), 400
@@ -13366,7 +13365,6 @@ def update_person(person_id):
                     try:
                         if isinstance(value, str):
                             # Parse date string
-                            from datetime import datetime
                             parsed_date = datetime.strptime(value, '%Y-%m-%d').date()
                             setattr(person, field, parsed_date)
                         else:
@@ -14733,30 +14731,44 @@ def get_connect_group_health(group_id):
         
         # Process all meetings
         for meeting in all_meetings:
-            date_key = meeting.meeting_date.isoformat()
-            present_list = []
-            absent_list = []
-            
-            # Check each member's attendance status
-            for person_id, person_info in all_members_dict.items():
-                status = attendance_by_date_person.get(date_key, {}).get(person_id)
+            if not meeting or not meeting.meeting_date:
+                continue
                 
-                if status == 'present':
-                    present_list.append(person_info)
-                elif status == 'absent':
-                    absent_list.append(person_info)
+            try:
+                # Handle both date objects and strings
+                if isinstance(meeting.meeting_date, str):
+                    from datetime import datetime
+                    meeting_date = datetime.strptime(meeting.meeting_date, '%Y-%m-%d').date()
                 else:
-                    # No record = absent (they should have been marked)
-                    absent_list.append(person_info)
-            
-            detailed_attendance.append({
-                'date': date_key,
-                'present': present_list,
-                'absent': absent_list,
-                'total_present': len(present_list),
-                'total_absent': len(absent_list),
-                'total': len(present_list) + len(absent_list)
-            })
+                    meeting_date = meeting.meeting_date
+                
+                date_key = meeting_date.isoformat()
+                present_list = []
+                absent_list = []
+                
+                # Check each member's attendance status
+                for person_id, person_info in all_members_dict.items():
+                    status = attendance_by_date_person.get(date_key, {}).get(person_id)
+                    
+                    if status == 'present':
+                        present_list.append(person_info)
+                    elif status == 'absent':
+                        absent_list.append(person_info)
+                    else:
+                        # No record = absent (they should have been marked)
+                        absent_list.append(person_info)
+                
+                detailed_attendance.append({
+                    'date': date_key,
+                    'present': present_list,
+                    'absent': absent_list,
+                    'total_present': len(present_list),
+                    'total_absent': len(absent_list),
+                    'total': len(present_list) + len(absent_list)
+                })
+            except Exception as e:
+                logger.warning(f"Error processing meeting {meeting.id if meeting else 'unknown'}: {e}")
+                continue
         
         # Also include dates that have attendance records but no meeting record
         # (in case meetings weren't created in ConnectGroupMeeting)
