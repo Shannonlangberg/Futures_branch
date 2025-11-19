@@ -406,8 +406,12 @@ class EngagementProfile(db.Model):
         
         return reasons
     
-    def to_dict(self):
+    def to_dict(self, recalculate=True):
         """Convert engagement profile to dictionary"""
+        # Recalculate heartbeat before returning to ensure data is up to date
+        if recalculate:
+            self.recalculate_heartbeat()
+        
         return {
             'id': self.id,
             'person_id': self.person_id,
