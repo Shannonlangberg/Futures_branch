@@ -12970,7 +12970,19 @@ def get_person_by_email(email):
         # Check if person has pathway progress (from engagement or milestones)
         try:
             # Pathway data is typically derived from milestones and engagement
+            # Format campus name
+            campus_display = person.campus
+            if '_' in campus_display:
+                campus_display = ' '.join(word.capitalize() for word in campus_display.split('_'))
+            else:
+                campus_display = campus_display.title()
+            
             pathway_data = {
+                'id': f"pathway_{person.id}",
+                'pathway_name': 'Spiritual Journey',
+                'person_id': person.id,
+                'person_name': person.full_name,
+                'campus': campus_display,
                 'milestones': {
                     'baptised_on': person_data.get('baptised_on'),
                     'dna_completed': person_data.get('dna_completed'),
@@ -12979,7 +12991,37 @@ def get_person_by_email(email):
                     'first_served_on': person_data.get('first_served_on'),
                 },
                 'connect_group': person_data.get('connect_group'),
+                'steps': [
+                    {'id': 1, 'step_order': 1, 'step_name': 'Baptism', 'milestone_type': 'baptism', 'is_completed': bool(person.baptised_on), 'completed_at': person.baptised_on.isoformat() if person.baptised_on else None},
+                    {'id': 2, 'step_order': 2, 'step_name': 'DNA Course', 'milestone_type': 'dna', 'is_completed': bool(person.dna_completed), 'completed_at': person.dna_completed.isoformat() if person.dna_completed else None},
+                    {'id': 3, 'step_order': 3, 'step_name': 'Filled with Holy Spirit', 'milestone_type': 'holy_spirit', 'is_completed': bool(person.filled_holy_spirit), 'completed_at': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None},
+                    {'id': 4, 'step_order': 4, 'step_name': 'RISE', 'milestone_type': 'rise', 'is_completed': bool(person.rise_attended), 'completed_at': person.rise_attended.isoformat() if person.rise_attended else None},
+                    {'id': 5, 'step_order': 5, 'step_name': 'Join Connect Group', 'milestone_type': 'group_join', 'is_completed': bool(person.connect_group), 'completed_at': None},
+                ],
+                'completed_steps': 0,
+                'total_steps': 5,
+                'progress_percentage': 0,
+                'current_step_id': None,
             }
+            
+            # Calculate progress
+            completed = sum([
+                1 if person.baptised_on else 0,
+                1 if person.dna_completed else 0,
+                1 if person.filled_holy_spirit else 0,
+                1 if person.rise_attended else 0,
+                1 if person.connect_group else 0,
+            ])
+            
+            pathway_data['completed_steps'] = completed
+            pathway_data['progress_percentage'] = int((completed / 5) * 100)
+            
+            # Find current step (first incomplete step)
+            for step in pathway_data['steps']:
+                if not step['is_completed']:
+                    pathway_data['current_step_id'] = step['id']
+                    break
+            
             person_data['pathway'] = pathway_data
         except Exception as e:
             logger.warning(f"Error adding pathway data: {e}")
@@ -13085,11 +13127,19 @@ def get_my_pathway():
             return jsonify({'pathway': None, 'error': 'Person not found'}), 404
         
         # Build pathway data from person milestones
+        # Format campus name
+        campus_display = person.campus
+        if '_' in campus_display:
+            campus_display = ' '.join(word.capitalize() for word in campus_display.split('_'))
+        else:
+            campus_display = campus_display.title()
+        
         pathway_data = {
             'id': f"pathway_{person.id}",
             'pathway_name': 'Spiritual Journey',
             'person_id': person.id,
             'person_name': person.full_name,
+            'campus': campus_display,
             'milestones': {
                 'baptised_on': person.baptised_on.isoformat() if person.baptised_on else None,
                 'dna_completed': person.dna_completed.isoformat() if person.dna_completed else None,
@@ -13098,10 +13148,19 @@ def get_my_pathway():
                 'first_served_on': person.first_served_on.isoformat() if person.first_served_on else None,
             },
             'connect_group': person.connect_group,
-            'steps': [],
+            'pathway': {
+                'steps': [
+                    {'id': 1, 'step_order': 1, 'step_name': 'Baptism', 'milestone_type': 'baptism', 'is_completed': bool(person.baptised_on), 'completed_at': person.baptised_on.isoformat() if person.baptised_on else None},
+                    {'id': 2, 'step_order': 2, 'step_name': 'DNA Course', 'milestone_type': 'dna', 'is_completed': bool(person.dna_completed), 'completed_at': person.dna_completed.isoformat() if person.dna_completed else None},
+                    {'id': 3, 'step_order': 3, 'step_name': 'Filled with Holy Spirit', 'milestone_type': 'holy_spirit', 'is_completed': bool(person.filled_holy_spirit), 'completed_at': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None},
+                    {'id': 4, 'step_order': 4, 'step_name': 'RISE', 'milestone_type': 'rise', 'is_completed': bool(person.rise_attended), 'completed_at': person.rise_attended.isoformat() if person.rise_attended else None},
+                    {'id': 5, 'step_order': 5, 'step_name': 'Join Connect Group', 'milestone_type': 'group_join', 'is_completed': bool(person.connect_group), 'completed_at': None},
+                ],
+            },
             'completed_steps': 0,
             'total_steps': 5,
             'progress_percentage': 0,
+            'current_step_id': None,
         }
         
         # Calculate progress based on milestones
@@ -13115,6 +13174,12 @@ def get_my_pathway():
         
         pathway_data['completed_steps'] = completed
         pathway_data['progress_percentage'] = int((completed / 5) * 100)
+        
+        # Find current step (first incomplete step)
+        for step in pathway_data['pathway']['steps']:
+            if not step['is_completed']:
+                pathway_data['current_step_id'] = step['id']
+                break
         
         return jsonify({'pathway': pathway_data})
         
@@ -13179,8 +13244,8 @@ def update_person(person_id):
             person.connect_group = connect_group_value if connect_group_value else None
             
             # Auto-complete the "Joined Connect Group" pathway step if person has a connect group assigned
-            # Check both: new assignment (was None/empty, now has value) OR already has group but step not completed
-            if connect_group_value:  # Person has a connect group assigned (new or existing)
+            # Always check (regardless of old value) to ensure step is completed if person has a group
+            if connect_group_value:  # Person has a connect group assigned
                 try:
                     from models import PersonPathwayProgress, PathwayStep, PersonPathwayStepCompletion
                     
@@ -13240,6 +13305,8 @@ def update_person(person_id):
                                 except Exception as hb_error:
                                     logger.warning(f"Failed to recalculate Heartbeat after auto-completing pathway step: {hb_error}")
                                     # Don't fail the request if recalculation fails
+                    else:
+                        logger.warning(f"No active pathway progress found for person {person_id} - cannot auto-complete connect group step")
                 except Exception as pathway_error:
                     logger.warning(f"Error auto-completing pathway step when assigning connect group: {pathway_error}", exc_info=True)
                     # Don't fail the person update if pathway step completion fails
@@ -13989,26 +14056,42 @@ def get_my_groups():
                 from sqlalchemy import text
                 
                 # First try by ID (in case it is an ID)
-                group_by_id = db.session.execute(
-                    text("SELECT id, name, campus, leader_id, co_leader_id, meeting_day, meeting_time, meeting_frequency, location, is_active FROM connect_groups WHERE id = :group_id AND is_active = 1"),
+                group_result = db.session.execute(
+                    text("SELECT id, name, campus FROM connect_groups WHERE id = :group_id AND is_active = 1"),
                     {'group_id': person.connect_group}
                 ).fetchone()
                 
-                # If not found by ID, try by name (Pulse stores names)
-                if not group_by_id:
-                    group_by_name = db.session.execute(
-                        text("SELECT id, name, campus, leader_id, co_leader_id, meeting_day, meeting_time, meeting_frequency, location, is_active FROM connect_groups WHERE LOWER(name) = LOWER(:group_name) AND is_active = 1"),
-                        {'group_name': person.connect_group}
+                # If not found by ID, try by name (Pulse stores names like "Roma and Yuvi" or "Roma & Yuvi")
+                if not group_result:
+                    group_name = person.connect_group.strip()
+                    group_result = db.session.execute(
+                        text("SELECT id, name, campus FROM connect_groups WHERE LOWER(name) = LOWER(:group_name) AND is_active = 1"),
+                        {'group_name': group_name}
                     ).fetchone()
-                    
-                    if group_by_name:
-                        # Convert to SQLAlchemy object
-                        group = ConnectGroup.query.filter_by(id=group_by_name[0]).first()
-                    else:
-                        group = None
+                
+                # Also try with "&" instead of "and" (variations)
+                if not group_result:
+                    group_name_variant = group_name.replace(' and ', ' & ').replace(' And ', ' & ')
+                    if group_name_variant != group_name:
+                        group_result = db.session.execute(
+                            text("SELECT id, name, campus FROM connect_groups WHERE LOWER(name) = LOWER(:group_name) AND is_active = 1"),
+                            {'group_name': group_name_variant}
+                        ).fetchone()
+                
+                # Try partial match (in case name is slightly different)
+                if not group_result and group_name:
+                    first_word = group_name.split()[0] if group_name else ''
+                    if first_word:
+                        group_result = db.session.execute(
+                            text("SELECT id, name, campus FROM connect_groups WHERE LOWER(name) LIKE LOWER(:search) AND is_active = 1 LIMIT 1"),
+                            {'search': f"%{first_word}%"}
+                        ).fetchone()
+                
+                if group_result:
+                    # Get full group object (but handle to_dict() errors gracefully)
+                    group = ConnectGroup.query.filter_by(id=group_result[0]).first()
                 else:
-                    # Convert to SQLAlchemy object
-                    group = ConnectGroup.query.filter_by(id=group_by_id[0]).first()
+                    group = None
                 
                 if group:
                     try:
@@ -14030,39 +14113,65 @@ def get_my_groups():
             except Exception as e:
                 logger.warning(f"Error fetching assigned group {person.connect_group}: {e}")
         
-        # Also check if person is a leader or co-leader
+        # Also check if person is a leader or co-leader (use raw SQL to avoid column issues)
         try:
-            # Check as leader
-            led_groups = ConnectGroup.query.filter_by(
-                leader_id=person.id,
-                is_active=True
-            ).all()
+            from sqlalchemy import text
             
-            for group in led_groups:
-                if group.id not in [g.get('id') for g in groups_data]:
-                    try:
-                        group_dict = group.to_dict()
-                        group_dict['member_count'] = group.get_member_count()
-                        group_dict['role'] = 'leader'
-                        groups_data.append(group_dict)
-                    except Exception as e:
-                        logger.warning(f"Error serializing leader group {group.id}: {e}")
+            # Check as leader using raw SQL
+            led_groups_result = db.session.execute(
+                text("SELECT id FROM connect_groups WHERE leader_id = :person_id AND is_active = 1"),
+                {'person_id': person.id}
+            ).fetchall()
             
-            # Check as co-leader
-            co_led_groups = ConnectGroup.query.filter_by(
-                co_leader_id=person.id,
-                is_active=True
-            ).all()
+            for row in led_groups_result:
+                group_id = row[0]
+                if group_id not in [g.get('id') for g in groups_data]:
+                    group = ConnectGroup.query.filter_by(id=group_id).first()
+                    if group:
+                        try:
+                            group_dict = group.to_dict()
+                            try:
+                                group_dict['member_count'] = group.get_member_count()
+                            except:
+                                group_dict['member_count'] = 0
+                            group_dict['role'] = 'leader'
+                            groups_data.append(group_dict)
+                        except Exception as e:
+                            logger.warning(f"Error serializing leader group {group.id}: {e}")
+                            groups_data.append({
+                                'id': group.id,
+                                'name': group.name,
+                                'campus': group.campus,
+                                'role': 'leader',
+                            })
             
-            for group in co_led_groups:
-                if group.id not in [g.get('id') for g in groups_data]:
-                    try:
-                        group_dict = group.to_dict()
-                        group_dict['member_count'] = group.get_member_count()
-                        group_dict['role'] = 'co_leader'
-                        groups_data.append(group_dict)
-                    except Exception as e:
-                        logger.warning(f"Error serializing co-leader group {group.id}: {e}")
+            # Check as co-leader using raw SQL
+            co_led_groups_result = db.session.execute(
+                text("SELECT id FROM connect_groups WHERE co_leader_id = :person_id AND is_active = 1"),
+                {'person_id': person.id}
+            ).fetchall()
+            
+            for row in co_led_groups_result:
+                group_id = row[0]
+                if group_id not in [g.get('id') for g in groups_data]:
+                    group = ConnectGroup.query.filter_by(id=group_id).first()
+                    if group:
+                        try:
+                            group_dict = group.to_dict()
+                            try:
+                                group_dict['member_count'] = group.get_member_count()
+                            except:
+                                group_dict['member_count'] = 0
+                            group_dict['role'] = 'co_leader'
+                            groups_data.append(group_dict)
+                        except Exception as e:
+                            logger.warning(f"Error serializing co-leader group {group.id}: {e}")
+                            groups_data.append({
+                                'id': group.id,
+                                'name': group.name,
+                                'campus': group.campus,
+                                'role': 'co_leader',
+                            })
         except Exception as e:
             logger.warning(f"Error checking leadership groups: {e}")
         
