@@ -10,7 +10,8 @@ import {
   HeartIcon,
   ArchiveBoxIcon,
   TrashIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 
 const People = () => {
@@ -33,6 +34,9 @@ const People = () => {
   const [importing, setImporting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(null);
+  const [editingDepartment, setEditingDepartment] = useState(null);
+  const [tempDepartment, setTempDepartment] = useState('');
+  const [isSavingDepartment, setIsSavingDepartment] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     preferred_name: '',
@@ -324,6 +328,50 @@ const People = () => {
     }
   };
 
+  const handleDepartmentEdit = (person) => {
+    setEditingDepartment(person.id);
+    setTempDepartment(person.department || '');
+  };
+
+  const handleDepartmentSave = async (person) => {
+    if (isSavingDepartment) return;
+    setIsSavingDepartment(true);
+    try {
+      const response = await fetch(`/api/persons/${person.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          department: tempDepartment || null
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await loadPersons();
+        setEditingDepartment(null);
+        setTempDepartment('');
+      } else {
+        alert(data.error || 'Failed to update department');
+      }
+    } catch (err) {
+      console.error('Error updating department:', err);
+      alert('Failed to update department');
+    } finally {
+      setIsSavingDepartment(false);
+    }
+  };
+
+  const handleDepartmentCancel = () => {
+    setIsSavingDepartment(true); // Prevent blur save
+    setEditingDepartment(null);
+    setTempDepartment('');
+    setTimeout(() => setIsSavingDepartment(false), 100);
+  };
+
   const handleImportCSV = async () => {
     if (!importFile) {
       alert('Please select a CSV file');
@@ -544,6 +592,7 @@ const People = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Name</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Email</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Campus</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Department</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Pulse Status</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Last Seen</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Connect Group</th>
@@ -553,7 +602,7 @@ const People = () => {
               <tbody className="divide-y divide-slate-700/50">
                 {persons.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan="8" className="px-6 py-12 text-center text-slate-400">
                       {loading ? 'Loading...' : 'No people found'}
                     </td>
                   </tr>
@@ -577,6 +626,60 @@ const People = () => {
                       <td className="px-6 py-4 text-slate-300">{person.email}</td>
                       <td className="px-6 py-4 text-slate-300">
                         {person.campus === 'all_campuses' ? 'All Campuses' : person.campus}
+                      </td>
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        {editingDepartment === person.id ? (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={tempDepartment}
+                              onChange={(e) => setTempDepartment(e.target.value)}
+                              onBlur={() => {
+                                if (!isSavingDepartment) {
+                                  handleDepartmentSave(person);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleDepartmentSave(person);
+                                } else if (e.key === 'Escape') {
+                                  handleDepartmentCancel();
+                                }
+                              }}
+                              autoFocus
+                              className="px-2 py-1 bg-slate-700 border border-blue-500 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">No Department</option>
+                              <option value="Kids">Kids</option>
+                              <option value="Youth">Youth</option>
+                              <option value="Young Adults">Young Adults</option>
+                              <option value="Families">Families</option>
+                              <option value="Adults">Adults</option>
+                              <option value="Seniors">Seniors</option>
+                            </select>
+                            <button
+                              onClick={() => handleDepartmentSave(person)}
+                              className="p-1 text-green-400 hover:text-green-300"
+                              title="Save"
+                            >
+                              <CheckCircleIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={handleDepartmentCancel}
+                              className="p-1 text-red-400 hover:text-red-300"
+                              title="Cancel"
+                            >
+                              <XMarkIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => handleDepartmentEdit(person)}
+                            className="text-slate-300 hover:text-blue-400 cursor-pointer hover:bg-slate-700/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                            title="Click to edit department"
+                          >
+                            {person.department || '—'}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
