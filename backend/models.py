@@ -805,6 +805,7 @@ class ConnectGroup(db.Model):
     
     # Leader access (simple password for leader portal)
     leader_access_code = db.Column(db.String(50))  # Simple password for leader login
+    leader_emails = db.Column(db.Text)  # JSON array of additional leader emails
     
     # Metadata
     is_active = db.Column(db.Boolean, default=True)
@@ -823,8 +824,34 @@ class ConnectGroup(db.Model):
         """Get count of active members"""
         return Person.query.filter_by(connect_group=self.id, is_active=True).count()
     
+    def get_leader_emails(self):
+        """Get list of all leader emails (leader, co-leader, and additional leaders)"""
+        emails = []
+        if self.leader and self.leader.email:
+            emails.append(self.leader.email.lower())
+        if self.co_leader and self.co_leader.email:
+            emails.append(self.co_leader.email.lower())
+        if self.leader_emails:
+            try:
+                additional_emails = json.loads(self.leader_emails)
+                if isinstance(additional_emails, list):
+                    emails.extend([e.lower() for e in additional_emails if e])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return list(set(emails))  # Remove duplicates
+    
     def to_dict(self):
         """Convert connect group to dictionary"""
+        # Parse leader_emails JSON
+        leader_emails_list = []
+        if self.leader_emails:
+            try:
+                leader_emails_list = json.loads(self.leader_emails)
+                if not isinstance(leader_emails_list, list):
+                    leader_emails_list = []
+            except (json.JSONDecodeError, TypeError):
+                leader_emails_list = []
+        
         return {
             'id': self.id,
             'name': self.name,
@@ -834,10 +861,13 @@ class ConnectGroup(db.Model):
             'leader_email': self.leader.email if self.leader else None,
             'co_leader_id': self.co_leader_id,
             'co_leader_name': self.co_leader.full_name if self.co_leader else None,
+            'co_leader_email': self.co_leader.email if self.co_leader else None,
+            'leader_emails': leader_emails_list,  # Additional leader emails
             'meeting_day': self.meeting_day,
             'meeting_time': self.meeting_time,
             'meeting_frequency': self.meeting_frequency,
             'location': self.location,
+            'leader_access_code': self.leader_access_code,
             'member_count': self.get_member_count(),
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,

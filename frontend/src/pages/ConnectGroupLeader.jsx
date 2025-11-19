@@ -86,13 +86,19 @@ const ConnectGroupLeader = () => {
         const data = await response.json();
         const groups = data.groups || [];
         
-        // Find groups where this email matches leader or co-leader
+        // Find groups where this email matches leader, co-leader, or any additional leader
         const userGroups = groups.filter(group => {
           const leaderEmail = group.leader_email?.toLowerCase();
           const coLeaderEmail = group.co_leader_email?.toLowerCase();
+          const additionalLeaderEmails = (group.leader_emails || []).map(e => e?.toLowerCase());
           const inputEmail = email.toLowerCase();
           
-          if (leaderEmail === inputEmail || coLeaderEmail === inputEmail) {
+          // Check if email matches any leader (primary, co-leader, or additional)
+          const isLeader = leaderEmail === inputEmail || 
+                          coLeaderEmail === inputEmail || 
+                          additionalLeaderEmails.includes(inputEmail);
+          
+          if (isLeader) {
             // Verify access code if provided
             if (accessCode && group.leader_access_code) {
               return group.leader_access_code === accessCode;

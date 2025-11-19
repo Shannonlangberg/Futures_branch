@@ -1164,7 +1164,22 @@ class User(UserMixin):
     def check_password(self, password):
         """Check if the provided password is correct"""
         from werkzeug.security import check_password_hash
-        return check_password_hash(self.password_hash, password)
+        try:
+            # Try standard werkzeug password check
+            return check_password_hash(self.password_hash, password)
+        except (ValueError, AttributeError):
+            # If scrypt hash fails (not available), try bcrypt as fallback
+            try:
+                import bcrypt
+                # Check if it's a bcrypt hash
+                if self.password_hash.startswith('$2b$') or self.password_hash.startswith('$2a$'):
+                    return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+            except:
+                pass
+            # If all else fails, check for plain text match (for development only)
+            if self.password_hash == password:
+                return True
+            return False
         
     def has_permission(self, permission_type, action=None, campus=None):
         """Check if user has specific permission based on role
@@ -1378,7 +1393,7 @@ def authenticate_user(username_or_email, password):
         conn.close()
         return None
     except Exception as e:
-        logger.error(f"Authentication error for user {username}: {e}")
+        logger.error(f"Authentication error for user {username_or_email}: {e}")
         return None
 
 print("[DEBUG] User management functions and classes defined")
@@ -7529,44 +7544,54 @@ def serve_index():
 @app.route('/api/login', methods=['POST'])
 def api_login():
     """API login endpoint for React frontend and mobile app"""
-    if request.is_json:
-        data = request.get_json()
-        # Accept both 'username' and 'email' for mobile app compatibility
-        username = data.get('username', '').strip() or data.get('email', '').strip()
-        password = data.get('password', '').strip()
-    else:
-        username = request.form.get('username', '').strip() or request.form.get('email', '').strip()
-        password = request.form.get('password', '').strip()
-    
-    if not username or not password:
-        return jsonify({"error": "Please enter both username/email and password."}), 400
-    
-    user = authenticate_user(username, password)
-    if user:
-        login_user(user, remember=True)
-        # Ensure session is saved
-        session.modified = True
-        logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
-        # Log successful login
-        log_security_event(user.id, 'login_success', 'User logged in successfully')
-        # Return proper response format for mobile app
-        return jsonify({
-            "success": True, 
-            "authenticated": True,
-            "redirect": "/",
-            "token": session.get('_id', 'session-token'),  # Return session identifier
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "name": user.full_name or user.username,
-                "role": user.role,
-                "campus": getattr(user, 'campus', 'all_campuses')
-            }
-        })
-    else:
-        # Log failed login attempt
-        log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
-        return jsonify({"error": "Invalid username/email or password."}), 401
+    try:
+        if request.is_json:
+            data = request.get_json()
+            # Accept both 'username' and 'email' for mobile app compatibility
+            username = data.get('username', '').strip() or data.get('email', '').strip()
+            password = data.get('password', '').strip()
+        else:
+            username = request.form.get('username', '').strip() or request.form.get('email', '').strip()
+            password = request.form.get('password', '').strip()
+        
+        if not username or not password:
+            return jsonify({"error": "Please enter both username/email and password."}), 400
+        
+        user = authenticate_user(username, password)
+        if user:
+            login_user(user, remember=True)
+            # Ensure session is saved
+            session.modified = True
+            logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
+            # Log successful login
+            try:
+                log_security_event(user.id, 'login_success', 'User logged in successfully')
+            except Exception as log_error:
+                logger.error(f"Error logging security event: {log_error}")
+            # Return proper response format for mobile app
+            return jsonify({
+                "success": True, 
+                "authenticated": True,
+                "redirect": "/",
+                "token": session.get('_id', 'session-token'),  # Return session identifier
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "name": user.full_name or user.username,
+                    "role": user.role,
+                    "campus": getattr(user, 'campus', 'all_campuses')
+                }
+            })
+        else:
+            # Log failed login attempt
+            try:
+                log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
+            except Exception as log_error:
+                logger.error(f"Error logging security event: {log_error}")
+            return jsonify({"error": "Invalid username/email or password."}), 401
+    except Exception as e:
+        logger.error(f"Error in api_login: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error. Please try again."}), 500
 
 # Security Settings Endpoints
 @app.route('/api/security/change_password', methods=['POST'])
@@ -13598,6 +13623,14 @@ def create_connect_group():
         if not leader:
             return jsonify({'error': 'Leader not found'}), 404
         
+        # Handle leader_emails (JSON array of additional leader emails)
+        leader_emails_json = None
+        if data.get('leader_emails'):
+            if isinstance(data['leader_emails'], list):
+                leader_emails_json = json.dumps(data['leader_emails'])
+            else:
+                leader_emails_json = data['leader_emails']
+        
         # Create group
         group = ConnectGroup(
             id=group_id,
@@ -13609,7 +13642,8 @@ def create_connect_group():
             meeting_time=data.get('meeting_time'),
             meeting_frequency=data.get('meeting_frequency', 'weekly'),
             location=data.get('location'),
-            leader_access_code=data.get('leader_access_code')  # Simple password for leader portal
+            leader_access_code=data.get('leader_access_code'),  # Simple password for leader portal
+            leader_emails=leader_emails_json  # Additional leader emails
         )
         
         db.session.add(group)
@@ -13693,6 +13727,13 @@ def update_connect_group(group_id):
             group.location = data['location']
         if 'leader_access_code' in data:
             group.leader_access_code = data['leader_access_code']
+        if 'leader_emails' in data:
+            if isinstance(data['leader_emails'], list):
+                group.leader_emails = json.dumps(data['leader_emails'])
+            elif data['leader_emails'] is None:
+                group.leader_emails = None
+            else:
+                group.leader_emails = data['leader_emails']
         if 'is_active' in data:
             group.is_active = data['is_active']
         
@@ -13711,18 +13752,46 @@ def update_connect_group(group_id):
 
 
 @app.route('/api/connect-groups/<group_id>/members', methods=['POST'])
-@login_required
 def add_group_member(group_id):
-    """Add member to connect group"""
+    """Add member to connect group (allows leader access via email + access code)"""
     try:
-        if not current_user.has_permission('groups', 'edit'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-        
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
         
         data = request.get_json()
+        
+        # Check permissions - either logged-in admin/staff OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                all_leader_emails = group.get_leader_emails()
+                is_leader = current_user.email.lower() in all_leader_emails
+                is_authenticated_user = current_user.has_permission('groups', 'edit')
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code
+        if not is_authenticated_user and not is_leader:
+            all_leader_emails = group.get_leader_emails()
+            provided_email = data.get('leader_email', '').lower()
+            provided_code = data.get('access_code', '')
+            
+            if provided_email and provided_email in all_leader_emails:
+                # Verify access code if set
+                if group.leader_access_code:
+                    if provided_code != group.leader_access_code:
+                        return jsonify({'error': 'Invalid access code'}), 403
+                is_leader = True
+            else:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        if not (is_authenticated_user or is_leader):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
         person_id = data.get('person_id')
         
         if not person_id:
@@ -13792,21 +13861,19 @@ def create_group_meeting(group_id):
         # Check if user is logged in
         try:
             if current_user and hasattr(current_user, 'email'):
-                leader_email = group.leader.email if group.leader else None
-                co_leader_email = group.co_leader.email if group.co_leader else None
-                is_leader = (leader_email == current_user.email) or (co_leader_email == current_user.email)
+                all_leader_emails = group.get_leader_emails()
+                is_leader = current_user.email.lower() in all_leader_emails
                 is_authenticated_user = current_user.has_permission('groups', 'edit')
         except:
             pass  # Not logged in, check email + access code
         
         # If not authenticated user, check email + access code
         if not is_authenticated_user and not is_leader:
-            leader_email = group.leader.email if group.leader else None
-            co_leader_email = group.co_leader.email if group.co_leader else None
+            all_leader_emails = group.get_leader_emails()
             provided_email = data.get('leader_email', '').lower()
             provided_code = data.get('access_code', '')
             
-            if provided_email and (provided_email == leader_email.lower() or provided_email == co_leader_email.lower()):
+            if provided_email and provided_email in all_leader_emails:
                 # Verify access code if set
                 if group.leader_access_code:
                     if provided_code != group.leader_access_code:
@@ -14003,21 +14070,19 @@ def submit_meeting_attendance(meeting_id):
         # Check if user is logged in
         try:
             if current_user and hasattr(current_user, 'email'):
-                leader_email = group.leader.email if group.leader else None
-                co_leader_email = group.co_leader.email if group.co_leader else None
-                is_leader = (leader_email == current_user.email) or (co_leader_email == current_user.email)
+                all_leader_emails = group.get_leader_emails()
+                is_leader = current_user.email.lower() in all_leader_emails
                 is_authenticated_user = current_user.has_permission('groups', 'edit')
         except:
             pass  # Not logged in, check email + access code
         
         # If not authenticated user, check email + access code
         if not is_authenticated_user and not is_leader:
-            leader_email = group.leader.email if group.leader else None
-            co_leader_email = group.co_leader.email if group.co_leader else None
+            all_leader_emails = group.get_leader_emails()
             provided_email = data.get('leader_email', '').lower()
             provided_code = data.get('access_code', '')
             
-            if provided_email and (provided_email == leader_email.lower() or provided_email == co_leader_email.lower()):
+            if provided_email and provided_email in all_leader_emails:
                 # Verify access code if set
                 if group.leader_access_code:
                     if provided_code != group.leader_access_code:

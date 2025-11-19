@@ -31,12 +31,14 @@ const ConnectGroups = () => {
     campus: 'all_campuses',
     leader_id: '',
     co_leader_id: '',
+    leader_emails: [], // Array of additional leader emails
     meeting_day: '',
     meeting_time: '',
     meeting_frequency: 'weekly',
     location: '',
     leader_access_code: ''
   });
+  const [newLeaderEmail, setNewLeaderEmail] = useState('');
   const [leaderSearch, setLeaderSearch] = useState('');
   const [coLeaderSearch, setCoLeaderSearch] = useState('');
   const [showLeaderDropdown, setShowLeaderDropdown] = useState(false);
@@ -166,6 +168,7 @@ const ConnectGroups = () => {
         campus: group.campus || 'all_campuses',
         leader_id: group.leader_id || '',
         co_leader_id: group.co_leader_id || '',
+        leader_emails: group.leader_emails || [],
         meeting_day: group.meeting_day || '',
         meeting_time: group.meeting_time || '',
         meeting_frequency: group.meeting_frequency || 'weekly',
@@ -179,6 +182,7 @@ const ConnectGroups = () => {
         campus: campusFilter !== 'all_campuses' ? campusFilter : 'all_campuses',
         leader_id: '',
         co_leader_id: '',
+        leader_emails: [],
         meeting_day: '',
         meeting_time: '',
         meeting_frequency: 'weekly',
@@ -669,6 +673,75 @@ const ConnectGroups = () => {
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* Additional Leader Emails */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Additional Leader Emails (Optional)
+                  </label>
+                  <p className="text-xs text-slate-400 mb-2">
+                    Add email addresses of additional leaders who can access the portal
+                  </p>
+                  
+                  {/* List of added emails */}
+                  {formData.leader_emails.length > 0 && (
+                    <div className="mb-2 space-y-1">
+                      {formData.leader_emails.map((email, index) => (
+                        <div key={index} className="flex items-center justify-between px-3 py-2 bg-slate-700 rounded-lg">
+                          <span className="text-white text-sm">{email}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = formData.leader_emails.filter((_, i) => i !== index);
+                              setFormData({ ...formData, leader_emails: updated });
+                            }}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            <XMarkIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Add email input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={newLeaderEmail}
+                      onChange={(e) => setNewLeaderEmail(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newLeaderEmail.trim() && !formData.leader_emails.includes(newLeaderEmail.trim())) {
+                            setFormData({
+                              ...formData,
+                              leader_emails: [...formData.leader_emails, newLeaderEmail.trim()]
+                            });
+                            setNewLeaderEmail('');
+                          }
+                        }
+                      }}
+                      className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                      placeholder="Enter email address"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newLeaderEmail.trim() && !formData.leader_emails.includes(newLeaderEmail.trim())) {
+                          setFormData({
+                            ...formData,
+                            leader_emails: [...formData.leader_emails, newLeaderEmail.trim()]
+                          });
+                          setNewLeaderEmail('');
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg focus:outline-none"
+                    >
+                      <PlusIcon className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
 
