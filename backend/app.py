@@ -12756,12 +12756,13 @@ def get_persons():
         
         persons = query.order_by(Person.full_name).all()
         
-        # Include engagement profile data
+        # Include engagement profile data and Heartbeat snapshot
+        from models import HeartbeatSnapshot
         result = []
         for person in persons:
             person_data = person.to_dict()
             
-            # Add engagement profile data
+            # Add engagement profile data (legacy)
             if person.engagement_profile:
                 engagement_data = person.engagement_profile.to_dict()
                 person_data['pulse_status'] = engagement_data.get('pulse_status', 'red')
@@ -12777,6 +12778,16 @@ def get_persons():
                 person_data['attendance_frequency'] = 0.0
                 person_data['serving_frequency'] = 0.0
                 person_data['overall_engagement'] = 0.0
+            
+            # Add Heartbeat snapshot data (new system)
+            heartbeat_snapshot = HeartbeatSnapshot.query.filter_by(
+                person_id=person.id
+            ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+            
+            if heartbeat_snapshot:
+                person_data['heartbeat'] = heartbeat_snapshot.to_dict()
+            else:
+                person_data['heartbeat'] = None
             
             # Apply pulse filter if specified
             if pulse_filter and person_data['pulse_status'] != pulse_filter:

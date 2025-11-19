@@ -209,10 +209,16 @@ const Heartbeat = () => {
         );
 
         if (!response.ok) {
-          throw new Error('Failed to load heartbeat data');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to load heartbeat data (${response.status})`);
         }
 
         const data = await response.json();
+        
+        // Check if there's an error in the response
+        if (data.error) {
+          throw new Error(data.error);
+        }
         let peopleList = data.people || [];
 
         // Apply search filter
@@ -246,7 +252,13 @@ const Heartbeat = () => {
         setSummary(counts);
       } catch (err) {
         console.error('Heartbeat load error:', err);
-        setError('Unable to load heartbeat data. Please try again.');
+        const errorMessage = err.message || 'Unable to load heartbeat data. Please try again.';
+        setError(errorMessage);
+        
+        // If it's a 404, suggest running seed script
+        if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+          setError('Campus not found in Heartbeat system. Try running the seed script or recalculating.');
+        }
       } finally {
         setLoading(false);
       }
@@ -474,11 +486,23 @@ const Heartbeat = () => {
               <div className="text-center py-12">
                 <div className="text-6xl mb-4 opacity-50">💜</div>
                 <p className="text-slate-400 text-lg mb-2">No people found</p>
-                <p className="text-slate-500 text-sm">
+                <p className="text-slate-500 text-sm mb-4">
                   {searchQuery || statusFilter
                     ? 'Try adjusting your filters'
-                    : 'No heartbeat data available. Run recalculation to generate scores.'}
+                    : people.length === 0
+                    ? 'No people found for this campus. Check that people have this campus assigned.'
+                    : 'People found but no heartbeat data. Click "Recalculate Campus" to generate scores.'}
                 </p>
+                {!searchQuery && !statusFilter && people.length === 0 && selectedCampus && (
+                  <button
+                    type="button"
+                    onClick={handleRecalculate}
+                    disabled={recalculating}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-semibold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  >
+                    {recalculating ? 'Recalculating...' : '🔄 Recalculate Campus (May Create Data)'}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

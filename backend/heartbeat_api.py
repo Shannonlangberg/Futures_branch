@@ -31,20 +31,56 @@ def get_campus_people(campus_id):
         - status: Filter by status ('healthy', 'watch', 'at_risk', 'critical')
     """
     try:
-        # Verify campus exists
+        # Try to find campus by ID first
         campus = Campus.query.get(campus_id)
+        
+        # If not found by ID, try to find by name (for flexibility)
         if not campus:
-            return jsonify({'error': 'Campus not found'}), 404
+            campus = Campus.query.filter_by(name=campus_id).first()
+        
+        # If still not found, create it from the campus name
+        if not campus:
+            # Normalize campus_id to create new campus
+            campus_id_normalized = campus_id.lower().replace(' ', '_')
+            campus = Campus(
+                id=campus_id_normalized,
+                name=campus_id,  # Use original as display name
+                timezone='Australia/Adelaide',
+                is_active=True
+            )
+            db.session.add(campus)
+            db.session.commit()
+            logger.info(f"Created Heartbeat campus: {campus_id_normalized} ({campus_id})")
         
         # Get status filter
         status_filter = request.args.get('status')
         
         # Get people for this campus
-        # Map campus_id to campus name
+        # Try multiple matching strategies
+        # 1. Exact match with campus.name
         people = Person.query.filter_by(
             campus=campus.name,
             is_active=True
         ).all()
+        
+        # 2. If no results, try normalized name variations
+        if not people:
+            # Try common variations
+            variations = [
+                campus.name,
+                campus.id.replace('_', ' ').title(),  # copper_coast -> Copper Coast
+                campus.id.replace('_', ' '),  # copper_coast -> copper coast
+                campus.name.lower(),
+                campus.name.upper()
+            ]
+            for variation in variations:
+                people = Person.query.filter_by(
+                    campus=variation,
+                    is_active=True
+                ).all()
+                if people:
+                    logger.info(f"Found {len(people)} people using campus variation: {variation}")
+                    break
         
         results = []
         for person in people:
@@ -80,12 +116,19 @@ def get_campus_people(campus_id):
             'campus_id': campus_id,
             'campus_name': campus.name,
             'people': results,
-            'count': len(results)
+            'count': len(results),
+            'message': f'Found {len(people)} people for {campus.name}' if people else f'No people found for {campus.name}. Run recalculation after adding data.'
         }), 200
         
     except Exception as e:
-        logger.error(f"Error getting campus people: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error getting campus people: {e}", exc_info=True)
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Full traceback: {error_details}")
+        return jsonify({
+            'error': str(e),
+            'details': 'Check server logs for more information'
+        }), 500
 
 
 @heartbeat_bp.route('/person/<person_id>', methods=['GET'])
