@@ -1045,20 +1045,22 @@ const PersonHealthReport = () => {
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            {isCurrent && !showAssignButton && (
-                              <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
-                                Current
-                              </span>
-                            )}
                             {showAssignButton ? (
-                              <button
-                                onClick={() => handleAssignConnectGroupClick(step)}
-                                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-semibold"
-                                title="Assign to a connect group"
-                              >
-                                Assign
-                              </button>
-                            ) : !isCompleted && !isCurrent && !isConnectGroupStep ? (
+                              <>
+                                {isCurrent && (
+                                  <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
+                                    Current
+                                  </span>
+                                )}
+                                <button
+                                  onClick={() => handleAssignConnectGroupClick(step)}
+                                  className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-semibold"
+                                  title="Assign to a connect group"
+                                >
+                                  Assign
+                                </button>
+                              </>
+                            ) : !isCompleted && !isCurrent ? (
                               <button
                                 onClick={() => handleCompleteStepClick(step.id)}
                                 className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
@@ -1066,7 +1068,7 @@ const PersonHealthReport = () => {
                               >
                                 Complete
                               </button>
-                            ) : isCurrent && isConnectGroupStep ? (
+                            ) : isCurrent && !isConnectGroupStep ? (
                               <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
                                 Current
                               </span>
