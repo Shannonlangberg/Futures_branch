@@ -14079,6 +14079,10 @@ app.register_blueprint(serving_bp)
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
 
+# HEARTBEAT MODULE ROUTES
+from heartbeat_api import heartbeat_bp
+app.register_blueprint(heartbeat_bp)
+
 # USER MANAGEMENT ROUTES
 @app.route('/api/users', methods=['GET'])
 @login_required
@@ -14892,8 +14896,12 @@ def google_oauth_callback():
         session.pop('google_oauth_state', None)
         session.pop('google_oauth_user_id', None)
         
-        # CRITICAL: Mark session as modified and save it before redirecting
+        # CRITICAL: Mark session as modified and ensure it's saved
         session.modified = True
+        session.permanent = True
+        
+        # Force session to be saved by accessing it (triggers save)
+        _ = session.get('google_drive_authenticated')
         
         # Log success (don't re-login user as it can cause recursion)
         if current_user.is_authenticated:
@@ -14975,15 +14983,70 @@ def google_oauth_callback():
                                     }
                                 }, 200);
                                 
-                                // Wait longer to ensure message is received, then close
-                                setTimeout(() => {
-                                    try {
-                                        console.log('[OAuth Callback] Closing popup window...');
-                                        window.close();
-                                    } catch (e) {
-                                        console.log('[OAuth Callback] Could not close window:', e);
-                                    }
-                                }, 1000); // Increased to 1 second to ensure message delivery
+                                // Verify session was saved before closing
+                                // Poll the session endpoint to confirm it's ready
+                                let sessionVerified = false;
+                                let verificationAttempts = 0;
+                                const maxVerificationAttempts = 10;
+                                
+                                const verifySession = () => {
+                                    verificationAttempts++;
+                                    fetch('/api/session', { credentials: 'include' })
+                                        .then(res => res.json())
+                                        .then((sessionData) => {
+                                            console.log('[OAuth Callback] Session verification attempt', verificationAttempts, sessionData);
+                                            if (sessionData && sessionData.authenticated && sessionData.needs_drive_auth === false) {
+                                                sessionVerified = true;
+                                                console.log('[OAuth Callback] Session verified! Closing popup...');
+                                                // Send final message
+                                                window.opener.postMessage({ type: 'googleAuthSuccess', verified: true }, origin);
+                                                window.opener.postMessage({ type: 'googleAuthSuccess', verified: true }, '*');
+                                                // Close after a short delay
+                                                setTimeout(() => {
+                                                    try {
+                                                        window.close();
+                                                    } catch (e) {
+                                                        console.log('[OAuth Callback] Could not close window:', e);
+                                                    }
+                                                }, 300);
+                                            } else if (verificationAttempts < maxVerificationAttempts) {
+                                                // Session not ready yet, try again
+                                                setTimeout(verifySession, 500);
+                                            } else {
+                                                // Max attempts reached, close anyway
+                                                console.log('[OAuth Callback] Max verification attempts reached, closing anyway...');
+                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
+                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                                                setTimeout(() => {
+                                                    try {
+                                                        window.close();
+                                                    } catch (e) {
+                                                        console.log('[OAuth Callback] Could not close window:', e);
+                                                    }
+                                                }, 300);
+                                            }
+                                        })
+                                        .catch((error) => {
+                                            console.error('[OAuth Callback] Error verifying session:', error);
+                                            if (verificationAttempts < maxVerificationAttempts) {
+                                                setTimeout(verifySession, 500);
+                                            } else {
+                                                // Max attempts reached, close anyway
+                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
+                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                                                setTimeout(() => {
+                                                    try {
+                                                        window.close();
+                                                    } catch (e) {
+                                                        console.log('[OAuth Callback] Could not close window:', e);
+                                                    }
+                                                }, 300);
+                                            }
+                                        });
+                                };
+                                
+                                // Start verification after a short delay to allow session to save
+                                setTimeout(verifySession, 500);
                                 return true;
                             } else if (window.parent && window.parent !== window) {
                                 // Iframe scenario

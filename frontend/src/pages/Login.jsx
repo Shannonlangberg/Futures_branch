@@ -162,7 +162,7 @@ const Login = ({ onLogin }) => {
           };
           
           // Start checking after a delay to allow session to save
-          setTimeout(checkSession, 1500); // Wait 1.5 seconds for session to be saved
+          setTimeout(checkSession, 2000); // Wait 2 seconds for session to be saved
         }
       }, 500);
 
@@ -211,35 +211,53 @@ const Login = ({ onLogin }) => {
         setIsDriveAuthRequired(false);
         
         // Wait a moment for session to update, then check and redirect
+        // If message includes verified flag, session is confirmed ready
+        const isVerified = event.data.verified === true;
+        const initialDelay = isVerified ? 300 : 1500; // Shorter delay if verified
+        
         setTimeout(() => {
-          fetch('/api/session', { credentials: 'include' })
-            .then(res => res.json())
-            .then((sessionData) => {
-              console.log('Session check after OAuth:', sessionData);
-              if (sessionData && sessionData.authenticated) {
-                // User is authenticated with Google Drive - redirect to dashboard
-                console.log('User authenticated, redirecting to dashboard...');
-                if (onLogin) {
-                  onLogin();
-                }
-                // Use window.location for a full page navigation to ensure clean state
-                window.location.href = '/dashboard';
-              } else {
-                // Session not ready yet, wait a bit more and try again
-                console.log('Session not ready, retrying...');
-                setTimeout(() => {
+          let attempts = 0;
+          const maxAttempts = 5;
+          
+          const checkSessionAndRedirect = () => {
+            attempts++;
+            console.log(`[Login] Checking session after OAuth message (attempt ${attempts}/${maxAttempts})...`);
+            
+            fetch('/api/session', { credentials: 'include' })
+              .then(res => res.json())
+              .then((sessionData) => {
+                console.log('[Login] Session check after OAuth:', sessionData);
+                if (sessionData && sessionData.authenticated && sessionData.needs_drive_auth === false) {
+                  // User is authenticated with Google Drive - redirect to dashboard
+                  console.log('[Login] User authenticated, redirecting to dashboard...');
+                  if (onLogin) {
+                    onLogin();
+                  }
+                  // Use window.location for a full page navigation to ensure clean state
+                  window.location.href = '/dashboard';
+                } else if (attempts < maxAttempts) {
+                  // Session not ready yet, wait a bit more and try again
+                  console.log(`[Login] Session not ready (needs_drive_auth=${sessionData?.needs_drive_auth}), retrying in 1 second...`);
+                  setTimeout(checkSessionAndRedirect, 1000);
+                } else {
+                  // Max attempts reached, reload to check auth status
+                  console.log('[Login] Max attempts reached, reloading page...');
                   window.location.reload();
-                }, 500);
-              }
-            })
-            .catch((error) => {
-              console.error('Error checking session after OAuth:', error);
-              // On error, reload to check auth status
-              setTimeout(() => {
-                window.location.reload();
-              }, 500);
-            });
-        }, 1000); // Wait 1 second for session to be saved
+                }
+              })
+              .catch((error) => {
+                console.error('[Login] Error checking session after OAuth:', error);
+                if (attempts < maxAttempts) {
+                  setTimeout(checkSessionAndRedirect, 1000);
+                } else {
+                  // On error after max attempts, reload to check auth status
+                  window.location.reload();
+                }
+              });
+          };
+          
+          checkSessionAndRedirect();
+        }, initialDelay);
       }
     };
 
