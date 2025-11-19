@@ -14184,7 +14184,7 @@ def submit_meeting_attendance(meeting_id):
                             db.session.add(engagement)
                             db.session.flush()  # Flush to get the ID
                             logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
-                    
+                        
                         # Add group attendance to engagement profile (feeds to heartbeat)
                         try:
                             # Ensure meeting_date is a date object
@@ -14303,12 +14303,16 @@ def submit_meeting_attendance(meeting_id):
                             logger.info(f"Group attendance log after add: {group_log}")
                             logger.info(f"Engagement profile updated - overall_engagement: {engagement.overall_engagement}, pulse_status: {engagement.pulse_status}, last_seen: {engagement.last_seen}")
                         
+                        except Exception as group_attendance_error:
+                            logger.error(f"Error adding group attendance for {person.full_name}: {group_attendance_error}", exc_info=True)
+                            # Don't fail the whole operation if group attendance logging fails
+                    
                     except Exception as e:
-                        logger.error(f"Error adding group attendance for {person.full_name}: {e}", exc_info=True)
-                        raise
-        
-        db.session.commit()
-        logger.info(f"Successfully committed attendance for meeting {meeting_id}")
+                        logger.error(f"Error updating engagement profile for {person.full_name}: {e}", exc_info=True)
+                        # Don't fail the whole operation if engagement profile update fails
+                
+                db.session.commit()
+                logger.info(f"Successfully committed attendance for meeting {meeting_id}")
         
         # Refresh engagement profiles and recalculate heartbeat for affected people
         recalculated_people = []
