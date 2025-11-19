@@ -14055,11 +14055,33 @@ def submit_meeting_attendance(meeting_id):
         if recalculated_people:
             logger.info(f"Successfully recalculated heartbeat for {len(recalculated_people)} people: {', '.join(recalculated_people)}")
         
+        # Get the latest heartbeat scores for the recalculated people to show in response
+        heartbeat_results = []
+        for att_data in attendance_list:
+            if att_data.get('present', False):
+                person_id = att_data.get('person_id')
+                if person_id and person_id in [p for p in recalculated_people]:
+                    try:
+                        from models import HeartbeatSnapshot
+                        snapshot = HeartbeatSnapshot.query.filter_by(
+                            person_id=person_id
+                        ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                        if snapshot:
+                            heartbeat_results.append({
+                                'person_id': person_id,
+                                'total_score': snapshot.total_score,
+                                'engagement_score': snapshot.engagement_score,
+                                'status': snapshot.status
+                            })
+                    except:
+                        pass
+        
         return jsonify({
             'message': 'Attendance submitted successfully',
             'meeting': meeting.to_dict(),
             'heartbeat_recalculated': len(recalculated_people),
-            'people': recalculated_people
+            'people': recalculated_people,
+            'heartbeat_scores': heartbeat_results
         })
         
     except Exception as e:
