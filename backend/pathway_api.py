@@ -684,7 +684,8 @@ If all steps are complete, celebrate their completion and suggest next steps in 
             return jsonify({
                 'suggestion': suggestion,
                 'next_step': next_step.to_dict() if next_step else None,
-                'progress_percentage': progress.get_progress_percentage()
+                'progress_percentage': progress.get_progress_percentage(),
+                'has_suggestion': True
             }), 200
             
         except Exception as e:

@@ -635,13 +635,39 @@ class PersonPathwayProgress(db.Model):
         return round((completed_steps / total_steps) * 100, 1)
     
     def get_next_step(self):
-        """Get the next uncompleted step"""
+        """Get the next uncompleted step - intelligently skips steps that should be considered complete"""
         if not self.pathway:
             return None
         
         completed_step_ids = [c.pathway_step_id for c in self.step_completions.all()]
         all_steps = self.pathway.steps.order_by(PathwayStep.step_order).all()
         
+        # If no steps completed, return first step
+        if not completed_step_ids:
+            return all_steps[0] if all_steps else None
+        
+        # Find the highest order number of completed steps
+        completed_orders = [
+            step.step_order 
+            for step in all_steps 
+            if step.id in completed_step_ids
+        ]
+        
+        if completed_orders:
+            highest_completed_order = max(completed_orders)
+            # Find the next uncompleted step after the highest completed step
+            for step in all_steps:
+                if step.id not in completed_step_ids and step.step_order > highest_completed_order:
+                    return step
+        
+        # If we got here, either all steps are complete, or we should still check for earlier uncompleted steps
+        # But only if they haven't completed any steps (to avoid showing step 1 when they've done steps 2,3,4)
+        if completed_orders:
+            # They've completed steps but there are no steps after their highest completed
+            # This means they've completed everything, or we're at the end
+            return None
+        
+        # Fallback: return first uncompleted step
         for step in all_steps:
             if step.id not in completed_step_ids:
                 return step

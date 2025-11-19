@@ -166,7 +166,10 @@ const PersonHealthReport = () => {
   };
 
   const fetchAISuggestion = async () => {
-    if (!data?.pathway?.id) return;
+    if (!data?.pathway?.id) {
+      console.warn('Cannot fetch AI suggestion: no pathway ID');
+      return;
+    }
     
     try {
       setLoadingSuggestion(true);
@@ -176,10 +179,21 @@ const PersonHealthReport = () => {
       
       if (response.ok) {
         const result = await response.json();
-        setAiSuggestion(result);
+        console.log('AI suggestion response:', result);
+        if (result.suggestion) {
+          setAiSuggestion(result);
+        } else {
+          console.warn('No suggestion in response:', result);
+          setAiSuggestion({ suggestion: null, message: result.message });
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Error fetching AI suggestion:', response.status, errorData);
+        setAiSuggestion({ suggestion: null, error: errorData.error || 'Failed to get suggestion' });
       }
     } catch (err) {
       console.error('Error fetching AI suggestion:', err);
+      setAiSuggestion({ suggestion: null, error: 'Failed to connect to server' });
     } finally {
       setLoadingSuggestion(false);
     }
@@ -678,35 +692,41 @@ const PersonHealthReport = () => {
                       <div className="text-sm text-slate-300 mb-2">{pathway.next_step.step_description}</div>
                     )}
                     
-                    {/* AI Suggestion */}
+                    {/* Suggested Next Step */}
                     {loadingSuggestion && (
                       <div className="mt-4 pt-4 border-t border-indigo-500/20">
                         <div className="flex items-center gap-2 text-sm text-indigo-200/70">
                           <div className="inline-block w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
-                          <span>Getting AI suggestion...</span>
+                          <span>Getting suggestion...</span>
                         </div>
                       </div>
                     )}
                     {!loadingSuggestion && aiSuggestion?.suggestion && (
                       <div className="mt-4 pt-4 border-t border-indigo-500/20">
                         <div className="flex items-start gap-2 mb-2">
-                          <span className="text-lg">🤖</span>
-                          <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide">AI Suggestion</div>
+                          <span className="text-lg">💭</span>
+                          <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Suggested Next Step</div>
                         </div>
                         <div className="text-sm text-slate-200 italic leading-relaxed">
                           {aiSuggestion.suggestion}
                         </div>
                       </div>
                     )}
-                    {!loadingSuggestion && !aiSuggestion?.suggestion && (
+                    {!loadingSuggestion && (!aiSuggestion || !aiSuggestion.suggestion) && (
                       <div className="mt-4 pt-4 border-t border-indigo-500/20">
                         <button
                           onClick={fetchAISuggestion}
-                          className="text-xs text-purple-300 hover:text-purple-200 flex items-center gap-1"
+                          className="text-xs text-purple-300 hover:text-purple-200 flex items-center gap-1 transition-colors"
                         >
-                          <span>🤖</span>
-                          <span>Get AI suggestion for next step</span>
+                          <span>💭</span>
+                          <span>Get suggested next step</span>
                         </button>
+                        {aiSuggestion?.error && (
+                          <div className="text-xs text-red-300 mt-2">{aiSuggestion.error}</div>
+                        )}
+                        {aiSuggestion?.message && (
+                          <div className="text-xs text-slate-400 mt-2 italic">{aiSuggestion.message}</div>
+                        )}
                       </div>
                     )}
                   </div>
