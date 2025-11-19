@@ -13875,16 +13875,52 @@ def update_connect_group(group_id):
 
 
 @app.route('/api/connect-groups/<group_id>/members', methods=['POST'])
-@login_required
 def add_group_member(group_id):
-    """Add member to connect group"""
+    """Add member to connect group (allows leader access via email + access code)"""
     try:
-        if not current_user.has_permission('groups', 'edit'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-        
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
+        
+        # Check permissions - either logged-in user OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                has_edit = current_user.has_permission('groups', 'edit')
+                has_edit_own = current_user.has_permission('groups', 'edit_own_groups')
+                
+                if has_edit:
+                    is_authenticated_user = True
+                elif has_edit_own:
+                    user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
+                    if user_person and (group.leader_id == user_person.id or group.co_leader_id == user_person.id):
+                        is_authenticated_user = True
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code from request body
+        if not is_authenticated_user:
+            data = request.get_json()
+            leader_email = data.get('leader_email', '').lower() if data else ''
+            access_code = data.get('access_code', '') if data else ''
+            
+            group_leader_email = group.leader.email.lower() if group.leader and group.leader.email else None
+            group_co_leader_email = group.co_leader.email.lower() if group.co_leader and group.co_leader.email else None
+            
+            if leader_email and (leader_email == group_leader_email or leader_email == group_co_leader_email):
+                # Verify access code if set
+                if group.leader_access_code:
+                    if access_code == group.leader_access_code:
+                        is_leader = True
+                else:
+                    # No access code required
+                    is_leader = True
+        
+        if not is_authenticated_user and not is_leader:
+            return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         person_id = data.get('person_id')

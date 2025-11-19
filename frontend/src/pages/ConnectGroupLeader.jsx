@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   UserGroupIcon,
   CalendarIcon,
@@ -7,7 +7,10 @@ import {
   ClockIcon,
   MapPinIcon,
   ArrowLeftOnRectangleIcon,
-  HomeIcon
+  HomeIcon,
+  PlusIcon,
+  MagnifyingGlassIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
 const ConnectGroupLeader = () => {
@@ -21,6 +24,52 @@ const ConnectGroupLeader = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentView, setCurrentView] = useState('groups'); // 'groups', 'group-details', 'attendance'
+  const [people, setPeople] = useState([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const memberDropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (loggedIn && selectedGroup) {
+      loadPeople();
+    }
+  }, [loggedIn, selectedGroup]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (memberDropdownRef.current && !memberDropdownRef.current.contains(event.target)) {
+        setShowMemberDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const loadPeople = async () => {
+    try {
+      // Load people - use demo endpoint since leaders aren't logged into main app
+      // Filter by campus when a group is selected
+      const campus = selectedGroup?.campus;
+      const url = campus && campus !== 'all_campuses' 
+        ? `/api/persons/demo?campus=${campus}&page_size=1000`
+        : '/api/persons/demo?page_size=1000';
+      
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPeople(data.persons || []);
+      }
+    } catch (err) {
+      console.error('Error loading people:', err);
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -418,9 +467,132 @@ const ConnectGroupLeader = () => {
 
             {/* Members */}
             <div className="mb-6">
-              <h3 className="text-lg font-semibold text-white mb-4">
-                Members ({selectedGroup.members?.length || 0})
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">
+                  Members ({selectedGroup.members?.length || 0})
+                </h3>
+                <button
+                  onClick={() => setShowAddMember(!showAddMember)}
+                  className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                >
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Add Member
+                </button>
+              </div>
+
+              {/* Add Member Section */}
+              {showAddMember && (
+                <div className="mb-4 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                  <div className="relative" ref={memberDropdownRef}>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Search and Select Person
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMemberDropdown(!showMemberDropdown);
+                        }}
+                        className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500 flex items-center justify-between"
+                      >
+                        <span className={memberSearch ? 'text-white' : 'text-slate-400'}>
+                          {memberSearch || 'Search for a person...'}
+                        </span>
+                        <ChevronDownIcon className="w-5 h-5 text-slate-400" />
+                      </button>
+                      
+                      {showMemberDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-80 overflow-hidden">
+                          {/* Search Input */}
+                          <div className="p-2 border-b border-slate-600">
+                            <div className="relative">
+                              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <input
+                                type="text"
+                                placeholder="Search by name or email..."
+                                value={memberSearch}
+                                onChange={(e) => setMemberSearch(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Options List */}
+                          <div className="max-h-64 overflow-y-auto">
+                            {people
+                              .filter(p => {
+                                const notInGroup = !selectedGroup.members?.some(m => m.id === p.id);
+                                const campusMatch = !selectedGroup.campus || selectedGroup.campus === 'all_campuses' || p.campus === selectedGroup.campus;
+                                const searchMatch = !memberSearch || 
+                                  p.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                                  (p.email && p.email.toLowerCase().includes(memberSearch.toLowerCase()));
+                                return notInGroup && campusMatch && searchMatch;
+                              })
+                              .map(person => (
+                                <button
+                                  key={person.id}
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch(
+                                        `/api/connect-groups/${selectedGroup.id}/members`,
+                                        {
+                                          method: 'POST',
+                                          headers: {
+                                            'Content-Type': 'application/json'
+                                          },
+                                          credentials: 'include',
+                                          body: JSON.stringify({ 
+                                            person_id: person.id,
+                                            leader_email: email,
+                                            access_code: accessCode
+                                          })
+                                        }
+                                      );
+                                      if (response.ok) {
+                                        await loadGroupDetails(selectedGroup);
+                                        setShowAddMember(false);
+                                        setMemberSearch('');
+                                        setShowMemberDropdown(false);
+                                        alert('Member added successfully!');
+                                      } else {
+                                        const data = await response.json();
+                                        alert(data.error || 'Failed to add member');
+                                      }
+                                    } catch (err) {
+                                      console.error('Error adding member:', err);
+                                      alert('Failed to add member');
+                                    }
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
+                                >
+                                  <div className="font-medium">{person.full_name}</div>
+                                  {person.email && (
+                                    <div className="text-sm text-slate-400">{person.email}</div>
+                                  )}
+                                </button>
+                              ))}
+                            {people.filter(p => {
+                              const notInGroup = !selectedGroup.members?.some(m => m.id === p.id);
+                              const campusMatch = !selectedGroup.campus || selectedGroup.campus === 'all_campuses' || p.campus === selectedGroup.campus;
+                              const searchMatch = !memberSearch || 
+                                p.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                                (p.email && p.email.toLowerCase().includes(memberSearch.toLowerCase()));
+                              return notInGroup && campusMatch && searchMatch;
+                            }).length === 0 && (
+                              <div className="px-4 py-3 text-slate-400 text-sm text-center">
+                                No people found
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {selectedGroup.members && selectedGroup.members.length > 0 ? (
                 <div className="space-y-2">
                   {selectedGroup.members.map(member => (
@@ -436,7 +608,7 @@ const ConnectGroupLeader = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400">No members yet</p>
+                <p className="text-slate-400">No members yet. Click "Add Member" to get started!</p>
               )}
             </div>
 
