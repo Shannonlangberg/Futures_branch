@@ -795,14 +795,20 @@ def save_conversation_memory(memory: Dict[str, Any]):
 
 print("[DEBUG] Creating Flask app instance")
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.secret_key = os.environ.get('SECRET_KEY', 'futures-church-secret-key-2025')
+# SECURITY: Require SECRET_KEY to be set - fail if not provided
+secret_key = os.environ.get('SECRET_KEY')
+if not secret_key:
+    raise ValueError("SECRET_KEY environment variable is required for security. Please set it in your environment variables.")
+app.secret_key = secret_key
 
-# Configure session cookies
+# Configure session cookies - SECURITY HARDENED
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+# Use SECURE=True in production (HTTPS required)
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('RAILWAY_ENVIRONMENT') == 'production'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_NAME'] = 'session'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Keep session for 7 days
+# Reduced session lifetime for better security (24 hours instead of 7 days)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 # Configure SQLAlchemy database
 # Strip whitespace from DATABASE_URL to handle Railway environment variable issues
@@ -1278,20 +1284,30 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Load user by ID for Flask-Login"""
+    """Load user by ID for Flask-Login - with security validation"""
     try:
+        # Validate user_id is a valid integer/string
+        if not user_id:
+            return None
+        
         conn = get_db()
         cursor = conn.cursor()
+        # SECURITY: Only load active users, verify user exists
         cursor.execute('''
             SELECT id, username, password_hash, full_name, email, role, campus, active
             FROM users
             WHERE id = ? AND active = 1
-        ''', (user_id,))
+        ''', (str(user_id),))
         
         row = cursor.fetchone()
         conn.close()
         
         if row:
+            # SECURITY: Double-check user is active
+            if not bool(row[7]):  # active column
+                logger.warning(f"Attempted to load inactive user {user_id}")
+                return None
+                
             user_data = {
                 'id': str(row[0]),  # Flask-Login expects string ID
                 'username': row[1],
@@ -1306,6 +1322,7 @@ def load_user(user_id):
         return None
     except Exception as e:
         logger.error(f"Error loading user {user_id}: {e}")
+        # On error, return None to prevent unauthorized access
         return None
 
 def authenticate_user(username, password):
@@ -7510,12 +7527,25 @@ def api_login():
     
     user = authenticate_user(username, password)
     if user:
+        # SECURITY: Verify user is still active before logging in
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT active FROM users WHERE id = ?', (user.id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row or not bool(row[0]):
+            logger.warning(f"Login attempt for inactive user: {username}")
+            return jsonify({"error": "Invalid username or password."}), 401
+        
+        # Mark session as permanent for session lifetime enforcement
         login_user(user, remember=True)
+        session.permanent = True
         # Ensure session is saved
         session.modified = True
-        logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
+        logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}, IP: {request.remote_addr}")
         # Log successful login
-        log_security_event(user.id, 'login_success', 'User logged in successfully')
+        log_security_event(user.id, 'login_success', f'User logged in successfully from IP: {request.remote_addr}')
         
         # Check if admin user needs Google Drive auth
         needs_drive_auth = False
@@ -7963,44 +7993,56 @@ def save_users(data):
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    """Logout user and clear session"""
+    """Logout user and clear all session data - SECURITY HARDENED"""
     try:
-        # Get user ID before logout
+        # Get user ID before logout for logging
         user_id = None
+        username = None
         if hasattr(current_user, 'id') and current_user.is_authenticated:
             user_id = current_user.id
+            username = current_user.username
         elif 'user_id' in session:
             user_id = session.get('user_id')
         
+        # SECURITY: Clear all session data including Google Drive tokens
         # Remove Flask-Login user session data
-        if '_user_id' in session:
-            session.pop('_user_id', None)
-        if 'user_id' in session:
-            session.pop('user_id', None)
-        if '_fresh' in session:
-            session.pop('_fresh', None)
-            
+        session_keys_to_remove = [
+            '_user_id', 'user_id', '_fresh', '_permanent',
+            'google_drive_authenticated', 'google_drive_access_token',
+            'google_drive_refresh_token', 'google_drive_token_expiry',
+            'google_oauth_state', 'google_oauth_user_id'
+        ]
+        
+        for key in session_keys_to_remove:
+            session.pop(key, None)
+        
         # Call Flask-Login logout
         logout_user()
         
-        # Force clear the entire session
+        # SECURITY: Force clear ALL remaining session data
         for key in list(session.keys()):
             session.pop(key, None)
         
-        # Modify session to force save
+        # Mark session as modified and cleared
         session.modified = True
+        session.clear()
         
-        logger.info(f"User {user_id} logged out successfully")
+        # Log security event
+        if user_id:
+            logger.info(f"User {username} (ID: {user_id}) logged out successfully, IP: {request.remote_addr}")
+            log_security_event(user_id, 'logout', f'User logged out from IP: {request.remote_addr}')
         
-        # Return response with clear cookie headers
+        # Return response with clear cookie headers - SECURITY: Expire all cookies
         response = jsonify({"success": True, "message": "Logged out successfully"})
-        response.set_cookie('session', '', expires=0, samesite='Lax', path='/')
-        response.set_cookie('remember_token', '', expires=0, path='/')
+        # Clear session cookie
+        response.set_cookie('session', '', expires=0, samesite='Lax', path='/', httponly=True, secure=app.config.get('SESSION_COOKIE_SECURE', False))
+        # Clear any remember token cookies
+        response.set_cookie('remember_token', '', expires=0, path='/', httponly=True)
         
         return response
     except Exception as e:
         logger.error(f"Logout error: {e}", exc_info=True)
-        # Even if there's an error, try to clear everything
+        # SECURITY: Even if there's an error, try to clear everything
         for key in list(session.keys()):
             session.pop(key, None)
         session.modified = True
@@ -8202,41 +8244,84 @@ def debug_claude():
 
 @app.route('/api/session')
 def session_info():
+    """Get current session information - validates authentication properly"""
+    # CRITICAL: Validate that user is actually authenticated and session is valid
+    # Don't trust current_user.is_authenticated alone - verify the user exists and is active
     if current_user.is_authenticated:
-        # Check if user needs Google Drive auth (admin users only)
-        needs_drive_auth = False
-        drive_status = {
-            'authenticated': False,
-            'token_valid': False,
-            'has_token': False
-        }
-        
-        if current_user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
-            # Check if Google Drive is authenticated
-            drive_authenticated = session.get('google_drive_authenticated', False)
-            drive_status['authenticated'] = drive_authenticated
-            drive_status['has_token'] = bool(session.get('google_drive_access_token'))
+        try:
+            # Verify user still exists and is active in database
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, username, role, campus, active
+                FROM users
+                WHERE id = ? AND active = 1
+            ''', (current_user.id,))
             
-            # Check if token is still valid
-            token_expiry = session.get('google_drive_token_expiry', 0)
-            token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
-            drive_status['token_valid'] = token_valid
+            row = cursor.fetchone()
+            conn.close()
             
-            # Admin users need Drive auth if not authenticated or token expired
-            needs_drive_auth = not (drive_authenticated and token_valid)
-        
-        return jsonify({
-            "authenticated": True,
-            "user": current_user.username,
-            "role": current_user.role,
-            "campus": current_user.campus,
-            "full_name": current_user.full_name,
-            "needs_drive_auth": needs_drive_auth,
-            "drive_status": drive_status,  # Debug info
-            "user_id": current_user.id,  # Debug info
-            "session_keys": list(session.keys()),  # Debug info
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
+            # If user doesn't exist or is inactive, invalidate session
+            if not row:
+                logout_user()
+                session.clear()
+                return jsonify({
+                    "authenticated": False,
+                    "user": None,
+                    "role": None,
+                    "campus": None,
+                    "full_name": None,
+                    "needs_drive_auth": False,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+            
+            # User is valid - check if admin needs Google Drive auth
+            needs_drive_auth = False
+            drive_status = {
+                'authenticated': False,
+                'token_valid': False,
+                'has_token': False
+            }
+            
+            if current_user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+                # Check if Google Drive is authenticated
+                drive_authenticated = session.get('google_drive_authenticated', False)
+                drive_status['authenticated'] = drive_authenticated
+                drive_status['has_token'] = bool(session.get('google_drive_access_token'))
+                
+                # Check if token is still valid
+                token_expiry = session.get('google_drive_token_expiry', 0)
+                token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
+                drive_status['token_valid'] = token_valid
+                
+                # Admin users need Drive auth if not authenticated or token expired
+                needs_drive_auth = not (drive_authenticated and token_valid)
+            
+            return jsonify({
+                "authenticated": True,
+                "user": current_user.username,
+                "role": current_user.role,
+                "campus": current_user.campus,
+                "full_name": current_user.full_name,
+                "needs_drive_auth": needs_drive_auth,
+                "drive_status": drive_status,
+                "user_id": current_user.id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as e:
+            logger.error(f"Error validating session: {e}")
+            # On error, invalidate session for security
+            logout_user()
+            session.clear()
+            return jsonify({
+                "authenticated": False,
+                "user": None,
+                "role": None,
+                "campus": None,
+                "full_name": None,
+                "needs_drive_auth": False,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
     else:
         return jsonify({
             "authenticated": False,
