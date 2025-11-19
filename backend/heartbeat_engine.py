@@ -14,7 +14,8 @@ from typing import Dict, List, Optional, Tuple
 from models import (
     db, Person, Campus, Service, AttendanceEvent, HeartbeatConnectGroup,
     ConnectAttendance, Team, ServingAssignment, GivingSummary,
-    DiscipleshipStep, CareCase, CareTouchpoint, HeartbeatSnapshot
+    DiscipleshipStep, CareCase, CareTouchpoint, HeartbeatSnapshot,
+    PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
 )
 import json
 import logging
@@ -200,10 +201,24 @@ class HeartbeatEngine:
             GivingSummary.period_start <= end_date
         ).all()
         
-        # Discipleship steps
+        # Discipleship steps (legacy)
         discipleship_steps = DiscipleshipStep.query.filter(
             DiscipleshipStep.person_id == person_id
         ).all()
+        
+        # Pathway progress and step completions (new system)
+        pathway_progress = PersonPathwayProgress.query.filter_by(
+            person_id=person_id,
+            is_active=True
+        ).all()
+        
+        # Get all completed pathway steps
+        pathway_step_completions = []
+        for progress in pathway_progress:
+            completions = progress.step_completions.all()
+            for completion in completions:
+                if completion.pathway_step:
+                    pathway_step_completions.append(completion.pathway_step)
         
         # Care cases
         care_cases = CareCase.query.filter(
@@ -224,6 +239,7 @@ class HeartbeatEngine:
             'serving_assignments': serving_assignments,
             'giving_summaries': giving_summaries,
             'discipleship_steps': discipleship_steps,
+            'pathway_step_completions': pathway_step_completions,
             'care_cases': care_cases,
             'care_touchpoints': care_touchpoints
         }
@@ -379,24 +395,38 @@ class HeartbeatEngine:
     ) -> float:
         """
         Calculate spiritual score (0-100) based on:
-        - Salvation milestone
-        - Baptism milestone
-        - Holy Spirit milestone
+        - Salvation milestone (from DiscipleshipStep or PathwayStep)
+        - Baptism milestone (from DiscipleshipStep or PathwayStep)
+        - Holy Spirit milestone (from DiscipleshipStep or PathwayStep)
         - Recent next steps
         - Other discipleship milestones
         """
         discipleship_steps = data['discipleship_steps']
+        pathway_step_completions = data.get('pathway_step_completions', [])
         
-        if not discipleship_steps:
+        # If no data at all, return 0
+        if not discipleship_steps and not pathway_step_completions:
             return 0.0
         
         score = 0.0
         
-        # Major milestones (60 points total)
+        # Check for major milestones from both sources
+        # From legacy DiscipleshipStep
         has_salvation = any(s.type == 'salvation' for s in discipleship_steps)
         has_baptism = any(s.type == 'baptism' for s in discipleship_steps)
         has_holy_spirit = any(s.type == 'holy_spirit' for s in discipleship_steps)
         
+        # From new PathwayStep completions (check milestone_type)
+        for step in pathway_step_completions:
+            milestone_type = (step.milestone_type or '').lower()
+            if milestone_type == 'salvation':
+                has_salvation = True
+            elif milestone_type == 'baptism':
+                has_baptism = True
+            elif milestone_type == 'holy_spirit':
+                has_holy_spirit = True
+        
+        # Major milestones (60 points total)
         if has_salvation:
             score += 20.0
         if has_baptism:
@@ -405,19 +435,34 @@ class HeartbeatEngine:
             score += 20.0
         
         # Recent next steps (30 points)
+        # Check legacy DiscipleshipStep
         recent_steps = [
             s for s in discipleship_steps
             if s.type == 'next_steps' and s.date >= start_date
         ]
+        # Check pathway steps with next_steps milestone_type
+        for step in pathway_step_completions:
+            if (step.milestone_type or '').lower() == 'next_steps':
+                # Check if completion date is recent (if available)
+                # For now, count all pathway next_steps as recent
+                recent_steps.append(step)
+        
         if recent_steps:
             # 10 points per recent next step, max 30
             score += min(len(recent_steps) * 10.0, 30.0)
         
         # Other milestones (10 points)
+        # From legacy DiscipleshipStep
         other_milestones = [
             s for s in discipleship_steps
             if s.type not in ['salvation', 'baptism', 'holy_spirit', 'next_steps']
         ]
+        # From pathway steps
+        for step in pathway_step_completions:
+            milestone_type = (step.milestone_type or '').lower()
+            if milestone_type not in ['salvation', 'baptism', 'holy_spirit', 'next_steps']:
+                other_milestones.append(step)
+        
         if other_milestones:
             score += min(len(other_milestones) * 2.0, 10.0)
         

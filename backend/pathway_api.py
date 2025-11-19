@@ -463,6 +463,16 @@ def complete_pathway_step(progress_id):
         
         db.session.commit()
         
+        # Trigger Heartbeat recalculation since spiritual score may have changed
+        try:
+            from heartbeat_engine import HeartbeatEngine
+            engine = HeartbeatEngine()
+            engine.calculate_heartbeat(progress.person_id)
+            logger.info(f"Recalculated Heartbeat for person {progress.person_id} after pathway step completion")
+        except Exception as e:
+            logger.warning(f"Failed to recalculate Heartbeat after pathway step completion: {e}")
+            # Don't fail the request if recalculation fails
+        
         return jsonify({
             'message': 'Step completed successfully',
             'progress': progress.to_dict(),
