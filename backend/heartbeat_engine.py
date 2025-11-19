@@ -438,14 +438,22 @@ class HeartbeatEngine:
         # Penalties for open cases
         open_cases = [c for c in care_cases if c.status in ['open', 'in_progress']]
         
+        # Debug logging for care score calculation
+        if open_cases:
+            logger.debug(f"Calculating care score: {len(open_cases)} open cases")
+        
         for case in open_cases:
             priority_penalties = {
                 'high': 30.0,
                 'medium': 15.0,
                 'low': 5.0
             }
-            penalty = priority_penalties.get(case.priority, 10.0)
+            # Handle None or invalid priority values
+            case_priority = case.priority if case.priority else 'low'
+            penalty = priority_penalties.get(case_priority.lower() if isinstance(case_priority, str) else 'low', 5.0)
             score -= penalty
+            
+            logger.debug(f"  Case: {case.type}, priority={case_priority}, penalty={penalty}, new_score={score}")
         
         # Bonus for recent touchpoints (shows active care)
         recent_touchpoints = [
@@ -454,9 +462,17 @@ class HeartbeatEngine:
         ]
         if recent_touchpoints:
             # Add 5 points per recent touchpoint, max +20
-            score += min(len(recent_touchpoints) * 5.0, 20.0)
+            bonus = min(len(recent_touchpoints) * 5.0, 20.0)
+            score += bonus
+            logger.debug(f"  Recent touchpoints: {len(recent_touchpoints)}, bonus={bonus}, final_score={score}")
         
-        return round(max(0.0, min(score, 100.0)), 2)
+        final_score = round(max(0.0, min(score, 100.0)), 2)
+        
+        # Warn if score is unexpectedly low without open cases
+        if final_score < 50 and len(open_cases) == 0:
+            logger.warning(f"Care score is {final_score} but no open cases found. This may indicate a calculation bug.")
+        
+        return final_score
     
     def _determine_status(self, total_score: float) -> str:
         """Determine status bucket from total score"""
