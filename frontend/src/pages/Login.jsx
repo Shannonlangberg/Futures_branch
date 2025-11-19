@@ -115,11 +115,14 @@ const Login = ({ onLogin }) => {
         if (authWindow.closed) {
           clearInterval(checkWindow);
           setIsDriveConnecting(false);
+          setIsDriveAuthRequired(false);
+          
           // Wait a moment for session to update, then check auth and redirect
           setTimeout(() => {
             fetch('/api/session', { credentials: 'include' })
               .then(res => res.json())
               .then((sessionData) => {
+                console.log('Session check after popup closed:', sessionData);
                 if (sessionData && sessionData.authenticated) {
                   // User is authenticated, redirect to dashboard
                   if (onLogin) {
@@ -129,14 +132,19 @@ const Login = ({ onLogin }) => {
                   window.location.href = '/dashboard';
                 } else {
                   // Not authenticated yet, refresh to check again
-                  window.location.reload();
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 500);
                 }
               })
-              .catch(() => {
+              .catch((error) => {
+                console.error('Error checking session after popup closed:', error);
                 // On error, refresh to check auth status
-                window.location.reload();
+                setTimeout(() => {
+                  window.location.reload();
+                }, 500);
               });
-          }, 800);
+          }, 1000); // Wait 1 second for session to be saved
         }
       }, 500);
 
@@ -168,18 +176,39 @@ const Login = ({ onLogin }) => {
       }
       
       if (event.data && event.data.type === 'googleAuthSuccess') {
-        console.log('Received Google OAuth success message, redirecting...');
+        console.log('Received Google OAuth success message, checking session...');
         setIsDriveConnecting(false);
         setDriveError('');
         setIsDriveAuthRequired(false);
         
-        // Immediately redirect to dashboard - the session is already updated
-        // The popup will close itself, we just need to redirect this tab
-        if (onLogin) {
-          onLogin();
-        }
-        // Use window.location for a full page navigation to ensure clean state
-        window.location.href = '/dashboard';
+        // Wait a moment for session to update, then check and redirect
+        setTimeout(() => {
+          fetch('/api/session', { credentials: 'include' })
+            .then(res => res.json())
+            .then((sessionData) => {
+              console.log('Session check after OAuth:', sessionData);
+              if (sessionData && sessionData.authenticated) {
+                // User is authenticated with Google Drive - redirect to dashboard
+                if (onLogin) {
+                  onLogin();
+                }
+                // Use window.location for a full page navigation to ensure clean state
+                window.location.href = '/dashboard';
+              } else {
+                // Session not ready yet, wait a bit more and try again
+                setTimeout(() => {
+                  window.location.reload();
+                }, 500);
+              }
+            })
+            .catch((error) => {
+              console.error('Error checking session after OAuth:', error);
+              // On error, reload to check auth status
+              setTimeout(() => {
+                window.location.reload();
+              }, 500);
+            });
+        }, 800); // Wait 800ms for session to be saved
       }
     };
 
