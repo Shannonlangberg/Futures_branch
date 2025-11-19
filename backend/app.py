@@ -14179,129 +14179,129 @@ def submit_meeting_attendance(meeting_id):
                     try:
                         # Get or create engagement profile
                         engagement = person.engagement_profile
-                    if not engagement:
-                        engagement = EngagementProfile(person_id=person.id)
-                        db.session.add(engagement)
-                        db.session.flush()  # Flush to get the ID
-                        logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
+                        if not engagement:
+                            engagement = EngagementProfile(person_id=person.id)
+                            db.session.add(engagement)
+                            db.session.flush()  # Flush to get the ID
+                            logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
                     
-                    # Add group attendance to engagement profile (feeds to heartbeat)
-                    try:
-                        # Ensure meeting_date is a date object
-                        attendance_date = meeting.meeting_date
-                        if isinstance(attendance_date, str):
-                            from datetime import datetime as dt
-                            attendance_date = dt.fromisoformat(attendance_date).date()
-                        elif isinstance(attendance_date, datetime):
-                            attendance_date = attendance_date.date()
-                        
-                        # CRITICAL FIX: If meeting date is in the future, use today's date instead
-                        # Heartbeat calculation only looks at past dates, so future dates won't be counted
-                        today = datetime.utcnow().date()
-                        if attendance_date > today:
-                            logger.warning(f"Meeting date {attendance_date} is in the future. Using today's date {today} for attendance record.")
-                            attendance_date = today
-                        
-                        logger.info(f"Adding group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {attendance_date}, Type: {type(attendance_date)}")
-                        
-                        # Update EngagementProfile (legacy system)
-                        engagement.add_group_attendance(
-                            group_id=group.id,
-                            attendance_date=attendance_date,
-                            present=True
-                        )
-                        
-                        # ALSO create ConnectAttendance record for Heartbeat system
+                        # Add group attendance to engagement profile (feeds to heartbeat)
                         try:
-                            from models import ConnectAttendance, HeartbeatConnectGroup, Campus as HeartbeatCampus
+                            # Ensure meeting_date is a date object
+                            attendance_date = meeting.meeting_date
+                            if isinstance(attendance_date, str):
+                                from datetime import datetime as dt
+                                attendance_date = dt.fromisoformat(attendance_date).date()
+                            elif isinstance(attendance_date, datetime):
+                                attendance_date = attendance_date.date()
                             
-                            # Get or create Heartbeat campus
-                            campus_normalized = group.campus.lower().replace(' ', '_')
-                            heartbeat_campus = HeartbeatCampus.query.filter_by(id=campus_normalized).first()
-                            if not heartbeat_campus:
-                                heartbeat_campus = HeartbeatCampus(
-                                    id=campus_normalized,
-                                    name=group.campus,
-                                    timezone='Australia/Adelaide',
-                                    is_active=True
-                                )
-                                db.session.add(heartbeat_campus)
-                                db.session.flush()
-                                logger.info(f"Created Heartbeat campus: {campus_normalized}")
+                            # CRITICAL FIX: If meeting date is in the future, use today's date instead
+                            # Heartbeat calculation only looks at past dates, so future dates won't be counted
+                            today = datetime.utcnow().date()
+                            if attendance_date > today:
+                                logger.warning(f"Meeting date {attendance_date} is in the future. Using today's date {today} for attendance record.")
+                                attendance_date = today
                             
-                            # Find or create HeartbeatConnectGroup
-                            # Try multiple matching strategies
-                            heartbeat_group = HeartbeatConnectGroup.query.filter_by(
-                                name=group.name,
-                                leader_person_id=group.leader_id,
-                                campus_id=heartbeat_campus.id
-                            ).first()
+                            logger.info(f"Adding group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {attendance_date}, Type: {type(attendance_date)}")
                             
-                            if not heartbeat_group:
-                                # Try matching by name and campus only (in case leader changed)
+                            # Update EngagementProfile (legacy system)
+                            engagement.add_group_attendance(
+                                group_id=group.id,
+                                attendance_date=attendance_date,
+                                present=True
+                            )
+                            
+                            # ALSO create ConnectAttendance record for Heartbeat system
+                            try:
+                                from models import ConnectAttendance, HeartbeatConnectGroup, Campus as HeartbeatCampus
+                                
+                                # Get or create Heartbeat campus
+                                campus_normalized = group.campus.lower().replace(' ', '_')
+                                heartbeat_campus = HeartbeatCampus.query.filter_by(id=campus_normalized).first()
+                                if not heartbeat_campus:
+                                    heartbeat_campus = HeartbeatCampus(
+                                        id=campus_normalized,
+                                        name=group.campus,
+                                        timezone='Australia/Adelaide',
+                                        is_active=True
+                                    )
+                                    db.session.add(heartbeat_campus)
+                                    db.session.flush()
+                                    logger.info(f"Created Heartbeat campus: {campus_normalized}")
+                                
+                                # Find or create HeartbeatConnectGroup
+                                # Try multiple matching strategies
                                 heartbeat_group = HeartbeatConnectGroup.query.filter_by(
                                     name=group.name,
-                                    campus_id=heartbeat_campus.id,
-                                    is_active=True
-                                ).first()
-                                if heartbeat_group:
-                                    logger.info(f"Found HeartbeatConnectGroup by name/campus (leader may have changed): {heartbeat_group.id}")
-                            
-                            if not heartbeat_group:
-                                heartbeat_group = HeartbeatConnectGroup(
-                                    campus_id=heartbeat_campus.id,
-                                    name=group.name,
                                     leader_person_id=group.leader_id,
-                                    type='home',  # Default type
-                                    day_of_week=group.meeting_day,
-                                    is_active=group.is_active if hasattr(group, 'is_active') else True
-                                )
-                                db.session.add(heartbeat_group)
-                                db.session.flush()
-                                logger.info(f"Created NEW HeartbeatConnectGroup: {heartbeat_group.id} for {group.name} (Leader: {group.leader_id}, Campus: {heartbeat_campus.id})")
-                            else:
-                                logger.info(f"Found existing HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
-                            
-                            # Create ConnectAttendance record
-                            # Check if record already exists
-                            existing_attendance = ConnectAttendance.query.filter_by(
-                                person_id=person_id,
-                                connect_group_id=heartbeat_group.id,
-                                date=attendance_date
-                            ).first()
-                            
-                            if existing_attendance:
-                                existing_attendance.status = 'present'
-                                logger.info(f"Updated existing ConnectAttendance record for {person.full_name} (ID: {existing_attendance.id}) - Group: {heartbeat_group.id}, Date: {attendance_date}")
-                            else:
-                                connect_attendance = ConnectAttendance(
+                                    campus_id=heartbeat_campus.id
+                                ).first()
+                                
+                                if not heartbeat_group:
+                                    # Try matching by name and campus only (in case leader changed)
+                                    heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+                                        name=group.name,
+                                        campus_id=heartbeat_campus.id,
+                                        is_active=True
+                                    ).first()
+                                    if heartbeat_group:
+                                        logger.info(f"Found HeartbeatConnectGroup by name/campus (leader may have changed): {heartbeat_group.id}")
+                                
+                                if not heartbeat_group:
+                                    heartbeat_group = HeartbeatConnectGroup(
+                                        campus_id=heartbeat_campus.id,
+                                        name=group.name,
+                                        leader_person_id=group.leader_id,
+                                        type='home',  # Default type
+                                        day_of_week=group.meeting_day,
+                                        is_active=group.is_active if hasattr(group, 'is_active') else True
+                                    )
+                                    db.session.add(heartbeat_group)
+                                    db.session.flush()
+                                    logger.info(f"Created NEW HeartbeatConnectGroup: {heartbeat_group.id} for {group.name} (Leader: {group.leader_id}, Campus: {heartbeat_campus.id})")
+                                else:
+                                    logger.info(f"Found existing HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
+                                
+                                # Create ConnectAttendance record
+                                # Check if record already exists
+                                existing_attendance = ConnectAttendance.query.filter_by(
                                     person_id=person_id,
                                     connect_group_id=heartbeat_group.id,
-                                    date=attendance_date,
-                                    status='present'
-                                )
-                                db.session.add(connect_attendance)
-                                db.session.flush()  # Flush to get the ID
-                                logger.info(f"Created NEW ConnectAttendance record (ID: {connect_attendance.id}) for {person.full_name} - Group: {heartbeat_group.id} ({heartbeat_group.name}), Date: {attendance_date}")
+                                    date=attendance_date
+                                ).first()
                                 
-                                # Verify it was created
-                                verify_attendance = ConnectAttendance.query.get(connect_attendance.id)
-                                if verify_attendance:
-                                    logger.info(f"Verified ConnectAttendance record exists: {verify_attendance.to_dict()}")
+                                if existing_attendance:
+                                    existing_attendance.status = 'present'
+                                    logger.info(f"Updated existing ConnectAttendance record for {person.full_name} (ID: {existing_attendance.id}) - Group: {heartbeat_group.id}, Date: {attendance_date}")
                                 else:
-                                    logger.error(f"ERROR: ConnectAttendance record was not found after creation!")
+                                    connect_attendance = ConnectAttendance(
+                                        person_id=person_id,
+                                        connect_group_id=heartbeat_group.id,
+                                        date=attendance_date,
+                                        status='present'
+                                    )
+                                    db.session.add(connect_attendance)
+                                    db.session.flush()  # Flush to get the ID
+                                    logger.info(f"Created NEW ConnectAttendance record (ID: {connect_attendance.id}) for {person.full_name} - Group: {heartbeat_group.id} ({heartbeat_group.name}), Date: {attendance_date}")
+                                    
+                                    # Verify it was created
+                                    verify_attendance = ConnectAttendance.query.get(connect_attendance.id)
+                                    if verify_attendance:
+                                        logger.info(f"Verified ConnectAttendance record exists: {verify_attendance.to_dict()}")
+                                    else:
+                                        logger.error(f"ERROR: ConnectAttendance record was not found after creation!")
                             
-                        except Exception as hb_error:
-                            logger.error(f"Error creating Heartbeat ConnectAttendance record: {hb_error}", exc_info=True)
-                            # Don't fail the whole operation if Heartbeat sync fails
-                        
-                        # Flush to ensure changes are in the session
-                        db.session.flush()
-                        
-                        # Log the group attendance log after adding
-                        group_log = engagement._load_json(engagement.group_attendance_log)
-                        logger.info(f"Group attendance log after add: {group_log}")
-                        logger.info(f"Engagement profile updated - overall_engagement: {engagement.overall_engagement}, pulse_status: {engagement.pulse_status}, last_seen: {engagement.last_seen}")
+                            except Exception as hb_error:
+                                logger.error(f"Error creating Heartbeat ConnectAttendance record: {hb_error}", exc_info=True)
+                                # Don't fail the whole operation if Heartbeat sync fails
+                            
+                            # Flush to ensure changes are in the session
+                            db.session.flush()
+                            
+                            # Log the group attendance log after adding
+                            group_log = engagement._load_json(engagement.group_attendance_log)
+                            logger.info(f"Group attendance log after add: {group_log}")
+                            logger.info(f"Engagement profile updated - overall_engagement: {engagement.overall_engagement}, pulse_status: {engagement.pulse_status}, last_seen: {engagement.last_seen}")
                         
                     except Exception as e:
                         logger.error(f"Error adding group attendance for {person.full_name}: {e}", exc_info=True)
@@ -14560,14 +14560,6 @@ try:
     logger.info("Connect Groups API registered successfully")
 except ImportError as e:
     logger.warning(f"Could not import connect_groups_api: {e}")
-
-# PASTORAL CARE API ROUTES
-try:
-    from pastoral_care_api import pastoral_care_bp
-    app.register_blueprint(pastoral_care_bp)
-    logger.info("Pastoral Care API registered successfully")
-except ImportError as e:
-    logger.warning(f"Could not import pastoral_care_api: {e}")
 
 # GIVING API ROUTES (Stripe integration, analytics, QR codes)
 try:
