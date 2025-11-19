@@ -12935,20 +12935,23 @@ def get_person_by_email(email):
         # Get person data
         person_data = person.to_dict()
         
-        # Add engagement profile if it exists
-        if person.engagement_profile:
-            engagement_data = person.engagement_profile.to_dict()
-            person_data['engagement'] = engagement_data
-        else:
-            # Create engagement profile if it doesn't exist
-            try:
-                engagement = EngagementProfile(person_id=person.id)
-                db.session.add(engagement)
-                db.session.commit()
-                person_data['engagement'] = engagement.to_dict()
-            except Exception as e:
-                logger.error(f"Error creating engagement profile: {e}")
+        # Add engagement profile if it exists (handle gracefully if table structure doesn't match)
+        try:
+            # Use db.session.query to avoid lazy loading issues
+            engagement = db.session.query(EngagementProfile).filter_by(person_id=person.id).first()
+            if engagement:
+                try:
+                    engagement_data = engagement.to_dict()
+                    person_data['engagement'] = engagement_data
+                except Exception as e:
+                    logger.warning(f"Error serializing engagement profile: {e}")
+                    person_data['engagement'] = None
+            else:
                 person_data['engagement'] = None
+        except Exception as e:
+            # If engagement_profiles table doesn't exist or has wrong structure, just skip it
+            logger.warning(f"Engagement profile not available for {email}: {e}")
+            person_data['engagement'] = None
         
         return jsonify(person_data)
         
@@ -13012,9 +13015,9 @@ def update_person(person_id):
             old_connect_group = person.connect_group
             person.connect_group = connect_group_value if connect_group_value else None
             
-            # If person was just assigned to a connect group (was None/empty, now has value),
-            # auto-complete the "Joined Connect Group" pathway step
-            if not old_connect_group and connect_group_value:
+            # Auto-complete the "Joined Connect Group" pathway step if person has a connect group assigned
+            # Check both: new assignment (was None/empty, now has value) OR already has group but step not completed
+            if connect_group_value:  # Person has a connect group assigned (new or existing)
                 try:
                     from models import PersonPathwayProgress, PathwayStep, PersonPathwayStepCompletion
                     
@@ -13063,12 +13066,14 @@ def update_person(person_id):
                                 
                                 active_progress.updated_at = datetime.utcnow()
                                 
+                                logger.info(f"Auto-completed 'Joined Connect Group' step for person {person_id} with connect group: {connect_group_value}")
+                                
                                 # Trigger Heartbeat recalculation since spiritual score may have changed
                                 try:
                                     from heartbeat_engine import HeartbeatEngine
                                     engine = HeartbeatEngine()
                                     engine.calculate_heartbeat(person_id)
-                                    logger.info(f"Auto-completed 'Joined Connect Group' step and recalculated Heartbeat for person {person_id}")
+                                    logger.info(f"Recalculated Heartbeat for person {person_id} after auto-completing pathway step")
                                 except Exception as hb_error:
                                     logger.warning(f"Failed to recalculate Heartbeat after auto-completing pathway step: {hb_error}")
                                     # Don't fail the request if recalculation fails

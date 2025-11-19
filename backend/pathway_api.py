@@ -729,6 +729,60 @@ def get_my_pathway():
                 'message': 'No pathway assigned'
             }), 200
         
+        # Check if person has connect group assigned but "Joined Connect Group" step isn't completed
+        # Auto-complete it if needed
+        if person.connect_group:
+            try:
+                from models import PathwayStep, PersonPathwayStepCompletion
+                
+                # Find the "Joined Connect Group" step
+                connect_step = PathwayStep.query.filter_by(
+                    pathway_id=primary_pathway.pathway_id,
+                    milestone_type='group_join'
+                ).first()
+                
+                if connect_step:
+                    # Check if already completed
+                    existing_completion = PersonPathwayStepCompletion.query.filter_by(
+                        person_pathway_progress_id=primary_pathway.id,
+                        pathway_step_id=connect_step.id
+                    ).first()
+                    
+                    if not existing_completion:
+                        # Auto-complete the step
+                        completion = PersonPathwayStepCompletion(
+                            person_pathway_progress_id=primary_pathway.id,
+                            pathway_step_id=connect_step.id,
+                            completed_by_person_id=person.id,
+                            completed_at=datetime.utcnow(),
+                            notes=f'Auto-completed: Person already assigned to connect group: {person.connect_group}'
+                        )
+                        db.session.add(completion)
+                        
+                        # Update current step to next uncompleted step
+                        next_step = primary_pathway.get_next_step()
+                        primary_pathway.current_step_id = next_step.id if next_step else None
+                        
+                        # Mark as started if not already
+                        if not primary_pathway.started_at:
+                            primary_pathway.started_at = datetime.utcnow()
+                        
+                        # Check if pathway is complete
+                        if not next_step:
+                            primary_pathway.completed_at = datetime.utcnow()
+                        
+                        primary_pathway.updated_at = datetime.utcnow()
+                        
+                        db.session.commit()
+                        logger.info(f"Auto-completed 'Joined Connect Group' step for person {person.id} who already had connect group assigned")
+                        
+                        # Refresh the pathway data
+                        primary_pathway = PersonPathwayProgress.query.get(primary_pathway.id)
+            except Exception as pathway_error:
+                logger.warning(f"Error auto-completing pathway step for existing connect group: {pathway_error}", exc_info=True)
+                db.session.rollback()
+                # Continue even if auto-completion fails
+        
         return jsonify({
             'person_id': person.id,
             'person_name': person.full_name,

@@ -187,6 +187,8 @@ export default function PassportScreen() {
                   const isCompleted = step.is_completed;
                   const isCurrent = pathway.current_step_id === step.id && !isCompleted;
                   const isConnectGroup = step.milestone_type === 'group_join';
+                  // Show Assign button for connect group step if not completed, even if not current
+                  const showAssignButton = isConnectGroup && !isCompleted;
                   
                   return (
                     <View
@@ -226,7 +228,7 @@ export default function PassportScreen() {
                           {isCurrent && (
                             <Text style={styles.currentBadge}>Current</Text>
                           )}
-                          {isConnectGroup && isCurrent ? (
+                          {showAssignButton ? (
                             <TouchableOpacity
                               style={styles.assignButton}
                               onPress={() => {
