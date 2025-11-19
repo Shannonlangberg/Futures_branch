@@ -12655,11 +12655,14 @@ def update_person_demo(person_id):
         if 'preferred_name' in data:
             person.preferred_name = data['preferred_name']
         if 'email' in data:
-            # Check if email is already taken by another person
-            existing = Person.query.filter_by(email=data['email'], is_active=True).first()
-            if existing and existing.id != person.id:
-                return jsonify({'error': 'Email already in use'}), 400
-            person.email = data['email']
+            # Normalize email - convert empty string to None
+            email_value = data['email'].strip() if data.get('email') else None
+            email_value = email_value if email_value else None
+            
+            # Note: Multiple people can share the same email (e.g., family members, kids)
+            # No uniqueness check performed
+            
+            person.email = email_value
         if 'campus' in data:
             person.campus = data['campus']
         if 'phone' in data:
@@ -12841,11 +12844,8 @@ def create_person():
         # Normalize email - convert empty string to None
         email = data.get('email', '').strip() or None
         
-        # Check if email already exists (only if provided)
-        if email:
-            existing_person = Person.query.filter_by(email=email, is_active=True).first()
-            if existing_person:
-                return jsonify({'error': 'Person with this email already exists'}), 400
+        # Note: Multiple people can share the same email (e.g., family members, kids)
+        # No uniqueness check performed
         
         # Create person and engagement profile
         person, engagement = create_person_with_engagement(
@@ -13220,11 +13220,8 @@ def update_person(person_id):
             email_value = data['email'].strip() if data.get('email') else None
             email_value = email_value if email_value else None
             
-            # Check if email is already taken by another person (only if provided)
-            if email_value:
-                existing = Person.query.filter_by(email=email_value, is_active=True).first()
-                if existing and existing.id != person.id:
-                    return jsonify({'error': 'Email already in use'}), 400
+            # Note: Multiple people can share the same email (e.g., family members, kids)
+            # No uniqueness check performed
             
             person.email = email_value
         if 'campus' in data:

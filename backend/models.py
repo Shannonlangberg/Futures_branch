@@ -12,7 +12,7 @@ class Person(db.Model):
     id = db.Column(db.String(50), primary_key=True)
     full_name = db.Column(db.String(200), nullable=False)
     preferred_name = db.Column(db.String(100))
-    email = db.Column(db.String(200), unique=True, nullable=True)
+    email = db.Column(db.String(200), nullable=True)
     phone = db.Column(db.String(50))
     campus = db.Column(db.String(100), nullable=False)
     department = db.Column(db.String(50))  # Kids, Youth, Young Adults, Families, Adults, Seniors
@@ -842,17 +842,21 @@ class ConnectGroup(db.Model):
     
     def to_dict(self):
         """Convert connect group to dictionary"""
-        # Parse leader_emails JSON
+        # Parse leader_emails JSON (handle gracefully if column doesn't exist)
         leader_emails_list = []
-        if self.leader_emails:
-            try:
-                leader_emails_list = json.loads(self.leader_emails)
-                if not isinstance(leader_emails_list, list):
+        try:
+            if hasattr(self, 'leader_emails') and self.leader_emails:
+                try:
+                    leader_emails_list = json.loads(self.leader_emails)
+                    if not isinstance(leader_emails_list, list):
+                        leader_emails_list = []
+                except (json.JSONDecodeError, TypeError):
                     leader_emails_list = []
-            except (json.JSONDecodeError, TypeError):
-                leader_emails_list = []
+        except AttributeError:
+            # Column doesn't exist in database
+            leader_emails_list = []
         
-        return {
+        result = {
             'id': self.id,
             'name': self.name,
             'campus': self.campus,
@@ -867,12 +871,20 @@ class ConnectGroup(db.Model):
             'meeting_time': self.meeting_time,
             'meeting_frequency': self.meeting_frequency,
             'location': self.location,
-            'leader_access_code': self.leader_access_code,
-            'member_count': self.get_member_count(),
-            'is_active': self.is_active,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'leader_access_code': self.leader_access_code if hasattr(self, 'leader_access_code') else None,
         }
+        
+        # Add member count safely
+        try:
+            result['member_count'] = self.get_member_count()
+        except Exception as e:
+            result['member_count'] = 0
+        
+        result['is_active'] = self.is_active
+        result['created_at'] = self.created_at.isoformat() if self.created_at else None
+        result['updated_at'] = self.updated_at.isoformat() if self.updated_at else None
+        
+        return result
 
 
 class ConnectGroupMeeting(db.Model):
