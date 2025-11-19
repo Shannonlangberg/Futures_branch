@@ -36,7 +36,7 @@ const TVSeries = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );
@@ -44,44 +44,47 @@ const TVSeries = () => {
 
   if (error || !series) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-red-400 text-xl">{error || 'Series not found'}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Header */}
-      <div className="relative bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 py-16 mb-8">
-        <div className="max-w-7xl mx-auto px-6">
+    <div className="min-h-screen bg-black">
+      {/* Header - Netflix style with backdrop */}
+      <div className="relative">
+        {series.thumbnail_url ? (
+          <div className="absolute inset-0 h-96 bg-gradient-to-b from-slate-900 via-black to-black">
+            <img
+              src={series.thumbnail_url}
+              alt={series.title}
+              className="w-full h-full object-cover opacity-30"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black" />
+          </div>
+        ) : (
+          <div className="absolute inset-0 h-96 bg-gradient-to-b from-slate-900 via-black to-black" />
+        )}
+        
+        <div className="relative max-w-7xl mx-auto px-6 pt-32 pb-16">
           <Link
             to="/tv"
-            className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-4 transition-colors"
+            className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-colors"
           >
             <ArrowLeftIcon className="w-5 h-5" />
             <span>Back to Pulse TV</span>
           </Link>
           
-          {series.thumbnail_url && (
-            <div className="mb-4">
-              <img
-                src={series.thumbnail_url}
-                alt={series.title}
-                className="w-32 h-32 rounded-xl object-cover"
-              />
-            </div>
-          )}
-          
-          <h1 className="text-4xl font-bold text-white mb-2">{series.title}</h1>
+          <h1 className="text-5xl font-bold text-white mb-4">{series.title}</h1>
           {series.description && (
-            <p className="text-lg text-white/90 max-w-3xl">{series.description}</p>
+            <p className="text-lg text-slate-300 max-w-3xl">{series.description}</p>
           )}
         </div>
       </div>
 
       {/* Episodes */}
-      <div className="max-w-7xl mx-auto px-6 pb-12">
+      <div className="max-w-7xl mx-auto px-6 pb-12 -mt-8 relative z-10">
         <h2 className="text-2xl font-bold text-white mb-6">
           Episodes ({series.episodes?.length || 0})
         </h2>
@@ -109,4 +112,3 @@ const TVSeries = () => {
 };
 
 export default TVSeries;
-

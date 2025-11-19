@@ -54,9 +54,12 @@ const TV = () => {
     other: series.filter(s => !['foundations', 'leadership', 'parents', 'youth'].includes(s.category))
   };
 
+  // Get all unique categories dynamically
+  const allCategories = [...new Set(series.map(s => s.category).filter(Boolean))];
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-white text-xl">Loading Pulse TV...</div>
       </div>
     );
@@ -64,19 +67,19 @@ const TV = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-red-400 text-xl">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Hero Header */}
-      <div className="relative bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 py-16 mb-8">
+    <div className="min-h-screen bg-black">
+      {/* Hero Header - Darker Netflix style */}
+      <div className="relative bg-gradient-to-b from-slate-900 via-black to-black py-20 mb-8 border-b border-slate-900">
         <div className="max-w-7xl mx-auto px-6">
-          <h1 className="text-5xl font-bold text-white mb-4">Pulse TV</h1>
-          <p className="text-xl text-white/90">
+          <h1 className="text-6xl font-bold text-white mb-4">Pulse TV</h1>
+          <p className="text-xl text-slate-300 max-w-2xl">
             Watch teaching series, discipleship content, and more
           </p>
         </div>
@@ -93,35 +96,38 @@ const TV = () => {
 
         {/* Foundations Pathway */}
         {seriesByCategory.foundations.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Foundations Pathway</h2>
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-6">Foundations Pathway</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {seriesByCategory.foundations.map((s) => (
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-800 rounded-xl overflow-hidden hover:scale-105 transition-transform duration-300"
+                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-purple-900 to-blue-900">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
                         alt={s.title}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-white/50 text-4xl">📺</span>
-                      </div>
-                    )}
+                    ) : null}
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 to-blue-900/30 flex items-center justify-center" style={{ display: s.thumbnail_url ? 'none' : 'flex' }}>
+                      <span className="text-white/20 text-4xl">📺</span>
+                    </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-4">
+                  <div className="p-3 bg-slate-900">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}
@@ -134,35 +140,38 @@ const TV = () => {
 
         {/* Leadership Track */}
         {seriesByCategory.leadership.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Leadership Track</h2>
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-6">Leadership Track</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {seriesByCategory.leadership.map((s) => (
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-800 rounded-xl overflow-hidden hover:scale-105 transition-transform duration-300"
+                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-purple-900 to-blue-900">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
                         alt={s.title}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-white/50 text-4xl">📺</span>
-                      </div>
-                    )}
+                    ) : null}
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 to-blue-900/30 flex items-center justify-center" style={{ display: s.thumbnail_url ? 'none' : 'flex' }}>
+                      <span className="text-white/20 text-4xl">📺</span>
+                    </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-4">
+                  <div className="p-3 bg-slate-900">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}
@@ -175,35 +184,38 @@ const TV = () => {
 
         {/* For Parents */}
         {seriesByCategory.parents.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">For Parents</h2>
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-6">For Parents</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {seriesByCategory.parents.map((s) => (
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-800 rounded-xl overflow-hidden hover:scale-105 transition-transform duration-300"
+                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-purple-900 to-blue-900">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
                         alt={s.title}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-white/50 text-4xl">📺</span>
-                      </div>
-                    )}
+                    ) : null}
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 to-blue-900/30 flex items-center justify-center" style={{ display: s.thumbnail_url ? 'none' : 'flex' }}>
+                      <span className="text-white/20 text-4xl">📺</span>
+                    </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-4">
+                  <div className="p-3 bg-slate-900">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}
@@ -216,35 +228,38 @@ const TV = () => {
 
         {/* Youth */}
         {seriesByCategory.youth.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Youth</h2>
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-6">Youth</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {seriesByCategory.youth.map((s) => (
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-800 rounded-xl overflow-hidden hover:scale-105 transition-transform duration-300"
+                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-purple-900 to-blue-900">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
                         alt={s.title}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-white/50 text-4xl">📺</span>
-                      </div>
-                    )}
+                    ) : null}
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 to-blue-900/30 flex items-center justify-center" style={{ display: s.thumbnail_url ? 'none' : 'flex' }}>
+                      <span className="text-white/20 text-4xl">📺</span>
+                    </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-4">
+                  <div className="p-3 bg-slate-900">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}
@@ -254,6 +269,57 @@ const TV = () => {
             </div>
           </div>
         )}
+
+        {/* Other Categories */}
+        {allCategories.filter(cat => !['foundations', 'leadership', 'parents', 'youth'].includes(cat)).map(category => {
+          const categorySeries = series.filter(s => s.category === category);
+          if (categorySeries.length === 0) return null;
+          
+          return (
+            <div key={category} className="mb-12">
+              <h2 className="text-2xl font-bold text-white mb-6 capitalize">
+                {category.replace(/_/g, ' ')}
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {categorySeries.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/tv/series/${s.id}`}
+                    className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
+                  >
+                    <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
+                      {s.thumbnail_url ? (
+                        <img
+                          src={s.thumbnail_url}
+                          alt={s.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 to-blue-900/30 flex items-center justify-center" style={{ display: s.thumbnail_url ? 'none' : 'flex' }}>
+                        <span className="text-white/20 text-4xl">📺</span>
+                      </div>
+                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
+                    </div>
+                    <div className="p-3 bg-slate-900">
+                      <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
+                        {s.title}
+                      </h3>
+                      {s.episode_count > 0 && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
         {/* All Series */}
         {series.length === 0 && (
@@ -267,4 +333,3 @@ const TV = () => {
 };
 
 export default TV;
-
