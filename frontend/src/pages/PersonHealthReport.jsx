@@ -184,11 +184,6 @@ const PersonHealthReport = () => {
       setLoadingSuggestion(false);
     }
   };
-      console.error('Error fetching AI suggestion:', err);
-      setAiSuggestion(null);
-    } finally {
-      setLoadingSuggestion(false);
-    }
   };
 
   const handleAssignPathway = async () => {
