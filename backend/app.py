@@ -963,7 +963,18 @@ def run_migrations():
         # This prevents the app from crashing on startup due to migration issues
         logger.warning("Continuing app startup despite migration errors...")
 
-CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"], allow_headers=["Content-Type", "Authorization"])
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:3000", 
+    "http://localhost:3001", 
+    "http://localhost:5173",
+    "exp://192.168.20.12:8081",
+    "exp://192.168.20.12:8082",
+    "exp://localhost:8081",
+    "exp://localhost:8082",
+    "http://192.168.20.12:8081",
+    "http://192.168.20.12:8082",
+    "*"  # Allow all origins for mobile app testing
+], allow_headers=["Content-Type", "Authorization"])
 
 # Enable response compression for better performance
 Compress(app)
@@ -1326,17 +1337,20 @@ def load_user(user_id):
         logger.error(f"Error loading user {user_id}: {e}")
         return None
 
-def authenticate_user(username, password):
-    """Authenticate user and return User object if valid"""
+def authenticate_user(username_or_email, password):
+    """Authenticate user and return User object if valid
+    Accepts either username or email for login
+    """
     try:
         conn = get_db()
         cursor = conn.cursor()
         # Use TRIM to handle any trailing spaces in database
+        # Check both username and email fields for mobile app compatibility
         cursor.execute('''
             SELECT id, username, password_hash, full_name, email, role, campus, active
             FROM users
-            WHERE TRIM(username) = ? AND active = 1
-        ''', (username,))
+            WHERE (TRIM(username) = ? OR TRIM(email) = ?) AND active = 1
+        ''', (username_or_email, username_or_email))
         
         row = cursor.fetchone()
         
@@ -7514,17 +7528,18 @@ def serve_index():
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
-    """API login endpoint for React frontend"""
+    """API login endpoint for React frontend and mobile app"""
     if request.is_json:
         data = request.get_json()
-        username = data.get('username', '').strip()
+        # Accept both 'username' and 'email' for mobile app compatibility
+        username = data.get('username', '').strip() or data.get('email', '').strip()
         password = data.get('password', '').strip()
     else:
-        username = request.form.get('username', '').strip()
+        username = request.form.get('username', '').strip() or request.form.get('email', '').strip()
         password = request.form.get('password', '').strip()
     
     if not username or not password:
-        return jsonify({"error": "Please enter both username and password."}), 400
+        return jsonify({"error": "Please enter both username/email and password."}), 400
     
     user = authenticate_user(username, password)
     if user:
@@ -7534,11 +7549,24 @@ def api_login():
         logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
         # Log successful login
         log_security_event(user.id, 'login_success', 'User logged in successfully')
-        return jsonify({"success": True, "redirect": "/"})
+        # Return proper response format for mobile app
+        return jsonify({
+            "success": True, 
+            "authenticated": True,
+            "redirect": "/",
+            "token": session.get('_id', 'session-token'),  # Return session identifier
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.full_name or user.username,
+                "role": user.role,
+                "campus": getattr(user, 'campus', 'all_campuses')
+            }
+        })
     else:
         # Log failed login attempt
         log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
-        return jsonify({"error": "Invalid username or password."}), 401
+        return jsonify({"error": "Invalid username/email or password."}), 401
 
 # Security Settings Endpoints
 @app.route('/api/security/change_password', methods=['POST'])
@@ -12422,6 +12450,10 @@ def generate_any_time_frame_leadership_report(start_date: datetime, end_date: da
 @app.route('/<path:path>')
 def serve_react_app(path):
     """Serve React app for all non-API routes to support React Router"""
+    # Ensure path is a string
+    if not isinstance(path, str):
+        path = str(path)
+    
     # Skip API routes
     if path.startswith('api/') or path.startswith('temp_audio/'):
         return jsonify({"error": "Not found"}), 404
@@ -12429,9 +12461,13 @@ def serve_react_app(path):
     # If path has an extension (like .json, .png, .js, etc), try to serve as static file
     if '.' in path.split('/')[-1]:
         try:
+            # Ensure path is a valid string before passing to send_from_directory
+            if not isinstance(path, str) or not path:
+                return jsonify({"error": "Invalid path"}), 400
             # Try to serve the file from static folder
             return send_from_directory('static', path)
-        except:
+        except Exception as e:
+            logger.error(f"Error serving static file {path}: {e}")
             # If file not found, return 404
             return jsonify({"error": "Not found"}), 404
     
