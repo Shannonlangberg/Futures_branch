@@ -14871,24 +14871,46 @@ def get_connect_group_health(group_id):
             # Continue with empty detailed_attendance - at least return other data
             detailed_attendance = []
         
-        return jsonify({
-            'group_id': group.id,
-            'group_name': group.name,
-            'date_range': {
-                'start': start_date.isoformat(),
-                'end': end_date.isoformat()
-            },
-            'heartbeat': heartbeat_data,
-            'daily_attendance': attendance_data,
-            'detailed_attendance': detailed_attendance,  # New: detailed breakdown
-            'summary': {
-                'total_meetings': total_meetings,
-                'total_present': total_present,
-                'total_absent': total_absent,
-                'total_attendance': total_attendance,
-                'attendance_rate': (total_present / total_attendance * 100) if total_attendance > 0 else 0
+        # Build response safely
+        try:
+            group_id_str = str(getattr(group, 'id', group_id))
+            group_name_str = str(getattr(group, 'name', 'Unknown Group'))
+            
+            response_data = {
+                'group_id': group_id_str,
+                'group_name': group_name_str,
+                'date_range': {
+                    'start': start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
+                    'end': end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date)
+                },
+                'heartbeat': heartbeat_data,
+                'daily_attendance': attendance_data,
+                'detailed_attendance': detailed_attendance,
+                'summary': {
+                    'total_meetings': total_meetings,
+                    'total_present': total_present,
+                    'total_absent': total_absent,
+                    'total_attendance': total_attendance,
+                    'attendance_rate': (total_present / total_attendance * 100) if total_attendance > 0 else 0
+                }
             }
-        }), 200
+            return jsonify(response_data), 200
+        except Exception as e:
+            logger.error(f"Error building response for group {group_id}: {e}", exc_info=True)
+            # Return minimal response
+            return jsonify({
+                'group_id': str(group_id),
+                'group_name': 'Unknown',
+                'error': 'Partial data available',
+                'heartbeat': heartbeat_data,
+                'summary': {
+                    'total_meetings': 0,
+                    'total_present': 0,
+                    'total_absent': 0,
+                    'total_attendance': 0,
+                    'attendance_rate': 0
+                }
+            }), 200
         
     except Exception as e:
         db.session.rollback()
