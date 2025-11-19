@@ -14945,33 +14945,55 @@ def google_oauth_callback():
                 (function() {
                     // CRITICAL: This is a popup window - it MUST close and notify parent
                     // DO NOT redirect this window - it will become the main page
-                    try {
-                        if (window.opener && !window.opener.closed) {
-                            // Desktop popup scenario - notify parent window (login page)
-                            const origin = window.location.origin;
-                            window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                            console.log('Sent success message to opener, closing popup...');
-                            
-                            // Close immediately - parent will handle redirect
-                            window.close();
-                            return;
-                        } else if (window.parent && window.parent !== window) {
-                            // Iframe scenario
-                            window.parent.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
-                            return;
+                    function notifyParent() {
+                        try {
+                            if (window.opener && !window.opener.closed) {
+                                // Desktop popup scenario - notify parent window (login page)
+                                const origin = window.location.origin;
+                                
+                                // Send message with specific origin first
+                                window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
+                                console.log('Sent success message to opener with origin:', origin);
+                                
+                                // Also send with wildcard as fallback (less secure but ensures delivery)
+                                try {
+                                    window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                                    console.log('Also sent message with wildcard origin');
+                                } catch (e) {
+                                    console.log('Could not send wildcard message:', e);
+                                }
+                                
+                                // Wait a moment to ensure message is received, then close
+                                setTimeout(() => {
+                                    try {
+                                        window.close();
+                                    } catch (e) {
+                                        console.log('Could not close window:', e);
+                                    }
+                                }, 300);
+                                return true;
+                            } else if (window.parent && window.parent !== window) {
+                                // Iframe scenario
+                                window.parent.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
+                                return true;
+                            }
+                        } catch (e) {
+                            console.log('Could not post message:', e);
                         }
-                    } catch (e) {
-                        console.log('Could not post message:', e);
+                        return false;
                     }
                     
-                    // Fallback: If we can't detect opener, try to close anyway
-                    // This prevents the popup from becoming the main page
-                    try {
-                        window.close();
-                    } catch (e) {
-                        console.log('Could not close window:', e);
-                        // Last resort: redirect to a blank page that closes
-                        window.location.href = 'about:blank';
+                    // Try to notify parent
+                    if (!notifyParent()) {
+                        // Fallback: If we can't detect opener, try to close anyway
+                        // This prevents the popup from becoming the main page
+                        try {
+                            window.close();
+                        } catch (e) {
+                            console.log('Could not close window:', e);
+                            // Last resort: redirect to a blank page
+                            window.location.href = 'about:blank';
+                        }
                     }
                 })();
             </script>

@@ -163,20 +163,31 @@ const Login = ({ onLogin }) => {
   // If the popup posts a success message, redirect to dashboard
   useEffect(() => {
     const handleMessage = (event) => {
-      // Accept messages from same origin (allow Railway domain variations)
+      // Accept messages from same origin or wildcard (for popup)
+      // Also accept from Railway domain variations
       const allowedOrigins = [
         window.location.origin,
         'https://futuresbranch-production.up.railway.app',
         'https://futures-pulse-production.up.railway.app',
-        'https://futures.pulse.com'
+        'https://futures.pulse.com',
+        '*' // Allow wildcard for popup messages
       ];
       
-      if (!allowedOrigins.some(origin => event.origin === origin || event.origin.startsWith(origin))) {
+      // Check if origin is allowed (wildcard always allowed)
+      const isOriginAllowed = event.origin === '*' || 
+        allowedOrigins.some(origin => 
+          origin === '*' || 
+          event.origin === origin || 
+          event.origin.startsWith(origin)
+        );
+      
+      if (!isOriginAllowed) {
+        console.log('Message from disallowed origin:', event.origin);
         return;
       }
       
       if (event.data && event.data.type === 'googleAuthSuccess') {
-        console.log('Received Google OAuth success message, checking session...');
+        console.log('Received Google OAuth success message from:', event.origin);
         setIsDriveConnecting(false);
         setDriveError('');
         setIsDriveAuthRequired(false);
@@ -189,6 +200,7 @@ const Login = ({ onLogin }) => {
               console.log('Session check after OAuth:', sessionData);
               if (sessionData && sessionData.authenticated) {
                 // User is authenticated with Google Drive - redirect to dashboard
+                console.log('User authenticated, redirecting to dashboard...');
                 if (onLogin) {
                   onLogin();
                 }
@@ -196,6 +208,7 @@ const Login = ({ onLogin }) => {
                 window.location.href = '/dashboard';
               } else {
                 // Session not ready yet, wait a bit more and try again
+                console.log('Session not ready, retrying...');
                 setTimeout(() => {
                   window.location.reload();
                 }, 500);
@@ -208,7 +221,7 @@ const Login = ({ onLogin }) => {
                 window.location.reload();
               }, 500);
             });
-        }, 800); // Wait 800ms for session to be saved
+        }, 1000); // Wait 1 second for session to be saved
       }
     };
 
