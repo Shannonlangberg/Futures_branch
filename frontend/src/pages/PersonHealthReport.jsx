@@ -1423,7 +1423,7 @@ const PersonHealthReport = () => {
                     });
                     categoryIcon = '👥';
                     categoryColor = 'purple';
-                  } else if (selectedCategory === 'spiritual' && recent_activity?.discipleship_steps) {
+                  } else if (selectedCategory === 'spiritual' && recent_activity?.discipleship_steps && recent_activity.discipleship_steps.length > 0) {
                     categoryEvents = recent_activity.discipleship_steps.map(d => {
                       // Handle Person milestones (baptism, DNA, etc.) vs DiscipleshipStep records
                       const isPersonMilestone = d.is_person_milestone;

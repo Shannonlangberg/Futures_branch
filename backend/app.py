@@ -13296,6 +13296,9 @@ def update_person(person_id):
                                 
                                 logger.info(f"Auto-completed 'Joined Connect Group' step for person {person_id} with connect group: {connect_group_value}")
                                 
+                                # Commit pathway completion first
+                                db.session.commit()
+                                
                                 # Trigger Heartbeat recalculation since spiritual score may have changed
                                 try:
                                     from heartbeat_engine import HeartbeatEngine
@@ -13309,6 +13312,7 @@ def update_person(person_id):
                         logger.warning(f"No active pathway progress found for person {person_id} - cannot auto-complete connect group step")
                 except Exception as pathway_error:
                     logger.warning(f"Error auto-completing pathway step when assigning connect group: {pathway_error}", exc_info=True)
+                    db.session.rollback()
                     # Don't fail the person update if pathway step completion fails
         if 'dream_team_roles' in data:
             # Convert array to JSON string for storage
