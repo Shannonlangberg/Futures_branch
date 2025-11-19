@@ -14943,123 +14943,60 @@ def google_oauth_callback():
         else:
             logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session. Session keys: {list(session.keys())}")
         
-        # Return success page that handles both popup and redirect scenarios
-        # Flask will automatically save the session when the response is returned
+        # Return success page that DIRECTLY redirects the opener window
+        # This is the simplest and most reliable approach
         return '''
         <!DOCTYPE html>
         <html>
         <head>
             <title>Google Drive Connected</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    margin: 0;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    text-align: center;
-                    padding: 20px;
-                }
-                .container {
-                    background: rgba(255, 255, 255, 0.1);
-                    backdrop-filter: blur(10px);
-                    border-radius: 20px;
-                    padding: 40px;
-                    max-width: 400px;
-                }
-                h1 { margin-top: 0; }
-                .checkmark {
-                    font-size: 64px;
-                    margin-bottom: 20px;
-                }
-            </style>
         </head>
         <body>
-            <div class="container">
-                <div class="checkmark">✓</div>
-                <h1>Google Drive Connected!</h1>
-                <p>Closing window and refreshing...</p>
-            </div>
             <script>
                 (function() {
-                    // CRITICAL: This is a popup window - it MUST close and notify parent
-                    // DO NOT redirect this window - it will become the main page
-                    function notifyParent() {
-                        try {
-                            if (window.opener && !window.opener.closed) {
-                                // Desktop popup scenario - notify parent window (login page)
-                                const origin = window.location.origin;
-                                
-                                // Send message immediately and close after a delay
-                                // The main window will handle session verification
-                                // This avoids cookie sharing issues between popup and main window
-                                console.log('[OAuth Callback] Sending success message and closing popup...');
-                                
-                                // Send message multiple times to ensure delivery
-                                const sendMessage = () => {
-                                    try {
-                                        window.opener.postMessage({ 
-                                            type: 'googleAuthSuccess',
-                                            timestamp: Date.now()
-                                        }, origin);
-                                        window.opener.postMessage({ 
-                                            type: 'googleAuthSuccess',
-                                            timestamp: Date.now()
-                                        }, '*');
-                                    } catch (e) {
-                                        console.error('[OAuth Callback] Error sending message:', e);
-                                    }
-                                };
-                                
-                                // Send immediately
-                                sendMessage();
-                                
-                                // Send again after short delays to ensure delivery
-                                setTimeout(sendMessage, 200);
-                                setTimeout(sendMessage, 500);
-                                setTimeout(sendMessage, 1000);
-                                
-                                // Close popup after ensuring message is sent
-                                setTimeout(() => {
-                                    try {
-                                        console.log('[OAuth Callback] Closing popup window...');
-                                        window.close();
-                                    } catch (e) {
-                                        console.log('[OAuth Callback] Could not close window:', e);
-                                        // Fallback: redirect to blank page
-                                        window.location.href = 'about:blank';
-                                    }
-                                }, 1500);
-                                return true;
-                            } else if (window.parent && window.parent !== window) {
-                                // Iframe scenario
-                                window.parent.postMessage({ type: 'googleAuthSuccess' }, window.location.origin);
-                                return true;
-                            }
-                        } catch (e) {
-                            console.log('[OAuth Callback] Could not post message:', e);
-                        }
-                        return false;
-                    }
+                    console.log('[OAuth Callback] Starting redirect...');
                     
-                    // Try to notify parent immediately
-                    if (!notifyParent()) {
-                        // Fallback: If we can't detect opener, try to close anyway
-                        // This prevents the popup from becoming the main page
+                    // DIRECT APPROACH: Redirect the opener window immediately
+                    if (window.opener && !window.opener.closed) {
+                        console.log('[OAuth Callback] Redirecting opener to dashboard...');
                         try {
-                            window.close();
+                            // Directly redirect the parent window to dashboard
+                            window.opener.location.href = '/dashboard';
+                            console.log('[OAuth Callback] Opener redirected successfully');
                         } catch (e) {
-                            console.log('[OAuth Callback] Could not close window:', e);
-                            // Last resort: redirect to a blank page
-                            window.location.href = 'about:blank';
+                            console.error('[OAuth Callback] Error redirecting opener:', e);
+                            // Fallback: try postMessage
+                            window.opener.postMessage({ 
+                                type: 'redirect',
+                                url: '/dashboard'
+                            }, window.location.origin);
+                            window.opener.postMessage({ 
+                                type: 'redirect',
+                                url: '/dashboard'
+                            }, '*');
                         }
+                        
+                        // Close popup after a short delay
+                        setTimeout(() => {
+                            try {
+                                window.close();
+                            } catch (e) {
+                                console.log('[OAuth Callback] Could not close window:', e);
+                                window.location.href = 'about:blank';
+                            }
+                        }, 500);
+                    } else if (window.parent && window.parent !== window) {
+                        // Iframe scenario
+                        window.parent.location.href = '/dashboard';
+                    } else {
+                        // No opener - redirect this window (shouldn't happen but fallback)
+                        console.log('[OAuth Callback] No opener found, redirecting this window...');
+                        window.location.href = '/dashboard';
                     }
                 })();
             </script>
+            <p>Redirecting...</p>
         </body>
         </html>
         '''
