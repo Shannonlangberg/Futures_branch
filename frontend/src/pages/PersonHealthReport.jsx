@@ -43,7 +43,7 @@ const StatusBadge = ({ status, score }) => {
 };
 
 // Score card component
-const ScoreCard = ({ label, value, weight, color, maxValue = 100 }) => {
+const ScoreCard = ({ label, value, weight, color, maxValue = 100, onClick }) => {
   const percentage = Math.min((value / maxValue) * 100, 100);
   const colorClasses = {
     blue: 'bg-blue-500',
@@ -53,7 +53,14 @@ const ScoreCard = ({ label, value, weight, color, maxValue = 100 }) => {
   };
   
   return (
-    <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
+    <div 
+      className={`bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 transition-all ${
+        onClick ? 'cursor-pointer hover:bg-slate-800/70 hover:border-slate-600 hover:scale-[1.02]' : ''
+      }`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       <div className="flex items-center justify-between mb-3">
           <div>
           <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">{label}</div>
@@ -70,8 +77,11 @@ const ScoreCard = ({ label, value, weight, color, maxValue = 100 }) => {
             style={{ width: `${percentage}%` }}
           />
         </div>
-      <div className="mt-2 text-xs text-slate-400">
-        {percentage.toFixed(1)}% of maximum
+      <div className="mt-2 text-xs text-slate-400 flex items-center justify-between">
+        <span>{percentage.toFixed(1)}% of maximum</span>
+        {onClick && (
+          <span className="text-slate-500 text-[10px]">Click to view details →</span>
+        )}
       </div>
     </div>
   );
@@ -124,6 +134,8 @@ const PersonHealthReport = () => {
   const [stepToComplete, setStepToComplete] = useState(null);
   const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditingCompletion, setIsEditingCompletion] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   useEffect(() => {
     fetchPersonData();
@@ -522,24 +534,40 @@ const PersonHealthReport = () => {
                   value={heartbeat.gather_score}
                   weight="35%"
                   color="blue"
+                  onClick={() => {
+                    setSelectedCategory('gather');
+                    setShowCategoryModal(true);
+                  }}
                 />
                 <ScoreCard
                   label="Engagement"
                   value={heartbeat.engagement_score}
                   weight="25%"
                   color="purple"
+                  onClick={() => {
+                    setSelectedCategory('engagement');
+                    setShowCategoryModal(true);
+                  }}
                 />
                 <ScoreCard
                   label="Spiritual"
                   value={heartbeat.spiritual_score}
                   weight="25%"
                   color="indigo"
+                  onClick={() => {
+                    setSelectedCategory('spiritual');
+                    setShowCategoryModal(true);
+                  }}
                 />
                 <ScoreCard
                   label="Care"
                   value={heartbeat.care_score}
                   weight="15%"
                   color="pink"
+                  onClick={() => {
+                    setSelectedCategory('care');
+                    setShowCategoryModal(true);
+                  }}
                 />
             </div>
 
@@ -892,6 +920,184 @@ const PersonHealthReport = () => {
                     {isEditingCompletion ? 'Update Date' : 'Mark Complete'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Detail Modal */}
+        {showCategoryModal && selectedCategory && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-4xl w-full max-h-[90vh] flex flex-col">
+              <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">
+                  {selectedCategory === 'gather' && '🏛️ Gather - Attendance Events'}
+                  {selectedCategory === 'engagement' && '👥 Engagement - Connect Groups & Serving'}
+                  {selectedCategory === 'spiritual' && '✨ Spiritual - Discipleship Steps'}
+                  {selectedCategory === 'care' && '💜 Care - Care Cases & Touchpoints'}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowCategoryModal(false);
+                    setSelectedCategory(null);
+                  }}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                {(() => {
+                  if (!data || !data.recent_activity) {
+                    return (
+                      <div className="text-center py-12">
+                        <p className="text-slate-400 text-lg mb-2">No activity data available</p>
+                      </div>
+                    );
+                  }
+
+                  let categoryEvents = [];
+                  let categoryIcon = '';
+                  let categoryColor = '';
+                  const recent_activity = data.recent_activity;
+
+                  if (selectedCategory === 'gather' && recent_activity?.attendance) {
+                    categoryEvents = recent_activity.attendance.map(a => ({
+                      ...a,
+                      type: 'attendance',
+                      icon: '🏛️',
+                      title: 'Service Attendance',
+                      date: a.created_at,
+                      details: `Source: ${a.source || 'Unknown'}`,
+                      color: 'blue'
+                    }));
+                    categoryIcon = '🏛️';
+                    categoryColor = 'blue';
+                  } else if (selectedCategory === 'engagement') {
+                    const connectEvents = (recent_activity?.connect_groups || []).map(c => ({
+                      ...c,
+                      type: 'connect',
+                      icon: '👥',
+                      title: 'Connect Group Attendance',
+                      date: c.date || c.created_at,
+                      details: `Status: ${c.status || 'attended'}`,
+                      color: 'purple'
+                    }));
+                    const servingEvents = (recent_activity?.serving || []).map(s => ({
+                      ...s,
+                      type: 'serving',
+                      icon: '🤝',
+                      title: `Served: ${s.role || 'Team Member'}`,
+                      date: s.created_at,
+                      details: `Status: ${s.status || 'active'}`,
+                      color: 'purple'
+                    }));
+                    categoryEvents = [...connectEvents, ...servingEvents].sort((a, b) => {
+                      const dateA = new Date(a.date || a.created_at || 0);
+                      const dateB = new Date(b.date || b.created_at || 0);
+                      return dateB - dateA;
+                    });
+                    categoryIcon = '👥';
+                    categoryColor = 'purple';
+                  } else if (selectedCategory === 'spiritual' && recent_activity?.discipleship_steps) {
+                    categoryEvents = recent_activity.discipleship_steps.map(d => ({
+                      ...d,
+                      type: 'discipleship',
+                      icon: '✨',
+                      title: d.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      date: d.date || d.created_at,
+                      details: d.description || '',
+                      color: 'indigo'
+                    }));
+                    categoryIcon = '✨';
+                    categoryColor = 'indigo';
+                  } else if (selectedCategory === 'care' && recent_activity?.open_care_cases) {
+                    categoryEvents = recent_activity.open_care_cases.map(c => ({
+                      ...c,
+                      type: 'care',
+                      icon: '💜',
+                      title: `Care Case: ${c.type?.replace(/_/g, ' ') || 'Unknown'}`,
+                      date: c.created_at,
+                      details: `${c.priority || 'unknown'} priority - ${c.status || 'open'}`,
+                      color: 'pink'
+                    }));
+                    categoryIcon = '💜';
+                    categoryColor = 'pink';
+                  }
+
+                  if (categoryEvents.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <div className="text-6xl mb-4 opacity-50">{categoryIcon}</div>
+                        <p className="text-slate-400 text-lg mb-2">No events found</p>
+                        <p className="text-slate-500 text-sm">
+                          {selectedCategory === 'gather' && 'No attendance events recorded for this person.'}
+                          {selectedCategory === 'engagement' && 'No connect group or serving events recorded for this person.'}
+                          {selectedCategory === 'spiritual' && 'No discipleship steps recorded for this person.'}
+                          {selectedCategory === 'care' && 'No open care cases for this person.'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="text-sm text-slate-400 mb-4">
+                        Showing {categoryEvents.length} event{categoryEvents.length !== 1 ? 's' : ''} (Last 12 weeks)
+                      </div>
+                      {categoryEvents.map((event, idx) => {
+                        const eventDate = new Date(event.date || event.created_at);
+                        return (
+                          <div
+                            key={idx}
+                            className={`border rounded-lg p-4 ${
+                              categoryColor === 'blue' ? 'border-blue-500/30 bg-blue-500/10' :
+                              categoryColor === 'purple' ? 'border-purple-500/30 bg-purple-500/10' :
+                              categoryColor === 'indigo' ? 'border-indigo-500/30 bg-indigo-500/10' :
+                              'border-pink-500/30 bg-pink-500/10'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="text-2xl">{event.icon}</div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-white mb-1">{event.title}</div>
+                                {event.details && (
+                                  <div className="text-sm text-slate-300 mb-2">{event.details}</div>
+                                )}
+                                <div className="text-xs text-slate-400">
+                                  {eventDate.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                                {/* Additional event-specific details */}
+                                {event.source && (
+                                  <div className="mt-2 text-xs text-slate-500">
+                                    Source: {event.source}
+                                  </div>
+                                )}
+                                {event.role && (
+                                  <div className="mt-2 text-xs text-slate-500">
+                                    Role: {event.role}
+                                  </div>
+                                )}
+                                {event.description && (
+                                  <div className="mt-2 text-xs text-slate-400">
+                                    {event.description}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
