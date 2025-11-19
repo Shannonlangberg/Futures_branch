@@ -14528,6 +14528,22 @@ def get_admin_resource_categories():
         logger.error(f"Error fetching resource categories: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
+def generate_slug_from_name(name):
+    """Generate a URL-safe slug from a display name"""
+    if not name:
+        return ''
+    # Convert to lowercase
+    slug = name.lower()
+    # Replace spaces and underscores with hyphens
+    slug = re.sub(r'[\s_]+', '-', slug)
+    # Remove all non-alphanumeric characters except hyphens
+    slug = re.sub(r'[^a-z0-9\-]', '', slug)
+    # Replace multiple hyphens with a single hyphen
+    slug = re.sub(r'-+', '-', slug)
+    # Remove leading and trailing hyphens
+    slug = slug.strip('-')
+    return slug
+
 @app.route('/api/admin/resource-categories', methods=['POST'])
 @admin_required_json
 def create_resource_category():
@@ -14540,8 +14556,12 @@ def create_resource_category():
         if not data.get('displayName'):
             return jsonify({'error': 'Display name is required'}), 400
         
-        if not data.get('slug'):
-            return jsonify({'error': 'Slug is required'}), 400
+        # Generate slug from display name if not provided
+        slug = data.get('slug', '').strip()
+        if not slug:
+            slug = generate_slug_from_name(data['displayName'])
+            if not slug:
+                return jsonify({'error': 'Unable to generate slug from display name'}), 400
         
         # Ensure table exists
         try:
@@ -14549,15 +14569,20 @@ def create_resource_category():
         except Exception as create_error:
             logger.warning(f"Table creation check: {create_error}")
         
-        # Check if slug already exists
-        existing = ResourceCategory.query.filter_by(slug=data['slug']).first()
-        if existing:
-            return jsonify({'error': 'A category with this slug already exists'}), 400
+        # Check if slug already exists, and if so, append a number
+        base_slug = slug
+        counter = 1
+        while ResourceCategory.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+            # Safety check to prevent infinite loop
+            if counter > 100:
+                return jsonify({'error': 'Unable to generate unique slug'}), 500
         
         # Create new category
         category = ResourceCategory(
             display_name=data['displayName'],
-            slug=data['slug'],
+            slug=slug,
             description=data.get('description', ''),
             folder_id=data.get('folderId', ''),
             sort_order=data.get('sortOrder', 0),
