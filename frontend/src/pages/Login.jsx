@@ -111,40 +111,58 @@ const Login = ({ onLogin }) => {
 
       // Fallback: if window closes without us seeing a message,
       // check auth status and redirect to dashboard
+      // This is IMPORTANT - if message isn't received, we still check session
       const checkWindow = setInterval(() => {
         if (authWindow.closed) {
           clearInterval(checkWindow);
+          console.log('[Login] Popup closed, checking session as fallback...');
           setIsDriveConnecting(false);
           setIsDriveAuthRequired(false);
           
           // Wait a moment for session to update, then check auth and redirect
-          setTimeout(() => {
+          // Try multiple times to ensure session is saved
+          let attempts = 0;
+          const maxAttempts = 3;
+          
+          const checkSession = () => {
+            attempts++;
+            console.log(`[Login] Checking session (attempt ${attempts}/${maxAttempts})...`);
+            
             fetch('/api/session', { credentials: 'include' })
               .then(res => res.json())
               .then((sessionData) => {
-                console.log('Session check after popup closed:', sessionData);
+                console.log('[Login] Session check after popup closed:', sessionData);
                 if (sessionData && sessionData.authenticated) {
                   // User is authenticated, redirect to dashboard
+                  console.log('[Login] User authenticated, redirecting to dashboard...');
                   if (onLogin) {
                     onLogin();
                   }
                   // Use window.location for full page navigation
                   window.location.href = '/dashboard';
+                } else if (attempts < maxAttempts) {
+                  // Not authenticated yet, wait and try again
+                  console.log(`[Login] Session not ready, retrying in 1 second...`);
+                  setTimeout(checkSession, 1000);
                 } else {
-                  // Not authenticated yet, refresh to check again
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 500);
+                  // Max attempts reached, refresh to check again
+                  console.log('[Login] Max attempts reached, refreshing page...');
+                  window.location.reload();
                 }
               })
               .catch((error) => {
-                console.error('Error checking session after popup closed:', error);
-                // On error, refresh to check auth status
-                setTimeout(() => {
+                console.error('[Login] Error checking session after popup closed:', error);
+                if (attempts < maxAttempts) {
+                  setTimeout(checkSession, 1000);
+                } else {
+                  // On error after max attempts, refresh to check auth status
                   window.location.reload();
-                }, 500);
+                }
               });
-          }, 1000); // Wait 1 second for session to be saved
+          };
+          
+          // Start checking after a delay to allow session to save
+          setTimeout(checkSession, 1500); // Wait 1.5 seconds for session to be saved
         }
       }, 500);
 

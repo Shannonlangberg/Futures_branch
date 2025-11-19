@@ -14951,26 +14951,39 @@ def google_oauth_callback():
                                 // Desktop popup scenario - notify parent window (login page)
                                 const origin = window.location.origin;
                                 
-                                // Send message with specific origin first
+                                // Send message multiple times to ensure it's received
+                                // Send with specific origin
                                 window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                                console.log('Sent success message to opener with origin:', origin);
+                                console.log('[OAuth Callback] Sent success message to opener with origin:', origin);
                                 
                                 // Also send with wildcard as fallback (less secure but ensures delivery)
                                 try {
                                     window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                                    console.log('Also sent message with wildcard origin');
+                                    console.log('[OAuth Callback] Also sent message with wildcard origin');
                                 } catch (e) {
-                                    console.log('Could not send wildcard message:', e);
+                                    console.log('[OAuth Callback] Could not send wildcard message:', e);
                                 }
                                 
-                                // Wait a moment to ensure message is received, then close
+                                // Send again after a short delay to ensure delivery
                                 setTimeout(() => {
                                     try {
+                                        window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
+                                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                                        console.log('[OAuth Callback] Sent duplicate messages');
+                                    } catch (e) {
+                                        console.log('[OAuth Callback] Could not send duplicate messages:', e);
+                                    }
+                                }, 200);
+                                
+                                // Wait longer to ensure message is received, then close
+                                setTimeout(() => {
+                                    try {
+                                        console.log('[OAuth Callback] Closing popup window...');
                                         window.close();
                                     } catch (e) {
-                                        console.log('Could not close window:', e);
+                                        console.log('[OAuth Callback] Could not close window:', e);
                                     }
-                                }, 300);
+                                }, 1000); // Increased to 1 second to ensure message delivery
                                 return true;
                             } else if (window.parent && window.parent !== window) {
                                 // Iframe scenario
@@ -14978,19 +14991,19 @@ def google_oauth_callback():
                                 return true;
                             }
                         } catch (e) {
-                            console.log('Could not post message:', e);
+                            console.log('[OAuth Callback] Could not post message:', e);
                         }
                         return false;
                     }
                     
-                    // Try to notify parent
+                    // Try to notify parent immediately
                     if (!notifyParent()) {
                         // Fallback: If we can't detect opener, try to close anyway
                         // This prevents the popup from becoming the main page
                         try {
                             window.close();
                         } catch (e) {
-                            console.log('Could not close window:', e);
+                            console.log('[OAuth Callback] Could not close window:', e);
                             // Last resort: redirect to a blank page
                             window.location.href = 'about:blank';
                         }
