@@ -29,58 +29,70 @@ def get_campus_people(campus_id):
     
     Query params:
         - status: Filter by status ('healthy', 'watch', 'at_risk', 'critical')
+    
+    Special case: If campus_id is 'all_campuses', returns all people from all campuses.
     """
     try:
-        # Try to find campus by ID first
-        campus = Campus.query.get(campus_id)
-        
-        # If not found by ID, try to find by name (for flexibility)
-        if not campus:
-            campus = Campus.query.filter_by(name=campus_id).first()
-        
-        # If still not found, create it from the campus name
-        if not campus:
-            # Normalize campus_id to create new campus
-            campus_id_normalized = campus_id.lower().replace(' ', '_')
-            campus = Campus(
-                id=campus_id_normalized,
-                name=campus_id,  # Use original as display name
-                timezone='Australia/Adelaide',
-                is_active=True
-            )
-            db.session.add(campus)
-            db.session.commit()
-            logger.info(f"Created Heartbeat campus: {campus_id_normalized} ({campus_id})")
-        
         # Get status filter
         status_filter = request.args.get('status')
         
-        # Get people for this campus
-        # Try multiple matching strategies
-        # 1. Exact match with campus.name
-        people = Person.query.filter_by(
-            campus=campus.name,
-            is_active=True
-        ).all()
-        
-        # 2. If no results, try normalized name variations
-        if not people:
-            # Try common variations
-            variations = [
-                campus.name,
-                campus.id.replace('_', ' ').title(),  # copper_coast -> Copper Coast
-                campus.id.replace('_', ' '),  # copper_coast -> copper coast
-                campus.name.lower(),
-                campus.name.upper()
-            ]
-            for variation in variations:
-                people = Person.query.filter_by(
-                    campus=variation,
+        # Handle "all_campuses" special case
+        if campus_id == 'all_campuses' or campus_id == 'all':
+            # Get all active people from all campuses
+            people = Person.query.filter_by(is_active=True).all()
+            campus_name = 'All Campuses'
+            campus_id_display = 'all_campuses'
+        else:
+            # Try to find campus by ID first
+            campus = Campus.query.get(campus_id)
+            
+            # If not found by ID, try to find by name (for flexibility)
+            if not campus:
+                campus = Campus.query.filter_by(name=campus_id).first()
+            
+            # If still not found, create it from the campus name
+            if not campus:
+                # Normalize campus_id to create new campus
+                campus_id_normalized = campus_id.lower().replace(' ', '_')
+                campus = Campus(
+                    id=campus_id_normalized,
+                    name=campus_id,  # Use original as display name
+                    timezone='Australia/Adelaide',
                     is_active=True
-                ).all()
-                if people:
-                    logger.info(f"Found {len(people)} people using campus variation: {variation}")
-                    break
+                )
+                db.session.add(campus)
+                db.session.commit()
+                logger.info(f"Created Heartbeat campus: {campus_id_normalized} ({campus_id})")
+            
+            campus_name = campus.name
+            campus_id_display = campus_id
+            
+            # Get people for this campus
+            # Try multiple matching strategies
+            # 1. Exact match with campus.name
+            people = Person.query.filter_by(
+                campus=campus.name,
+                is_active=True
+            ).all()
+            
+            # 2. If no results, try normalized name variations
+            if not people:
+                # Try common variations
+                variations = [
+                    campus.name,
+                    campus.id.replace('_', ' ').title(),  # copper_coast -> Copper Coast
+                    campus.id.replace('_', ' '),  # copper_coast -> copper coast
+                    campus.name.lower(),
+                    campus.name.upper()
+                ]
+                for variation in variations:
+                    people = Person.query.filter_by(
+                        campus=variation,
+                        is_active=True
+                    ).all()
+                    if people:
+                        logger.info(f"Found {len(people)} people using campus variation: {variation}")
+                        break
         
         results = []
         for person in people:
@@ -113,11 +125,11 @@ def get_campus_people(campus_id):
             results.append(person_data)
         
         return jsonify({
-            'campus_id': campus_id,
-            'campus_name': campus.name,
+            'campus_id': campus_id_display,
+            'campus_name': campus_name,
             'people': results,
             'count': len(results),
-            'message': f'Found {len(people)} people for {campus.name}' if people else f'No people found for {campus.name}. Run recalculation after adding data.'
+            'message': f'Found {len(results)} people for {campus_name}' if results else f'No people found for {campus_name}. Run recalculation after adding data.'
         }), 200
         
     except Exception as e:
@@ -216,15 +228,43 @@ def recalculate_campus(campus_id):
     """
     Trigger recalculation for all active people in a campus.
     
+    Special case: If campus_id is 'all_campuses', recalculates for all people.
+    
     Returns:
         Summary of processed people and any errors
     """
     try:
-        result = engine.recalculate_campus(campus_id)
+        # Handle "all_campuses" special case
+        if campus_id == 'all_campuses' or campus_id == 'all':
+            # Get all active people from all campuses
+            all_people = Person.query.filter_by(is_active=True).all()
+            processed = 0
+            errors = 0
+            
+            for person in all_people:
+                try:
+                    engine.calculate_heartbeat(person.id)
+                    processed += 1
+                except Exception as e:
+                    logger.error(f"Error calculating heartbeat for person {person.id}: {e}")
+                    errors += 1
+            
+            result = {
+                'processed': processed,
+                'errors': errors,
+                'total': len(all_people)
+            }
+            campus_name = 'All Campuses'
+        else:
+            result = engine.recalculate_campus(campus_id)
+            # Get campus name for response
+            campus = Campus.query.get(campus_id)
+            campus_name = campus.name if campus else campus_id
         
         return jsonify({
             'message': 'Recalculation completed',
             'campus_id': campus_id,
+            'campus_name': campus_name,
             'results': result
         }), 200
         
