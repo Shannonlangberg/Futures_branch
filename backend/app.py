@@ -14256,6 +14256,14 @@ except ImportError as e:
 try:
     from pathway_api import pathway_bp
     app.register_blueprint(pathway_bp)
+    
+    # Register Pulse TV blueprint
+    try:
+        from tv_api import tv_bp
+        app.register_blueprint(tv_bp)
+        logger.info("Pulse TV API blueprint registered successfully")
+    except Exception as e:
+        logger.warning(f"Failed to register Pulse TV API blueprint: {e}")
     logger.info("Pathway API registered successfully")
 except ImportError as e:
     logger.warning(f"Could not import pathway_api: {e}")

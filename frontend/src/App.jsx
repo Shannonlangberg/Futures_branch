@@ -22,6 +22,10 @@ import Landing from './pages/Landing';
 import ConnectGroups from './pages/ConnectGroups';
 import ConnectGroupLeader from './pages/ConnectGroupLeader';
 import Give from './pages/Give';
+import TV from './pages/TV';
+import TVSeries from './pages/TVSeries';
+import TVWatch from './pages/TVWatch';
+import TVManager from './pages/TVManager';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
 
@@ -400,6 +404,10 @@ function App() {
                   <Route path="/pathways" element={<PathwayManager />} />
                   <Route path="/profile" element={<MyProfile />} />
                   <Route path="/settings" element={<Navigate to="/profile" replace />} />
+                  <Route path="/tv" element={<TV />} />
+                  <Route path="/tv/series/:id" element={<TVSeries />} />
+                  <Route path="/tv/watch/:episodeId" element={<TVWatch />} />
+                  <Route path="/tv/manage" element={<TVManager />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>

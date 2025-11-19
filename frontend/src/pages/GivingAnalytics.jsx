@@ -740,7 +740,41 @@ const GivingAnalytics = () => {
                   ✕
                 </button>
               </div>
-              {qrCodeImages[selectedQRCode.qr_code_id] ? (
+              {selectedQRCode.qr_code_id.startsWith('nfc_') ? (
+                // NFC Tag - Show URL to program
+                <div className="text-center">
+                  <div className="mb-4">
+                    <DevicePhoneMobileIcon className="h-16 w-16 text-purple-400 mx-auto mb-3" />
+                    <p className="text-slate-300 text-sm mb-2">
+                      {selectedQRCode.campus} - {selectedQRCode.zone || 'No zone'} - {selectedQRCode.seat_number || 'No seat'}
+                    </p>
+                    <p className="text-slate-400 text-xs mb-4">
+                      Program this URL into your NFC tag:
+                    </p>
+                  </div>
+                  <div className="bg-slate-700/50 rounded-lg p-4 mb-4">
+                    <code className="text-green-400 text-sm break-all">
+                      {`${window.location.origin}/give?nfc=${selectedQRCode.qr_code_id}`}
+                    </code>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/give?nfc=${selectedQRCode.qr_code_id}`;
+                        navigator.clipboard.writeText(url);
+                        alert('URL copied to clipboard!');
+                      }}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold"
+                    >
+                      Copy URL
+                    </button>
+                  </div>
+                  <p className="text-slate-500 text-xs mt-4">
+                    Use an NFC writer app to program this URL into your NFC tag
+                  </p>
+                </div>
+              ) : qrCodeImages[selectedQRCode.qr_code_id] ? (
+                // QR Code - Show image
                 <div className="text-center">
                   <div className="bg-white p-4 rounded-lg inline-block mb-4">
                     <img 
@@ -753,7 +787,7 @@ const GivingAnalytics = () => {
                     {selectedQRCode.campus} - {selectedQRCode.zone || 'No zone'} - {selectedQRCode.seat_number || 'No seat'}
                   </p>
                   <p className="text-slate-400 text-xs mb-4">
-                    Scan this QR code or tap NFC tag to give
+                    Scan this QR code to give
                   </p>
                   <a
                     href={qrCodeImages[selectedQRCode.qr_code_id]}
@@ -764,7 +798,9 @@ const GivingAnalytics = () => {
                   </a>
                 </div>
               ) : (
-                <div className="text-center text-slate-400">Generating QR code...</div>
+                <div className="text-center text-slate-400">
+                  {selectedQRCode.qr_code_id.startsWith('nfc_') ? 'Loading NFC tag info...' : 'Generating QR code...'}
+                </div>
               )}
             </div>
           </div>

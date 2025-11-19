@@ -1428,6 +1428,188 @@ def init_db(app):
         traceback.print_exc()
 
 
+# ============================================================================
+# PULSE TV MODULE MODELS
+# ============================================================================
+
+class TVSeries(db.Model):
+    """TV Series model for Pulse TV"""
+    __tablename__ = 'tv_series'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(100))  # 'foundations', 'leadership', 'parents', 'youth', etc.
+    audience = db.Column(db.String(100))  # 'all', 'adults', 'youth', 'kids', 'parents'
+    thumbnail_url = db.Column(db.String(500))
+    is_published = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    episodes = db.relationship('TVEpisode', backref='series', lazy='dynamic', order_by='TVEpisode.order_index', cascade='all, delete-orphan')
+    tags = db.relationship('TVTag', secondary='tv_series_tags', lazy='dynamic', backref='series')
+    discipleship_links = db.relationship('TVEpisodeDiscipleshipLink', backref='series', lazy='dynamic')
+    
+    def to_dict(self, include_episodes=False):
+        """Convert series to dictionary"""
+        result = {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'category': self.category,
+            'audience': self.audience,
+            'thumbnail_url': self.thumbnail_url,
+            'is_published': self.is_published,
+            'episode_count': self.episodes.filter_by(is_published=True).count() if include_episodes else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+        
+        if include_episodes:
+            result['episodes'] = [e.to_dict() for e in self.episodes.filter_by(is_published=True).order_by(TVEpisode.order_index).all()]
+        
+        return result
+
+
+class TVEpisode(db.Model):
+    """TV Episode model"""
+    __tablename__ = 'tv_episodes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    series_id = db.Column(db.Integer, db.ForeignKey('tv_series.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    video_url = db.Column(db.String(500))  # YouTube/Vimeo embed URL or S3 link
+    duration_seconds = db.Column(db.Integer, default=0)
+    order_index = db.Column(db.Integer, default=0)
+    is_published = db.Column(db.Boolean, default=False)
+    downloadable_notes_url = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    tags = db.relationship('TVTag', secondary='tv_episode_tags', lazy='dynamic', backref='episodes')
+    progress_records = db.relationship('TVUserEpisodeProgress', backref='episode', lazy='dynamic', cascade='all, delete-orphan')
+    discipleship_links = db.relationship('TVEpisodeDiscipleshipLink', backref='episode', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def to_dict(self, include_progress=False, person_id=None):
+        """Convert episode to dictionary"""
+        result = {
+            'id': self.id,
+            'series_id': self.series_id,
+            'series_title': self.series.title if self.series else None,
+            'title': self.title,
+            'description': self.description,
+            'video_url': self.video_url,
+            'duration_seconds': self.duration_seconds,
+            'duration_formatted': self._format_duration(self.duration_seconds),
+            'order_index': self.order_index,
+            'is_published': self.is_published,
+            'downloadable_notes_url': self.downloadable_notes_url,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+        
+        if include_progress and person_id:
+            progress = self.progress_records.filter_by(person_id=person_id).first()
+            if progress:
+                result['progress'] = progress.to_dict()
+            else:
+                result['progress'] = None
+        
+        return result
+    
+    def _format_duration(self, seconds):
+        """Format duration in seconds to HH:MM:SS or MM:SS"""
+        if not seconds:
+            return "0:00"
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        return f"{minutes}:{secs:02d}"
+
+
+class TVTag(db.Model):
+    """Tag model for TV content"""
+    __tablename__ = 'tv_tags'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+# Pivot tables for many-to-many relationships
+tv_series_tags = db.Table('tv_series_tags',
+    db.Column('series_id', db.Integer, db.ForeignKey('tv_series.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tv_tags.id'), primary_key=True)
+)
+
+tv_episode_tags = db.Table('tv_episode_tags',
+    db.Column('episode_id', db.Integer, db.ForeignKey('tv_episodes.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tv_tags.id'), primary_key=True)
+)
+
+
+class TVUserEpisodeProgress(db.Model):
+    """Tracks user watching progress for episodes"""
+    __tablename__ = 'tv_user_episode_progress'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    episode_id = db.Column(db.Integer, db.ForeignKey('tv_episodes.id'), nullable=False)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_position_seconds = db.Column(db.Integer, default=0)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    completed = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='tv_progress')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'episode_id': self.episode_id,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'last_position_seconds': self.last_position_seconds,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'completed': self.completed,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class TVEpisodeDiscipleshipLink(db.Model):
+    """Links episodes to discipleship steps for auto-completion"""
+    __tablename__ = 'tv_episode_discipleship_links'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    episode_id = db.Column(db.Integer, db.ForeignKey('tv_episodes.id'), nullable=False)
+    discipleship_step_type = db.Column(db.String(50), nullable=False)  # 'salvation', 'baptism', 'holy_spirit', 'next_steps', etc.
+    auto_complete = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'episode_id': self.episode_id,
+            'discipleship_step_type': self.discipleship_step_type,
+            'auto_complete': self.auto_complete,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
 def create_person_with_engagement(
     full_name,
     email,

@@ -111,11 +111,22 @@ const Give = () => {
     }
   };
 
+  // Only generate QR code if NOT accessed via QR/NFC link (i.e., manual navigation)
   useEffect(() => {
-    if (qrCodeId && !qrCodeImage) {
-      generateQRCode();
+    const qrParam = searchParams.get('qr');
+    const nfcParam = searchParams.get('nfc');
+    
+    // If accessed via QR/NFC link, don't show QR code
+    if (qrParam || nfcParam) {
+      setQrCodeImage(null);
+      return;
     }
-  }, [qrCodeId]);
+    
+    // Only show QR code if manually navigated to /give
+    if (!qrCodeId && !qrCodeImage) {
+      // Don't generate QR for manual navigation
+    }
+  }, [qrCodeId, searchParams]);
 
   const handleNFCTap = async () => {
     if (!nfcSupported) {
@@ -275,8 +286,8 @@ const Give = () => {
             <p className="text-slate-400">Your generosity makes a difference</p>
           </div>
 
-          {/* QR Code Display */}
-          {qrCodeImage && (
+          {/* QR Code Display - Only show if NOT accessed via QR/NFC link */}
+          {qrCodeImage && !qrCodeId && (
             <div className="mb-6 p-6 bg-white rounded-xl text-center">
               <p className="text-sm text-slate-600 mb-3">Scan this QR code to give</p>
               <img src={qrCodeImage} alt="QR Code" className="mx-auto w-64 h-64" />
