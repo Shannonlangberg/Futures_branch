@@ -96,8 +96,77 @@ def join_group():
         if not group:
             return jsonify({'error': 'Group not found'}), 404
         
+        # Store old connect group to check if it's a new assignment
+        old_connect_group = person.connect_group
+        
         # Update person's connect group
         person.connect_group = group_id
+        db.session.flush()  # Flush to ensure person is updated before pathway logic
+        
+        # If person was just assigned to a connect group (was None/empty, now has value),
+        # auto-complete the "Joined Connect Group" pathway step
+        if not old_connect_group and group_id:
+            try:
+                from models import PersonPathwayProgress, PathwayStep, PersonPathwayStepCompletion
+                
+                # Find active pathway progress for this person
+                active_progress = PersonPathwayProgress.query.filter_by(
+                    person_id=person.id,
+                    is_active=True
+                ).first()
+                
+                if active_progress:
+                    # Find the "Joined Connect Group" step (milestone_type = "group_join")
+                    connect_step = PathwayStep.query.filter_by(
+                        pathway_id=active_progress.pathway_id,
+                        milestone_type='group_join'
+                    ).first()
+                    
+                    if connect_step:
+                        # Check if already completed
+                        existing_completion = PersonPathwayStepCompletion.query.filter_by(
+                            person_pathway_progress_id=active_progress.id,
+                            pathway_step_id=connect_step.id
+                        ).first()
+                        
+                        if not existing_completion:
+                            # Auto-complete the step
+                            completion = PersonPathwayStepCompletion(
+                                person_pathway_progress_id=active_progress.id,
+                                pathway_step_id=connect_step.id,
+                                completed_by_person_id=person.id,  # Person completes their own step
+                                completed_at=datetime.utcnow(),
+                                notes=f'Auto-completed when joined connect group: {group.name}'
+                            )
+                            db.session.add(completion)
+                            
+                            # Update current step to next uncompleted step
+                            next_step = active_progress.get_next_step()
+                            active_progress.current_step_id = next_step.id if next_step else None
+                            
+                            # Mark as started if not already
+                            if not active_progress.started_at:
+                                active_progress.started_at = datetime.utcnow()
+                            
+                            # Check if pathway is complete
+                            if not next_step:
+                                active_progress.completed_at = datetime.utcnow()
+                            
+                            active_progress.updated_at = datetime.utcnow()
+                            
+                            # Trigger Heartbeat recalculation since spiritual score may have changed
+                            try:
+                                from heartbeat_engine import HeartbeatEngine
+                                engine = HeartbeatEngine()
+                                engine.calculate_heartbeat(person.id)
+                                logger.info(f"Auto-completed 'Joined Connect Group' step and recalculated Heartbeat for person {person.id}")
+                            except Exception as hb_error:
+                                logger.warning(f"Failed to recalculate Heartbeat after auto-completing pathway step: {hb_error}")
+                                # Don't fail the request if recalculation fails
+            except Exception as pathway_error:
+                logger.warning(f"Error auto-completing pathway step when joining connect group: {pathway_error}", exc_info=True)
+                # Don't fail the join request if pathway step completion fails
+        
         db.session.commit()
         
         logger.info(f"Person {email} joined group {group_id}")

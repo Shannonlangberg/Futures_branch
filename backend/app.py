@@ -969,10 +969,14 @@ CORS(app, supports_credentials=True, origins=[
     "http://localhost:5173",
     "exp://192.168.20.12:8081",
     "exp://192.168.20.12:8082",
+    "exp://192.168.15.167:8081",
+    "exp://192.168.15.167:8082",
     "exp://localhost:8081",
     "exp://localhost:8082",
     "http://192.168.20.12:8081",
     "http://192.168.20.12:8082",
+    "http://192.168.15.167:8081",
+    "http://192.168.15.167:8082",
     "*"  # Allow all origins for mobile app testing
 ], allow_headers=["Content-Type", "Authorization"])
 
@@ -12915,6 +12919,44 @@ def get_person_detail(person_id):
         return jsonify({'error': 'Failed to fetch person details'}), 500
 
 
+@app.route('/api/persons/email/<email>', methods=['GET'])
+def get_person_by_email(email):
+    """Get person profile by email - public endpoint for mobile app"""
+    try:
+        # Find person by email (case-insensitive)
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get person data
+        person_data = person.to_dict()
+        
+        # Add engagement profile if it exists
+        if person.engagement_profile:
+            engagement_data = person.engagement_profile.to_dict()
+            person_data['engagement'] = engagement_data
+        else:
+            # Create engagement profile if it doesn't exist
+            try:
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                db.session.commit()
+                person_data['engagement'] = engagement.to_dict()
+            except Exception as e:
+                logger.error(f"Error creating engagement profile: {e}")
+                person_data['engagement'] = None
+        
+        return jsonify(person_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching person by email {email}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch person profile'}), 500
+
+
 @app.route('/api/persons/<person_id>', methods=['PUT'])
 @login_required
 def update_person(person_id):
@@ -12967,7 +13009,72 @@ def update_person(person_id):
         if 'connect_group' in data:
             # Normalize connect_group - convert empty string to None
             connect_group_value = data['connect_group'].strip() if data.get('connect_group') else None
+            old_connect_group = person.connect_group
             person.connect_group = connect_group_value if connect_group_value else None
+            
+            # If person was just assigned to a connect group (was None/empty, now has value),
+            # auto-complete the "Joined Connect Group" pathway step
+            if not old_connect_group and connect_group_value:
+                try:
+                    from models import PersonPathwayProgress, PathwayStep, PersonPathwayStepCompletion
+                    
+                    # Find active pathway progress for this person
+                    active_progress = PersonPathwayProgress.query.filter_by(
+                        person_id=person_id,
+                        is_active=True
+                    ).first()
+                    
+                    if active_progress:
+                        # Find the "Joined Connect Group" step (milestone_type = "group_join")
+                        connect_step = PathwayStep.query.filter_by(
+                            pathway_id=active_progress.pathway_id,
+                            milestone_type='group_join'
+                        ).first()
+                        
+                        if connect_step:
+                            # Check if already completed
+                            existing_completion = PersonPathwayStepCompletion.query.filter_by(
+                                person_pathway_progress_id=active_progress.id,
+                                pathway_step_id=connect_step.id
+                            ).first()
+                            
+                            if not existing_completion:
+                                # Auto-complete the step
+                                completion = PersonPathwayStepCompletion(
+                                    person_pathway_progress_id=active_progress.id,
+                                    pathway_step_id=connect_step.id,
+                                    completed_by_person_id=getattr(current_user, 'id', None),
+                                    completed_at=datetime.utcnow(),
+                                    notes=f'Auto-completed when assigned to connect group: {connect_group_value}'
+                                )
+                                db.session.add(completion)
+                                
+                                # Update current step to next uncompleted step
+                                next_step = active_progress.get_next_step()
+                                active_progress.current_step_id = next_step.id if next_step else None
+                                
+                                # Mark as started if not already
+                                if not active_progress.started_at:
+                                    active_progress.started_at = datetime.utcnow()
+                                
+                                # Check if pathway is complete
+                                if not next_step:
+                                    active_progress.completed_at = datetime.utcnow()
+                                
+                                active_progress.updated_at = datetime.utcnow()
+                                
+                                # Trigger Heartbeat recalculation since spiritual score may have changed
+                                try:
+                                    from heartbeat_engine import HeartbeatEngine
+                                    engine = HeartbeatEngine()
+                                    engine.calculate_heartbeat(person_id)
+                                    logger.info(f"Auto-completed 'Joined Connect Group' step and recalculated Heartbeat for person {person_id}")
+                                except Exception as hb_error:
+                                    logger.warning(f"Failed to recalculate Heartbeat after auto-completing pathway step: {hb_error}")
+                                    # Don't fail the request if recalculation fails
+                except Exception as pathway_error:
+                    logger.warning(f"Error auto-completing pathway step when assigning connect group: {pathway_error}", exc_info=True)
+                    # Don't fail the person update if pathway step completion fails
         if 'dream_team_roles' in data:
             # Convert array to JSON string for storage
             try:
@@ -15160,8 +15267,13 @@ def get_events():
         return jsonify({'events': events_data})
         
     except Exception as e:
-        logger.error(f"Error fetching events: {e}")
-        return jsonify({'error': 'Failed to fetch events'}), 500
+        logger.error(f"Error fetching events: {e}", exc_info=True)
+        # Return empty events list instead of error to prevent app crashes
+        return jsonify({
+            'events': [],
+            'count': 0,
+            'error': str(e)
+        }), 200
 
 @app.route('/api/admin/resource-categories', methods=['GET'])
 @admin_required_json

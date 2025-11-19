@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +23,9 @@ export default function PassportScreen() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectGroups, setConnectGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -33,16 +38,28 @@ export default function PassportScreen() {
         const userObj = JSON.parse(userData);
         setUser(userObj);
 
-        // Load pathway
-        const pathwayData = await ApiService.getMyPathway(userObj.email);
-        if (pathwayData.pathway) {
-          setPathway(pathwayData.pathway);
-        }
-
-        // Load profile
-        const profileData = await ApiService.getPersonProfile(userObj.email);
-        if (profileData.profile) {
-          setProfile(profileData.profile);
+        // Load profile (this includes engagement data)
+        try {
+          const profileData = await ApiService.getPersonProfile(userObj.email);
+          if (profileData) {
+            setProfile(profileData);
+            // Pathway data might be included in profile
+            if (profileData.pathway) {
+              setPathway(profileData.pathway);
+            }
+          }
+        } catch (profileError) {
+          console.warn('Error loading profile, trying pathway separately:', profileError);
+          // Fallback: try pathway endpoint if it exists
+          try {
+            const pathwayData = await ApiService.getMyPathway(userObj.email);
+            if (pathwayData?.pathway) {
+              setPathway(pathwayData.pathway);
+            }
+          } catch (pathwayError) {
+            console.warn('Error loading pathway:', pathwayError);
+            // Continue without pathway data - app won't crash
+          }
         }
       }
     } catch (error) {
@@ -56,6 +73,61 @@ export default function PassportScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+  const loadConnectGroups = async () => {
+    try {
+      setLoadingGroups(true);
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const userObj = JSON.parse(userData);
+        const profileData = await ApiService.getPersonProfile(userObj.email);
+        if (profileData?.profile?.campus) {
+          const groupsData = await ApiService.getConnectGroups(profileData.profile.campus);
+          setConnectGroups(groupsData?.groups || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading connect groups:', error);
+      Alert.alert('Error', 'Failed to load connect groups');
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const handleAssignConnectGroup = async (group) => {
+    try {
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const userObj = JSON.parse(userData);
+        await ApiService.joinGroup(userObj.email, group.id);
+        Alert.alert('Success', `You've been assigned to ${group.name}`);
+        setShowConnectModal(false);
+        loadData(); // Reload pathway to show updated step
+      }
+    } catch (error) {
+      console.error('Error assigning connect group:', error);
+      Alert.alert('Error', 'Failed to assign connect group');
+    }
+  };
+
+  const handleCompleteStep = async (step) => {
+    if (!pathway?.id) return;
+    
+    try {
+      await ApiService.completePathwayStep(pathway.id, step.id);
+      Alert.alert('Success', `${step.step_name} marked as complete!`);
+      loadData(); // Reload pathway
+    } catch (error) {
+      console.error('Error completing step:', error);
+      Alert.alert('Error', 'Failed to complete step');
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   if (loading) {
@@ -107,18 +179,76 @@ export default function PassportScreen() {
               </LinearGradient>
             </View>
 
-            {/* Next Step */}
-            {pathway.next_step && (
-              <View style={styles.nextStepCard}>
-                <Text style={styles.nextStepLabel}>Next Step:</Text>
-                <Text style={styles.nextStepName}>
-                  {pathway.next_step.step_name}
-                </Text>
-                {pathway.next_step.step_description && (
-                  <Text style={styles.nextStepDescription}>
-                    {pathway.next_step.step_description}
-                  </Text>
-                )}
+            {/* All Steps */}
+            {pathway.pathway?.steps && pathway.pathway.steps.length > 0 && (
+              <View style={styles.stepsSection}>
+                <Text style={styles.stepsTitle}>All Steps:</Text>
+                {pathway.pathway.steps.map((step, index) => {
+                  const isCompleted = step.is_completed;
+                  const isCurrent = pathway.current_step_id === step.id && !isCompleted;
+                  const isConnectGroup = step.milestone_type === 'group_join';
+                  
+                  return (
+                    <View
+                      key={step.id || index}
+                      style={[
+                        styles.stepCard,
+                        isCurrent && styles.currentStepCard,
+                        isCompleted && styles.completedStepCard,
+                      ]}
+                    >
+                      <View style={styles.stepLeft}>
+                        {isCompleted ? (
+                          <View style={styles.completedIcon}>
+                            <Text style={styles.checkmark}>✓</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.stepNumber}>
+                            <Text style={styles.stepNumberText}>{step.step_order}</Text>
+                          </View>
+                        )}
+                        <View style={styles.stepContent}>
+                          <Text style={[styles.stepName, isCompleted && styles.completedStepName]}>
+                            {step.step_name}
+                          </Text>
+                          {step.step_description && (
+                            <Text style={styles.stepDescription}>{step.step_description}</Text>
+                          )}
+                          {isCompleted && step.completed_at && (
+                            <Text style={styles.completedDate}>
+                              Completed: {formatDate(step.completed_at)}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      {!isCompleted && (
+                        <View style={styles.stepActions}>
+                          {isCurrent && (
+                            <Text style={styles.currentBadge}>Current</Text>
+                          )}
+                          {isConnectGroup && isCurrent ? (
+                            <TouchableOpacity
+                              style={styles.assignButton}
+                              onPress={() => {
+                                loadConnectGroups();
+                                setShowConnectModal(true);
+                              }}
+                            >
+                              <Text style={styles.assignButtonText}>Assign</Text>
+                            </TouchableOpacity>
+                          ) : !isConnectGroup ? (
+                            <TouchableOpacity
+                              style={styles.completeButton}
+                              onPress={() => handleCompleteStep(step)}
+                            >
+                              <Text style={styles.completeButtonText}>Complete</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             )}
           </View>
@@ -217,6 +347,52 @@ export default function PassportScreen() {
           </TouchableOpacity>
         </View>
       </LinearGradient>
+
+      {/* Connect Group Assignment Modal */}
+      <Modal
+        visible={showConnectModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowConnectModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Assign Connect Group</Text>
+              <TouchableOpacity
+                onPress={() => setShowConnectModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {loadingGroups ? (
+              <ActivityIndicator size="large" color={Colors.primary} style={styles.modalLoading} />
+            ) : connectGroups.length === 0 ? (
+              <Text style={styles.modalEmptyText}>No connect groups available</Text>
+            ) : (
+              <ScrollView style={styles.modalScrollView}>
+                {connectGroups.map((group) => (
+                  <TouchableOpacity
+                    key={group.id}
+                    style={styles.groupItem}
+                    onPress={() => handleAssignConnectGroup(group)}
+                  >
+                    <Text style={styles.groupName}>{group.name}</Text>
+                    {group.description && (
+                      <Text style={styles.groupDescription}>{group.description}</Text>
+                    )}
+                    {group.campus && (
+                      <Text style={styles.groupCampus}>{group.campus}</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -404,6 +580,193 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     color: Colors.primary,
     marginLeft: Spacing.sm,
+  },
+  stepsSection: {
+    marginTop: Spacing.md,
+  },
+  stepsTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.md,
+  },
+  stepCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  currentStepCard: {
+    backgroundColor: Colors.primary + '20',
+    borderColor: Colors.primary,
+    borderWidth: 2,
+  },
+  completedStepCard: {
+    opacity: 0.8,
+  },
+  stepLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  stepNumberText: {
+    fontSize: FontSizes.md,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  completedIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  checkmark: {
+    fontSize: FontSizes.md,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepName: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  completedStepName: {
+    color: '#10B981',
+  },
+  stepDescription: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  completedDate: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  stepActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  currentBadge: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: Colors.primary,
+    backgroundColor: Colors.primary + '20',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  assignButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 8,
+  },
+  assignButtonText: {
+    color: Colors.text,
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  completeButton: {
+    backgroundColor: Colors.surfaceLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  completeButtonText: {
+    color: Colors.text,
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: Spacing.xl,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: FontSizes.xl,
+    color: Colors.textSecondary,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalLoading: {
+    padding: Spacing.xl,
+  },
+  modalEmptyText: {
+    padding: Spacing.xl,
+    textAlign: 'center',
+    color: Colors.textSecondary,
+  },
+  groupItem: {
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  groupName: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  groupDescription: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  groupCampus: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
   },
 });
 
