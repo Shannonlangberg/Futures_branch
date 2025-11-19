@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import ScheduleCatchUpModal from '../components/ScheduleCatchUpModal';
 
 // Status badge component matching Heartbeat dashboard
 const StatusBadge = ({ status, score }) => {
@@ -140,6 +141,7 @@ const PersonHealthReport = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [watchedEpisodes, setWatchedEpisodes] = useState([]);
   const [loadingWatched, setLoadingWatched] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   const fetchWatchedEpisodes = async () => {
     try {
@@ -558,26 +560,46 @@ const PersonHealthReport = () => {
               {hasHeartbeat ? (
                 <>
                   <StatusBadge status={heartbeat.status} score={heartbeat.total_score} />
-                  <button
-                    type="button"
-                    onClick={handleRecalculate}
-                    disabled={recalculating}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-semibold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    {recalculating ? 'Recalculating...' : '🔄 Recalculate'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowScheduleModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
+                    >
+                      <CalendarIcon className="w-4 h-4" />
+                      Schedule Catch-Up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRecalculate}
+                      disabled={recalculating}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-semibold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      {recalculating ? 'Recalculating...' : '🔄 Recalculate'}
+                    </button>
+                  </div>
                 </>
               ) : (
                 <div className="text-center">
                   <div className="text-sm text-slate-400 mb-2">No Heartbeat Data</div>
-                  <button
-                    type="button"
-                    onClick={handleRecalculate}
-                    disabled={recalculating}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-semibold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    {recalculating ? 'Calculating...' : 'Calculate Heartbeat'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowScheduleModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
+                    >
+                      <CalendarIcon className="w-4 h-4" />
+                      Schedule Catch-Up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRecalculate}
+                      disabled={recalculating}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-semibold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      {recalculating ? 'Calculating...' : 'Calculate Heartbeat'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

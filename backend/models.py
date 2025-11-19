@@ -1374,39 +1374,33 @@ class PastoralCareAppointment(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
-    pastor_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)  # Assigned pastor/leader
-    care_case_id = db.Column(db.Integer, db.ForeignKey('heartbeat_care_cases.id'), nullable=True)  # Optional link to care case
+    pastor_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)
+    care_case_id = db.Column(db.Integer, db.ForeignKey('heartbeat_care_cases.id'), nullable=True)
     
-    # Appointment details
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    appointment_type = db.Column(db.String(50), default='catch_up')  # 'catch_up', 'counseling', 'prayer', 'follow_up', 'other'
+    appointment_type = db.Column(db.String(50), default='catch_up')
     scheduled_date = db.Column(db.DateTime, nullable=False)
     duration_minutes = db.Column(db.Integer, default=30)
-    location = db.Column(db.String(200))  # 'office', 'coffee_shop', 'home', 'church', 'online', 'other'
-    location_details = db.Column(db.Text)  # Specific address or meeting link
+    location = db.Column(db.String(200))
+    location_details = db.Column(db.Text)
     
-    # Status and tracking
-    status = db.Column(db.String(20), default='scheduled')  # 'scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'
-    requested_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)  # Who requested it
-    created_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)  # Who created it in system
+    status = db.Column(db.String(20), default='scheduled')
+    requested_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)
+    created_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)
     
-    # Notifications
     person_notified = db.Column(db.Boolean, default=False)
     pastor_notified = db.Column(db.Boolean, default=False)
     reminder_sent = db.Column(db.Boolean, default=False)
     
-    # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
     cancelled_at = db.Column(db.DateTime, nullable=True)
     
-    # Notes
-    notes = db.Column(db.Text)  # Private notes for pastor
-    follow_up_notes = db.Column(db.Text)  # Notes after completion
+    notes = db.Column(db.Text)
+    follow_up_notes = db.Column(db.Text)
     
-    # Relationships
     person = db.relationship('Person', foreign_keys=[person_id], backref='pastoral_appointments')
     pastor = db.relationship('Person', foreign_keys=[pastor_id])
     requested_by = db.relationship('Person', foreign_keys=[requested_by_person_id])
