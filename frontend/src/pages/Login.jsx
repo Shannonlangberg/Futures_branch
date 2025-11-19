@@ -109,60 +109,86 @@ const Login = ({ onLogin }) => {
 
       authWindow.focus();
 
-      // Fallback: if window closes without us seeing a message,
-      // check auth status and redirect to dashboard
-      // This is IMPORTANT - if message isn't received, we still check session
+      // CRITICAL: Start polling session immediately when popup opens
+      // Don't wait for message or popup to close - be proactive
+      let pollingActive = true;
+      let pollingAttempts = 0;
+      const maxPollingAttempts = 20; // 20 attempts = 10 seconds total
+      const pollingInterval = 500; // Check every 500ms
+      
+      const pollSession = () => {
+        if (!pollingActive) {
+          console.log('[Login] Polling stopped');
+          return;
+        }
+        
+        pollingAttempts++;
+        console.log(`[Login] Polling session (attempt ${pollingAttempts}/${maxPollingAttempts})...`);
+        
+        fetch('/api/session', { 
+          credentials: 'include',
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        })
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`Session check failed: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then((sessionData) => {
+            console.log('[Login] Polling result:', {
+              authenticated: sessionData?.authenticated,
+              needs_drive_auth: sessionData?.needs_drive_auth,
+              role: sessionData?.role
+            });
+            
+            // Check if we're fully authenticated (authenticated AND needs_drive_auth === false)
+            if (sessionData && sessionData.authenticated && sessionData.needs_drive_auth === false) {
+              console.log('[Login] ✅ Fully authenticated! Stopping polling and redirecting...');
+              pollingActive = false;
+              setIsDriveConnecting(false);
+              setIsDriveAuthRequired(false);
+              if (onLogin) {
+                onLogin();
+              }
+              window.location.href = '/dashboard';
+              return;
+            }
+            
+            // Continue polling if not ready yet
+            if (pollingAttempts < maxPollingAttempts) {
+              setTimeout(pollSession, pollingInterval);
+            } else {
+              console.log('[Login] Max polling attempts reached. Popup should have closed by now.');
+              pollingActive = false;
+            }
+          })
+          .catch((error) => {
+            console.error('[Login] Error polling session:', error);
+            if (pollingAttempts < maxPollingAttempts) {
+              setTimeout(pollSession, pollingInterval);
+            } else {
+              pollingActive = false;
+            }
+          });
+      };
+      
+      // Start polling after a short delay to allow popup to load
+      setTimeout(pollSession, 1000);
+      
+      // Also check if popup closes (fallback if message isn't received)
       const checkWindow = setInterval(() => {
         if (authWindow.closed) {
           clearInterval(checkWindow);
-          console.log('[Login] Popup closed, checking session as fallback...');
-          setIsDriveConnecting(false);
-          setIsDriveAuthRequired(false);
-          
-          // Wait a moment for session to update, then check auth and redirect
-          // Try multiple times to ensure session is saved
-          let attempts = 0;
-          const maxAttempts = 3;
-          
-          const checkSession = () => {
-            attempts++;
-            console.log(`[Login] Checking session (attempt ${attempts}/${maxAttempts})...`);
-            
-            fetch('/api/session', { credentials: 'include' })
-              .then(res => res.json())
-              .then((sessionData) => {
-                console.log('[Login] Session check after popup closed:', sessionData);
-                if (sessionData && sessionData.authenticated) {
-                  // User is authenticated, redirect to dashboard
-                  console.log('[Login] User authenticated, redirecting to dashboard...');
-                  if (onLogin) {
-                    onLogin();
-                  }
-                  // Use window.location for full page navigation
-                  window.location.href = '/dashboard';
-                } else if (attempts < maxAttempts) {
-                  // Not authenticated yet, wait and try again
-                  console.log(`[Login] Session not ready, retrying in 1 second...`);
-                  setTimeout(checkSession, 1000);
-                } else {
-                  // Max attempts reached, refresh to check again
-                  console.log('[Login] Max attempts reached, refreshing page...');
-                  window.location.reload();
-                }
-              })
-              .catch((error) => {
-                console.error('[Login] Error checking session after popup closed:', error);
-                if (attempts < maxAttempts) {
-                  setTimeout(checkSession, 1000);
-                } else {
-                  // On error after max attempts, refresh to check auth status
-                  window.location.reload();
-                }
-              });
-          };
-          
-          // Start checking after a delay to allow session to save
-          setTimeout(checkSession, 2000); // Wait 2 seconds for session to be saved
+          console.log('[Login] Popup closed, ensuring polling continues...');
+          // Polling should already be active, but ensure it continues
+          if (!pollingActive && pollingAttempts < maxPollingAttempts) {
+            pollingActive = true;
+            setTimeout(pollSession, 500);
+          }
         }
       }, 500);
 
@@ -213,89 +239,48 @@ const Login = ({ onLogin }) => {
       console.log('[Login] Message from allowed origin:', event.origin);
       
       if (event.data && event.data.type === 'googleAuthSuccess') {
-        console.log('[Login] Received Google OAuth success message from:', event.origin, 'at', new Date().toISOString());
+        console.log('[Login] ✅ Received Google OAuth success message from:', event.origin, 'at', new Date().toISOString());
         setIsDriveConnecting(false);
         setDriveError('');
         setIsDriveAuthRequired(false);
         
-        // Immediately start checking session - be aggressive about it
-        // The backend has saved the session, but we need to poll until it's ready
-        let attempts = 0;
-        const maxAttempts = 10; // Increased attempts
-        const checkInterval = 500; // Check every 500ms
-        
-        const checkSessionAndRedirect = () => {
-          attempts++;
-          console.log(`[Login] Checking session after OAuth message (attempt ${attempts}/${maxAttempts})...`);
-          
-          fetch('/api/session', { 
-            credentials: 'include',
-            cache: 'no-cache',
-            headers: {
-              'Cache-Control': 'no-cache'
+        // Message received - immediately check session (polling should already be active)
+        // But trigger an immediate check to speed things up
+        fetch('/api/session', { 
+          credentials: 'include',
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        })
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`Session check failed: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then((sessionData) => {
+            console.log('[Login] Immediate session check after message:', {
+              authenticated: sessionData?.authenticated,
+              needs_drive_auth: sessionData?.needs_drive_auth,
+              role: sessionData?.role
+            });
+            
+            if (sessionData && sessionData.authenticated && sessionData.needs_drive_auth === false) {
+              console.log('[Login] ✅ User fully authenticated! Redirecting immediately...');
+              if (onLogin) {
+                onLogin();
+              }
+              window.location.href = '/dashboard';
+            } else {
+              console.log('[Login] Session not ready yet, polling will continue...');
+              // Polling should already be active and will catch it
             }
           })
-            .then(res => {
-              if (!res.ok) {
-                throw new Error(`Session check failed: ${res.status}`);
-              }
-              return res.json();
-            })
-            .then((sessionData) => {
-              console.log('[Login] Session check result:', {
-                authenticated: sessionData?.authenticated,
-                needs_drive_auth: sessionData?.needs_drive_auth,
-                role: sessionData?.role
-              });
-              
-              if (sessionData && sessionData.authenticated) {
-                // If needs_drive_auth is false, we're good to go
-                if (sessionData.needs_drive_auth === false) {
-                  console.log('[Login] ✅ User fully authenticated with Google Drive! Redirecting to dashboard...');
-                  if (onLogin) {
-                    onLogin();
-                  }
-                  // Use window.location for a full page navigation
-                  window.location.href = '/dashboard';
-                  return;
-                }
-                
-                // If still needs_drive_auth, keep checking (session might not be updated yet)
-                if (attempts < maxAttempts) {
-                  console.log(`[Login] Session authenticated but still needs_drive_auth=${sessionData.needs_drive_auth}, retrying in ${checkInterval}ms...`);
-                  setTimeout(checkSessionAndRedirect, checkInterval);
-                } else {
-                  // Max attempts reached - session should be ready by now, redirect anyway
-                  console.log('[Login] Max attempts reached, redirecting to dashboard (session should be ready)...');
-                  if (onLogin) {
-                    onLogin();
-                  }
-                  window.location.href = '/dashboard';
-                }
-              } else if (attempts < maxAttempts) {
-                // Not authenticated yet, keep trying
-                console.log(`[Login] Not authenticated yet (attempt ${attempts}/${maxAttempts}), retrying in ${checkInterval}ms...`);
-                setTimeout(checkSessionAndRedirect, checkInterval);
-              } else {
-                // Max attempts reached without authentication
-                console.error('[Login] Max attempts reached without authentication. Reloading page...');
-                window.location.reload();
-              }
-            })
-            .catch((error) => {
-              console.error('[Login] Error checking session after OAuth:', error);
-              if (attempts < maxAttempts) {
-                setTimeout(checkSessionAndRedirect, checkInterval);
-              } else {
-                // On error after max attempts, reload to check auth status
-                console.error('[Login] Max attempts reached with errors. Reloading page...');
-                window.location.reload();
-              }
-            });
-        };
-        
-        // Start checking immediately (no delay)
-        checkSessionAndRedirect();
+          .catch((error) => {
+            console.error('[Login] Error in immediate session check:', error);
+            // Polling will continue and catch it
+          });
       }
     };
 
