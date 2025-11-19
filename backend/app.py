@@ -13946,11 +13946,22 @@ def submit_meeting_attendance(meeting_id):
                                 logger.info(f"Created Heartbeat campus: {campus_normalized}")
                             
                             # Find or create HeartbeatConnectGroup
+                            # Try multiple matching strategies
                             heartbeat_group = HeartbeatConnectGroup.query.filter_by(
                                 name=group.name,
                                 leader_person_id=group.leader_id,
                                 campus_id=heartbeat_campus.id
                             ).first()
+                            
+                            if not heartbeat_group:
+                                # Try matching by name and campus only (in case leader changed)
+                                heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+                                    name=group.name,
+                                    campus_id=heartbeat_campus.id,
+                                    is_active=True
+                                ).first()
+                                if heartbeat_group:
+                                    logger.info(f"Found HeartbeatConnectGroup by name/campus (leader may have changed): {heartbeat_group.id}")
                             
                             if not heartbeat_group:
                                 heartbeat_group = HeartbeatConnectGroup(
@@ -13963,7 +13974,9 @@ def submit_meeting_attendance(meeting_id):
                                 )
                                 db.session.add(heartbeat_group)
                                 db.session.flush()
-                                logger.info(f"Created HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
+                                logger.info(f"Created NEW HeartbeatConnectGroup: {heartbeat_group.id} for {group.name} (Leader: {group.leader_id}, Campus: {heartbeat_campus.id})")
+                            else:
+                                logger.info(f"Found existing HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
                             
                             # Create ConnectAttendance record
                             # Check if record already exists
@@ -13975,7 +13988,7 @@ def submit_meeting_attendance(meeting_id):
                             
                             if existing_attendance:
                                 existing_attendance.status = 'present'
-                                logger.info(f"Updated existing ConnectAttendance record for {person.full_name}")
+                                logger.info(f"Updated existing ConnectAttendance record for {person.full_name} (ID: {existing_attendance.id}) - Group: {heartbeat_group.id}, Date: {attendance_date}")
                             else:
                                 connect_attendance = ConnectAttendance(
                                     person_id=person_id,
@@ -13984,7 +13997,15 @@ def submit_meeting_attendance(meeting_id):
                                     status='present'
                                 )
                                 db.session.add(connect_attendance)
-                                logger.info(f"Created ConnectAttendance record for {person.full_name} - Group: {heartbeat_group.id}, Date: {attendance_date}")
+                                db.session.flush()  # Flush to get the ID
+                                logger.info(f"Created NEW ConnectAttendance record (ID: {connect_attendance.id}) for {person.full_name} - Group: {heartbeat_group.id} ({heartbeat_group.name}), Date: {attendance_date}")
+                                
+                                # Verify it was created
+                                verify_attendance = ConnectAttendance.query.get(connect_attendance.id)
+                                if verify_attendance:
+                                    logger.info(f"Verified ConnectAttendance record exists: {verify_attendance.to_dict()}")
+                                else:
+                                    logger.error(f"ERROR: ConnectAttendance record was not found after creation!")
                             
                         except Exception as hb_error:
                             logger.error(f"Error creating Heartbeat ConnectAttendance record: {hb_error}", exc_info=True)
