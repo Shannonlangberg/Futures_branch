@@ -103,7 +103,7 @@ const MainLayout = ({ children }) => {
       { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'] },
       { name: 'Connect Groups', href: '/connect-groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff', 'connect_group_leader'] },
       { name: 'Resources', href: '/resources', icon: BookOpenIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'] },
-      { name: 'Pulse TV', href: '/tv', icon: PlayIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user'] },
+      { name: 'Pulse TV', href: '/tv', icon: PlayIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff', 'finance'] },
       
       // Hidden items - commented out for now
       // { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'finance'] },
@@ -122,6 +122,11 @@ const MainLayout = ({ children }) => {
 
     // Filter items based on user role and feature flags
     const filteredItems = allItems.filter(item => {
+      // Pulse TV is visible to all authenticated users
+      if (item.name === 'Pulse TV') {
+        return true;
+      }
+      
       // Check role permission
       if (!item.roles.includes(userRole)) {
         return false;
