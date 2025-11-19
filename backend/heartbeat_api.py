@@ -318,15 +318,61 @@ def get_person_heartbeat(person_id):
                 'is_person_milestone': True
             })
         
-        # Combine DiscipleshipStep records with Person milestones
-        all_discipleship_steps = [d.to_dict() for d in recent_steps] + person_milestones
+        # Get pathway progress to include completed pathway steps as spiritual events
+        from models import PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
+        pathway_progress = PersonPathwayProgress.query.filter_by(
+            person_id=person_id,
+            is_active=True
+        ).first()
+        
+        # Include completed pathway steps as spiritual events
+        pathway_step_events = []
+        if pathway_progress:
+            db.session.refresh(pathway_progress)
+            # Get all completed pathway steps
+            completed_steps = PersonPathwayStepCompletion.query.filter_by(
+                person_pathway_progress_id=pathway_progress.id
+            ).all()
+            
+            for completion in completed_steps:
+                step = PathwayStep.query.get(completion.pathway_step_id)
+                if step and completion.completed_at:
+                    # Map milestone types to spiritual event types
+                    milestone_type = step.milestone_type or ''
+                    step_type = milestone_type if milestone_type else step.step_name.lower().replace(' ', '_')
+                    
+                    pathway_step_events.append({
+                        'id': f'pathway_step_{completion.id}',
+                        'person_id': person_id,
+                        'type': step_type,
+                        'description': step.step_name,
+                        'date': completion.completed_at.isoformat() if completion.completed_at else None,
+                        'created_at': completion.completed_at.isoformat() if completion.completed_at else None,
+                        'is_person_milestone': False,
+                        'is_pathway_step': True,
+                        'step_order': step.step_order,
+                        'milestone_type': milestone_type
+                    })
+                    
+            # Refresh relationships to get latest step completions
+            try:
+                # Force reload of step_completions relationship
+                _ = pathway_progress.step_completions.all()
+            except Exception as e:
+                logger.warning(f"Error refreshing pathway step completions: {e}")
+        
+        # Combine DiscipleshipStep records with Person milestones and pathway steps
+        all_discipleship_steps = [d.to_dict() for d in recent_steps] + person_milestones + pathway_step_events
         
         # Debug: Log what we're returning
         logger.info(f"DEBUG: Returning {len(all_discipleship_steps)} total discipleship steps:")
         logger.info(f"  - DiscipleshipStep records: {len(recent_steps)}")
         logger.info(f"  - Person milestones: {len(person_milestones)}")
+        logger.info(f"  - Pathway step completions: {len(pathway_step_events)}")
         for milestone in person_milestones:
             logger.info(f"    Person milestone: {milestone.get('type')} - {milestone.get('description')} on {milestone.get('date')}")
+        for step_event in pathway_step_events:
+            logger.info(f"    Pathway step: {step_event.get('type')} - {step_event.get('description')} on {step_event.get('date')}")
         
         # Sort by date (newest first)
         all_discipleship_steps.sort(key=lambda x: x.get('date') or x.get('created_at') or '', reverse=True)
@@ -336,23 +382,6 @@ def get_person_heartbeat(person_id):
             CareCase.person_id == person_id,
             CareCase.status.in_(['open', 'in_progress'])
         ).all()
-        
-        # Get pathway progress
-        from models import PersonPathwayProgress
-        pathway_progress = PersonPathwayProgress.query.filter_by(
-            person_id=person_id,
-            is_active=True
-        ).first()
-        
-        # Refresh pathway progress to ensure latest completion data is loaded
-        if pathway_progress:
-            db.session.refresh(pathway_progress)
-            # Refresh relationships to get latest step completions
-            try:
-                # Force reload of step_completions relationship
-                _ = pathway_progress.step_completions.all()
-            except Exception as e:
-                logger.warning(f"Error refreshing pathway step completions: {e}")
         
         return jsonify({
             'person_id': person_id,
