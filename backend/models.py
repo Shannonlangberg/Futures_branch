@@ -213,11 +213,21 @@ class EngagementProfile(db.Model):
         # Also check group attendance for last_seen
         group_log = self._load_json(self.group_attendance_log)
         if group_log:
-            recent_group_dates = [
-                datetime.fromisoformat(r['date']) if isinstance(r.get('date'), str) else datetime.combine(r['date'], datetime.min.time())
-                for r in group_log
-                if r.get('present', True) and 'date' in r
-            ]
+            recent_group_dates = []
+            for r in group_log:
+                if r.get('present', True) and 'date' in r:
+                    date_str = r['date']
+                    try:
+                        if isinstance(date_str, str):
+                            # Parse ISO date string and convert to datetime
+                            date_obj = datetime.fromisoformat(date_str).date()
+                            group_datetime = datetime.combine(date_obj, datetime.min.time())
+                        else:
+                            # Already a date object
+                            group_datetime = datetime.combine(date_str, datetime.min.time())
+                        recent_group_dates.append(group_datetime)
+                    except (ValueError, TypeError):
+                        continue
             if recent_group_dates:
                 latest_group = max(recent_group_dates)
                 if not latest_activity or latest_group > latest_activity:
