@@ -1560,6 +1560,57 @@ const PersonHealthReport = () => {
           }}
         />
       )}
+
+      {/* Connect Group Assignment Modal */}
+      {showConnectGroupModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">Assign Connect Group</h2>
+              <button
+                onClick={() => {
+                  setShowConnectGroupModal(false);
+                  setStepToAssign(null);
+                }}
+                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              {loadingConnectGroups ? (
+                <div className="text-center py-8">
+                  <div className="inline-block w-6 h-6 border-2 border-slate-500 border-t-transparent rounded-full animate-spin mb-2" />
+                  <div className="text-slate-400 text-sm">Loading connect groups...</div>
+                </div>
+              ) : connectGroups.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-slate-400 text-sm">No connect groups available for this campus.</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {connectGroups.map((group) => (
+                    <button
+                      key={group.id}
+                      onClick={() => handleAssignConnectGroup(group.id)}
+                      className="w-full text-left p-4 bg-slate-700/50 hover:bg-slate-700 rounded-lg border border-slate-600/50 hover:border-purple-500/50 transition-all"
+                    >
+                      <div className="font-medium text-white">{group.name}</div>
+                      {group.description && (
+                        <div className="text-sm text-slate-400 mt-1">{group.description}</div>
+                      )}
+                      {group.campus && (
+                        <div className="text-xs text-slate-500 mt-1">{group.campus}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
