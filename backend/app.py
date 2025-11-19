@@ -14712,12 +14712,16 @@ def get_connect_group_health(group_id):
                     }
         
         # Get all meetings for this group (from ConnectGroupMeeting)
-        all_meetings = ConnectGroupMeeting.query.filter_by(
-            group_id=group_id
-        ).filter(
-            ConnectGroupMeeting.meeting_date >= start_date,
-            ConnectGroupMeeting.meeting_date <= end_date
-        ).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
+        try:
+            all_meetings = ConnectGroupMeeting.query.filter_by(
+                group_id=group_id
+            ).filter(
+                ConnectGroupMeeting.meeting_date >= start_date,
+                ConnectGroupMeeting.meeting_date <= end_date
+            ).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
+        except Exception as e:
+            logger.warning(f"Error querying ConnectGroupMeeting for group {group_id}: {e}")
+            all_meetings = []
         
         # Build a map of attendance by date and person
         attendance_by_date_person = defaultdict(dict)  # {date: {person_id: status}}
