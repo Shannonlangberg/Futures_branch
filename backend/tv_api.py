@@ -8,9 +8,10 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from models import (
     db, TVSeries, TVEpisode, TVTag, TVUserEpisodeProgress, 
-    TVEpisodeDiscipleshipLink, Person, DiscipleshipStep
+    TVEpisodeDiscipleshipLink, Person, DiscipleshipStep,
+    tv_series_tags, tv_episode_tags
 )
-from sqlalchemy import func
+from sqlalchemy import func, text
 from datetime import datetime, date
 from heartbeat_engine import HeartbeatEngine
 import logging
@@ -220,7 +221,10 @@ def create_series():
                     tag = TVTag(name=tag_name)
                     db.session.add(tag)
                     db.session.flush()
-                series.tags.append(tag)
+                # Insert into pivot table directly
+                db.session.execute(
+                    tv_series_tags.insert().values(series_id=series.id, tag_id=tag.id)
+                )
         
         db.session.commit()
         
@@ -264,14 +268,21 @@ def update_series(series_id):
         
         # Update tags
         if 'tags' in data and isinstance(data['tags'], list):
-            series.tags.clear()
+            # Remove existing tags by deleting from pivot table
+            db.session.execute(
+                tv_series_tags.delete().where(tv_series_tags.c.series_id == series_id)
+            )
+            # Add new tags
             for tag_name in data['tags']:
                 tag = TVTag.query.filter_by(name=tag_name).first()
                 if not tag:
                     tag = TVTag(name=tag_name)
                     db.session.add(tag)
                     db.session.flush()
-                series.tags.append(tag)
+                # Insert into pivot table directly
+                db.session.execute(
+                    tv_series_tags.insert().values(series_id=series_id, tag_id=tag.id)
+                )
         
         series.updated_at = datetime.utcnow()
         
@@ -355,7 +366,10 @@ def create_episode():
                     tag = TVTag(name=tag_name)
                     db.session.add(tag)
                     db.session.flush()
-                episode.tags.append(tag)
+                # Insert into pivot table directly
+                db.session.execute(
+                    tv_episode_tags.insert().values(episode_id=episode.id, tag_id=tag.id)
+                )
         
         # Add discipleship links if provided
         if 'discipleship_links' in data and isinstance(data['discipleship_links'], list):
@@ -411,14 +425,21 @@ def update_episode(episode_id):
         
         # Update tags
         if 'tags' in data and isinstance(data['tags'], list):
-            episode.tags.clear()
+            # Remove existing tags by deleting from pivot table
+            db.session.execute(
+                tv_episode_tags.delete().where(tv_episode_tags.c.episode_id == episode_id)
+            )
+            # Add new tags
             for tag_name in data['tags']:
                 tag = TVTag.query.filter_by(name=tag_name).first()
                 if not tag:
                     tag = TVTag(name=tag_name)
                     db.session.add(tag)
                     db.session.flush()
-                episode.tags.append(tag)
+                # Insert into pivot table directly
+                db.session.execute(
+                    tv_episode_tags.insert().values(episode_id=episode_id, tag_id=tag.id)
+                )
         
         # Update discipleship links
         if 'discipleship_links' in data:
