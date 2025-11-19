@@ -181,11 +181,6 @@ const People = () => {
       alert('Full name is required');
       return;
     }
-    
-    if (!formData.email) {
-      alert('Email is required');
-      return;
-    }
 
     if (!formData.campus || formData.campus === 'all_campuses') {
       alert('Campus is required');
@@ -795,15 +790,14 @@ const People = () => {
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Email <span className="text-red-400">*</span>
+                  Email
                 </label>
                 <input
                   type="email"
-                  required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                  placeholder="john.smith@example.com"
+                  placeholder="john.smith@example.com (optional)"
                 />
               </div>
 

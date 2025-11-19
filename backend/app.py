@@ -12825,9 +12825,15 @@ def update_person(person_id):
         
         # Update basic information
         if 'full_name' in data:
-            person.full_name = data['full_name']
+            # full_name is required, so ensure it's not empty
+            full_name_value = data['full_name'].strip() if data.get('full_name') else ''
+            if not full_name_value:
+                return jsonify({'error': 'Full name is required'}), 400
+            person.full_name = full_name_value
         if 'preferred_name' in data:
-            person.preferred_name = data['preferred_name']
+            # Normalize preferred_name - convert empty string to None
+            preferred_name_value = data['preferred_name'].strip() if data.get('preferred_name') else None
+            person.preferred_name = preferred_name_value if preferred_name_value else None
         if 'email' in data:
             # Normalize email - convert empty string to None
             email_value = data['email'].strip() if data.get('email') else None
@@ -12841,21 +12847,41 @@ def update_person(person_id):
             
             person.email = email_value
         if 'campus' in data:
-            person.campus = data['campus']
+            # campus is required, so ensure it's not empty
+            campus_value = data['campus'].strip() if data.get('campus') else ''
+            if not campus_value or campus_value == 'all_campuses':
+                return jsonify({'error': 'Campus is required'}), 400
+            person.campus = campus_value
         if 'department' in data:
-            person.department = data['department'] if data['department'] else None
+            # Normalize department - convert empty string to None
+            dept_value = data['department'].strip() if data.get('department') else None
+            person.department = dept_value if dept_value else None
         if 'connect_group' in data:
-            person.connect_group = data['connect_group']
+            # Normalize connect_group - convert empty string to None
+            connect_group_value = data['connect_group'].strip() if data.get('connect_group') else None
+            person.connect_group = connect_group_value if connect_group_value else None
         if 'dream_team_roles' in data:
             # Convert array to JSON string for storage
-            person.dream_team_roles = json.dumps(data['dream_team_roles']) if data['dream_team_roles'] else None
+            try:
+                person.dream_team_roles = json.dumps(data['dream_team_roles']) if data['dream_team_roles'] and len(data['dream_team_roles']) > 0 else None
+            except (TypeError, ValueError) as e:
+                logger.error(f"Error encoding dream_team_roles: {e}")
+                person.dream_team_roles = None
         if 'tags' in data:
             # Convert array to JSON string for storage
-            person.tags = json.dumps(data['tags']) if data['tags'] else None
+            try:
+                person.tags = json.dumps(data['tags']) if data['tags'] and len(data['tags']) > 0 else None
+            except (TypeError, ValueError) as e:
+                logger.error(f"Error encoding tags: {e}")
+                person.tags = None
         if 'pastoral_notes' in data:
-            person.pastoral_notes = data['pastoral_notes'] if data['pastoral_notes'] else None
+            # Normalize pastoral_notes - convert empty string to None
+            notes_value = data['pastoral_notes'].strip() if data.get('pastoral_notes') else None
+            person.pastoral_notes = notes_value if notes_value else None
         if 'phone' in data:
-            person.phone = data['phone'] if data['phone'] else None
+            # Normalize phone - convert empty string to None
+            phone_value = data['phone'].strip() if data.get('phone') else None
+            person.phone = phone_value if phone_value else None
         if 'birthday' in data:
             if data['birthday']:
                 try:
@@ -12907,8 +12933,10 @@ def update_person(person_id):
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error updating person {person_id}: {e}")
-        return jsonify({'error': 'Failed to update person'}), 500
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"Error updating person {person_id}: {e}\n{error_traceback}")
+        return jsonify({'error': f'Failed to update person: {str(e)}'}), 500
 
 
 @app.route('/api/persons/<person_id>/archive', methods=['POST'])

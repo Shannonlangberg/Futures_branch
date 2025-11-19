@@ -37,6 +37,16 @@ class Person(db.Model):
     
     def to_dict(self):
         """Convert person to dictionary"""
+        try:
+            dream_team_roles = json.loads(self.dream_team_roles) if self.dream_team_roles else []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            dream_team_roles = []
+        
+        try:
+            tags = json.loads(self.tags) if self.tags else []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            tags = []
+        
         return {
             'id': self.id,
             'full_name': self.full_name,
@@ -46,10 +56,10 @@ class Person(db.Model):
             'campus': self.campus,
             'department': self.department,
             'connect_group': self.connect_group,
-            'dream_team_roles': json.loads(self.dream_team_roles) if self.dream_team_roles else [],
+            'dream_team_roles': dream_team_roles,
             'birthday': self.birthday.isoformat() if self.birthday else None,
             'pastoral_notes': self.pastoral_notes,
-            'tags': json.loads(self.tags) if self.tags else [],
+            'tags': tags,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

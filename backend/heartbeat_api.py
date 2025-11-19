@@ -29,17 +29,22 @@ def get_campus_people(campus_id):
     
     Query params:
         - status: Filter by status ('healthy', 'watch', 'at_risk', 'critical')
+        - department: Filter by department ('Kids', 'Youth', 'Young Adults', 'Families', 'Adults', 'Seniors')
     
     Special case: If campus_id is 'all_campuses', returns all people from all campuses.
     """
     try:
-        # Get status filter
+        # Get filters
         status_filter = request.args.get('status')
+        department_filter = request.args.get('department')
         
         # Handle "all_campuses" special case
         if campus_id == 'all_campuses' or campus_id == 'all':
             # Get all active people from all campuses
-            people = Person.query.filter_by(is_active=True).all()
+            query = Person.query.filter_by(is_active=True)
+            if department_filter:
+                query = query.filter_by(department=department_filter)
+            people = query.all()
             campus_name = 'All Campuses'
             campus_id_display = 'all_campuses'
         else:
@@ -70,10 +75,16 @@ def get_campus_people(campus_id):
             # Get people for this campus
             # Try multiple matching strategies
             # 1. Exact match with campus.name
-            people = Person.query.filter_by(
+            query = Person.query.filter_by(
                 campus=campus.name,
                 is_active=True
-            ).all()
+            )
+            
+            # Apply department filter if provided
+            if department_filter:
+                query = query.filter_by(department=department_filter)
+            
+            people = query.all()
             
             # 2. If no results, try normalized name variations
             if not people:
@@ -86,10 +97,13 @@ def get_campus_people(campus_id):
                     campus.name.upper()
                 ]
                 for variation in variations:
-                    people = Person.query.filter_by(
+                    query = Person.query.filter_by(
                         campus=variation,
                         is_active=True
-                    ).all()
+                    )
+                    if department_filter:
+                        query = query.filter_by(department=department_filter)
+                    people = query.all()
                     if people:
                         logger.info(f"Found {len(people)} people using campus variation: {variation}")
                         break
@@ -102,11 +116,9 @@ def get_campus_people(campus_id):
             ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
             
             # Apply status filter
-            if status_filter and snapshot:
-                if snapshot.status != status_filter:
+            if status_filter:
+                if not snapshot or snapshot.status != status_filter:
                     continue
-            elif status_filter and not snapshot:
-                continue
             
             person_data = {
                 'person_id': person.id,
@@ -114,7 +126,8 @@ def get_campus_people(campus_id):
                 'preferred_name': person.preferred_name,
                 'email': person.email,
                 'phone': person.phone,
-                'campus': person.campus
+                'campus': person.campus,
+                'department': person.department
             }
             
             if snapshot:
@@ -332,5 +345,243 @@ def get_person_snapshots(person_id):
         
     except Exception as e:
         logger.error(f"Error getting snapshots: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@heartbeat_bp.route('/next-steps', methods=['GET'])
+def get_next_steps():
+    """
+    Get people who are ready for their next discipleship step.
+    
+    Query params:
+        - campus_id: Optional campus filter
+        - department: Optional department filter
+    
+    Returns people who:
+        - Have completed their current pathway step and are ready for the next
+        - Don't have a pathway assigned but should have one
+    """
+    try:
+        from models import PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
+        
+        campus_filter = request.args.get('campus_id')
+        department_filter = request.args.get('department')
+        
+        # Build base query
+        query = Person.query.filter_by(is_active=True)
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter_by(campus=campus_filter)
+        if department_filter:
+            query = query.filter_by(department=department_filter)
+        
+        people = query.all()
+        
+        results = []
+        for person in people:
+            # Get latest heartbeat snapshot
+            snapshot = HeartbeatSnapshot.query.filter_by(
+                person_id=person.id
+            ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+            
+            # Check pathway progress
+            progress = PersonPathwayProgress.query.filter_by(
+                person_id=person.id,
+                is_active=True
+            ).first()
+            
+            next_step_info = None
+            reason = None
+            
+            if progress and progress.current_step:
+                # Check if current step is completed
+                current_step_completion = PersonPathwayStepCompletion.query.filter_by(
+                    person_pathway_progress_id=progress.id,
+                    pathway_step_id=progress.current_step_id,
+                    is_completed=True
+                ).first()
+                
+                if current_step_completion:
+                    # Find next step in pathway
+                    next_step = PathwayStep.query.filter_by(
+                        pathway_id=progress.pathway_id,
+                        step_order=progress.current_step.step_order + 1
+                    ).first()
+                    
+                    if next_step:
+                        # Get pathway name
+                        from models import DiscipleshipPathway
+                        pathway = DiscipleshipPathway.query.get(progress.pathway_id)
+                        next_step_info = {
+                            'pathway_id': progress.pathway_id,
+                            'pathway_name': pathway.name if pathway else None,
+                            'current_step': progress.current_step.step_name,
+                            'next_step': next_step.step_name,
+                            'next_step_id': next_step.id
+                        }
+                        reason = 'ready_for_next_step'
+            elif not progress:
+                # Person doesn't have a pathway assigned
+                reason = 'no_pathway_assigned'
+            
+            # Only include people who need a next step
+            if next_step_info or reason == 'no_pathway_assigned':
+                person_data = {
+                    'person_id': person.id,
+                    'full_name': person.full_name,
+                    'preferred_name': person.preferred_name,
+                    'email': person.email,
+                    'phone': person.phone,
+                    'campus': person.campus,
+                    'department': person.department,
+                    'next_step': next_step_info,
+                    'reason': reason
+                }
+                
+                if snapshot:
+                    person_data['heartbeat'] = snapshot.to_dict()
+                else:
+                    person_data['heartbeat'] = None
+                
+                results.append(person_data)
+        
+        return jsonify({
+            'people': results,
+            'count': len(results),
+            'message': f'Found {len(results)} people ready for next steps'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting next steps: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@heartbeat_bp.route('/campus-overview', methods=['GET'])
+def get_campus_overview():
+    """
+    Get overview of all campuses with heartbeat statistics.
+    
+    Returns summary stats for each campus: healthy, watch, at_risk, critical counts.
+    """
+    try:
+        campuses = Campus.query.filter_by(is_active=True).all()
+        
+        results = []
+        for campus in campuses:
+            # Get people for this campus
+            people = Person.query.filter_by(
+                campus=campus.name,
+                is_active=True
+            ).all()
+            
+            stats = {
+                'total': len(people),
+                'healthy': 0,
+                'watch': 0,
+                'at_risk': 0,
+                'critical': 0,
+                'no_data': 0
+            }
+            
+            for person in people:
+                snapshot = HeartbeatSnapshot.query.filter_by(
+                    person_id=person.id
+                ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                
+                if snapshot:
+                    status = snapshot.status
+                    if status == 'healthy':
+                        stats['healthy'] += 1
+                    elif status == 'watch':
+                        stats['watch'] += 1
+                    elif status == 'at_risk':
+                        stats['at_risk'] += 1
+                    elif status == 'critical':
+                        stats['critical'] += 1
+                else:
+                    stats['no_data'] += 1
+            
+            results.append({
+                'campus_id': campus.id,
+                'campus_name': campus.name,
+                'stats': stats
+            })
+        
+        return jsonify({
+            'campuses': results,
+            'count': len(results)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting campus overview: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@heartbeat_bp.route('/department-overview', methods=['GET'])
+def get_department_overview():
+    """
+    Get overview by department with heartbeat statistics.
+    
+    Query params:
+        - campus_id: Optional campus filter
+    
+    Returns summary stats for each department: healthy, watch, at_risk, critical counts.
+    """
+    try:
+        campus_filter = request.args.get('campus_id')
+        
+        departments = ['Kids', 'Youth', 'Young Adults', 'Families', 'Adults', 'Seniors']
+        
+        results = []
+        for dept in departments:
+            query = Person.query.filter_by(
+                department=dept,
+                is_active=True
+            )
+            
+            if campus_filter and campus_filter != 'all_campuses':
+                query = query.filter_by(campus=campus_filter)
+            
+            people = query.all()
+            
+            stats = {
+                'total': len(people),
+                'healthy': 0,
+                'watch': 0,
+                'at_risk': 0,
+                'critical': 0,
+                'no_data': 0
+            }
+            
+            for person in people:
+                snapshot = HeartbeatSnapshot.query.filter_by(
+                    person_id=person.id
+                ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                
+                if snapshot:
+                    status = snapshot.status
+                    if status == 'healthy':
+                        stats['healthy'] += 1
+                    elif status == 'watch':
+                        stats['watch'] += 1
+                    elif status == 'at_risk':
+                        stats['at_risk'] += 1
+                    elif status == 'critical':
+                        stats['critical'] += 1
+                else:
+                    stats['no_data'] += 1
+            
+            if stats['total'] > 0:  # Only include departments with people
+                results.append({
+                    'department': dept,
+                    'stats': stats
+                })
+        
+        return jsonify({
+            'departments': results,
+            'count': len(results)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting department overview: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
