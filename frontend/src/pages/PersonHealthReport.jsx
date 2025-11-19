@@ -398,7 +398,37 @@ const PersonHealthReport = () => {
       if (response.ok) {
         setShowConnectGroupModal(false);
         setStepToAssign(null);
+        
+        // Add a small delay to ensure backend has committed the changes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Force refresh person data with cache buster
         await fetchPersonData();
+        
+        // Also refresh pathway data specifically
+        if (data?.pathway?.id) {
+          try {
+            const pathwayResponse = await fetch(`/api/pathways/person/${data.person.id}`, {
+              credentials: 'include',
+              headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              }
+            });
+            if (pathwayResponse.ok) {
+              const pathwayResult = await pathwayResponse.json();
+              if (pathwayResult.pathway) {
+                setData(prev => ({
+                  ...prev,
+                  pathway: pathwayResult.pathway
+                }));
+              }
+            }
+          } catch (err) {
+            console.error('Error refreshing pathway:', err);
+          }
+        }
+        
         alert('Connect group assigned successfully! The step will be marked as complete.');
       } else {
         alert(result.error || 'Failed to assign connect group');
@@ -414,8 +444,14 @@ const PersonHealthReport = () => {
         setLoading(true);
         setError('');
 
-      const response = await fetch(`/api/heartbeat/person/${personId}`, {
-        credentials: 'include'
+      // Add cache buster to ensure fresh data
+      const cacheBuster = `?t=${Date.now()}`;
+      const response = await fetch(`/api/heartbeat/person/${personId}${cacheBuster}`, {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
         });
 
         if (!response.ok) {
@@ -430,6 +466,20 @@ const PersonHealthReport = () => {
       if (result.error) {
         throw new Error(result.error);
         }
+        
+      // Debug: Log the data we received
+      console.log('Fetched person data:', {
+        has_person: !!result.person,
+        has_pathway: !!result.pathway,
+        has_recent_activity: !!result.recent_activity,
+        discipleship_steps_count: result.recent_activity?.discipleship_steps?.length || 0,
+        person_milestones: {
+          baptised_on: result.person?.baptised_on,
+          dna_completed: result.person?.dna_completed,
+          filled_holy_spirit: result.person?.filled_holy_spirit,
+          rise_attended: result.person?.rise_attended
+        }
+      });
         
       setData(result);
       } catch (err) {
@@ -1424,13 +1474,15 @@ const PersonHealthReport = () => {
                     categoryIcon = '👥';
                     categoryColor = 'purple';
                   } else if (selectedCategory === 'spiritual') {
-                    // Debug: Log spiritual data
-                    console.log('Spiritual modal data:', {
-                      has_recent_activity: !!recent_activity,
-                      has_discipleship_steps: !!recent_activity?.discipleship_steps,
-                      discipleship_steps_length: recent_activity?.discipleship_steps?.length || 0,
-                      discipleship_steps: recent_activity?.discipleship_steps,
-                      person: data?.person
+                    // Debug: Log spiritual data with full expansion
+                    console.log('Spiritual modal - recent_activity:', recent_activity);
+                    console.log('Spiritual modal - discipleship_steps:', recent_activity?.discipleship_steps);
+                    console.log('Spiritual modal - person milestones:', {
+                      baptised_on: data?.person?.baptised_on,
+                      dna_completed: data?.person?.dna_completed,
+                      filled_holy_spirit: data?.person?.filled_holy_spirit,
+                      rise_attended: data?.person?.rise_attended,
+                      first_served_on: data?.person?.first_served_on
                     });
                     
                     if (recent_activity?.discipleship_steps && recent_activity.discipleship_steps.length > 0) {
