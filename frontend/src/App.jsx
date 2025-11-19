@@ -15,6 +15,7 @@ import ResourceManager from './pages/ResourceManager';
 import Heartbeat from './pages/Heartbeat';
 import People from './pages/People';
 import PersonHealthReport from './pages/PersonHealthReport';
+import BeaconManagement from './pages/BeaconManagement';
 import Landing from './pages/Landing';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
@@ -382,6 +383,7 @@ function App() {
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
                   <Route path="/export" element={<DataExport />} />
+                  <Route path="/beacons" element={<BeaconManagement />} />
                   <Route path="/profile" element={<MyProfile />} />
                   <Route path="/settings" element={<Navigate to="/profile" replace />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

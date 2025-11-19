@@ -151,6 +151,7 @@ const MainLayout = ({ children }) => {
         { name: 'Data Export', href: '/export', icon: DocumentChartBarIcon, show: true },
         { name: 'Users', href: '/users', icon: UserGroupIcon, show: true },
         { name: 'Campuses', href: '/campuses', icon: BuildingOfficeIcon, show: true },
+        { name: 'Beacon Management', href: '/beacons', icon: SignalIcon, show: true },
         { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, show: true }
       );
     }

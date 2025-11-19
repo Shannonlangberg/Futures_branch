@@ -14111,6 +14111,14 @@ app.register_blueprint(webhooks_bp)
 try:
     from heartbeat_api import heartbeat_bp
     app.register_blueprint(heartbeat_bp)
+    
+    # BEACON MANAGEMENT ROUTES
+    try:
+        from beacon_api import beacon_bp
+        app.register_blueprint(beacon_bp)
+        logger.info("Beacon API blueprint registered successfully")
+    except ImportError as e:
+        logger.warning(f"Could not import beacon_api: {e}. Beacon features will be unavailable.")
     logger.info("Heartbeat API blueprint registered successfully")
 except ImportError as e:
     logger.warning(f"Could not import heartbeat_api: {e}. Heartbeat features will be unavailable.")
