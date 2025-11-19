@@ -138,7 +138,9 @@ def get_pathway(pathway_id):
 def update_pathway(pathway_id):
     """Update a pathway"""
     try:
-        if not current_user.has_permission('heartbeat', 'edit'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'edit') or 
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         pathway = DiscipleshipPathway.query.get(pathway_id)
@@ -178,7 +180,9 @@ def update_pathway(pathway_id):
 def delete_pathway(pathway_id):
     """Delete a pathway"""
     try:
-        if not current_user.has_permission('heartbeat', 'delete'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'delete') or 
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         pathway = DiscipleshipPathway.query.get(pathway_id)
@@ -203,7 +207,9 @@ def delete_pathway(pathway_id):
 def create_pathway_step(pathway_id):
     """Add a step to a pathway"""
     try:
-        if not current_user.has_permission('heartbeat', 'edit'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'edit') or 
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         pathway = DiscipleshipPathway.query.get(pathway_id)
@@ -246,7 +252,9 @@ def create_pathway_step(pathway_id):
 def update_pathway_step(step_id):
     """Update a pathway step"""
     try:
-        if not current_user.has_permission('heartbeat', 'edit'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'edit') or 
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         step = PathwayStep.query.get(step_id)
@@ -284,7 +292,9 @@ def update_pathway_step(step_id):
 def delete_pathway_step(step_id):
     """Delete a pathway step"""
     try:
-        if not current_user.has_permission('heartbeat', 'delete'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'delete') or 
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         step = PathwayStep.query.get(step_id)
@@ -338,7 +348,10 @@ def get_person_pathways(person_id):
 def assign_pathway_to_person(person_id):
     """Assign a pathway to a person"""
     try:
-        if not current_user.has_permission('heartbeat', 'edit'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'edit') or 
+                current_user.has_permission('heartbeat', 'create') or
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         person = Person.query.get(person_id)
@@ -401,7 +414,9 @@ def complete_pathway_step(progress_id):
             return jsonify({'error': 'Pathway progress not found'}), 404
         
         # Check permissions - person can complete their own, or admin can complete any
-        if progress.person_id != getattr(current_user, 'id', None) and not current_user.has_permission('heartbeat', 'edit'):
+        user_role = getattr(current_user, 'role', None)
+        is_admin = user_role in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']
+        if progress.person_id != getattr(current_user, 'id', None) and not (current_user.has_permission('heartbeat', 'edit') or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
@@ -465,7 +480,9 @@ def complete_pathway_step(progress_id):
 def unassign_pathway(progress_id):
     """Unassign a pathway from a person"""
     try:
-        if not current_user.has_permission('heartbeat', 'edit'):
+        # Allow heartbeat admins or any admin role
+        if not (current_user.has_permission('heartbeat', 'edit') or 
+                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         progress = PersonPathwayProgress.query.get(progress_id)
