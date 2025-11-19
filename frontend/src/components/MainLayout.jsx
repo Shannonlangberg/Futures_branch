@@ -21,7 +21,8 @@ import {
   BookOpenIcon,
   SignalIcon,
   DocumentChartBarIcon,
-  CalendarIcon
+  CalendarIcon,
+  AcademicCapIcon
 } from '@heroicons/react/24/outline';
 
 const MainLayout = ({ children }) => {
@@ -152,6 +153,7 @@ const MainLayout = ({ children }) => {
         { name: 'Users', href: '/users', icon: UserGroupIcon, show: true },
         { name: 'Campuses', href: '/campuses', icon: BuildingOfficeIcon, show: true },
         { name: 'Beacon Management', href: '/beacons', icon: SignalIcon, show: true },
+        { name: 'Pathway Manager', href: '/pathways', icon: AcademicCapIcon, show: true },
         { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, show: true }
       );
     }

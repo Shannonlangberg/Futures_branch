@@ -209,8 +209,9 @@ const PersonHealthReport = () => {
     );
   }
 
-  const { person, heartbeat, recent_activity } = data;
+  const { person, heartbeat, recent_activity, pathway } = data;
   const hasHeartbeat = heartbeat !== null;
+  const hasPathway = pathway !== null;
 
   // Combine all recent activity for timeline
   const allActivities = [];
@@ -442,6 +443,118 @@ const PersonHealthReport = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Discipleship Pathway */}
+            {hasPathway ? (
+              <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-500/40 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                    <span>🎓</span>
+                    Discipleship Pathway: {pathway.pathway_name}
+                  </h2>
+                  <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-semibold">
+                    {pathway.progress_percentage}% Complete
+                  </span>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="w-full bg-slate-900/50 rounded-full h-4 overflow-hidden mb-2">
+                    <div
+                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+                      style={{ width: `${pathway.progress_percentage}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>{pathway.completed_steps} of {pathway.total_steps} steps completed</span>
+                    <span>{pathway.progress_percentage}%</span>
+                  </div>
+                </div>
+
+                {/* Next Step */}
+                {pathway.next_step ? (
+                  <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4 mb-4">
+                    <div className="text-sm font-semibold text-indigo-300 mb-1">Next Step:</div>
+                    <div className="text-lg font-bold text-white mb-1">{pathway.next_step.step_name}</div>
+                    {pathway.next_step.step_description && (
+                      <div className="text-sm text-slate-300">{pathway.next_step.step_description}</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🎉</span>
+                      <div>
+                        <div className="text-sm font-semibold text-green-300 mb-1">Pathway Complete!</div>
+                        <div className="text-sm text-slate-300">All steps have been completed.</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pathway Steps List */}
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-slate-300 mb-2">All Steps:</div>
+                  {pathway.pathway && pathway.pathway.steps ? (
+                    pathway.pathway.steps.map((step, index) => {
+                      const isCompleted = pathway.completed_steps > index;
+                      const isCurrent = pathway.next_step && pathway.next_step.id === step.id;
+                      
+                      return (
+                        <div
+                          key={step.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border ${
+                            isCompleted
+                              ? 'bg-green-500/10 border-green-500/30'
+                              : isCurrent
+                              ? 'bg-indigo-500/20 border-indigo-500/40'
+                              : 'bg-slate-700/50 border-slate-600/50'
+                          }`}
+                        >
+                          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            isCompleted
+                              ? 'bg-green-500/20 text-green-400'
+                              : isCurrent
+                              ? 'bg-indigo-500/20 text-indigo-400'
+                              : 'bg-slate-600 text-slate-400'
+                          }`}>
+                            {isCompleted ? '✓' : step.step_order}
+                          </div>
+                          <div className="flex-1">
+                            <div className={`font-medium ${
+                              isCompleted ? 'text-green-300' : isCurrent ? 'text-indigo-300' : 'text-slate-300'
+                            }`}>
+                              {step.step_name}
+                            </div>
+                            {step.step_description && (
+                              <div className="text-xs text-slate-400 mt-1">{step.step_description}</div>
+                            )}
+                          </div>
+                          {isCurrent && (
+                            <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-sm text-slate-400">Loading pathway steps...</div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
+                <h2 className="text-xl font-semibold text-white mb-2 flex items-center gap-2">
+                  <span>🎓</span>
+                  Discipleship Pathway
+                </h2>
+                <p className="text-slate-400 mb-4">No pathway assigned yet.</p>
+                <p className="text-sm text-slate-500">
+                  Assign a pathway via Settings → Pathway Manager or from the Heartbeat dashboard.
+                </p>
               </div>
             )}
 
