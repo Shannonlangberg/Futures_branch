@@ -1368,6 +1368,81 @@ class CareTouchpoint(db.Model):
         }
 
 
+class PastoralCareAppointment(db.Model):
+    """Scheduled pastoral care appointments/catch-ups"""
+    __tablename__ = 'pastoral_care_appointments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    pastor_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)  # Assigned pastor/leader
+    care_case_id = db.Column(db.Integer, db.ForeignKey('heartbeat_care_cases.id'), nullable=True)  # Optional link to care case
+    
+    # Appointment details
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    appointment_type = db.Column(db.String(50), default='catch_up')  # 'catch_up', 'counseling', 'prayer', 'follow_up', 'other'
+    scheduled_date = db.Column(db.DateTime, nullable=False)
+    duration_minutes = db.Column(db.Integer, default=30)
+    location = db.Column(db.String(200))  # 'office', 'coffee_shop', 'home', 'church', 'online', 'other'
+    location_details = db.Column(db.Text)  # Specific address or meeting link
+    
+    # Status and tracking
+    status = db.Column(db.String(20), default='scheduled')  # 'scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'
+    requested_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)  # Who requested it
+    created_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)  # Who created it in system
+    
+    # Notifications
+    person_notified = db.Column(db.Boolean, default=False)
+    pastor_notified = db.Column(db.Boolean, default=False)
+    reminder_sent = db.Column(db.Boolean, default=False)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    
+    # Notes
+    notes = db.Column(db.Text)  # Private notes for pastor
+    follow_up_notes = db.Column(db.Text)  # Notes after completion
+    
+    # Relationships
+    person = db.relationship('Person', foreign_keys=[person_id], backref='pastoral_appointments')
+    pastor = db.relationship('Person', foreign_keys=[pastor_id])
+    requested_by = db.relationship('Person', foreign_keys=[requested_by_person_id])
+    created_by = db.relationship('Person', foreign_keys=[created_by_person_id])
+    care_case = db.relationship('CareCase', backref='appointments')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'pastor_id': self.pastor_id,
+            'pastor_name': self.pastor.full_name if self.pastor else None,
+            'care_case_id': self.care_case_id,
+            'title': self.title,
+            'description': self.description,
+            'appointment_type': self.appointment_type,
+            'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,
+            'duration_minutes': self.duration_minutes,
+            'location': self.location,
+            'location_details': self.location_details,
+            'status': self.status,
+            'requested_by_person_id': self.requested_by_person_id,
+            'created_by_person_id': self.created_by_person_id,
+            'person_notified': self.person_notified,
+            'pastor_notified': self.pastor_notified,
+            'reminder_sent': self.reminder_sent,
+            'notes': self.notes,
+            'follow_up_notes': self.follow_up_notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'cancelled_at': self.cancelled_at.isoformat() if self.cancelled_at else None
+        }
+
+
 class HeartbeatSnapshot(db.Model):
     """Heartbeat health snapshot for a person"""
     __tablename__ = 'heartbeat_snapshots'

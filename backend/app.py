@@ -14177,8 +14177,8 @@ def submit_meeting_attendance(meeting_id):
                 # Update EngagementProfile (legacy system) - only if present
                 if present:
                     try:
-                    # Get or create engagement profile
-                    engagement = person.engagement_profile
+                        # Get or create engagement profile
+                        engagement = person.engagement_profile
                     if not engagement:
                         engagement = EngagementProfile(person_id=person.id)
                         db.session.add(engagement)
@@ -14560,6 +14560,14 @@ try:
     logger.info("Connect Groups API registered successfully")
 except ImportError as e:
     logger.warning(f"Could not import connect_groups_api: {e}")
+
+# PASTORAL CARE API ROUTES
+try:
+    from pastoral_care_api import pastoral_care_bp
+    app.register_blueprint(pastoral_care_bp)
+    logger.info("Pastoral Care API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import pastoral_care_api: {e}")
 
 # GIVING API ROUTES (Stripe integration, analytics, QR codes)
 try:
