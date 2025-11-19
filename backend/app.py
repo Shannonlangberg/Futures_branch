@@ -13905,22 +13905,51 @@ def submit_meeting_attendance(meeting_id):
                     if not engagement:
                         engagement = EngagementProfile(person_id=person.id)
                         db.session.add(engagement)
+                        db.session.flush()  # Flush to get the ID
                         logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
                     
                     # Add group attendance to engagement profile (feeds to heartbeat)
                     try:
+                        # Ensure meeting_date is a date object
+                        attendance_date = meeting.meeting_date
+                        if isinstance(attendance_date, str):
+                            from datetime import datetime as dt
+                            attendance_date = dt.fromisoformat(attendance_date).date()
+                        elif isinstance(attendance_date, datetime):
+                            attendance_date = attendance_date.date()
+                        
+                        logger.info(f"Adding group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {attendance_date}, Type: {type(attendance_date)}")
+                        
                         engagement.add_group_attendance(
                             group_id=group.id,
-                            attendance_date=meeting.meeting_date,
+                            attendance_date=attendance_date,
                             present=True
                         )
-                        logger.info(f"Added group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {meeting.meeting_date}")
+                        
+                        # Flush to ensure changes are in the session
+                        db.session.flush()
+                        
+                        # Log the group attendance log after adding
+                        group_log = engagement._load_json(engagement.group_attendance_log)
+                        logger.info(f"Group attendance log after add: {group_log}")
+                        logger.info(f"Engagement profile updated - overall_engagement: {engagement.overall_engagement}, pulse_status: {engagement.pulse_status}, last_seen: {engagement.last_seen}")
+                        
                     except Exception as e:
-                        logger.error(f"Error adding group attendance for {person.full_name}: {e}")
+                        logger.error(f"Error adding group attendance for {person.full_name}: {e}", exc_info=True)
                         raise
         
         db.session.commit()
         logger.info(f"Successfully committed attendance for meeting {meeting_id}")
+        
+        # Refresh engagement profiles to ensure they're up to date
+        for att_data in attendance_list:
+            if att_data.get('present', False):
+                person_id = att_data.get('person_id')
+                if person_id:
+                    person = Person.query.filter_by(id=person_id, is_active=True).first()
+                    if person and person.engagement_profile:
+                        db.session.refresh(person.engagement_profile)
+                        logger.info(f"Refreshed engagement profile for {person.full_name} - engagement: {person.engagement_profile.overall_engagement}, pulse: {person.engagement_profile.pulse_status}")
         
         return jsonify({
             'message': 'Attendance submitted successfully',

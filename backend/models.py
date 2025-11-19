@@ -168,6 +168,9 @@ class EngagementProfile(db.Model):
     
     def add_group_attendance(self, group_id, attendance_date=None, present=True):
         """Add connect group attendance record"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if attendance_date is None:
             attendance_date = datetime.utcnow().date()
         elif isinstance(attendance_date, str):
@@ -175,33 +178,51 @@ class EngagementProfile(db.Model):
         elif isinstance(attendance_date, datetime):
             attendance_date = attendance_date.date()
         
+        logger.info(f"add_group_attendance called - person_id: {self.person_id}, group_id: {group_id}, date: {attendance_date}, present: {present}")
+        
         # Update last_seen to the attendance date (as datetime for consistency)
         attendance_datetime = datetime.combine(attendance_date, datetime.min.time())
         if not self.last_seen or attendance_datetime > self.last_seen:
+            old_last_seen = self.last_seen
             self.last_seen = attendance_datetime
+            logger.info(f"Updated last_seen from {old_last_seen} to {self.last_seen}")
         
         group_log = self._load_json(self.group_attendance_log)
+        logger.info(f"Current group_attendance_log has {len(group_log)} entries")
         
         # Check for duplicate entries (same group_id and date)
         existing_entry = None
+        date_iso = attendance_date.isoformat()
         for entry in group_log:
-            if entry.get('group_id') == group_id and entry.get('date') == attendance_date.isoformat():
+            entry_date = entry.get('date')
+            entry_group_id = entry.get('group_id')
+            if entry_group_id == group_id and entry_date == date_iso:
                 existing_entry = entry
+                logger.info(f"Found existing entry for group {group_id} on {date_iso}")
                 break
         
         if existing_entry:
             # Update existing entry
             existing_entry['present'] = present
+            logger.info(f"Updated existing entry: {existing_entry}")
         else:
             # Add new entry
-            group_log.append({
+            new_entry = {
                 'group_id': group_id,
-                'date': attendance_date.isoformat(),
+                'date': date_iso,
                 'present': present
-            })
+            }
+            group_log.append(new_entry)
+            logger.info(f"Added new entry: {new_entry}")
         
         self.group_attendance_log = self._dump_json(group_log)
+        logger.info(f"Group attendance log now has {len(self._load_json(self.group_attendance_log))} entries")
+        
+        # Recalculate heartbeat
+        old_engagement = self.overall_engagement
+        old_pulse = self.pulse_status
         self.recalculate_heartbeat()
+        logger.info(f"Heartbeat recalculated - engagement: {old_engagement} -> {self.overall_engagement}, pulse: {old_pulse} -> {self.pulse_status}")
     
     def recalculate_heartbeat(self):
         """
@@ -295,14 +316,30 @@ class EngagementProfile(db.Model):
         
         # 5. CONNECT GROUPS (15% weight)
         # Target: Weekly attendance = 8 meetings in 8 weeks
+        import logging
+        logger = logging.getLogger(__name__)
+        
         group_log = self._load_json(self.group_attendance_log)
-        recent_groups = [
-            r for r in group_log
-            if 'date' in r and r.get('present', True) and 
-            datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
-        ]
+        logger.info(f"Recalculating heartbeat for person {self.person_id} - group_log has {len(group_log)} entries")
+        logger.info(f"Group log entries: {group_log}")
+        logger.info(f"Eight weeks ago date: {eight_weeks_ago.date()}")
+        
+        recent_groups = []
+        for r in group_log:
+            if 'date' in r and r.get('present', True):
+                try:
+                    entry_date = datetime.fromisoformat(r['date']).date()
+                    if entry_date >= eight_weeks_ago.date():
+                        recent_groups.append(r)
+                        logger.info(f"Found recent group attendance: {r}")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing group attendance date {r.get('date')}: {e}")
+                    continue
+        
+        logger.info(f"Recent groups count: {len(recent_groups)}")
         group_freq = min(len(recent_groups) / 8, 1.0)  # Weekly target
         group_score = group_freq * 100.0
+        logger.info(f"Group frequency: {group_freq}, Group score: {group_score}")
         
         # Weighted overall engagement score
         weights = {
