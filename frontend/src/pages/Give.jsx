@@ -4,7 +4,9 @@ import { loadStripe } from '@stripe/stripe-js';
 import { QrCodeIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 import QRCode from 'qrcode';
 
-const stripePromise = loadStripe(process.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
+// Only initialize Stripe if publishable key is available
+const stripeKey = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 const Give = () => {
   const [searchParams] = useSearchParams();

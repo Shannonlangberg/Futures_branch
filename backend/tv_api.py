@@ -244,7 +244,9 @@ def create_series():
             category=data.get('category'),
             audience=data.get('audience', 'all'),
             thumbnail_url=data.get('thumbnail_url'),
-            is_published=data.get('is_published', False)
+            is_published=data.get('is_published', False),
+            create_custom_step=data.get('create_custom_step', False),
+            custom_step_name=data.get('custom_step_name')
         )
         
         db.session.add(series)
@@ -302,6 +304,10 @@ def update_series(series_id):
             series.thumbnail_url = data['thumbnail_url']
         if 'is_published' in data:
             series.is_published = bool(data['is_published'])
+        if 'create_custom_step' in data:
+            series.create_custom_step = bool(data['create_custom_step'])
+        if 'custom_step_name' in data:
+            series.custom_step_name = data['custom_step_name'] if data['custom_step_name'] else None
         
         # Update tags
         if 'tags' in data and isinstance(data['tags'], list):
@@ -389,7 +395,9 @@ def create_episode():
             duration_seconds=data.get('duration_seconds', 0),
             order_index=data.get('order_index', max_order + 1),
             is_published=data.get('is_published', False),
-            downloadable_notes_url=data.get('downloadable_notes_url')
+            downloadable_notes_url=data.get('downloadable_notes_url'),
+            create_custom_step=data.get('create_custom_step', False),
+            custom_step_name=data.get('custom_step_name')
         )
         
         db.session.add(episode)
@@ -459,6 +467,10 @@ def update_episode(episode_id):
             episode.is_published = bool(data['is_published'])
         if 'downloadable_notes_url' in data:
             episode.downloadable_notes_url = data['downloadable_notes_url']
+        if 'create_custom_step' in data:
+            episode.create_custom_step = bool(data['create_custom_step'])
+        if 'custom_step_name' in data:
+            episode.custom_step_name = data['custom_step_name'] if data['custom_step_name'] else None
         
         # Update tags
         if 'tags' in data and isinstance(data['tags'], list):
@@ -588,6 +600,27 @@ def _handle_episode_completion(person_id, episode_id):
     db.session.add(episode_step)
     logger.info(f"Created TV episode completion step for person {person_id}, episode {episode_id}")
     
+    # Create custom discipleship step if enabled
+    if episode.create_custom_step:
+        step_name = episode.custom_step_name or episode.title
+        # Check if custom step already exists for this episode
+        existing_custom = DiscipleshipStep.query.filter_by(
+            person_id=person_id,
+            type='tv_custom_step',
+            description=step_name
+        ).first()
+        
+        if not existing_custom:
+            custom_step = DiscipleshipStep(
+                person_id=person_id,
+                type='tv_custom_step',
+                description=step_name,
+                date=date.today(),
+                created_by_person_id='system'
+            )
+            db.session.add(custom_step)
+            logger.info(f"Created custom discipleship step '{step_name}' for person {person_id} from episode {episode_id}")
+    
     # Check if this completes a series (all episodes watched)
     series = episode.series
     if series:
@@ -621,6 +654,27 @@ def _handle_episode_completion(person_id, episode_id):
                 )
                 db.session.add(series_step)
                 logger.info(f"Created TV series completion step for person {person_id}, series {series.id}")
+                
+                # Create custom discipleship step for series if enabled
+                if series.create_custom_step:
+                    step_name = series.custom_step_name or series.title
+                    # Check if custom step already exists for this series
+                    existing_series_custom = DiscipleshipStep.query.filter_by(
+                        person_id=person_id,
+                        type='tv_custom_step',
+                        description=step_name
+                    ).first()
+                    
+                    if not existing_series_custom:
+                        series_custom_step = DiscipleshipStep(
+                            person_id=person_id,
+                            type='tv_custom_step',
+                            description=step_name,
+                            date=date.today(),
+                            created_by_person_id='system'
+                        )
+                        db.session.add(series_custom_step)
+                        logger.info(f"Created custom discipleship step '{step_name}' for person {person_id} from series {series.id}")
     
     # Get all discipleship links for this episode
     links = TVEpisodeDiscipleshipLink.query.filter_by(episode_id=episode_id).all()

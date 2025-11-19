@@ -8043,6 +8043,9 @@ def logout():
 def serve_static(filename):
     """Serve static files from static directory"""
     if app.static_folder:
+        # Ensure filename is a string
+        if not isinstance(filename, str):
+            filename = str(filename)
         return send_from_directory(app.static_folder, filename)
     return jsonify({"error": "Static folder not configured"}), 404
 
@@ -8050,12 +8053,18 @@ def serve_static(filename):
 def serve_assets(filename):
     """Serve React assets from static/assets directory"""
     if app.static_folder:
+        # Ensure filename is a string
+        if not isinstance(filename, str):
+            filename = str(filename)
         return send_from_directory(os.path.join(app.static_folder, 'assets'), filename)
     return jsonify({"error": "Static folder not configured"}), 404
 
 @app.route('/temp_audio/<path:filename>')
 def serve_audio(filename):
     """Serve generated audio files"""
+    # Ensure filename is a string
+    if not isinstance(filename, str):
+        filename = str(filename)
     # Use absolute path to temp_audio directory in backend folder
     temp_audio_dir = os.path.join(os.path.dirname(__file__), "temp_audio")
     return send_from_directory(temp_audio_dir, filename)

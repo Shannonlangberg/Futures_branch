@@ -421,7 +421,9 @@ const SeriesModal = ({ series, categories, audiences, onClose, onSave }) => {
     audience: 'all',
     thumbnail_url: '',
     is_published: false,
-    tags: []
+    tags: [],
+    create_custom_step: false,
+    custom_step_name: ''
   });
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -436,7 +438,9 @@ const SeriesModal = ({ series, categories, audiences, onClose, onSave }) => {
         audience: series.audience || 'all',
         thumbnail_url: series.thumbnail_url || '',
         is_published: series.is_published || false,
-        tags: series.tags?.map(t => t.name) || []
+        tags: series.tags?.map(t => t.name) || [],
+        create_custom_step: series.create_custom_step || false,
+        custom_step_name: series.custom_step_name || ''
       });
       setThumbnailPreview(series.thumbnail_url || '');
     }
@@ -640,6 +644,39 @@ const SeriesModal = ({ series, categories, audiences, onClose, onSave }) => {
               </div>
             </div>
 
+            {/* Custom Discipleship Step */}
+            <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  id="create_custom_step"
+                  checked={formData.create_custom_step}
+                  onChange={(e) => setFormData({ ...formData, create_custom_step: e.target.checked })}
+                  className="w-4 h-4 rounded bg-slate-900 text-purple-600 focus:ring-purple-500 border-slate-700"
+                />
+                <label htmlFor="create_custom_step" className="text-sm font-medium text-slate-300">
+                  Create Custom Discipleship Step
+                </label>
+              </div>
+              {formData.create_custom_step && (
+                <div>
+                  <label className="block text-xs text-slate-400 mb-2">
+                    Step Name (leave empty to use series title)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.custom_step_name}
+                    onChange={(e) => setFormData({ ...formData, custom_step_name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700 text-sm"
+                    placeholder={formData.title || "Series title will be used"}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    When someone completes all episodes in this series, a discipleship step with this name will be added to their profile
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -686,7 +723,9 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
     order_index: 0,
     is_published: false,
     downloadable_notes_url: '',
-    discipleship_links: []
+    discipleship_links: [],
+    create_custom_step: false,
+    custom_step_name: ''
   });
   const [loading, setLoading] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -716,7 +755,9 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
         discipleship_links: episode.discipleship_links?.map(link => ({
           discipleship_step_type: link.discipleship_step_type,
           auto_complete: link.auto_complete
-        })) || []
+        })) || [],
+        create_custom_step: episode.create_custom_step || false,
+        custom_step_name: episode.custom_step_name || ''
       });
       // Extract YouTube URL if it's already in video_url
       if (episode.video_url) {
@@ -966,13 +1007,46 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
               />
             </div>
 
+            {/* Custom Discipleship Step */}
+            <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  id="episode_create_custom_step"
+                  checked={formData.create_custom_step}
+                  onChange={(e) => setFormData({ ...formData, create_custom_step: e.target.checked })}
+                  className="w-4 h-4 rounded bg-slate-900 text-purple-600 focus:ring-purple-500 border-slate-700"
+                />
+                <label htmlFor="episode_create_custom_step" className="text-sm font-medium text-slate-300">
+                  Create Custom Discipleship Step
+                </label>
+              </div>
+              {formData.create_custom_step && (
+                <div>
+                  <label className="block text-xs text-slate-400 mb-2">
+                    Step Name (leave empty to use episode title)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.custom_step_name}
+                    onChange={(e) => setFormData({ ...formData, custom_step_name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700 text-sm"
+                    placeholder={formData.title || "Episode title will be used"}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    When someone completes this episode, a discipleship step with this name will be added to their profile
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Discipleship Links */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Discipleship Step Links (Optional)
+                Link to Existing Discipleship Steps (Optional)
               </label>
               <p className="text-xs text-slate-500 mb-3">
-                When someone completes this episode, automatically mark these discipleship steps as complete
+                When someone completes this episode, automatically mark these predefined discipleship steps as complete
               </p>
               <div className="space-y-2">
                 {formData.discipleship_links.map((link, index) => (

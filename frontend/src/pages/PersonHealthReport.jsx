@@ -138,13 +138,9 @@ const PersonHealthReport = () => {
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [watchedEpisodes, setWatchedEpisodes] = useState([]);
+  const [loadingWatched, setLoadingWatched] = useState(false);
 
-  useEffect(() => {
-    fetchPersonData();
-    fetchPathways();
-    fetchWatchedEpisodes();
-  }, [personId]);
-  
   const fetchWatchedEpisodes = async () => {
     try {
       setLoadingWatched(true);
@@ -162,6 +158,12 @@ const PersonHealthReport = () => {
       setLoadingWatched(false);
     }
   };
+
+  useEffect(() => {
+    fetchPersonData();
+    fetchPathways();
+    fetchWatchedEpisodes();
+  }, [personId]);
 
   useEffect(() => {
     // Fetch AI suggestion when pathway data is available
@@ -425,10 +427,6 @@ const PersonHealthReport = () => {
   const { person, heartbeat, recent_activity, pathway } = data;
   const hasHeartbeat = heartbeat !== null;
   const hasPathway = pathway !== null;
-  
-  // State for watched episodes
-  const [watchedEpisodes, setWatchedEpisodes] = useState([]);
-  const [loadingWatched, setLoadingWatched] = useState(false);
 
   // Combine all recent activity for timeline
   const allActivities = [];

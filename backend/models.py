@@ -1443,6 +1443,8 @@ class TVSeries(db.Model):
     audience = db.Column(db.String(100))  # 'all', 'adults', 'youth', 'kids', 'parents'
     thumbnail_url = db.Column(db.String(500))
     is_published = db.Column(db.Boolean, default=False)
+    create_custom_step = db.Column(db.Boolean, default=False)  # Create custom discipleship step when series completed
+    custom_step_name = db.Column(db.String(200))  # Custom name for step (defaults to series title)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -1461,6 +1463,8 @@ class TVSeries(db.Model):
             'audience': self.audience,
             'thumbnail_url': self.thumbnail_url,
             'is_published': self.is_published,
+            'create_custom_step': self.create_custom_step,
+            'custom_step_name': self.custom_step_name,
             'episode_count': self.episodes.filter_by(is_published=True).count() if include_episodes else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
@@ -1485,6 +1489,8 @@ class TVEpisode(db.Model):
     order_index = db.Column(db.Integer, default=0)
     is_published = db.Column(db.Boolean, default=False)
     downloadable_notes_url = db.Column(db.String(500))
+    create_custom_step = db.Column(db.Boolean, default=False)  # Create custom discipleship step when episode completed
+    custom_step_name = db.Column(db.String(200))  # Custom name for step (defaults to episode title)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -1507,6 +1513,8 @@ class TVEpisode(db.Model):
             'order_index': self.order_index,
             'is_published': self.is_published,
             'downloadable_notes_url': self.downloadable_notes_url,
+            'create_custom_step': self.create_custom_step,
+            'custom_step_name': self.custom_step_name,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

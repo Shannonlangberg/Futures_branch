@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { StripeProvider } from '@stripe/stripe-react-native';
@@ -155,13 +156,26 @@ export default function App() {
 
   const setupNotifications = async () => {
     try {
+      // Only setup notifications if we have a valid Expo project ID
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
+      if (!projectId || projectId === 'your-project-id' || projectId === null) {
+        // Silently skip notifications if no project ID configured
+        return;
+      }
+      
       await NotificationService.registerForPushNotifications();
       const token = await NotificationService.getPushToken();
       if (token && user) {
         await NotificationService.savePushToken(user.email, token);
       }
     } catch (error) {
-      console.error('Notification setup error:', error);
+      // Fail gracefully - don't break the app if notifications can't be set up
+      // This happens when projectId is invalid or missing
+      if (error.message?.includes('projectId') || error.message?.includes('Invalid uuid')) {
+        // Silently ignore invalid project ID errors
+        return;
+      }
+      console.warn('Notification setup failed (app will continue):', error.message);
     }
   };
 
