@@ -134,6 +134,8 @@ const PersonHealthReport = () => {
   const [stepToComplete, setStepToComplete] = useState(null);
   const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditingCompletion, setIsEditingCompletion] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
 
@@ -141,6 +143,35 @@ const PersonHealthReport = () => {
     fetchPersonData();
     fetchPathways();
   }, [personId]);
+
+  useEffect(() => {
+    // Fetch AI suggestion when pathway data changes
+    if (data && data.pathway && data.pathway.id && data.pathway.next_step) {
+      const fetchSuggestion = async () => {
+        try {
+          setLoadingSuggestion(true);
+          const response = await fetch(`/api/pathways/progress/${data.pathway.id}/ai-suggestion`, {
+            credentials: 'include'
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            setAiSuggestion(result.suggestion || null);
+          } else {
+            setAiSuggestion(null);
+          }
+        } catch (err) {
+          console.error('Error fetching AI suggestion:', err);
+          setAiSuggestion(null);
+        } finally {
+          setLoadingSuggestion(false);
+        }
+      };
+      fetchSuggestion();
+    } else {
+      setAiSuggestion(null);
+    }
+  }, [data?.pathway?.id, data?.pathway?.next_step?.id]);
 
   const fetchPathways = async () => {
     try {
@@ -153,6 +184,32 @@ const PersonHealthReport = () => {
       }
     } catch (err) {
       console.error('Error loading pathways:', err);
+    }
+  };
+
+  const fetchAiSuggestion = async () => {
+    if (!data || !data.pathway || !data.pathway.id) {
+      return;
+    }
+
+    try {
+      setLoadingSuggestion(true);
+      const response = await fetch(`/api/pathways/progress/${data.pathway.id}/ai-suggestion`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setAiSuggestion(result.suggestion || null);
+      } else {
+        console.error('Error fetching AI suggestion');
+        setAiSuggestion(null);
+      }
+    } catch (err) {
+      console.error('Error fetching AI suggestion:', err);
+      setAiSuggestion(null);
+    } finally {
+      setLoadingSuggestion(false);
     }
   };
 
@@ -646,8 +703,24 @@ const PersonHealthReport = () => {
                     <div className="text-sm font-semibold text-indigo-300 mb-1">Next Step:</div>
                     <div className="text-lg font-bold text-white mb-1">{pathway.next_step.step_name}</div>
                     {pathway.next_step.step_description && (
-                      <div className="text-sm text-slate-300">{pathway.next_step.step_description}</div>
+                      <div className="text-sm text-slate-300 mb-2">{pathway.next_step.step_description}</div>
                     )}
+                    {loadingSuggestion ? (
+                      <div className="flex items-center gap-2 mt-2 text-sm text-indigo-200/70">
+                        <span className="inline-block w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></span>
+                        <span>Getting AI suggestion...</span>
+                      </div>
+                    ) : aiSuggestion ? (
+                      <div className="mt-3 pt-3 border-t border-indigo-500/20">
+                        <div className="flex items-start gap-2">
+                          <span className="text-lg">💡</span>
+                          <div>
+                            <div className="text-xs font-semibold text-indigo-200 mb-1">AI Suggestion:</div>
+                            <div className="text-sm text-indigo-100/90 leading-relaxed">{aiSuggestion}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
