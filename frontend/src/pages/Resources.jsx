@@ -123,7 +123,7 @@ const Resources = () => {
         if (orderDiff !== 0) {
           return orderDiff;
         }
-        return (a.name || '').localeCompare(b.name || '');
+        return (a.displayName || a.name || '').localeCompare(b.displayName || b.name || '');
       });
       setCategories(categoryList);
       if (categoryList.length > 0) {
@@ -323,7 +323,7 @@ const Resources = () => {
                 </div>
                 <div>
                   <h3 className="text-white text-lg font-semibold tracking-tight">
-                    {category.name}
+                    {category.displayName || category.name}
                   </h3>
                   {category.description && (
                     <p className="text-white/60 text-sm mt-2 leading-relaxed">
@@ -496,7 +496,7 @@ const Resources = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h3 className="text-white text-2xl font-semibold">
-              {selectedCategory.name} Resources
+              {selectedCategory.displayName || selectedCategory.name} Resources
             </h3>
             <p className="text-white/60 text-sm mt-1">
               Files are read directly from the configured Google Drive folder.
@@ -547,7 +547,7 @@ const Resources = () => {
               </div>
               <div className="text-white/70 text-sm">
                 {selectedCategory
-                  ? `Viewing ${selectedCategory.name}`
+                  ? `Viewing ${selectedCategory.displayName || selectedCategory.name}`
                   : 'Choose a category'}
               </div>
             </div>
