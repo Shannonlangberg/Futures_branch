@@ -184,7 +184,6 @@ const PersonHealthReport = () => {
       setLoadingSuggestion(false);
     }
   };
-  };
 
   const handleAssignPathway = async () => {
     if (!selectedPathwayId) {
