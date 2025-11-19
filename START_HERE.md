@@ -1,336 +1,69 @@
-# 🚀 START HERE - Futures LINK v5.1
+# 🚀 How to Start & Test the Futures Mobile App
 
-**Welcome to your clean, deployment-ready Futures LINK build!**
+## Option 1: Quick Start (Recommended)
 
----
+### Step 1: Open Terminal on Your Mac
+1. Press `Cmd + Space` (Command + Spacebar)
+2. Type "Terminal"
+3. Press Enter
 
-## 📚 Documentation Guide
-
-Read these documents in order:
-
-### 1️⃣ First Read This
-👉 **`CLEAN_BUILD_SUMMARY.md`**
-- Overview of what's included
-- What was removed (but backed up)
-- File structure
-- Quick comparison
-
-### 2️⃣ Then Setup Locally
-👉 **`SETUP_GUIDE.md`**
-- Complete local setup instructions
-- Google Sheets API configuration
-- Database setup
-- Test instructions
-
-### 3️⃣ When Ready to Deploy
-👉 **`DEPLOYMENT.md`**
-- Railway deployment steps
-- Environment variables
-- Production configuration
-
-### 4️⃣ Before Deploying
-👉 **`DEPLOYMENT_CHECKLIST.md`**
-- Pre-flight checklist
-- Verification steps
-- Post-deployment testing
-
-### 5️⃣ General Info
-👉 **`README.md`**
-- Project overview
-- Features list
-- Tech stack
-
----
-
-## ⚡ Quick Start (2 minutes)
-
-### Step 1: Backend
+### Step 2: Run This Command
+In the Terminal, type:
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
+cd /Users/shannonlangberg/Documents/Futures_PulseV1.1
+./start-mobile.sh
 ```
 
-✅ Backend running at: http://localhost:5002
+### Step 3: Wait for the QR Code
+You'll see:
+- A QR code appear in the terminal
+- Connection info like `exp://192.168.20.12:8081`
 
-### Step 2: Frontend
-```bash
-# In a NEW terminal
-cd frontend
-npm install
-npm run dev
-```
-
-✅ Frontend running at: http://localhost:5173
-
-### Step 3: Login
-- Open: http://localhost:5173
-- Username: `admin`
-- Password: `futures2025`
+### Step 4: Scan with Your iPhone
+1. Open the **Camera app** on your iPhone
+2. Point it at the QR code in your terminal
+3. Tap the notification that appears
+4. It will open in Expo Go
 
 ---
 
-## 🎯 What's Included
+## Option 2: Manual URL (No QR Code Needed)
 
-### ✅ Core Features (Production Ready)
-1. **Dashboard** - Campus-specific + National overview
-2. **Input Page** - Stats logging with Google Sheets
-3. **Finance** - Tithe tracking with breakdown
-4. **Settings** - Campus management
-
-### ✅ Essential Files Only
-- **Backend**: 30 files (streamlined from 80+)
-- **Frontend**: 24 files (streamlined from 70+)
-- **Size**: 50MB (reduced from 500MB)
-
-### ✅ Full Documentation
-- Setup guide
-- Deployment guide
-- Checklists
-- User access control
+1. Install **Expo Go** from the App Store
+2. Open **Expo Go** on your iPhone
+3. Tap **"Enter URL manually"**
+4. Type: `exp://192.168.20.12:8081`
+5. Tap **"Connect"**
 
 ---
 
-## 📁 Directory Structure
+## Important Notes
 
-```
-futures-link/
-├── 📄 START_HERE.md              ← You are here!
-├── 📄 README.md                   General overview
-├── 📄 SETUP_GUIDE.md              Local setup instructions
-├── 📄 DEPLOYMENT.md               Railway deployment
-├── 📄 DEPLOYMENT_CHECKLIST.md     Pre-deployment checks
-├── 📄 CLEAN_BUILD_SUMMARY.md      What's included/excluded
-│
-├── 🐍 backend/
-│   ├── app.py                     Main Flask app
-│   ├── users.json                 User accounts
-│   ├── requirements.txt           Dependencies
-│   ├── config/                    Feature flags, roles
-│   ├── utils/                     RBAC, campus scope
-│   ├── migrations/                Database schema
-│   └── instance/                  Databases (created on first run)
-│
-├── ⚛️ frontend/
-│   ├── package.json               Dependencies
-│   ├── vite.config.js             Build config
-│   ├── src/
-│   │   ├── App.jsx                Routing
-│   │   ├── components/            MainLayout, animations
-│   │   └── pages/                 Login, Dashboard, Input, Finance, Settings
-│   └── public/                    Icons, logo
-│
-└── 🚀 Deployment
-    ├── railway.json               Railway config
-    ├── Procfile                   Process definition
-    └── .gitignore                 Excludes sensitive files
-```
+⚠️ **Make sure your iPhone and Mac are on the same Wi-Fi network!**
+
+✅ Backend is already running on port 5000  
+✅ The app will connect to: http://192.168.20.12:5000
 
 ---
 
-## ✅ What Works Right Now
+## Troubleshooting
 
-### Tested Features
-- ✅ User authentication (admin, finance, campus pastors)
-- ✅ Dashboard (all campuses + Australia overview)
-- ✅ Campus selector (multi-region)
-- ✅ Stats input & Google Sheets integration
-- ✅ Finance input & breakdown
-- ✅ Campus management
-- ✅ Role-based access control
-- ✅ Charts (Attendance, Tithe YTD)
-- ✅ Previous year comparisons
+**Can't see QR code?**
+- Scroll up in the terminal - it might be above
+- Wait a few seconds for it to render
+- Use Option 2 (manual URL) instead
 
-### Ready for Production
-- ✅ Code is clean and streamlined
-- ✅ All features tested locally
-- ✅ Documentation complete
-- ✅ Railway deployment configured
-- ✅ Security measures in place
+**App won't connect?**
+- Check both devices are on the same Wi-Fi
+- Make sure Expo Go is installed on your iPhone
+- Try restarting Expo Go on your phone
+
+**Backend not working?**
+- Check if it's running: Open http://192.168.20.12:5000/api/health in a browser
+- If it says connection refused, the backend isn't running
 
 ---
 
-## 🔐 Default Login
+## That's It! 🎉
 
-**Admin Account** (Full Access)
-- Username: `admin`
-- Password: `futures2025`
-
-**Finance Account** (Finance Only)
-- Username: `Finance`
-- Password: `futures2025`
-
-⚠️ **Change these after first login!**
-
-Edit: `backend/users.json`
-
----
-
-## 🗺️ Next Steps
-
-### Option A: Test Locally First (Recommended)
-1. Follow "Quick Start" above
-2. Test all features
-3. Verify Google Sheets integration
-4. Then deploy to Railway
-
-### Option B: Deploy Immediately
-1. Read `DEPLOYMENT.md`
-2. Follow `DEPLOYMENT_CHECKLIST.md`
-3. Set environment variables in Railway
-4. Push and deploy
-
----
-
-## 🆘 Need Help?
-
-### Common Issues
-
-**Backend won't start?**
-```bash
-lsof -ti:5002 | xargs kill -9  # Kill port 5002
-cd backend && python app.py     # Restart
-```
-
-**Frontend build fails?**
-```bash
-cd frontend
-rm -rf node_modules
-npm install
-```
-
-**Can't connect to Google Sheets?**
-- Check `credentials.json` exists in `backend/`
-- Verify service account has Sheet access
-- Confirm Sheet ID in `.env`
-
-### Documentation
-- **Setup problems**: See `SETUP_GUIDE.md`
-- **Deployment problems**: See `DEPLOYMENT.md`
-- **Feature questions**: See `README.md`
-
----
-
-## 💾 Backup Information
-
-### Original Project (All Features)
-✅ **Safely backed up at**:
-```
-/Users/shannonlangberg/Documents/church-voice-assistant/backups/v5.1/
-```
-
-Includes ALL features:
-- Heartbeat, Communications, Events, Prayer Requests
-- Devotions, Serving, Connect Groups, Beacons, Passport
-- Mobile app integration, PWA features
-- Everything else
-
-**You can restore anytime!**
-
-### This Clean Build
-📍 **Located at**:
-```
-/Users/shannonlangberg/Documents/futures-link/
-```
-
-Includes ONLY:
-- Dashboard, Input, Finance, Settings
-- Core functionality
-- Production-ready
-
----
-
-## 🎯 Deployment Readiness
-
-| Item | Status |
-|------|--------|
-| ✅ Code Clean | READY |
-| ✅ Features Tested | READY |
-| ✅ Documentation | COMPLETE |
-| ✅ Railway Config | READY |
-| ✅ Security | CONFIGURED |
-| ⏳ Google Sheets | Configure |
-| ⏳ Environment Vars | Set in Railway |
-| ⏳ Test Deployment | After setup |
-
----
-
-## 📞 Support
-
-**Technical Questions**
-- Check documentation first
-- Review logs: `backend/logs/`
-- Check browser console (F12)
-
-**Contact**
-- Email: shannon.langberg@futures.church
-
----
-
-## 🎉 You're All Set!
-
-This clean build is:
-- ✅ **90% smaller** than the original
-- ✅ **100% functional** for current needs
-- ✅ **Production-ready** right now
-- ✅ **Fully backed up** (can restore anything)
-- ✅ **Well documented** (complete guides)
-
-### What to Do Now
-
-1. **Test Locally**
-   ```bash
-   cd backend && python app.py
-   # New terminal
-   cd frontend && npm run dev
-   ```
-
-2. **Verify Everything Works**
-   - Login
-   - Check dashboard
-   - Submit stats
-   - Submit finance
-   - Manage campuses
-
-3. **Deploy to Railway**
-   - Follow `DEPLOYMENT.md`
-   - Use `DEPLOYMENT_CHECKLIST.md`
-
----
-
-## 📊 At a Glance
-
-```
-ORIGINAL PROJECT          CLEAN BUILD (futures-link)
-════════════════         ═══════════════════════════
-200+ files               30 core files
-~500MB size              ~50MB size
-15+ features             4 essential features
-Complex                  Streamlined
-Everything               Dashboard, Input, Finance, Settings
-
-Backed up in:            Ready to deploy:
-backups/v5.1/            futures-link/
-```
-
----
-
-**Status**: ✅ READY TO DEPLOY  
-**Version**: 5.1  
-**Date**: October 9, 2025
-
-**Let's get this deployed! 🚀**
-
----
-
-### Remember
-- Original project is SAFE in backups
-- This is a CLEAN, FOCUSED build
-- You can add features back ANYTIME
-- Everything is DOCUMENTED
-
-**Happy deploying!** 🎊
-
-
+Once connected, you'll see the Futures app load in Expo Go on your iPhone!

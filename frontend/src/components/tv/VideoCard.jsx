@@ -12,10 +12,10 @@ const VideoCard = ({ episode, series, showProgress = false, progress = null }) =
   return (
     <Link
       to={`/tv/watch/${episode.id}`}
-      className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
+      className="group relative block bg-slate-800 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-700"
     >
       {/* Thumbnail */}
-      <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
+      <div className="relative aspect-video bg-gradient-to-br from-slate-800 to-slate-900">
         {thumbnailUrl ? (
           <img
             src={thumbnailUrl}
@@ -59,15 +59,15 @@ const VideoCard = ({ episode, series, showProgress = false, progress = null }) =
       </div>
       
       {/* Info */}
-      <div className="p-3 bg-slate-900">
+      <div className="p-3 bg-slate-800">
         {series && (
-          <p className="text-xs text-slate-500 mb-1 line-clamp-1">{series.title}</p>
+          <p className="text-xs text-slate-400 mb-1 line-clamp-1">{series.title}</p>
         )}
         <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
           {episode.title}
         </h3>
         {episode.description && (
-          <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+          <p className="text-xs text-slate-400 mt-1 line-clamp-2">
             {episode.description}
           </p>
         )}

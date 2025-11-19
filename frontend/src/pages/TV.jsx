@@ -59,7 +59,7 @@ const TV = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <div className="text-white text-xl">Loading Pulse TV...</div>
       </div>
     );
@@ -67,16 +67,16 @@ const TV = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <div className="text-red-400 text-xl">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black">
-      {/* Hero Header - Darker Netflix style */}
-      <div className="relative bg-gradient-to-b from-slate-900 via-black to-black py-20 mb-8 border-b border-slate-900">
+    <div className="min-h-screen bg-slate-900">
+      {/* Hero Header - Netflix style */}
+      <div className="relative bg-gradient-to-b from-slate-800 via-slate-900 to-slate-900 py-20 mb-8 border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-6">
           <h1 className="text-6xl font-bold text-white mb-4">Pulse TV</h1>
           <p className="text-xl text-slate-300 max-w-2xl">
@@ -103,9 +103,9 @@ const TV = () => {
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
+                  className="group relative block bg-slate-800 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-700"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-800 to-slate-900">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
@@ -122,12 +122,12 @@ const TV = () => {
                     </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-3 bg-slate-900">
+                  <div className="p-3 bg-slate-800">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-slate-400 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}
@@ -147,9 +147,9 @@ const TV = () => {
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
+                  className="group relative block bg-slate-800 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-700"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-800 to-slate-900">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
@@ -166,12 +166,12 @@ const TV = () => {
                     </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-3 bg-slate-900">
+                  <div className="p-3 bg-slate-800">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-slate-400 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}
@@ -191,9 +191,9 @@ const TV = () => {
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
+                  className="group relative block bg-slate-800 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-700"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-800 to-slate-900">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
@@ -210,12 +210,12 @@ const TV = () => {
                     </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-3 bg-slate-900">
+                  <div className="p-3 bg-slate-800">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-slate-400 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}
@@ -235,9 +235,9 @@ const TV = () => {
                 <Link
                   key={s.id}
                   to={`/tv/series/${s.id}`}
-                  className="group relative block bg-slate-900 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-800"
+                  className="group relative block bg-slate-800 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300 border border-slate-700"
                 >
-                  <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-black">
+                  <div className="relative aspect-video bg-gradient-to-br from-slate-800 to-slate-900">
                     {s.thumbnail_url ? (
                       <img
                         src={s.thumbnail_url}
@@ -254,12 +254,12 @@ const TV = () => {
                     </div>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                   </div>
-                  <div className="p-3 bg-slate-900">
+                  <div className="p-3 bg-slate-800">
                     <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-purple-300 transition-colors">
                       {s.title}
                     </h3>
                     {s.episode_count > 0 && (
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-slate-400 mt-1">
                         {s.episode_count} {s.episode_count === 1 ? 'episode' : 'episodes'}
                       </p>
                     )}

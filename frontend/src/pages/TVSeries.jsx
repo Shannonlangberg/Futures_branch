@@ -36,7 +36,7 @@ const TVSeries = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );
@@ -44,27 +44,27 @@ const TVSeries = () => {
 
   if (error || !series) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <div className="text-red-400 text-xl">{error || 'Series not found'}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-slate-900">
       {/* Header - Netflix style with backdrop */}
       <div className="relative">
         {series.thumbnail_url ? (
-          <div className="absolute inset-0 h-96 bg-gradient-to-b from-slate-900 via-black to-black">
+          <div className="absolute inset-0 h-96 bg-gradient-to-b from-slate-800 via-slate-900 to-slate-900">
             <img
               src={series.thumbnail_url}
               alt={series.title}
               className="w-full h-full object-cover opacity-30"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black" />
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/60 to-slate-900" />
           </div>
         ) : (
-          <div className="absolute inset-0 h-96 bg-gradient-to-b from-slate-900 via-black to-black" />
+          <div className="absolute inset-0 h-96 bg-gradient-to-b from-slate-800 via-slate-900 to-slate-900" />
         )}
         
         <div className="relative max-w-7xl mx-auto px-6 pt-32 pb-16">
