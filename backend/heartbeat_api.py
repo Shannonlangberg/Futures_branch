@@ -166,8 +166,12 @@ def get_person_heartbeat(person_id):
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
-        # Refresh person from database to ensure we have latest milestone data
+        # Refresh person from database to ensure we have latest milestone data and connect_group
         db.session.refresh(person)
+        # Expire all to force fresh queries for relationships
+        db.session.expire_all()
+        # Re-query person to ensure we have the absolute latest data
+        person = Person.query.get(person_id)
         
         # Get latest snapshot
         snapshot = HeartbeatSnapshot.query.filter_by(
