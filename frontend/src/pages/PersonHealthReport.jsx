@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 // Status badge component matching Heartbeat dashboard
 const StatusBadge = ({ status, score }) => {
