@@ -14042,9 +14042,12 @@ def submit_meeting_attendance(meeting_id):
                         try:
                             from heartbeat_engine import HeartbeatEngine
                             engine = HeartbeatEngine()
+                            logger.info(f"Starting Heartbeat recalculation for {person.full_name} (ID: {person_id})")
                             snapshot = engine.calculate_heartbeat(person_id)
                             recalculated_people.append(person.full_name)
-                            logger.info(f"Recalculated Heartbeat for {person.full_name} - Score: {snapshot.total_score}, Status: {snapshot.status}")
+                            logger.info(f"✓ Successfully recalculated Heartbeat for {person.full_name} - Score: {snapshot.total_score}, Status: {snapshot.status}, Engagement: {snapshot.engagement_score}")
+                        except ImportError as import_error:
+                            logger.error(f"CRITICAL: Cannot import HeartbeatEngine - {import_error}. Heartbeat system may not be available.")
                         except Exception as hb_recalc_error:
                             logger.error(f"Error recalculating heartbeat for {person.full_name}: {hb_recalc_error}", exc_info=True)
                             # Don't fail the whole operation if recalculation fails
