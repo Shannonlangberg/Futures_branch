@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   UserGroupIcon,
@@ -10,7 +10,8 @@ import {
   MapPinIcon,
   UserIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
 const ConnectGroups = () => {
@@ -36,12 +37,42 @@ const ConnectGroups = () => {
     location: '',
     leader_access_code: ''
   });
+  const [leaderSearch, setLeaderSearch] = useState('');
+  const [coLeaderSearch, setCoLeaderSearch] = useState('');
+  const [showLeaderDropdown, setShowLeaderDropdown] = useState(false);
+  const [showCoLeaderDropdown, setShowCoLeaderDropdown] = useState(false);
+  const leaderDropdownRef = useRef(null);
+  const coLeaderDropdownRef = useRef(null);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const memberDropdownRef = useRef(null);
 
   useEffect(() => {
     loadCampuses();
     loadPeople();
     loadGroups();
   }, [campusFilter]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (leaderDropdownRef.current && !leaderDropdownRef.current.contains(event.target)) {
+        setShowLeaderDropdown(false);
+      }
+      if (coLeaderDropdownRef.current && !coLeaderDropdownRef.current.contains(event.target)) {
+        setShowCoLeaderDropdown(false);
+      }
+      if (memberDropdownRef.current && !memberDropdownRef.current.contains(event.target)) {
+        setShowMemberDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const loadCampuses = async () => {
     try {
@@ -424,46 +455,182 @@ const ConnectGroups = () => {
                 </div>
 
                 {/* Leader */}
-                <div>
+                <div className="relative" ref={leaderDropdownRef}>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Leader <span className="text-red-400">*</span>
                   </label>
-                  <select
-                    required
-                    value={formData.leader_id}
-                    onChange={(e) => setFormData({ ...formData, leader_id: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="">Select Leader</option>
-                    {people
-                      .filter(p => !formData.campus || formData.campus === 'all_campuses' || p.campus === formData.campus)
-                      .map(person => (
-                        <option key={person.id} value={person.id}>
-                          {person.full_name} {person.email ? `(${person.email})` : ''}
-                        </option>
-                      ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLeaderDropdown(!showLeaderDropdown);
+                        setShowCoLeaderDropdown(false);
+                      }}
+                      className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500 flex items-center justify-between"
+                    >
+                      <span className={formData.leader_id ? 'text-white' : 'text-slate-400'}>
+                        {formData.leader_id
+                          ? people.find(p => p.id === formData.leader_id)?.full_name || 'Select Leader'
+                          : 'Select Leader'}
+                      </span>
+                      <ChevronDownIcon className="w-5 h-5 text-slate-400" />
+                    </button>
+                    
+                    {showLeaderDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-80 overflow-hidden">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-slate-600">
+                          <div className="relative">
+                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Search by name or email..."
+                              value={leaderSearch}
+                              onChange={(e) => setLeaderSearch(e.target.value)}
+                              className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Options List */}
+                        <div className="max-h-64 overflow-y-auto">
+                          {people
+                            .filter(p => {
+                              const campusMatch = !formData.campus || formData.campus === 'all_campuses' || p.campus === formData.campus;
+                              const searchMatch = !leaderSearch || 
+                                p.full_name.toLowerCase().includes(leaderSearch.toLowerCase()) ||
+                                (p.email && p.email.toLowerCase().includes(leaderSearch.toLowerCase()));
+                              return campusMatch && searchMatch;
+                            })
+                            .map(person => (
+                              <button
+                                key={person.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, leader_id: person.id });
+                                  setShowLeaderDropdown(false);
+                                  setLeaderSearch('');
+                                }}
+                                className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
+                              >
+                                <div className="font-medium">{person.full_name}</div>
+                                {person.email && (
+                                  <div className="text-sm text-slate-400">{person.email}</div>
+                                )}
+                              </button>
+                            ))}
+                          {people.filter(p => {
+                            const campusMatch = !formData.campus || formData.campus === 'all_campuses' || p.campus === formData.campus;
+                            const searchMatch = !leaderSearch || 
+                              p.full_name.toLowerCase().includes(leaderSearch.toLowerCase()) ||
+                              (p.email && p.email.toLowerCase().includes(leaderSearch.toLowerCase()));
+                            return campusMatch && searchMatch;
+                          }).length === 0 && (
+                            <div className="px-4 py-3 text-slate-400 text-sm text-center">
+                              No people found
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Co-Leader */}
-                <div>
+                <div className="relative" ref={coLeaderDropdownRef}>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Co-Leader (Optional)
                   </label>
-                  <select
-                    value={formData.co_leader_id || ''}
-                    onChange={(e) => setFormData({ ...formData, co_leader_id: e.target.value || '' })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="">No Co-Leader</option>
-                    {people
-                      .filter(p => p.id !== formData.leader_id && (!formData.campus || formData.campus === 'all_campuses' || p.campus === formData.campus))
-                      .map(person => (
-                        <option key={person.id} value={person.id}>
-                          {person.full_name} {person.email ? `(${person.email})` : ''}
-                        </option>
-                      ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCoLeaderDropdown(!showCoLeaderDropdown);
+                        setShowLeaderDropdown(false);
+                      }}
+                      className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500 flex items-center justify-between"
+                    >
+                      <span className={formData.co_leader_id ? 'text-white' : 'text-slate-400'}>
+                        {formData.co_leader_id
+                          ? people.find(p => p.id === formData.co_leader_id)?.full_name || 'No Co-Leader'
+                          : 'No Co-Leader'}
+                      </span>
+                      <ChevronDownIcon className="w-5 h-5 text-slate-400" />
+                    </button>
+                    
+                    {showCoLeaderDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-80 overflow-hidden">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-slate-600">
+                          <div className="relative">
+                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Search by name or email..."
+                              value={coLeaderSearch}
+                              onChange={(e) => setCoLeaderSearch(e.target.value)}
+                              className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Options List */}
+                        <div className="max-h-64 overflow-y-auto">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, co_leader_id: '' });
+                              setShowCoLeaderDropdown(false);
+                              setCoLeaderSearch('');
+                            }}
+                            className="w-full px-4 py-2 text-left text-slate-400 hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
+                          >
+                            No Co-Leader
+                          </button>
+                          {people
+                            .filter(p => {
+                              const notLeader = p.id !== formData.leader_id;
+                              const campusMatch = !formData.campus || formData.campus === 'all_campuses' || p.campus === formData.campus;
+                              const searchMatch = !coLeaderSearch || 
+                                p.full_name.toLowerCase().includes(coLeaderSearch.toLowerCase()) ||
+                                (p.email && p.email.toLowerCase().includes(coLeaderSearch.toLowerCase()));
+                              return notLeader && campusMatch && searchMatch;
+                            })
+                            .map(person => (
+                              <button
+                                key={person.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, co_leader_id: person.id });
+                                  setShowCoLeaderDropdown(false);
+                                  setCoLeaderSearch('');
+                                }}
+                                className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
+                              >
+                                <div className="font-medium">{person.full_name}</div>
+                                {person.email && (
+                                  <div className="text-sm text-slate-400">{person.email}</div>
+                                )}
+                              </button>
+                            ))}
+                          {people.filter(p => {
+                            const notLeader = p.id !== formData.leader_id;
+                            const campusMatch = !formData.campus || formData.campus === 'all_campuses' || p.campus === formData.campus;
+                            const searchMatch = !coLeaderSearch || 
+                              p.full_name.toLowerCase().includes(coLeaderSearch.toLowerCase()) ||
+                              (p.email && p.email.toLowerCase().includes(coLeaderSearch.toLowerCase()));
+                            return notLeader && campusMatch && searchMatch;
+                          }).length === 0 && (
+                            <div className="px-4 py-3 text-slate-400 text-sm text-center">
+                              No people found
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Meeting Day */}
@@ -620,9 +787,128 @@ const ConnectGroups = () => {
 
                 {/* Members */}
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    Members ({selectedGroup.members?.length || 0})
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">
+                      Members ({selectedGroup.members?.length || 0})
+                    </h3>
+                    <button
+                      onClick={() => setShowAddMember(!showAddMember)}
+                      className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                    >
+                      <PlusIcon className="w-4 h-4 mr-2" />
+                      Add Member
+                    </button>
+                  </div>
+
+                  {/* Add Member Section */}
+                  {showAddMember && (
+                    <div className="mb-4 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                      <div className="relative" ref={memberDropdownRef}>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Search and Select Person
+                        </label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowMemberDropdown(!showMemberDropdown);
+                            }}
+                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500 flex items-center justify-between"
+                          >
+                            <span className={memberSearch ? 'text-white' : 'text-slate-400'}>
+                              {memberSearch || 'Search for a person...'}
+                            </span>
+                            <ChevronDownIcon className="w-5 h-5 text-slate-400" />
+                          </button>
+                          
+                          {showMemberDropdown && (
+                            <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-80 overflow-hidden">
+                              {/* Search Input */}
+                              <div className="p-2 border-b border-slate-600">
+                                <div className="relative">
+                                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search by name or email..."
+                                    value={memberSearch}
+                                    onChange={(e) => setMemberSearch(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                    autoFocus
+                                  />
+                                </div>
+                              </div>
+                              
+                              {/* Options List */}
+                              <div className="max-h-64 overflow-y-auto">
+                                {people
+                                  .filter(p => {
+                                    const notInGroup = !selectedGroup.members?.some(m => m.id === p.id);
+                                    const campusMatch = !selectedGroup.campus || selectedGroup.campus === 'all_campuses' || p.campus === selectedGroup.campus;
+                                    const searchMatch = !memberSearch || 
+                                      p.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                                      (p.email && p.email.toLowerCase().includes(memberSearch.toLowerCase()));
+                                    return notInGroup && campusMatch && searchMatch;
+                                  })
+                                  .map(person => (
+                                    <button
+                                      key={person.id}
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const response = await fetch(
+                                            `/api/connect-groups/${selectedGroup.id}/members`,
+                                            {
+                                              method: 'POST',
+                                              headers: {
+                                                'Content-Type': 'application/json'
+                                              },
+                                              credentials: 'include',
+                                              body: JSON.stringify({ person_id: person.id })
+                                            }
+                                          );
+                                          if (response.ok) {
+                                            await handleViewGroup(selectedGroup);
+                                            await loadGroups();
+                                            setShowAddMember(false);
+                                            setMemberSearch('');
+                                            setShowMemberDropdown(false);
+                                          } else {
+                                            const data = await response.json();
+                                            alert(data.error || 'Failed to add member');
+                                          }
+                                        } catch (err) {
+                                          console.error('Error adding member:', err);
+                                          alert('Failed to add member');
+                                        }
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
+                                    >
+                                      <div className="font-medium">{person.full_name}</div>
+                                      {person.email && (
+                                        <div className="text-sm text-slate-400">{person.email}</div>
+                                      )}
+                                    </button>
+                                  ))}
+                                {people.filter(p => {
+                                  const notInGroup = !selectedGroup.members?.some(m => m.id === p.id);
+                                  const campusMatch = !selectedGroup.campus || selectedGroup.campus === 'all_campuses' || p.campus === selectedGroup.campus;
+                                  const searchMatch = !memberSearch || 
+                                    p.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                                    (p.email && p.email.toLowerCase().includes(memberSearch.toLowerCase()));
+                                  return notInGroup && campusMatch && searchMatch;
+                                }).length === 0 && (
+                                  <div className="px-4 py-3 text-slate-400 text-sm text-center">
+                                    No people found
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {selectedGroup.members && selectedGroup.members.length > 0 ? (
                     <div className="space-y-2">
                       {selectedGroup.members.map(member => (
@@ -664,8 +950,28 @@ const ConnectGroups = () => {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-slate-400">No members yet</p>
+                    <p className="text-slate-400">No members yet. Click "Add Member" to get started!</p>
                   )}
+                </div>
+
+                {/* Leader Portal Link */}
+                <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-white font-semibold mb-1">Connect Group Leader Portal</h4>
+                      <p className="text-sm text-slate-400">
+                        Leaders can access their group portal at <span className="text-blue-400">/connect-group-leader</span> to manage meetings and mark attendance.
+                      </p>
+                    </div>
+                    <a
+                      href="/connect-group-leader"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm whitespace-nowrap"
+                    >
+                      Open Portal
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
