@@ -1599,12 +1599,13 @@ const PersonHealthReport = () => {
                                   <div className="text-sm text-slate-300 mb-2">{event.details}</div>
                                 )}
                                 <div className="text-xs text-slate-400">
-                                  {eventDate.toLocaleDateString('en-US', {
+                                  {eventDate.toLocaleString('en-US', {
                                     month: 'short',
                                     day: 'numeric',
                                     year: 'numeric',
                                     hour: '2-digit',
-                                    minute: '2-digit'
+                                    minute: '2-digit',
+                                    timeZoneName: 'short'
                                   })}
                                 </div>
                                 {/* Additional event-specific details */}
