@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XMarkIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon, PencilIcon } from '@heroicons/react/24/outline';
 import ScheduleCatchUpModal from '../components/ScheduleCatchUpModal';
 
 // Status badge component matching Heartbeat dashboard
@@ -560,15 +560,26 @@ const PersonHealthReport = () => {
               {hasHeartbeat ? (
                 <>
                   <StatusBadge status={heartbeat.status} score={heartbeat.total_score} />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowScheduleModal(true)}
-                      className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
-                    >
-                      <CalendarIcon className="w-4 h-4" />
-                      Schedule Catch-Up
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/people?edit=${personId}`)}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
+                        title="Edit Profile"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                        Edit Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowScheduleModal(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
+                      >
+                        <CalendarIcon className="w-4 h-4" />
+                        Schedule Catch-Up
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={handleRecalculate}
@@ -582,15 +593,26 @@ const PersonHealthReport = () => {
               ) : (
                 <div className="text-center">
                   <div className="text-sm text-slate-400 mb-2">No Heartbeat Data</div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowScheduleModal(true)}
-                      className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
-                    >
-                      <CalendarIcon className="w-4 h-4" />
-                      Schedule Catch-Up
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/people?edit=${personId}`)}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
+                        title="Edit Profile"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                        Edit Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowScheduleModal(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:scale-105 transition-all text-sm flex items-center gap-2"
+                      >
+                        <CalendarIcon className="w-4 h-4" />
+                        Schedule Catch-Up
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={handleRecalculate}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   UserGroupIcon, 
   PlusIcon, 
@@ -16,6 +16,7 @@ import {
 
 const People = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [persons, setPersons] = useState([]);
   const [campuses, setCampuses] = useState([]);
   const [connectGroups, setConnectGroups] = useState([]);
@@ -55,6 +56,20 @@ const People = () => {
     loadCampuses();
     loadPersons();
   }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
+
+  // Check for edit query parameter and open modal
+  useEffect(() => {
+    const editPersonId = searchParams.get('edit');
+    if (editPersonId && persons.length > 0) {
+      const personToEdit = persons.find(p => p.id === editPersonId);
+      if (personToEdit) {
+        handleOpenModal(personToEdit);
+        // Remove the query parameter from URL
+        searchParams.delete('edit');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, persons]);
 
   const loadCampuses = async () => {
     try {
