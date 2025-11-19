@@ -1434,6 +1434,20 @@ const PersonHealthReport = () => {
           </div>
         )}
       </div>
+
+      {/* Schedule Catch-Up Modal */}
+      {showScheduleModal && person && (
+        <ScheduleCatchUpModal
+          isOpen={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          personId={personId}
+          personName={person.full_name || 'Person'}
+          onSuccess={() => {
+            setShowScheduleModal(false);
+            // Optionally refresh data or show success message
+          }}
+        />
+      )}
     </div>
   );
 };
