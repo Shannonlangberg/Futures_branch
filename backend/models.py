@@ -162,6 +162,13 @@ class EngagementProfile(db.Model):
             attendance_date = datetime.utcnow().date()
         elif isinstance(attendance_date, str):
             attendance_date = datetime.fromisoformat(attendance_date).date()
+        elif isinstance(attendance_date, datetime):
+            attendance_date = attendance_date.date()
+        
+        # Update last_seen to the attendance date (as datetime for consistency)
+        attendance_datetime = datetime.combine(attendance_date, datetime.min.time())
+        if not self.last_seen or attendance_datetime > self.last_seen:
+            self.last_seen = attendance_datetime
         
         group_log = self._load_json(self.group_attendance_log)
         group_log.append({
@@ -192,14 +199,32 @@ class EngagementProfile(db.Model):
         attendance_score = attendance_freq * 100.0
         self.attendance_frequency = attendance_freq
         
-        # Update last_seen if we have recent attendance
+        # Update last_seen if we have recent attendance (from service attendance or group attendance)
+        latest_activity = None
+        
         if recent_attendance:
             latest_attendance = max(
                 [datetime.fromisoformat(r['timestamp']) for r in recent_attendance if 'timestamp' in r],
                 default=None
             )
             if latest_attendance:
-                self.last_seen = latest_attendance
+                latest_activity = latest_attendance
+        
+        # Also check group attendance for last_seen
+        group_log = self._load_json(self.group_attendance_log)
+        if group_log:
+            recent_group_dates = [
+                datetime.fromisoformat(r['date']) if isinstance(r.get('date'), str) else datetime.combine(r['date'], datetime.min.time())
+                for r in group_log
+                if r.get('present', True) and 'date' in r
+            ]
+            if recent_group_dates:
+                latest_group = max(recent_group_dates)
+                if not latest_activity or latest_group > latest_activity:
+                    latest_activity = latest_group
+        
+        if latest_activity:
+            self.last_seen = latest_activity
         
         days_since_last_seen = (now - self.last_seen).days if self.last_seen else None
         
