@@ -1520,13 +1520,19 @@ const PersonHealthReport = () => {
                         title = d.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                       }
                       
+                      // Build details with connect group name if available
+                      let details = d.description || d.step_name || '';
+                      if (d.connect_group_name) {
+                        details = `${details} - ${d.connect_group_name}`;
+                      }
+                      
                       return {
                         ...d,
                         type: 'discipleship',
                         icon: icon,
                         title: title,
                         date: d.date || d.created_at,
-                        details: d.description || d.step_name || '',
+                        details: details,
                         color: 'indigo'
                       };
                     });

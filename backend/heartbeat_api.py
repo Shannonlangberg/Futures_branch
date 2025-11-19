@@ -334,6 +334,17 @@ def get_person_heartbeat(person_id):
                 person_pathway_progress_id=pathway_progress.id
             ).all()
             
+            # Get person's connect group name if they have one
+            connect_group_name = None
+            if person.connect_group:
+                try:
+                    from models import ConnectGroup
+                    connect_group = ConnectGroup.query.filter_by(id=person.connect_group).first()
+                    if connect_group:
+                        connect_group_name = connect_group.name
+                except Exception as e:
+                    logger.warning(f"Error fetching connect group name: {e}")
+            
             for completion in completed_steps:
                 step = PathwayStep.query.get(completion.pathway_step_id)
                 if step and completion.completed_at:
@@ -341,17 +352,23 @@ def get_person_heartbeat(person_id):
                     milestone_type = step.milestone_type or ''
                     step_type = milestone_type if milestone_type else step.step_name.lower().replace(' ', '_')
                     
+                    # Build description with connect group name if applicable
+                    description = step.step_name
+                    if milestone_type == 'group_join' and connect_group_name:
+                        description = f"{step.step_name}: {connect_group_name}"
+                    
                     pathway_step_events.append({
                         'id': f'pathway_step_{completion.id}',
                         'person_id': person_id,
                         'type': step_type,
-                        'description': step.step_name,
+                        'description': description,
                         'date': completion.completed_at.isoformat() if completion.completed_at else None,
                         'created_at': completion.completed_at.isoformat() if completion.completed_at else None,
                         'is_person_milestone': False,
                         'is_pathway_step': True,
                         'step_order': step.step_order,
-                        'milestone_type': milestone_type
+                        'milestone_type': milestone_type,
+                        'connect_group_name': connect_group_name if milestone_type == 'group_join' else None
                     })
                     
             # Refresh relationships to get latest step completions
