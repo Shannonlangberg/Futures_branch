@@ -437,11 +437,32 @@ def complete_pathway_step(progress_id):
         if existing:
             return jsonify({'error': 'Step already completed'}), 400
         
+        # Parse completion date if provided, otherwise use current time
+        completed_at = datetime.utcnow()
+        if 'completed_at' in data and data['completed_at']:
+            try:
+                # Accept ISO format date string or datetime string
+                if isinstance(data['completed_at'], str):
+                    # Try parsing as ISO format
+                    if 'T' in data['completed_at']:
+                        completed_at = datetime.fromisoformat(data['completed_at'].replace('Z', '+00:00'))
+                    else:
+                        # Just a date string (YYYY-MM-DD), use start of day UTC
+                        from datetime import date as date_class
+                        date_obj = date_class.fromisoformat(data['completed_at'])
+                        completed_at = datetime.combine(date_obj, datetime.min.time())
+                        # Keep as UTC
+                        completed_at = datetime.utcfromtimestamp(completed_at.timestamp())
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid completed_at format: {data['completed_at']}, using current time: {e}")
+                completed_at = datetime.utcnow()
+        
         # Create completion record
         completion = PersonPathwayStepCompletion(
             person_pathway_progress_id=progress_id,
             pathway_step_id=data['step_id'],
             completed_by_person_id=getattr(current_user, 'id', None),
+            completed_at=completed_at,
             notes=data.get('notes')
         )
         

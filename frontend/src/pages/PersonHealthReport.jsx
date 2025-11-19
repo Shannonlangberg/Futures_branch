@@ -120,6 +120,9 @@ const PersonHealthReport = () => {
   const [showPathwayModal, setShowPathwayModal] = useState(false);
   const [pathways, setPathways] = useState([]);
   const [selectedPathwayId, setSelectedPathwayId] = useState(null);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [stepToComplete, setStepToComplete] = useState(null);
+  const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchPersonData();
@@ -174,13 +177,20 @@ const PersonHealthReport = () => {
     }
   };
 
-  const handleCompleteStep = async (stepId) => {
+  const handleCompleteStepClick = (stepId) => {
     if (!data.pathway) {
       alert('No pathway assigned');
       return;
     }
+    
+    // Set today's date as default
+    setCompletionDate(new Date().toISOString().split('T')[0]);
+    setStepToComplete(stepId);
+    setShowCompleteModal(true);
+  };
 
-    if (!confirm('Mark this step as completed?')) {
+  const handleCompleteStep = async () => {
+    if (!stepToComplete || !data.pathway) {
       return;
     }
 
@@ -192,14 +202,16 @@ const PersonHealthReport = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          step_id: stepId
+          step_id: stepToComplete,
+          completed_at: completionDate
         }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        alert('Step marked as completed!');
+        setShowCompleteModal(false);
+        setStepToComplete(null);
         await fetchPersonData();
       } else {
         alert(result.error || 'Failed to complete step');
@@ -626,9 +638,18 @@ const PersonHealthReport = () => {
                               Current
                             </span>
                           )}
+                          {isCompleted && step.completed_at && (
+                            <div className="text-xs text-green-300/70">
+                              Completed: {new Date(step.completed_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </div>
+                          )}
                           {!isCompleted && !isCurrent && (
                             <button
-                              onClick={() => handleCompleteStep(step.id)}
+                              onClick={() => handleCompleteStepClick(step.id)}
                               className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
                               title="Mark as completed"
                             >
@@ -767,6 +788,62 @@ const PersonHealthReport = () => {
                     className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Assign Pathway
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Complete Step Modal */}
+        {showCompleteModal && stepToComplete && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full">
+              <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Complete Step</h2>
+                <button
+                  onClick={() => {
+                    setShowCompleteModal(false);
+                    setStepToComplete(null);
+                  }}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Completion Date
+                  </label>
+                  <input
+                    type="date"
+                    value={completionDate}
+                    onChange={(e) => setCompletionDate(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    Select the date when this step was completed. Defaults to today's date.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-slate-700">
+                  <button
+                    onClick={() => {
+                      setShowCompleteModal(false);
+                      setStepToComplete(null);
+                    }}
+                    className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCompleteStep}
+                    className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+                  >
+                    Mark Complete
                   </button>
                 </div>
               </div>
