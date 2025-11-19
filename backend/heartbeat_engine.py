@@ -497,8 +497,27 @@ class HeartbeatEngine:
             if milestone_type not in ['salvation', 'baptism', 'holy_spirit', 'next_steps']:
                 other_milestones.append(step)
         
-        if other_milestones:
-            score += min(len(other_milestones) * 2.0, 10.0)
+        # Count TV episode completions (recent ones boost more)
+        tv_episode_completions = [
+            s for s in discipleship_steps
+            if s.type == 'tv_episode_completion' and s.date >= start_date
+        ]
+        tv_series_completions = [
+            s for s in discipleship_steps
+            if s.type == 'tv_series_completion' and s.date >= start_date
+        ]
+        
+        # TV episode completions: 5 points per episode (max 20 points)
+        tv_episode_score = min(len(tv_episode_completions) * 5.0, 20.0)
+        
+        # TV series completions: 10 points per series (max 20 points)
+        tv_series_score = min(len(tv_series_completions) * 10.0, 20.0)
+        
+        # Other milestones: 2 points each (max 10 points)
+        other_milestone_score = min(len(other_milestones) * 2.0, 10.0)
+        
+        # Total other milestones score (capped at 50 points total for this section)
+        score += min(tv_episode_score + tv_series_score + other_milestone_score, 50.0)
         
         return round(min(score, 100.0), 2)
     

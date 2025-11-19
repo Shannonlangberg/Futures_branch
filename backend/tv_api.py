@@ -530,14 +530,60 @@ def _handle_episode_completion(person_id, episode_id):
     Handle episode completion - create discipleship steps and update heartbeat.
     
     This function:
-    1. Checks for EpisodeDiscipleshipLink records
-    2. Creates DiscipleshipStep records if auto_complete is True
+    1. ALWAYS creates a DiscipleshipStep for episode completion (+5 spiritual score)
+    2. Checks for EpisodeDiscipleshipLink records and creates additional steps
     3. Triggers Heartbeat recalculation
-    4. Adds spiritual score boost
+    4. Adds to activity feed
     """
     episode = TVEpisode.query.get(episode_id)
     if not episode:
         return
+    
+    # ALWAYS create a DiscipleshipStep for episode completion
+    # This will boost spiritual score by 5 points (counted as "other milestone")
+    episode_step = DiscipleshipStep(
+        person_id=person_id,
+        type='tv_episode_completion',
+        description=f"Watched: {episode.title}",
+        date=date.today(),
+        created_by_person_id='system'
+    )
+    db.session.add(episode_step)
+    logger.info(f"Created TV episode completion step for person {person_id}, episode {episode_id}")
+    
+    # Check if this completes a series (all episodes watched)
+    series = episode.series
+    if series:
+        # Count completed episodes in this series
+        completed_episodes = TVUserEpisodeProgress.query.filter_by(
+            person_id=person_id,
+            completed=True
+        ).join(TVEpisode).filter(
+            TVEpisode.series_id == series.id,
+            TVEpisode.is_published == True
+        ).count()
+        
+        total_episodes = series.episodes.filter_by(is_published=True).count()
+        
+        # If all episodes completed, add series completion step (+10 spiritual score)
+        if completed_episodes >= total_episodes and total_episodes > 0:
+            # Check if series completion step already exists
+            existing_series_step = DiscipleshipStep.query.filter_by(
+                person_id=person_id,
+                type='tv_series_completion',
+                description=f"Completed Series: {series.title}"
+            ).first()
+            
+            if not existing_series_step:
+                series_step = DiscipleshipStep(
+                    person_id=person_id,
+                    type='tv_series_completion',
+                    description=f"Completed Series: {series.title}",
+                    date=date.today(),
+                    created_by_person_id='system'
+                )
+                db.session.add(series_step)
+                logger.info(f"Created TV series completion step for person {person_id}, series {series.id}")
     
     # Get all discipleship links for this episode
     links = TVEpisodeDiscipleshipLink.query.filter_by(episode_id=episode_id).all()
@@ -570,12 +616,7 @@ def _handle_episode_completion(person_id, episode_id):
         engine = HeartbeatEngine()
         snapshot = engine.calculate_heartbeat(person_id)
         
-        # Add spiritual score boost for episode completion
-        # The heartbeat engine will recalculate, but we can add a small boost
-        # Note: The spiritual score calculation already considers discipleship steps,
-        # so this is mainly to ensure recalculation happens
-        
-        logger.info(f"Recalculated Heartbeat for person {person_id} after episode {episode_id} completion")
+        logger.info(f"Recalculated Heartbeat for person {person_id} after episode {episode_id} completion. New spiritual score: {snapshot.spiritual_score}")
     except Exception as e:
         logger.warning(f"Failed to recalculate Heartbeat after episode completion: {e}")
         # Don't raise - allow the request to succeed even if heartbeat update fails
