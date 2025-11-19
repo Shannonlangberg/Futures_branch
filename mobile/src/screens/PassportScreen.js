@@ -186,9 +186,23 @@ export default function PassportScreen() {
                 {pathway.pathway.steps.map((step, index) => {
                   const isCompleted = step.is_completed;
                   const isCurrent = pathway.current_step_id === step.id && !isCompleted;
-                  const isConnectGroup = step.milestone_type === 'group_join';
+                  // Check both milestone_type and step name to identify connect group step
+                  const isConnectGroup = step.milestone_type === 'group_join' || 
+                                         (step.step_name && step.step_name.toLowerCase().includes('connect group'));
                   // Show Assign button for connect group step if not completed, even if not current
                   const showAssignButton = isConnectGroup && !isCompleted;
+                  
+                  // Debug logging
+                  if (step.step_name && step.step_name.toLowerCase().includes('connect')) {
+                    console.log('Connect Group Step Debug:', {
+                      step_name: step.step_name,
+                      milestone_type: step.milestone_type,
+                      isConnectGroup,
+                      isCompleted,
+                      showAssignButton,
+                      isCurrent
+                    });
+                  }
                   
                   return (
                     <View
@@ -247,6 +261,12 @@ export default function PassportScreen() {
                             </TouchableOpacity>
                           ) : null}
                         </View>
+                      )}
+                      {/* Debug: Show step info if it's connect group related */}
+                      {step.step_name && step.step_name.toLowerCase().includes('connect') && __DEV__ && (
+                        <Text style={{color: 'red', fontSize: 10}}>
+                          Debug: milestone_type={step.milestone_type}, isConnectGroup={isConnectGroup ? 'true' : 'false'}, isCompleted={isCompleted ? 'true' : 'false'}
+                        </Text>
                       )}
                     </View>
                   );
