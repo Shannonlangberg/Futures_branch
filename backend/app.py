@@ -14080,8 +14080,14 @@ from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
 
 # HEARTBEAT MODULE ROUTES
-from heartbeat_api import heartbeat_bp
-app.register_blueprint(heartbeat_bp)
+try:
+    from heartbeat_api import heartbeat_bp
+    app.register_blueprint(heartbeat_bp)
+    logger.info("Heartbeat API blueprint registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import heartbeat_api: {e}. Heartbeat features will be unavailable.")
+except Exception as e:
+    logger.error(f"Error registering heartbeat blueprint: {e}. Heartbeat features will be unavailable.")
 
 # USER MANAGEMENT ROUTES
 @app.route('/api/users', methods=['GET'])
