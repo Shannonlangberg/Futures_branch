@@ -819,7 +819,7 @@ const Dashboard = () => {
                   {data.stats?.youth_attendance?.toLocaleString() || 'N/A'}
               </div>
                 <p className="text-purple-200/80 text-sm">
-                  Salvations: {data.stats?.youth_salvations || 'N/A'}
+                  Leaders: {data.stats?.youth_leaders || 'N/A'} | Salvations: {data.stats?.youth_salvations || 'N/A'}
               </p>
               </div>
             </div>

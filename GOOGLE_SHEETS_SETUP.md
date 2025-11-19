@@ -98,15 +98,16 @@ J: Rededications
 K: Youth Attendance
 L: Youth Salvations
 M: Youth New People
-N: Kids Total
-O: Kids Leaders
-P: New Kids
-Q: New Kids Salvations
-R: Connect Groups
-S: Dream Team
-T: Tithe
-U: Baptisms
-V: Child Dedications
+N: Youth Leaders
+O: Kids Total
+P: Kids Leaders
+Q: New Kids
+R: New Kids Salvations
+S: Connect Groups
+T: Dream Team
+U: Tithe
+V: Baptisms
+W: Child Dedications
 ```
 
 ### Tab 2: Tithe

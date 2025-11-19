@@ -23,11 +23,10 @@ def seed_heartbeat_campuses():
     print("[HEARTBEAT SEED] Creating Heartbeat campuses...")
     
     # Get unique campus names from Person table
-    persons = Person.query.all()
-    campus_names = set()
-    for person in persons:
-        if person.campus:
-            campus_names.add(person.campus)
+    # Use raw SQL to avoid model column issues
+    from sqlalchemy import text
+    result = db.session.execute(text("SELECT DISTINCT campus FROM persons WHERE campus IS NOT NULL AND campus != ''"))
+    campus_names = set(row[0] for row in result if row[0])
     
     print(f"[HEARTBEAT SEED] Found {len(campus_names)} unique campuses from Person records")
     
@@ -36,20 +35,30 @@ def seed_heartbeat_campuses():
         # Normalize to campus_id
         campus_id = campus_name.lower().replace(' ', '_')
         
-        # Check if already exists
-        existing = Campus.query.filter_by(id=campus_id).first()
-        if existing:
+        # Check if already exists using raw SQL
+        from sqlalchemy import text
+        check_result = db.session.execute(
+            text("SELECT id FROM heartbeat_campuses WHERE id = :campus_id"),
+            {"campus_id": campus_id}
+        ).first()
+        
+        if check_result:
             print(f"[HEARTBEAT SEED] Campus {campus_name} already exists")
             continue
         
-        # Create new campus
-        campus = Campus(
-            id=campus_id,
-            name=campus_name,
-            timezone='Australia/Adelaide',
-            is_active=True
+        # Create new campus using raw SQL
+        db.session.execute(
+            text("""
+                INSERT INTO heartbeat_campuses (id, name, timezone, is_active, created_at, updated_at)
+                VALUES (:id, :name, :timezone, :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """),
+            {
+                "id": campus_id,
+                "name": campus_name,
+                "timezone": "Australia/Adelaide",
+                "is_active": True
+            }
         )
-        db.session.add(campus)
         created += 1
         print(f"[HEARTBEAT SEED] Created campus: {campus_name} ({campus_id})")
     
@@ -62,11 +71,17 @@ def seed_sample_services(days_back=84):
     """Create sample Sunday services for the last 12 weeks"""
     print(f"[HEARTBEAT SEED] Creating sample services for last {days_back} days...")
     
-    # Get all active campuses
-    campuses = Campus.query.filter_by(is_active=True).all()
-    if not campuses:
+    # Get all active campuses using raw SQL
+    from sqlalchemy import text
+    campus_rows = db.session.execute(
+        text("SELECT id, name FROM heartbeat_campuses WHERE is_active = 1")
+    ).fetchall()
+    
+    if not campus_rows:
         print("[HEARTBEAT SEED] No campuses found. Run seed_heartbeat_campuses first.")
         return 0
+    
+    campuses = [{"id": row[0], "name": row[1]} for row in campus_rows]
     
     created = 0
     today = datetime.now()
@@ -85,23 +100,32 @@ def seed_sample_services(days_back=84):
             # Create 9:00 AM service
             service_time = datetime.combine(sunday_date.date(), datetime.min.time().replace(hour=9))
             
-            # Check if service already exists
-            existing = Service.query.filter_by(
-                campus_id=campus.id,
-                type='sunday',
-                starts_at=service_time
+            # Check if service already exists using raw SQL
+            from sqlalchemy import text
+            existing = db.session.execute(
+                text("""
+                    SELECT id FROM heartbeat_services 
+                    WHERE campus_id = :campus_id AND type = 'sunday' AND starts_at = :starts_at
+                """),
+                {"campus_id": campus["id"], "starts_at": service_time}
             ).first()
             
             if existing:
                 continue
             
-            service = Service(
-                campus_id=campus.id,
-                type='sunday',
-                starts_at=service_time,
-                ends_at=service_time + timedelta(hours=2)
+            # Create service using raw SQL
+            ends_at = service_time + timedelta(hours=2)
+            db.session.execute(
+                text("""
+                    INSERT INTO heartbeat_services (campus_id, type, starts_at, ends_at, created_at)
+                    VALUES (:campus_id, 'sunday', :starts_at, :ends_at, CURRENT_TIMESTAMP)
+                """),
+                {
+                    "campus_id": campus["id"],
+                    "starts_at": service_time,
+                    "ends_at": ends_at
+                }
             )
-            db.session.add(service)
             created += 1
     
     db.session.commit()

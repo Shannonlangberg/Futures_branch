@@ -613,7 +613,7 @@ const People = () => {
                       className={`hover:bg-slate-700/30 transition-colors cursor-pointer ${
                         !person.is_active ? 'opacity-60' : ''
                       }`}
-                      onClick={() => handleViewPerson(person.id)}
+                      onClick={() => handleOpenModal(person)}
                     >
                       <td className="px-6 py-4">
                         <div className="text-white font-medium">

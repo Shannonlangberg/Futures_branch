@@ -270,8 +270,7 @@ const Login = ({ onLogin }) => {
               className="w-full h-full object-contain"
             />
           </div>
-                  <h1 className="text-4xl font-bold text-white mb-3">Futures PULSE</h1>
-        <p className="text-slate-400 text-lg">Futures PULSE</p>
+          <h1 className="text-4xl font-bold text-white mb-3">Futures PULSE</h1>
         </div>
 
         {/* Login Form */}

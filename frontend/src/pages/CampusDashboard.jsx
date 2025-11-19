@@ -535,6 +535,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               className="group relative bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 backdrop-blur-sm rounded-2xl p-6 border border-indigo-400/20 shadow-2xl hover:shadow-indigo-500/25 transition-all duration-500 hover:scale-105 cursor-pointer"
               onClick={() => openModal('youth', { 
                 attendance: youthAttendance,
+                leaders: data.stats?.youth_leaders || 0,
                 salvations: data.stats?.youth_salvations || 0,
                 newPeople: data.stats?.youth_new_people || 0,
                 campus: campusName 
@@ -1285,13 +1286,20 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                     <p className="text-white/60">Average youth attendance this period</p>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                       <h3 className="text-xl font-bold text-white mb-4">Youth Attendance</h3>
                       <div className="text-4xl font-bold text-indigo-400 mb-2">
                         {modalData.attendance.toLocaleString()}
                       </div>
                       <p className="text-white/60">Average young people in attendance</p>
+                    </div>
+                    <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                      <h3 className="text-xl font-bold text-white mb-4">Youth Leaders</h3>
+                      <div className="text-4xl font-bold text-cyan-400 mb-2">
+                        {modalData.leaders?.toLocaleString() || 'N/A'}
+                      </div>
+                      <p className="text-white/60">Average volunteers serving</p>
                     </div>
                     <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                       <h3 className="text-xl font-bold text-white mb-4">Youth Salvations</h3>

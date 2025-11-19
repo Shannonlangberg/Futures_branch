@@ -10,6 +10,7 @@ roles:
       users: ["*"]
       campuses: ["*"]
       system: ["*"]
+      settings: ["*"]
       
       # New resources
       devotions_admin: ["*"]
@@ -33,6 +34,7 @@ roles:
       users: ["*"]
       campuses: ["*"]
       system: ["*"]
+      settings: ["*"]
       
       # New resources - FULL ACCESS
       devotions_admin: ["*"]
@@ -55,6 +57,7 @@ roles:
       users: ["*"]
       campuses: ["*"]
       system: ["*"]
+      settings: ["*"]
       devotions_admin: ["*"]
       groups: ["*"]
       beacons: ["*"]
@@ -73,6 +76,7 @@ roles:
       users: ["*"]
       campuses: ["*"]
       system: ["*"]
+      settings: ["*"]
       devotions_admin: ["*"]
       groups: ["*"]
       beacons: ["*"]
@@ -196,6 +200,11 @@ roles:
 
 # Resource definitions
 resources:
+  settings:
+    name: "System Settings"
+    description: "Manage system settings, configuration, and administrative features"
+    actions: ["view", "edit", "create", "delete", "manage"]
+    
   devotions_admin:
     name: "Devotions Administration"
     description: "Manage devotional plans and content"

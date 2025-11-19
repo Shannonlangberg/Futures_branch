@@ -34,6 +34,7 @@ const LogStats = () => {
     'Youth Total': '',
     'Youth NP': '',
     'Youth Salvations': '',
+    'Youth Leaders': '',
     'Saints': '',
     'Connect Groups': '',
     'Dream Team': '',
@@ -162,6 +163,7 @@ const LogStats = () => {
       'Youth Attendance': 'Youth Total',
       'Youth New People': 'Youth NP',
       'Youth Salvations': 'Youth Salvations',
+      'Youth Leaders': 'Youth Leaders',
       'Saints': 'Saints',
       'Connect Groups': 'Connect Groups',
       'Dream Team': 'Dream Team',
@@ -239,6 +241,7 @@ const LogStats = () => {
         'Youth Total': 'Youth Attendance',
         'Youth NP': 'Youth New People',
         'Youth Salvations': 'Youth Salvations',
+        'Youth Leaders': 'Youth Leaders',
         'Saints': 'Saints',
         'Connect Groups': 'Connect Groups',
         'Dream Team': 'Dream Team',
@@ -914,6 +917,23 @@ const LogStats = () => {
                         onChange={(e) => setQuickInputStats(prev => ({
                           ...prev,
                           'Youth Salvations': e.target.value
+                        }))}
+                        placeholder="0"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
+                      />
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
+                        Youth Leaders:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={quickInputStats['Youth Leaders']}
+                        onChange={(e) => setQuickInputStats(prev => ({
+                          ...prev,
+                          'Youth Leaders': e.target.value
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
