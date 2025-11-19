@@ -74,7 +74,12 @@ const ConnectGroupLeader = () => {
 
   const loadGroupDetails = async (group) => {
     try {
-      const response = await fetch(`/api/connect-groups/${group.id}`, {
+      // Include email and access code for leader authentication
+      const params = new URLSearchParams();
+      if (email) params.append('leader_email', email);
+      if (accessCode) params.append('access_code', accessCode);
+      
+      const response = await fetch(`/api/connect-groups/${group.id}?${params.toString()}`, {
         credentials: 'include'
       });
       if (response.ok) {

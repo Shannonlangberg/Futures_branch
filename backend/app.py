@@ -13661,30 +13661,139 @@ def create_connect_group():
         return jsonify({'error': 'Failed to create connect group'}), 500
 
 
-@app.route('/api/connect-groups/<group_id>', methods=['GET'])
-@login_required
-def get_connect_group(group_id):
-    """Get connect group details with members"""
+def _auto_create_upcoming_meetings(group):
+    """Automatically create upcoming meetings based on group schedule"""
     try:
-        # Check if user has view permission or view_own_groups permission
-        has_view = current_user.has_permission('groups', 'view')
-        has_view_own = current_user.has_permission('groups', 'view_own_groups')
+        if not group.meeting_day or not group.meeting_frequency:
+            return
         
-        if not has_view and not has_view_own:
-            return jsonify({'error': 'Insufficient permissions'}), 403
+        # Map day names to weekday numbers (Monday=0, Sunday=6)
+        day_map = {
+            'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
+            'Friday': 4, 'Saturday': 5, 'Sunday': 6
+        }
         
+        target_weekday = day_map.get(group.meeting_day)
+        if target_weekday is None:
+            return
+        
+        today = datetime.now().date()
+        
+        # Determine how many meetings to create ahead
+        if group.meeting_frequency == 'weekly':
+            days_ahead = 28  # 4 weeks ahead
+        elif group.meeting_frequency == 'bi-weekly':
+            days_ahead = 42  # 6 weeks ahead
+        elif group.meeting_frequency == 'monthly':
+            days_ahead = 90  # ~3 months ahead
+        else:
+            return  # Unknown frequency
+        
+        # Find next occurrence of the meeting day
+        days_until_next = (target_weekday - today.weekday()) % 7
+        if days_until_next == 0:
+            # If today is the meeting day, check if we already have today's meeting
+            existing_today = ConnectGroupMeeting.query.filter_by(
+                group_id=group.id,
+                meeting_date=today
+            ).first()
+            if not existing_today:
+                days_until_next = 0  # Create today's meeting
+            else:
+                days_until_next = 7  # Start from next week
+        
+        next_meeting_date = today + timedelta(days=days_until_next)
+        
+        # Create meetings up to days_ahead
+        meetings_created = 0
+        current_date = next_meeting_date
+        
+        while (current_date - today).days <= days_ahead and meetings_created < 10:  # Limit to 10 meetings
+            # Check if meeting already exists
+            existing = ConnectGroupMeeting.query.filter_by(
+                group_id=group.id,
+                meeting_date=current_date
+            ).first()
+            
+            if not existing:
+                meeting = ConnectGroupMeeting(
+                    group_id=group.id,
+                    meeting_date=current_date,
+                    notes=f"Auto-created based on {group.meeting_frequency} schedule"
+                )
+                db.session.add(meeting)
+                meetings_created += 1
+            
+            # Move to next meeting date
+            if group.meeting_frequency == 'weekly':
+                current_date += timedelta(days=7)
+            elif group.meeting_frequency == 'bi-weekly':
+                current_date += timedelta(days=14)
+            elif group.meeting_frequency == 'monthly':
+                # Approximate monthly (30 days)
+                current_date += timedelta(days=30)
+        
+        if meetings_created > 0:
+            db.session.commit()
+            logger.info(f"Auto-created {meetings_created} meetings for group {group.id}")
+    except Exception as e:
+        logger.error(f"Error auto-creating meetings for group {group.id}: {e}")
+        db.session.rollback()
+
+
+@app.route('/api/connect-groups/<group_id>', methods=['GET'])
+def get_connect_group(group_id):
+    """Get connect group details with members (allows leader access via email + access code)"""
+    try:
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
         
-        # If user only has view_own_groups, verify they're the leader
-        if has_view_own and not has_view:
-            user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
-            if not user_person or (group.leader_id != user_person.id and group.co_leader_id != user_person.id):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+        # Check permissions - either logged-in user OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                has_view = current_user.has_permission('groups', 'view')
+                has_view_own = current_user.has_permission('groups', 'view_own_groups')
+                
+                if has_view:
+                    is_authenticated_user = True
+                elif has_view_own:
+                    user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
+                    if user_person and (group.leader_id == user_person.id or group.co_leader_id == user_person.id):
+                        is_authenticated_user = True
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code from query params
+        if not is_authenticated_user:
+            leader_email = request.args.get('leader_email', '').lower()
+            access_code = request.args.get('access_code', '')
+            
+            group_leader_email = group.leader.email.lower() if group.leader and group.leader.email else None
+            group_co_leader_email = group.co_leader.email.lower() if group.co_leader and group.co_leader.email else None
+            
+            if leader_email and (leader_email == group_leader_email or leader_email == group_co_leader_email):
+                # Verify access code if set
+                if group.leader_access_code:
+                    if access_code == group.leader_access_code:
+                        is_leader = True
+                else:
+                    # No access code required
+                    is_leader = True
+        
+        if not is_authenticated_user and not is_leader:
+            return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Get members
         members = group.get_members()
+        
+        # Auto-create upcoming meetings based on schedule
+        if group.meeting_day and group.meeting_frequency:
+            _auto_create_upcoming_meetings(group)
         
         # Get meetings (sorted by date, most recent first)
         meetings = ConnectGroupMeeting.query.filter_by(group_id=group_id).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
@@ -14197,6 +14306,72 @@ def get_passport_data(person_email):
 # PRAYER REQUEST SYSTEM ROUTES
 from prayer_api import prayer_bp
 app.register_blueprint(prayer_bp)
+
+# CONNECT GROUPS API
+try:
+    from connect_groups_api import connect_groups_bp
+    app.register_blueprint(connect_groups_bp)
+    logger.info("Connect Groups API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import connect_groups_api: {e}")
+
+# EVENTS API
+try:
+    from events_api import events_bp
+    app.register_blueprint(events_bp)
+    logger.info("Events API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import events_api: {e}")
+
+# Mobile app profile endpoint
+@app.route('/api/persons/email/<email>', methods=['GET'])
+def get_person_by_email_endpoint(email):
+    """Get person profile by email (for mobile app)"""
+    try:
+        person = Person.query.filter_by(email=email, is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        person_data = person.to_dict()
+        
+        # Add engagement profile if exists
+        if person.engagement_profile:
+            person_data['engagement'] = person.engagement_profile.to_dict()
+        
+        return jsonify(person_data), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting person by email: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/push-tokens', methods=['POST'])
+def save_push_token():
+    """Save push notification token for a person"""
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        push_token = data.get('push_token')
+        
+        if not email or not push_token:
+            return jsonify({'error': 'Email and push_token required'}), 400
+        
+        # TODO: Store push token in database for later use
+        # For now, just acknowledge receipt
+        logger.info(f"Push token saved for {email}")
+        
+        return jsonify({'success': True, 'message': 'Push token saved'}), 200
+        
+    except Exception as e:
+        logger.error(f"Error saving push token: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# Giving API (Stripe integration)
+try:
+    from giving_api import giving_bp
+    app.register_blueprint(giving_bp)
+    print("[INFO] Giving API (Stripe) registered")
+except Exception as e:
+    print(f"[WARNING] Failed to register Giving API: {e}")
 
 # SERVING MODULE ROUTES
 from serving_api import serving_bp
