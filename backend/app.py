@@ -14943,19 +14943,17 @@ def google_oauth_callback():
             </div>
             <script>
                 (function() {
-                    // Immediately try to notify parent/opener (the login page)
+                    // CRITICAL: This is a popup window - it MUST close and notify parent
+                    // DO NOT redirect this window - it will become the main page
                     try {
                         if (window.opener && !window.opener.closed) {
                             // Desktop popup scenario - notify parent window (login page)
-                            // Send message with current origin to ensure it's received
                             const origin = window.location.origin;
                             window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                            console.log('Sent success message to opener');
+                            console.log('Sent success message to opener, closing popup...');
                             
-                            // Give the parent window a moment to receive the message, then close
-                            setTimeout(() => {
-                                window.close();
-                            }, 500);
+                            // Close immediately - parent will handle redirect
+                            window.close();
                             return;
                         } else if (window.parent && window.parent !== window) {
                             // Iframe scenario
@@ -14966,16 +14964,15 @@ def google_oauth_callback():
                         console.log('Could not post message:', e);
                     }
                     
-                    // For mobile redirects or if popup detection fails, redirect back to app
-                    // Store success in sessionStorage for the app to detect
+                    // Fallback: If we can't detect opener, try to close anyway
+                    // This prevents the popup from becoming the main page
                     try {
-                        sessionStorage.setItem('google_oauth_success', 'true');
+                        window.close();
                     } catch (e) {
-                        console.log('Could not set sessionStorage:', e);
+                        console.log('Could not close window:', e);
+                        // Last resort: redirect to a blank page that closes
+                        window.location.href = 'about:blank';
                     }
-                    
-                    // Redirect to login page which will detect the success and refresh
-                    window.location.href = '/login?oauth_success=true';
                 })();
             </script>
         </body>
