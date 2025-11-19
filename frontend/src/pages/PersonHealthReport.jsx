@@ -1001,15 +1001,36 @@ const PersonHealthReport = () => {
                     categoryIcon = '👥';
                     categoryColor = 'purple';
                   } else if (selectedCategory === 'spiritual' && recent_activity?.discipleship_steps) {
-                    categoryEvents = recent_activity.discipleship_steps.map(d => ({
-                      ...d,
-                      type: 'discipleship',
-                      icon: '✨',
-                      title: d.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                      date: d.date || d.created_at,
-                      details: d.description || '',
-                      color: 'indigo'
-                    }));
+                    categoryEvents = recent_activity.discipleship_steps.map(d => {
+                      // Handle Person milestones (baptism, DNA, etc.) vs DiscipleshipStep records
+                      const isPersonMilestone = d.is_person_milestone;
+                      let title = '';
+                      let icon = '✨';
+                      
+                      if (isPersonMilestone) {
+                        // Use description for Person milestones (e.g., "Baptism", "DNA Completed")
+                        title = d.description || d.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        // Use specific icons for milestones
+                        if (d.type === 'baptism') icon = '💧';
+                        else if (d.type === 'dna_completed') icon = '📖';
+                        else if (d.type === 'filled_holy_spirit') icon = '🔥';
+                        else if (d.type === 'rise_attended') icon = '🌟';
+                        else if (d.type === 'first_served') icon = '🤝';
+                      } else {
+                        // Regular DiscipleshipStep
+                        title = d.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      }
+                      
+                      return {
+                        ...d,
+                        type: 'discipleship',
+                        icon: icon,
+                        title: title,
+                        date: d.date || d.created_at,
+                        details: d.description || '',
+                        color: 'indigo'
+                      };
+                    });
                     categoryIcon = '✨';
                     categoryColor = 'indigo';
                   } else if (selectedCategory === 'care' && recent_activity?.open_care_cases) {

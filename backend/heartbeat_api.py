@@ -199,10 +199,74 @@ def get_person_heartbeat(person_id):
             ServingAssignment.person_id == person_id
         ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
         
-        # Recent discipleship steps
+        # Recent discipleship steps from DiscipleshipStep table
         recent_steps = DiscipleshipStep.query.filter(
             DiscipleshipStep.person_id == person_id
         ).order_by(DiscipleshipStep.date.desc()).limit(10).all()
+        
+        # Also include Person-level milestones (baptism, DNA, etc.) as spiritual events
+        # Include ALL milestones regardless of date (not just last 12 weeks) since these are significant life events
+        person_milestones = []
+        
+        if person.baptised_on:
+            person_milestones.append({
+                'id': f'person_milestone_baptism_{person.id}',
+                'person_id': person_id,
+                'type': 'baptism',
+                'description': 'Baptism',
+                'date': person.baptised_on.isoformat() if person.baptised_on else None,
+                'created_at': person.baptised_on.isoformat() if person.baptised_on else None,
+                'is_person_milestone': True
+            })
+        
+        if person.dna_completed:
+            person_milestones.append({
+                'id': f'person_milestone_dna_{person.id}',
+                'person_id': person_id,
+                'type': 'dna_completed',
+                'description': 'DNA Completed',
+                'date': person.dna_completed.isoformat() if person.dna_completed else None,
+                'created_at': person.dna_completed.isoformat() if person.dna_completed else None,
+                'is_person_milestone': True
+            })
+        
+        if person.filled_holy_spirit:
+            person_milestones.append({
+                'id': f'person_milestone_holy_spirit_{person.id}',
+                'person_id': person_id,
+                'type': 'filled_holy_spirit',
+                'description': 'Filled with Holy Spirit',
+                'date': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None,
+                'created_at': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None,
+                'is_person_milestone': True
+            })
+        
+        if person.rise_attended:
+            person_milestones.append({
+                'id': f'person_milestone_rise_{person.id}',
+                'person_id': person_id,
+                'type': 'rise_attended',
+                'description': 'RISE Attended',
+                'date': person.rise_attended.isoformat() if person.rise_attended else None,
+                'created_at': person.rise_attended.isoformat() if person.rise_attended else None,
+                'is_person_milestone': True
+            })
+        
+        if person.first_served_on:
+            person_milestones.append({
+                'id': f'person_milestone_first_served_{person.id}',
+                'person_id': person_id,
+                'type': 'first_served',
+                'description': 'First Time Serving',
+                'date': person.first_served_on.isoformat() if person.first_served_on else None,
+                'created_at': person.first_served_on.isoformat() if person.first_served_on else None,
+                'is_person_milestone': True
+            })
+        
+        # Combine DiscipleshipStep records with Person milestones
+        all_discipleship_steps = [d.to_dict() for d in recent_steps] + person_milestones
+        # Sort by date (newest first)
+        all_discipleship_steps.sort(key=lambda x: x.get('date') or x.get('created_at') or '', reverse=True)
         
         # Open care cases
         open_cases = CareCase.query.filter(
@@ -226,7 +290,7 @@ def get_person_heartbeat(person_id):
                 'attendance': [a.to_dict() for a in recent_attendance],
                 'connect_groups': [c.to_dict() for c in recent_connect],
                 'serving': [s.to_dict() for s in recent_serving],
-                'discipleship_steps': [d.to_dict() for d in recent_steps],
+                'discipleship_steps': all_discipleship_steps,
                 'open_care_cases': [c.to_dict() for c in open_cases]
             }
         }), 200
