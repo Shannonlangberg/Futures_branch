@@ -1149,9 +1149,21 @@ class User(UserMixin):
         from werkzeug.security import check_password_hash
         return check_password_hash(self.password_hash, password)
         
-    def has_permission(self, permission_type, campus=None):
-        """Check if user has specific permission based on role"""
-        # Define permissions for each role
+    def has_permission(self, permission_type, action=None, campus=None):
+        """Check if user has specific permission based on role
+        
+        Supports both old-style (e.g., 'log_stats') and new RBAC-style (e.g., 'groups', 'view') permissions
+        """
+        # If action is provided, use RBAC system
+        if action is not None:
+            try:
+                from utils.rbac import rbac_manager
+                return rbac_manager.has_permission(self.role, permission_type, action)
+            except Exception as e:
+                logger.error(f"Error checking RBAC permission: {e}")
+                # Fall back to old system if RBAC fails
+        
+        # Define permissions for each role (legacy system)
         role_permissions = {
             'admin': {
                 'log_stats': True,
