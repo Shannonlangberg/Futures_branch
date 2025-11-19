@@ -145,33 +145,11 @@ const PersonHealthReport = () => {
   }, [personId]);
 
   useEffect(() => {
-    // Fetch AI suggestion when pathway data changes
-    if (data && data.pathway && data.pathway.id && data.pathway.next_step) {
-      const fetchSuggestion = async () => {
-        try {
-          setLoadingSuggestion(true);
-          const response = await fetch(`/api/pathways/progress/${data.pathway.id}/ai-suggestion`, {
-            credentials: 'include'
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            setAiSuggestion(result.suggestion || null);
-          } else {
-            setAiSuggestion(null);
-          }
-        } catch (err) {
-          console.error('Error fetching AI suggestion:', err);
-          setAiSuggestion(null);
-        } finally {
-          setLoadingSuggestion(false);
-        }
-      };
-      fetchSuggestion();
-    } else {
-      setAiSuggestion(null);
+    // Fetch AI suggestion when pathway data is available
+    if (data?.pathway?.id) {
+      fetchAISuggestion();
     }
-  }, [data?.pathway?.id, data?.pathway?.next_step?.id]);
+  }, [data?.pathway?.id]);
 
   const fetchPathways = async () => {
     try {
@@ -187,25 +165,25 @@ const PersonHealthReport = () => {
     }
   };
 
-  const fetchAiSuggestion = async () => {
-    if (!data || !data.pathway || !data.pathway.id) {
-      return;
-    }
-
+  const fetchAISuggestion = async () => {
+    if (!data?.pathway?.id) return;
+    
     try {
       setLoadingSuggestion(true);
       const response = await fetch(`/api/pathways/progress/${data.pathway.id}/ai-suggestion`, {
         credentials: 'include'
       });
-
+      
       if (response.ok) {
         const result = await response.json();
-        setAiSuggestion(result.suggestion || null);
-      } else {
-        console.error('Error fetching AI suggestion');
-        setAiSuggestion(null);
+        setAiSuggestion(result);
       }
     } catch (err) {
+      console.error('Error fetching AI suggestion:', err);
+    } finally {
+      setLoadingSuggestion(false);
+    }
+  };
       console.error('Error fetching AI suggestion:', err);
       setAiSuggestion(null);
     } finally {
@@ -705,22 +683,38 @@ const PersonHealthReport = () => {
                     {pathway.next_step.step_description && (
                       <div className="text-sm text-slate-300 mb-2">{pathway.next_step.step_description}</div>
                     )}
-                    {loadingSuggestion ? (
-                      <div className="flex items-center gap-2 mt-2 text-sm text-indigo-200/70">
-                        <span className="inline-block w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></span>
-                        <span>Getting AI suggestion...</span>
-                      </div>
-                    ) : aiSuggestion ? (
-                      <div className="mt-3 pt-3 border-t border-indigo-500/20">
-                        <div className="flex items-start gap-2">
-                          <span className="text-lg">💡</span>
-                          <div>
-                            <div className="text-xs font-semibold text-indigo-200 mb-1">AI Suggestion:</div>
-                            <div className="text-sm text-indigo-100/90 leading-relaxed">{aiSuggestion}</div>
-                          </div>
+                    
+                    {/* AI Suggestion */}
+                    {loadingSuggestion && (
+                      <div className="mt-4 pt-4 border-t border-indigo-500/20">
+                        <div className="flex items-center gap-2 text-sm text-indigo-200/70">
+                          <div className="inline-block w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Getting AI suggestion...</span>
                         </div>
                       </div>
-                    ) : null}
+                    )}
+                    {!loadingSuggestion && aiSuggestion?.suggestion && (
+                      <div className="mt-4 pt-4 border-t border-indigo-500/20">
+                        <div className="flex items-start gap-2 mb-2">
+                          <span className="text-lg">🤖</span>
+                          <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide">AI Suggestion</div>
+                        </div>
+                        <div className="text-sm text-slate-200 italic leading-relaxed">
+                          {aiSuggestion.suggestion}
+                        </div>
+                      </div>
+                    )}
+                    {!loadingSuggestion && !aiSuggestion?.suggestion && (
+                      <div className="mt-4 pt-4 border-t border-indigo-500/20">
+                        <button
+                          onClick={fetchAISuggestion}
+                          className="text-xs text-purple-300 hover:text-purple-200 flex items-center gap-1"
+                        >
+                          <span>🤖</span>
+                          <span>Get AI suggestion for next step</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">

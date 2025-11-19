@@ -706,6 +706,103 @@ def unassign_pathway(progress_id):
         return jsonify({'error': str(e)}), 500
 
 
+@pathway_bp.route('/progress/<int:progress_id>/ai-suggestion', methods=['GET'])
+@login_required
+def get_pathway_ai_suggestion(progress_id):
+    """Get AI-powered suggestion for next steps in pathway"""
+    try:
+        progress = PersonPathwayProgress.query.get(progress_id)
+        if not progress:
+            return jsonify({'error': 'Pathway progress not found'}), 404
+        
+        # Check permissions - person can see their own, or admin can see any
+        user_role = getattr(current_user, 'role', None)
+        is_admin = user_role in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']
+        if progress.person_id != getattr(current_user, 'id', None) and not (current_user.has_permission('heartbeat', 'view') or is_admin):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Import Claude if available
+        try:
+            from app import claude
+        except ImportError:
+            claude = None
+        
+        if not claude:
+            return jsonify({
+                'suggestion': None,
+                'message': 'AI assistant not available. Complete the next uncompleted step in your pathway.',
+                'next_step': progress.get_next_step().to_dict() if progress.get_next_step() else None
+            }), 200
+        
+        # Get person and pathway data
+        person = Person.query.get(progress.person_id)
+        completed_steps = progress.step_completions.all()
+        all_steps = progress.pathway.steps.order_by(PathwayStep.step_order).all()
+        next_step = progress.get_next_step()
+        
+        # Build context for Claude
+        completed_step_names = [c.pathway_step.step_name for c in completed_steps if c.pathway_step]
+        remaining_steps = [s for s in all_steps if s.id not in [c.pathway_step_id for c in completed_steps]]
+        
+        pathway_info = f"""
+Pathway: {progress.pathway.name}
+Person: {person.full_name if person else 'Unknown'}
+Progress: {progress.get_progress_percentage()}% complete ({len(completed_steps)} of {len(all_steps)} steps)
+
+Completed Steps:
+{chr(10).join([f"- {name}" for name in completed_step_names]) if completed_step_names else "None yet"}
+
+Remaining Steps:
+{chr(10).join([f"- {s.step_order}. {s.step_name}: {s.step_description or 'No description'}" for s in remaining_steps]) if remaining_steps else "All steps completed!"}
+
+Current Next Step (by order): {next_step.step_name if next_step else 'All complete'}
+"""
+        
+        prompt = f"""You are a discipleship coach helping guide someone through their spiritual journey pathway.
+
+{pathway_info}
+
+Based on this person's progress, provide a thoughtful, encouraging suggestion for what they should focus on next. Consider:
+1. Their spiritual journey so far
+2. Natural progression in discipleship
+3. What would be most beneficial at this stage
+4. Any steps that might have been completed out of order
+
+Give a brief (2-3 sentences), encouraging, pastoral response suggesting what step they should tackle next and why. Be warm and supportive.
+
+If all steps are complete, celebrate their completion and suggest next steps in their spiritual growth."""
+        
+        try:
+            response = claude.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=300,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+            
+            suggestion = response.content[0].text.strip()
+            
+            return jsonify({
+                'suggestion': suggestion,
+                'next_step': next_step.to_dict() if next_step else None,
+                'progress_percentage': progress.get_progress_percentage()
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"Claude API error in pathway suggestion: {e}")
+            return jsonify({
+                'suggestion': None,
+                'message': 'AI suggestion unavailable. Complete the next uncompleted step in your pathway.',
+                'next_step': next_step.to_dict() if next_step else None
+            }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting AI suggestion: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # MOBILE APP ENDPOINT (Public - person can see their own pathway)
 @pathway_bp.route('/my-pathway', methods=['GET'])
 def get_my_pathway():
