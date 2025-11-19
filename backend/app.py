@@ -13862,6 +13862,106 @@ def create_group_meeting(group_id):
         return jsonify({'error': 'Failed to create meeting'}), 500
 
 
+@app.route('/api/connect-groups/health', methods=['GET'])
+@login_required
+def get_connect_groups_health():
+    """Get connect groups health/attendance data for the last 3 months"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        from models import ConnectAttendance, HeartbeatConnectGroup
+        from datetime import date, timedelta
+        from collections import defaultdict
+        
+        # Get date range (last 3 months)
+        end_date = date.today()
+        start_date = end_date - timedelta(days=90)
+        
+        # Get all connect attendance records in the date range
+        attendance_records = ConnectAttendance.query.filter(
+            ConnectAttendance.date >= start_date,
+            ConnectAttendance.date <= end_date
+        ).all()
+        
+        # Group by date and status
+        daily_stats = defaultdict(lambda: {'present': 0, 'absent': 0, 'total': 0})
+        
+        for record in attendance_records:
+            date_key = record.date.isoformat()
+            if record.status == 'present':
+                daily_stats[date_key]['present'] += 1
+            elif record.status == 'absent':
+                daily_stats[date_key]['absent'] += 1
+            daily_stats[date_key]['total'] += 1
+        
+        # Convert to list sorted by date
+        attendance_data = []
+        current_date = start_date
+        while current_date <= end_date:
+            date_key = current_date.isoformat()
+            stats = daily_stats.get(date_key, {'present': 0, 'absent': 0, 'total': 0})
+            attendance_data.append({
+                'date': date_key,
+                'present': stats['present'],
+                'absent': stats['absent'],
+                'total': stats['total'],
+                'attendance_rate': (stats['present'] / stats['total'] * 100) if stats['total'] > 0 else 0
+            })
+            current_date += timedelta(days=1)
+        
+        # Get group-level stats
+        group_stats = []
+        groups = HeartbeatConnectGroup.query.filter_by(is_active=True).all()
+        
+        for group in groups:
+            group_attendance = ConnectAttendance.query.filter(
+                ConnectAttendance.connect_group_id == group.id,
+                ConnectAttendance.date >= start_date,
+                ConnectAttendance.date <= end_date
+            ).all()
+            
+            present_count = len([a for a in group_attendance if a.status == 'present'])
+            absent_count = len([a for a in group_attendance if a.status == 'absent'])
+            total_count = present_count + absent_count
+            
+            group_stats.append({
+                'group_id': group.id,
+                'group_name': group.name,
+                'campus': group.campus.name if group.campus else None,
+                'present': present_count,
+                'absent': absent_count,
+                'total': total_count,
+                'attendance_rate': (present_count / total_count * 100) if total_count > 0 else 0
+            })
+        
+        # Sort groups by attendance rate (lowest first to highlight issues)
+        group_stats.sort(key=lambda x: x['attendance_rate'])
+        
+        return jsonify({
+            'date_range': {
+                'start': start_date.isoformat(),
+                'end': end_date.isoformat()
+            },
+            'daily_attendance': attendance_data,
+            'group_stats': group_stats,
+            'summary': {
+                'total_meetings': len([d for d in attendance_data if d['total'] > 0]),
+                'total_present': sum(d['present'] for d in attendance_data),
+                'total_absent': sum(d['absent'] for d in attendance_data),
+                'overall_attendance_rate': (
+                    sum(d['present'] for d in attendance_data) / 
+                    sum(d['total'] for d in attendance_data) * 100
+                ) if sum(d['total'] for d in attendance_data) > 0 else 0
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error getting connect groups health: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to get connect groups health data'}), 500
+
+
 @app.route('/api/connect-groups/meetings/<meeting_id>', methods=['GET'])
 def get_group_meeting(meeting_id):
     """Get meeting details with attendance"""

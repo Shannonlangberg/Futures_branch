@@ -47,12 +47,40 @@ const ConnectGroups = () => {
   const [memberSearch, setMemberSearch] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const memberDropdownRef = useRef(null);
+  const [showHealthModal, setShowHealthModal] = useState(false);
+  const [healthData, setHealthData] = useState(null);
+  const [loadingHealth, setLoadingHealth] = useState(false);
 
   useEffect(() => {
     loadCampuses();
     loadPeople();
     loadGroups();
   }, [campusFilter]);
+
+  useEffect(() => {
+    if (showHealthModal) {
+      loadHealthData();
+    }
+  }, [showHealthModal]);
+
+  const loadHealthData = async () => {
+    try {
+      setLoadingHealth(true);
+      const response = await fetch('/api/connect-groups/health', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setHealthData(data);
+      } else {
+        console.error('Failed to load health data');
+      }
+    } catch (err) {
+      console.error('Error loading health data:', err);
+    } finally {
+      setLoadingHealth(false);
+    }
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -275,13 +303,24 @@ const ConnectGroups = () => {
               </h1>
               <p className="text-slate-400">Manage connect groups and their members</p>
             </div>
-            <button
-              onClick={() => handleOpenModal()}
-              className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <PlusIcon className="w-5 h-5 mr-2" />
-              Create Group
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowHealthModal(true)}
+                className="flex items-center px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Connect Health
+              </button>
+              <button
+                onClick={() => handleOpenModal()}
+                className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <PlusIcon className="w-5 h-5 mr-2" />
+                Create Group
+              </button>
+            </div>
           </div>
         </div>
 
@@ -973,6 +1012,183 @@ const ConnectGroups = () => {
                     </a>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Connect Health Modal */}
+        {showHealthModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-slate-700">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Connect Health Dashboard
+                  </h2>
+                  <button
+                    onClick={() => setShowHealthModal(false)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <XMarkIcon className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {loadingHealth ? (
+                  <div className="text-center py-12">
+                    <div className="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 mt-4">Loading health data...</p>
+                  </div>
+                ) : healthData ? (
+                  <>
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/30 border border-purple-500/40 rounded-xl p-4">
+                        <div className="text-sm text-purple-300 mb-1">Overall Attendance Rate</div>
+                        <div className="text-3xl font-bold text-white">
+                          {healthData.summary.overall_attendance_rate.toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-green-900/30 to-green-800/30 border border-green-500/40 rounded-xl p-4">
+                        <div className="text-sm text-green-300 mb-1">Total Present</div>
+                        <div className="text-3xl font-bold text-white">
+                          {healthData.summary.total_present.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-red-900/30 to-red-800/30 border border-red-500/40 rounded-xl p-4">
+                        <div className="text-sm text-red-300 mb-1">Total Absent</div>
+                        <div className="text-3xl font-bold text-white">
+                          {healthData.summary.total_absent.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/30 border border-blue-500/40 rounded-xl p-4">
+                        <div className="text-sm text-blue-300 mb-1">Total Meetings</div>
+                        <div className="text-3xl font-bold text-white">
+                          {healthData.summary.total_meetings}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Attendance Chart - Last 3 Months */}
+                    <div className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-6">
+                      <h3 className="text-xl font-semibold text-white mb-4">Attendance Trend (Last 3 Months)</h3>
+                      <div className="space-y-2">
+                        {/* Chart */}
+                        <div className="relative h-64 bg-slate-800/50 rounded-lg p-4 overflow-x-auto">
+                          <div className="flex items-end gap-1 h-full min-w-full" style={{ minWidth: `${healthData.daily_attendance.length * 4}px` }}>
+                            {healthData.daily_attendance
+                              .filter(d => d.total > 0) // Only show days with meetings
+                              .map((day, idx) => {
+                                const maxTotal = Math.max(...healthData.daily_attendance.map(d => d.total), 1);
+                                const presentHeight = (day.present / maxTotal) * 100;
+                                const absentHeight = (day.absent / maxTotal) * 100;
+                                
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="flex flex-col items-center group relative"
+                                    style={{ flex: '0 0 auto', width: '4px' }}
+                                    title={`${new Date(day.date).toLocaleDateString()}: ${day.present} present, ${day.absent} absent`}
+                                  >
+                                    <div className="w-full flex flex-col-reverse" style={{ height: '200px' }}>
+                                      {day.absent > 0 && (
+                                        <div
+                                          className="w-full bg-red-500/60 hover:bg-red-500 transition-colors"
+                                          style={{ height: `${absentHeight}%` }}
+                                        />
+                                      )}
+                                      {day.present > 0 && (
+                                        <div
+                                          className="w-full bg-green-500/60 hover:bg-green-500 transition-colors"
+                                          style={{ height: `${presentHeight}%` }}
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                        {/* Legend */}
+                        <div className="flex items-center gap-6 mt-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-green-500/60 rounded"></div>
+                            <span className="text-slate-300">Present</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-red-500/60 rounded"></div>
+                            <span className="text-slate-300">Absent</span>
+                          </div>
+                          <div className="text-slate-400 text-xs ml-auto">
+                            {new Date(healthData.date_range.start).toLocaleDateString()} - {new Date(healthData.date_range.end).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Group Stats Table */}
+                    <div className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-6">
+                      <h3 className="text-xl font-semibold text-white mb-4">Group Performance</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-slate-600">
+                              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Group Name</th>
+                              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Campus</th>
+                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Present</th>
+                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Absent</th>
+                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Total</th>
+                              <th className="text-right py-3 px-4 text-slate-300 font-semibold">Rate</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {healthData.group_stats.map((group, idx) => (
+                              <tr
+                                key={idx}
+                                className={`border-b border-slate-700/50 hover:bg-slate-700/30 ${
+                                  group.attendance_rate < 50 ? 'bg-red-500/10' :
+                                  group.attendance_rate < 70 ? 'bg-amber-500/10' :
+                                  'bg-green-500/10'
+                                }`}
+                              >
+                                <td className="py-3 px-4 text-white font-medium">{group.group_name}</td>
+                                <td className="py-3 px-4 text-slate-300">{group.campus || 'N/A'}</td>
+                                <td className="py-3 px-4 text-right text-green-400">{group.present}</td>
+                                <td className="py-3 px-4 text-right text-red-400">{group.absent}</td>
+                                <td className="py-3 px-4 text-right text-slate-300">{group.total}</td>
+                                <td className="py-3 px-4 text-right">
+                                  <span className={`font-semibold ${
+                                    group.attendance_rate >= 70 ? 'text-green-400' :
+                                    group.attendance_rate >= 50 ? 'text-amber-400' :
+                                    'text-red-400'
+                                  }`}>
+                                    {group.attendance_rate.toFixed(1)}%
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                            {healthData.group_stats.length === 0 && (
+                              <tr>
+                                <td colSpan="6" className="py-8 text-center text-slate-400">
+                                  No attendance data available
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12 text-slate-400">
+                    No health data available
+                  </div>
+                )}
               </div>
             </div>
           </div>
