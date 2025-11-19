@@ -471,6 +471,169 @@ class BeaconSchedule(db.Model):
         }
 
 
+class DiscipleshipPathway(db.Model):
+    """Discipleship pathway template (e.g., Leadership, Worship Leader, etc.)"""
+    __tablename__ = 'discipleship_pathways'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(50))  # 'leadership', 'worship', 'ministry', 'connect_leader', 'general'
+    is_active = db.Column(db.Boolean, default=True)
+    is_template = db.Column(db.Boolean, default=False)  # Pre-built templates
+    created_by_person_id = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    steps = db.relationship('PathwayStep', backref='pathway', lazy='dynamic', order_by='PathwayStep.step_order', cascade='all, delete-orphan')
+    person_progress = db.relationship('PersonPathwayProgress', backref='pathway', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        """Convert pathway to dictionary"""
+        steps_list = [s.to_dict() for s in self.steps.order_by(PathwayStep.step_order).all()]
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'category': self.category,
+            'is_active': self.is_active,
+            'is_template': self.is_template,
+            'created_by_person_id': self.created_by_person_id,
+            'steps': steps_list,
+            'step_count': len(steps_list),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class PathwayStep(db.Model):
+    """Individual step/milestone in a pathway"""
+    __tablename__ = 'discipleship_pathway_steps'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    pathway_id = db.Column(db.Integer, db.ForeignKey('discipleship_pathways.id'), nullable=False)
+    step_order = db.Column(db.Integer, nullable=False)  # Order in pathway (1, 2, 3...)
+    step_name = db.Column(db.String(200), nullable=False)
+    step_description = db.Column(db.Text)
+    milestone_type = db.Column(db.String(50))  # Maps to DiscipleshipStep.type or custom
+    is_required = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    completions = db.relationship('PersonPathwayStepCompletion', backref='pathway_step', lazy='dynamic')
+    
+    def to_dict(self):
+        """Convert step to dictionary"""
+        return {
+            'id': self.id,
+            'pathway_id': self.pathway_id,
+            'step_order': self.step_order,
+            'step_name': self.step_name,
+            'step_description': self.step_description,
+            'milestone_type': self.milestone_type,
+            'is_required': self.is_required,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class PersonPathwayProgress(db.Model):
+    """Tracks a person's progress through a pathway"""
+    __tablename__ = 'person_pathway_progress'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    pathway_id = db.Column(db.Integer, db.ForeignKey('discipleship_pathways.id'), nullable=False)
+    assigned_by_person_id = db.Column(db.String(50))
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    current_step_id = db.Column(db.Integer, db.ForeignKey('discipleship_pathway_steps.id'))
+    is_active = db.Column(db.Boolean, default=True)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    person = db.relationship('Person', backref='pathway_progress')
+    current_step = db.relationship('PathwayStep', foreign_keys=[current_step_id])
+    step_completions = db.relationship('PersonPathwayStepCompletion', backref='person_pathway_progress', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def get_progress_percentage(self):
+        """Calculate progress percentage"""
+        if not self.pathway:
+            return 0
+        
+        total_steps = self.pathway.steps.count()
+        if total_steps == 0:
+            return 0
+        
+        completed_steps = self.step_completions.count()
+        return round((completed_steps / total_steps) * 100, 1)
+    
+    def get_next_step(self):
+        """Get the next uncompleted step"""
+        if not self.pathway:
+            return None
+        
+        completed_step_ids = [c.pathway_step_id for c in self.step_completions.all()]
+        all_steps = self.pathway.steps.order_by(PathwayStep.step_order).all()
+        
+        for step in all_steps:
+            if step.id not in completed_step_ids:
+                return step
+        
+        return None  # All steps completed
+    
+    def to_dict(self):
+        """Convert progress to dictionary"""
+        next_step = self.get_next_step()
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'pathway_id': self.pathway_id,
+            'pathway_name': self.pathway.name if self.pathway else None,
+            'assigned_by_person_id': self.assigned_by_person_id,
+            'assigned_at': self.assigned_at.isoformat() if self.assigned_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'current_step_id': self.current_step_id,
+            'current_step': self.current_step.to_dict() if self.current_step else None,
+            'next_step': next_step.to_dict() if next_step else None,
+            'is_active': self.is_active,
+            'notes': self.notes,
+            'progress_percentage': self.get_progress_percentage(),
+            'completed_steps': self.step_completions.count(),
+            'total_steps': self.pathway.steps.count() if self.pathway else 0,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class PersonPathwayStepCompletion(db.Model):
+    """Tracks when a person completed a specific pathway step"""
+    __tablename__ = 'person_pathway_step_completion'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_pathway_progress_id = db.Column(db.Integer, db.ForeignKey('person_pathway_progress.id'), nullable=False)
+    pathway_step_id = db.Column(db.Integer, db.ForeignKey('discipleship_pathway_steps.id'), nullable=False)
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_by_person_id = db.Column(db.String(50))  # Who marked it complete
+    notes = db.Column(db.Text)
+    
+    def to_dict(self):
+        """Convert completion to dictionary"""
+        return {
+            'id': self.id,
+            'person_pathway_progress_id': self.person_pathway_progress_id,
+            'pathway_step_id': self.pathway_step_id,
+            'step_name': self.pathway_step.step_name if self.pathway_step else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'completed_by_person_id': self.completed_by_person_id,
+            'notes': self.notes
+        }
+
+
 class ConnectGroup(db.Model):
     """Connect Group model"""
     __tablename__ = 'connect_groups'

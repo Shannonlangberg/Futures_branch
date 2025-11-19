@@ -14119,6 +14119,15 @@ try:
         logger.info("Beacon API blueprint registered successfully")
     except ImportError as e:
         logger.warning(f"Could not import beacon_api: {e}. Beacon features will be unavailable.")
+    
+    # PATHWAY MANAGEMENT ROUTES
+    try:
+        from pathway_api import pathway_bp
+        app.register_blueprint(pathway_bp)
+        logger.info("Pathway API blueprint registered successfully")
+    except ImportError as e:
+        logger.warning(f"Could not import pathway_api: {e}. Pathway features will be unavailable.")
+    
     logger.info("Heartbeat API blueprint registered successfully")
 except ImportError as e:
     logger.warning(f"Could not import heartbeat_api: {e}. Heartbeat features will be unavailable.")

@@ -185,10 +185,18 @@ def get_person_heartbeat(person_id):
             CareCase.status.in_(['open', 'in_progress'])
         ).all()
         
+        # Get pathway progress
+        from models import PersonPathwayProgress
+        pathway_progress = PersonPathwayProgress.query.filter_by(
+            person_id=person_id,
+            is_active=True
+        ).first()
+        
         return jsonify({
             'person_id': person_id,
             'person': person.to_dict(),
             'heartbeat': snapshot.to_dict(),
+            'pathway': pathway_progress.to_dict() if pathway_progress else None,
             'recent_activity': {
                 'attendance': [a.to_dict() for a in recent_attendance],
                 'connect_groups': [c.to_dict() for c in recent_connect],
