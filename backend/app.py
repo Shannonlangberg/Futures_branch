@@ -963,7 +963,24 @@ def run_migrations():
         # This prevents the app from crashing on startup due to migration issues
         logger.warning("Continuing app startup despite migration errors...")
 
-CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"], allow_headers=["Content-Type", "Authorization"])
+# CORS configuration - allow localhost for development and Railway domains for production
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "http://localhost:5173",
+    "https://futuresbranch-production.up.railway.app",
+    "https://futures-pulse-production.up.railway.app",
+    "https://futures.pulse.com"
+]
+# Also allow any Railway subdomain
+railway_origin = os.environ.get('RAILWAY_PUBLIC_DOMAIN') or os.environ.get('RAILWAY_STATIC_URL')
+if railway_origin:
+    allowed_origins.append(railway_origin)
+    # Also add HTTP version if HTTPS is provided
+    if railway_origin.startswith('https://'):
+        allowed_origins.append(railway_origin.replace('https://', 'http://'))
+
+CORS(app, supports_credentials=True, origins=allowed_origins, allow_headers=["Content-Type", "Authorization"])
 
 # Enable response compression for better performance
 Compress(app)
@@ -14911,11 +14928,12 @@ def google_oauth_callback():
         
         # Log success (don't re-login user as it can cause recursion)
         if current_user.is_authenticated:
-            logger.info(f"Google Drive OAuth successful for authenticated user {current_user.username} (ID: {user_id}), tokens stored in session")
+            logger.info(f"Google Drive OAuth successful for authenticated user {current_user.username} (ID: {user_id}), tokens stored in session. Session keys: {list(session.keys())}")
         else:
-            logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session")
+            logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session. Session keys: {list(session.keys())}")
         
         # Return success page that handles both popup and redirect scenarios
+        # Flask will automatically save the session when the response is returned
         return '''
         <!DOCTYPE html>
         <html>
@@ -14965,94 +14983,46 @@ def google_oauth_callback():
                                 // Desktop popup scenario - notify parent window (login page)
                                 const origin = window.location.origin;
                                 
-                                // Send message multiple times to ensure it's received
-                                // Send with specific origin
-                                window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                                console.log('[OAuth Callback] Sent success message to opener with origin:', origin);
+                                // Send message immediately and close after a delay
+                                // The main window will handle session verification
+                                // This avoids cookie sharing issues between popup and main window
+                                console.log('[OAuth Callback] Sending success message and closing popup...');
                                 
-                                // Also send with wildcard as fallback (less secure but ensures delivery)
-                                try {
-                                    window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                                    console.log('[OAuth Callback] Also sent message with wildcard origin');
-                                } catch (e) {
-                                    console.log('[OAuth Callback] Could not send wildcard message:', e);
-                                }
-                                
-                                // Send again after a short delay to ensure delivery
-                                setTimeout(() => {
+                                // Send message multiple times to ensure delivery
+                                const sendMessage = () => {
                                     try {
-                                        window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                                        console.log('[OAuth Callback] Sent duplicate messages');
+                                        window.opener.postMessage({ 
+                                            type: 'googleAuthSuccess',
+                                            timestamp: Date.now()
+                                        }, origin);
+                                        window.opener.postMessage({ 
+                                            type: 'googleAuthSuccess',
+                                            timestamp: Date.now()
+                                        }, '*');
                                     } catch (e) {
-                                        console.log('[OAuth Callback] Could not send duplicate messages:', e);
+                                        console.error('[OAuth Callback] Error sending message:', e);
                                     }
-                                }, 200);
-                                
-                                // Verify session was saved before closing
-                                // Poll the session endpoint to confirm it's ready
-                                let sessionVerified = false;
-                                let verificationAttempts = 0;
-                                const maxVerificationAttempts = 10;
-                                
-                                const verifySession = () => {
-                                    verificationAttempts++;
-                                    fetch('/api/session', { credentials: 'include' })
-                                        .then(res => res.json())
-                                        .then((sessionData) => {
-                                            console.log('[OAuth Callback] Session verification attempt', verificationAttempts, sessionData);
-                                            if (sessionData && sessionData.authenticated && sessionData.needs_drive_auth === false) {
-                                                sessionVerified = true;
-                                                console.log('[OAuth Callback] Session verified! Closing popup...');
-                                                // Send final message
-                                                window.opener.postMessage({ type: 'googleAuthSuccess', verified: true }, origin);
-                                                window.opener.postMessage({ type: 'googleAuthSuccess', verified: true }, '*');
-                                                // Close after a short delay
-                                                setTimeout(() => {
-                                                    try {
-                                                        window.close();
-                                                    } catch (e) {
-                                                        console.log('[OAuth Callback] Could not close window:', e);
-                                                    }
-                                                }, 300);
-                                            } else if (verificationAttempts < maxVerificationAttempts) {
-                                                // Session not ready yet, try again
-                                                setTimeout(verifySession, 500);
-                                            } else {
-                                                // Max attempts reached, close anyway
-                                                console.log('[OAuth Callback] Max verification attempts reached, closing anyway...');
-                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                                                setTimeout(() => {
-                                                    try {
-                                                        window.close();
-                                                    } catch (e) {
-                                                        console.log('[OAuth Callback] Could not close window:', e);
-                                                    }
-                                                }, 300);
-                                            }
-                                        })
-                                        .catch((error) => {
-                                            console.error('[OAuth Callback] Error verifying session:', error);
-                                            if (verificationAttempts < maxVerificationAttempts) {
-                                                setTimeout(verifySession, 500);
-                                            } else {
-                                                // Max attempts reached, close anyway
-                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, origin);
-                                                window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                                                setTimeout(() => {
-                                                    try {
-                                                        window.close();
-                                                    } catch (e) {
-                                                        console.log('[OAuth Callback] Could not close window:', e);
-                                                    }
-                                                }, 300);
-                                            }
-                                        });
                                 };
                                 
-                                // Start verification after a short delay to allow session to save
-                                setTimeout(verifySession, 500);
+                                // Send immediately
+                                sendMessage();
+                                
+                                // Send again after short delays to ensure delivery
+                                setTimeout(sendMessage, 200);
+                                setTimeout(sendMessage, 500);
+                                setTimeout(sendMessage, 1000);
+                                
+                                // Close popup after ensuring message is sent
+                                setTimeout(() => {
+                                    try {
+                                        console.log('[OAuth Callback] Closing popup window...');
+                                        window.close();
+                                    } catch (e) {
+                                        console.log('[OAuth Callback] Could not close window:', e);
+                                        // Fallback: redirect to blank page
+                                        window.location.href = 'about:blank';
+                                    }
+                                }, 1500);
                                 return true;
                             } else if (window.parent && window.parent !== window) {
                                 // Iframe scenario

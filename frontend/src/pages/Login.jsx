@@ -192,72 +192,110 @@ const Login = ({ onLogin }) => {
       ];
       
       // Check if origin is allowed (wildcard always allowed)
-      const isOriginAllowed = event.origin === '*' || 
+      // Also allow any origin that matches our current origin (for Railway subdomains)
+      const currentOrigin = window.location.origin;
+      const isOriginAllowed = 
+        event.origin === '*' || 
+        event.origin === currentOrigin ||
+        event.origin.startsWith(currentOrigin) ||
         allowedOrigins.some(origin => 
           origin === '*' || 
           event.origin === origin || 
-          event.origin.startsWith(origin)
+          event.origin.startsWith(origin) ||
+          origin.startsWith(event.origin)
         );
       
       if (!isOriginAllowed) {
-        console.log('Message from disallowed origin:', event.origin);
+        console.log('[Login] Message from disallowed origin:', event.origin, 'current origin:', currentOrigin);
         return;
       }
       
+      console.log('[Login] Message from allowed origin:', event.origin);
+      
       if (event.data && event.data.type === 'googleAuthSuccess') {
-        console.log('Received Google OAuth success message from:', event.origin);
+        console.log('[Login] Received Google OAuth success message from:', event.origin, 'at', new Date().toISOString());
         setIsDriveConnecting(false);
         setDriveError('');
         setIsDriveAuthRequired(false);
         
-        // Wait a moment for session to update, then check and redirect
-        // If message includes verified flag, session is confirmed ready
-        const isVerified = event.data.verified === true;
-        const initialDelay = isVerified ? 300 : 1500; // Shorter delay if verified
+        // Immediately start checking session - be aggressive about it
+        // The backend has saved the session, but we need to poll until it's ready
+        let attempts = 0;
+        const maxAttempts = 10; // Increased attempts
+        const checkInterval = 500; // Check every 500ms
         
-        setTimeout(() => {
-          let attempts = 0;
-          const maxAttempts = 5;
+        const checkSessionAndRedirect = () => {
+          attempts++;
+          console.log(`[Login] Checking session after OAuth message (attempt ${attempts}/${maxAttempts})...`);
           
-          const checkSessionAndRedirect = () => {
-            attempts++;
-            console.log(`[Login] Checking session after OAuth message (attempt ${attempts}/${maxAttempts})...`);
-            
-            fetch('/api/session', { credentials: 'include' })
-              .then(res => res.json())
-              .then((sessionData) => {
-                console.log('[Login] Session check after OAuth:', sessionData);
-                if (sessionData && sessionData.authenticated && sessionData.needs_drive_auth === false) {
-                  // User is authenticated with Google Drive - redirect to dashboard
-                  console.log('[Login] User authenticated, redirecting to dashboard...');
+          fetch('/api/session', { 
+            credentials: 'include',
+            cache: 'no-cache',
+            headers: {
+              'Cache-Control': 'no-cache'
+            }
+          })
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`Session check failed: ${res.status}`);
+              }
+              return res.json();
+            })
+            .then((sessionData) => {
+              console.log('[Login] Session check result:', {
+                authenticated: sessionData?.authenticated,
+                needs_drive_auth: sessionData?.needs_drive_auth,
+                role: sessionData?.role
+              });
+              
+              if (sessionData && sessionData.authenticated) {
+                // If needs_drive_auth is false, we're good to go
+                if (sessionData.needs_drive_auth === false) {
+                  console.log('[Login] ✅ User fully authenticated with Google Drive! Redirecting to dashboard...');
                   if (onLogin) {
                     onLogin();
                   }
-                  // Use window.location for a full page navigation to ensure clean state
+                  // Use window.location for a full page navigation
                   window.location.href = '/dashboard';
-                } else if (attempts < maxAttempts) {
-                  // Session not ready yet, wait a bit more and try again
-                  console.log(`[Login] Session not ready (needs_drive_auth=${sessionData?.needs_drive_auth}), retrying in 1 second...`);
-                  setTimeout(checkSessionAndRedirect, 1000);
-                } else {
-                  // Max attempts reached, reload to check auth status
-                  console.log('[Login] Max attempts reached, reloading page...');
-                  window.location.reload();
+                  return;
                 }
-              })
-              .catch((error) => {
-                console.error('[Login] Error checking session after OAuth:', error);
+                
+                // If still needs_drive_auth, keep checking (session might not be updated yet)
                 if (attempts < maxAttempts) {
-                  setTimeout(checkSessionAndRedirect, 1000);
+                  console.log(`[Login] Session authenticated but still needs_drive_auth=${sessionData.needs_drive_auth}, retrying in ${checkInterval}ms...`);
+                  setTimeout(checkSessionAndRedirect, checkInterval);
                 } else {
-                  // On error after max attempts, reload to check auth status
-                  window.location.reload();
+                  // Max attempts reached - session should be ready by now, redirect anyway
+                  console.log('[Login] Max attempts reached, redirecting to dashboard (session should be ready)...');
+                  if (onLogin) {
+                    onLogin();
+                  }
+                  window.location.href = '/dashboard';
                 }
-              });
-          };
-          
-          checkSessionAndRedirect();
-        }, initialDelay);
+              } else if (attempts < maxAttempts) {
+                // Not authenticated yet, keep trying
+                console.log(`[Login] Not authenticated yet (attempt ${attempts}/${maxAttempts}), retrying in ${checkInterval}ms...`);
+                setTimeout(checkSessionAndRedirect, checkInterval);
+              } else {
+                // Max attempts reached without authentication
+                console.error('[Login] Max attempts reached without authentication. Reloading page...');
+                window.location.reload();
+              }
+            })
+            .catch((error) => {
+              console.error('[Login] Error checking session after OAuth:', error);
+              if (attempts < maxAttempts) {
+                setTimeout(checkSessionAndRedirect, checkInterval);
+              } else {
+                // On error after max attempts, reload to check auth status
+                console.error('[Login] Max attempts reached with errors. Reloading page...');
+                window.location.reload();
+              }
+            });
+        };
+        
+        // Start checking immediately (no delay)
+        checkSessionAndRedirect();
       }
     };
 
