@@ -65,11 +65,25 @@ class HeartbeatEngine:
         campus_id = self._get_campus_id(person.campus)
         
         # Load relevant data
+        logger.info(f"Calculating heartbeat for person {person_id} - Date range: {date_range_start} to {date_range_end}")
         data = self._load_person_data(person_id, date_range_start, date_range_end)
+        
+        # Log what data was found
+        logger.info(f"Data loaded for {person_id}: "
+                   f"attendance_events={len(data.get('attendance_events', []))}, "
+                   f"connect_attendance={len(data.get('connect_attendance', []))}, "
+                   f"active_groups={len(data.get('active_groups', []))}, "
+                   f"serving={len(data.get('serving_assignments', []))}, "
+                   f"giving={len(data.get('giving_summaries', []))}")
+        
+        if data.get('connect_attendance'):
+            for att in data['connect_attendance']:
+                logger.info(f"  ConnectAttendance: {att.date}, status={att.status}, group_id={att.connect_group_id}")
         
         # Calculate individual scores
         gather_score = self._calculate_gather_score(data, date_range_start, date_range_end)
         engagement_score = self._calculate_engagement_score(data, date_range_start, date_range_end)
+        logger.info(f"Calculated scores for {person_id}: gather={gather_score}, engagement={engagement_score}")
         spiritual_score = self._calculate_spiritual_score(data, date_range_start, date_range_end)
         care_score = self._calculate_care_score(data)
         
@@ -174,6 +188,9 @@ class HeartbeatEngine:
             ConnectAttendance.date >= start_date,
             ConnectAttendance.date <= end_date
         ).all()
+        
+        logger.info(f"Found {len(connect_attendance)} ConnectAttendance records for person {person_id} "
+                   f"between {start_date} and {end_date}")
         
         # Active connect groups (person is a member)
         # Get groups where person has attendance records
@@ -328,9 +345,13 @@ class HeartbeatEngine:
         active_groups = data['active_groups']
         connect_attendance = data['connect_attendance']
         
+        logger.info(f"Calculating engagement score: active_groups={len(active_groups)}, connect_attendance={len(connect_attendance)}")
+        
         # Check if in active group OR has attendance records (attendance is proof of membership)
         in_group = len(active_groups) > 0
         has_attendance = len(connect_attendance) > 0
+        
+        logger.info(f"Engagement calculation: in_group={in_group}, has_attendance={has_attendance}")
         
         # Calculate attendance rate in groups
         if connect_attendance:
@@ -352,8 +373,11 @@ class HeartbeatEngine:
             attendance_count = len([a for a in connect_attendance if a.status == 'present']) if connect_attendance else 0
             attendance_rate = min(attendance_count / target_attendances, 1.0) if target_attendances > 0 else 0.0
             connect_score = 40.0 * attendance_rate
+            logger.info(f"Connect score calculation: weeks={weeks_in_range:.1f}, target={target_attendances}, "
+                       f"attendance_count={attendance_count}, rate={attendance_rate:.2f}, score={connect_score:.2f}")
         else:
             connect_score = 0.0  # Not in a group and no attendance
+            logger.info(f"Connect score is 0: not in group and no attendance records")
         
         scores.append(('connect', connect_score))
         
