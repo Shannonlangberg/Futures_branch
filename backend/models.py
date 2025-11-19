@@ -12,7 +12,7 @@ class Person(db.Model):
     id = db.Column(db.String(50), primary_key=True)
     full_name = db.Column(db.String(200), nullable=False)
     preferred_name = db.Column(db.String(100))
-    email = db.Column(db.String(200), unique=True, nullable=False)
+    email = db.Column(db.String(200), unique=True, nullable=True)
     phone = db.Column(db.String(50))
     campus = db.Column(db.String(100), nullable=False)
     department = db.Column(db.String(50))  # Kids, Youth, Young Adults, Families, Adults, Seniors
@@ -628,6 +628,12 @@ class PersonPathwayProgress(db.Model):
         # Include full pathway with steps
         pathway_dict = None
         if self.pathway:
+            # Create a mapping of step_id to completion date
+            completion_map = {
+                c.pathway_step_id: c.completed_at.isoformat() if c.completed_at else None
+                for c in self.step_completions.all()
+            }
+            
             pathway_dict = {
                 'id': self.pathway.id,
                 'name': self.pathway.name,
@@ -636,7 +642,8 @@ class PersonPathwayProgress(db.Model):
                 'steps': [
                     {
                         **step.to_dict(),
-                        'is_completed': step.id in completed_step_ids
+                        'is_completed': step.id in completed_step_ids,
+                        'completed_at': completion_map.get(step.id)
                     }
                     for step in self.pathway.steps.order_by(PathwayStep.step_order).all()
                 ]
@@ -1112,6 +1119,76 @@ class GivingSummary(db.Model):
         }
 
 
+class GivingTransaction(db.Model):
+    """Detailed giving transaction tracking with source"""
+    __tablename__ = 'giving_transactions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    stripe_payment_intent_id = db.Column(db.String(200), unique=True, nullable=True)
+    amount = db.Column(db.Float, nullable=False)  # Amount in dollars
+    currency = db.Column(db.String(10), default='AUD')
+    giving_type = db.Column(db.String(50), nullable=False)  # 'tithe', 'offering', 'missions', 'event'
+    campus = db.Column(db.String(100), nullable=False)
+    source = db.Column(db.String(50), nullable=False)  # 'app', 'qr_code', 'web', 'tap_to_give', 'manual'
+    qr_code_id = db.Column(db.String(100), nullable=True)  # For tracking which QR code was used
+    service_date = db.Column(db.Date, nullable=True)  # Date of service if from QR code
+    status = db.Column(db.String(50), default='completed')  # 'completed', 'pending', 'failed'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='giving_transactions')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'stripe_payment_intent_id': self.stripe_payment_intent_id,
+            'amount': self.amount,
+            'currency': self.currency,
+            'giving_type': self.giving_type,
+            'campus': self.campus,
+            'source': self.source,
+            'qr_code_id': self.qr_code_id,
+            'service_date': self.service_date.isoformat() if self.service_date else None,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class GivingQRCode(db.Model):
+    """QR codes for tap-to-give on chair backs"""
+    __tablename__ = 'giving_qr_codes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    qr_code_id = db.Column(db.String(100), unique=True, nullable=False)  # Unique identifier for QR
+    campus = db.Column(db.String(100), nullable=False)
+    zone = db.Column(db.String(100), nullable=True)  # e.g., "Main Auditorium", "Youth Room"
+    seat_number = db.Column(db.String(50), nullable=True)  # e.g., "Row 5, Seat 12"
+    is_active = db.Column(db.Boolean, default=True)
+    scan_count = db.Column(db.Integer, default=0)  # Track how many times scanned
+    last_scan_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'qr_code_id': self.qr_code_id,
+            'campus': self.campus,
+            'zone': self.zone,
+            'seat_number': self.seat_number,
+            'is_active': self.is_active,
+            'scan_count': self.scan_count,
+            'last_scan_at': self.last_scan_at.isoformat() if self.last_scan_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'qr_url': f"/give/qr/{self.qr_code_id}"  # URL for the QR code
+        }
+
+
 class DiscipleshipStep(db.Model):
     """Discipleship milestone tracking"""
     __tablename__ = 'heartbeat_discipleship_steps'
@@ -1279,11 +1356,15 @@ def create_person_with_engagement(
     # Generate unique ID
     person_id = str(uuid.uuid4())
     
+    # Normalize email - convert empty string to None
+    email_value = email.strip() if email else None
+    email_value = email_value if email_value else None
+    
     # Create person
     person = Person(
         id=person_id,
         full_name=full_name,
-        email=email,
+        email=email_value,
         campus=campus,
         preferred_name=preferred_name,
         phone=phone,

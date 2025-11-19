@@ -123,6 +123,7 @@ const PersonHealthReport = () => {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [stepToComplete, setStepToComplete] = useState(null);
   const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isEditingCompletion, setIsEditingCompletion] = useState(false);
 
   useEffect(() => {
     fetchPersonData();
@@ -186,6 +187,25 @@ const PersonHealthReport = () => {
     // Set today's date as default
     setCompletionDate(new Date().toISOString().split('T')[0]);
     setStepToComplete(stepId);
+    setIsEditingCompletion(false);
+    setShowCompleteModal(true);
+  };
+
+  const handleEditCompletionClick = (stepId, currentDate) => {
+    if (!data.pathway) {
+      alert('No pathway assigned');
+      return;
+    }
+    
+    // Set the existing completion date or today as default
+    if (currentDate) {
+      const date = new Date(currentDate);
+      setCompletionDate(date.toISOString().split('T')[0]);
+    } else {
+      setCompletionDate(new Date().toISOString().split('T')[0]);
+    }
+    setStepToComplete(stepId);
+    setIsEditingCompletion(true);
     setShowCompleteModal(true);
   };
 
@@ -195,30 +215,48 @@ const PersonHealthReport = () => {
     }
 
     try {
-      const response = await fetch(`/api/pathways/progress/${data.pathway.id}/complete-step`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          step_id: stepToComplete,
-          completed_at: completionDate
-        }),
-      });
+      let response;
+      if (isEditingCompletion) {
+        // Update existing completion
+        response = await fetch(`/api/pathways/progress/${data.pathway.id}/update-completion`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            step_id: stepToComplete,
+            completed_at: completionDate
+          }),
+        });
+      } else {
+        // Create new completion
+        response = await fetch(`/api/pathways/progress/${data.pathway.id}/complete-step`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            step_id: stepToComplete,
+            completed_at: completionDate
+          }),
+        });
+      }
 
       const result = await response.json();
 
       if (response.ok) {
         setShowCompleteModal(false);
         setStepToComplete(null);
+        setIsEditingCompletion(false);
         await fetchPersonData();
       } else {
-        alert(result.error || 'Failed to complete step');
+        alert(result.error || (isEditingCompletion ? 'Failed to update completion date' : 'Failed to complete step'));
       }
     } catch (err) {
       console.error('Error completing step:', err);
-      alert('Failed to complete step');
+      alert(isEditingCompletion ? 'Failed to update completion date' : 'Failed to complete step');
     }
   };
 
@@ -632,20 +670,24 @@ const PersonHealthReport = () => {
                             {step.step_description && (
                               <div className="text-xs text-slate-400 mt-1">{step.step_description}</div>
                             )}
+                            {isCompleted && step.completed_at && (
+                              <div 
+                                onClick={() => handleEditCompletionClick(step.id, step.completed_at)}
+                                className="text-xs text-green-300/70 mt-1 cursor-pointer hover:text-green-300 hover:underline"
+                                title="Click to edit completion date"
+                              >
+                                Completed: {new Date(step.completed_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </div>
+                            )}
                           </div>
                           {isCurrent && (
                             <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs font-semibold">
                               Current
                             </span>
-                          )}
-                          {isCompleted && step.completed_at && (
-                            <div className="text-xs text-green-300/70">
-                              Completed: {new Date(step.completed_at).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </div>
                           )}
                           {!isCompleted && !isCurrent && (
                             <button
@@ -800,11 +842,14 @@ const PersonHealthReport = () => {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full">
               <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-white">Complete Step</h2>
+                <h2 className="text-2xl font-bold text-white">
+                  {isEditingCompletion ? 'Edit Completion Date' : 'Complete Step'}
+                </h2>
                 <button
                   onClick={() => {
                     setShowCompleteModal(false);
                     setStepToComplete(null);
+                    setIsEditingCompletion(false);
                   }}
                   className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
                 >
@@ -834,6 +879,7 @@ const PersonHealthReport = () => {
                     onClick={() => {
                       setShowCompleteModal(false);
                       setStepToComplete(null);
+                      setIsEditingCompletion(false);
                     }}
                     className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
                   >
@@ -843,7 +889,7 @@ const PersonHealthReport = () => {
                     onClick={handleCompleteStep}
                     className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
                   >
-                    Mark Complete
+                    {isEditingCompletion ? 'Update Date' : 'Mark Complete'}
                   </button>
                 </div>
               </div>

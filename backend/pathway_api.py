@@ -506,6 +506,75 @@ def complete_pathway_step(progress_id):
         return jsonify({'error': str(e)}), 500
 
 
+@pathway_bp.route('/progress/<int:progress_id>/update-completion', methods=['PUT'])
+@login_required
+def update_pathway_step_completion(progress_id):
+    """Update completion date for an existing pathway step completion"""
+    try:
+        progress = PersonPathwayProgress.query.get(progress_id)
+        if not progress:
+            return jsonify({'error': 'Pathway progress not found'}), 404
+        
+        # Check permissions - person can update their own, or admin can update any
+        user_role = getattr(current_user, 'role', None)
+        is_admin = user_role in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']
+        if progress.person_id != getattr(current_user, 'id', None) and not (current_user.has_permission('heartbeat', 'edit') or is_admin):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        
+        if 'step_id' not in data:
+            return jsonify({'error': 'Missing required field: step_id'}), 400
+        
+        if 'completed_at' not in data:
+            return jsonify({'error': 'Missing required field: completed_at'}), 400
+        
+        step = PathwayStep.query.get(data['step_id'])
+        if not step or step.pathway_id != progress.pathway_id:
+            return jsonify({'error': 'Invalid step for this pathway'}), 400
+        
+        # Find existing completion
+        completion = PersonPathwayStepCompletion.query.filter_by(
+            person_pathway_progress_id=progress_id,
+            pathway_step_id=data['step_id']
+        ).first()
+        
+        if not completion:
+            return jsonify({'error': 'Step completion not found'}), 404
+        
+        # Parse completion date
+        completed_at = datetime.utcnow()
+        if 'completed_at' in data and data['completed_at']:
+            try:
+                if isinstance(data['completed_at'], str):
+                    if 'T' in data['completed_at']:
+                        completed_at = datetime.fromisoformat(data['completed_at'].replace('Z', '+00:00'))
+                    else:
+                        from datetime import date as date_class
+                        date_obj = date_class.fromisoformat(data['completed_at'])
+                        completed_at = datetime.combine(date_obj, datetime.min.time())
+                        completed_at = datetime.utcfromtimestamp(completed_at.timestamp())
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid completed_at format: {data['completed_at']}, using current time: {e}")
+                completed_at = datetime.utcnow()
+        
+        # Update completion date
+        completion.completed_at = completed_at
+        progress.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Completion date updated successfully',
+            'completion': completion.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating completion date: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @pathway_bp.route('/progress/<int:progress_id>', methods=['DELETE'])
 @login_required
 def unassign_pathway(progress_id):
