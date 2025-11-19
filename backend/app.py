@@ -8242,6 +8242,8 @@ def debug_claude():
 
 @app.route('/api/session')
 def session_info():
+    """Get current session info - public endpoint for mobile app"""
+    # Allow unauthenticated access for mobile app session check
     if current_user.is_authenticated:
         # Check if user needs Google Drive auth (admin users only)
         needs_drive_auth = False
@@ -8268,6 +8270,7 @@ def session_info():
         return jsonify({
             "authenticated": True,
             "user": current_user.username,
+            "email": getattr(current_user, 'email', current_user.username),
             "role": current_user.role,
             "campus": current_user.campus,
             "full_name": current_user.full_name,
@@ -12468,17 +12471,34 @@ def serve_react_app(path):
         return jsonify({"error": "Not found"}), 404
     
     # If path has an extension (like .json, .png, .js, etc), try to serve as static file
-    if '.' in path.split('/')[-1]:
-        try:
+    try:
+        path_parts = path.split('/')
+        if path_parts and '.' in path_parts[-1]:
             # Ensure path is a valid string before passing to send_from_directory
-            if not isinstance(path, str) or not path:
+            if not isinstance(path, str):
+                path = str(path)
+            if not path:
                 return jsonify({"error": "Invalid path"}), 400
+            
+            # Check if static folder exists and path is safe
+            if not app.static_folder:
+                return jsonify({"error": "Static folder not configured"}), 404
+            
+            # Normalize the path (remove any unsafe characters)
+            safe_path = os.path.normpath(path).lstrip('/')
+            if '..' in safe_path:
+                return jsonify({"error": "Invalid path"}), 400
+            
             # Try to serve the file from static folder
-            return send_from_directory('static', path)
-        except Exception as e:
-            logger.error(f"Error serving static file {path}: {e}")
-            # If file not found, return 404
-            return jsonify({"error": "Not found"}), 404
+            try:
+                return send_from_directory(app.static_folder, safe_path)
+            except FileNotFoundError:
+                logger.warning(f"File not found: {safe_path}")
+                return jsonify({"error": "Not found"}), 404
+    except Exception as e:
+        logger.error(f"Error serving static file {path}: {e}", exc_info=True)
+        # Return a proper error response
+        return jsonify({"error": "Internal server error", "message": str(e)}), 500
     
     # For routes without extensions (React Router paths), serve the React app
     return send_from_directory('static', 'index.html')
@@ -13962,6 +13982,13 @@ def submit_meeting_attendance(meeting_id):
                             attendance_date = dt.fromisoformat(attendance_date).date()
                         elif isinstance(attendance_date, datetime):
                             attendance_date = attendance_date.date()
+                        
+                        # CRITICAL FIX: If meeting date is in the future, use today's date instead
+                        # Heartbeat calculation only looks at past dates, so future dates won't be counted
+                        today = datetime.utcnow().date()
+                        if attendance_date > today:
+                            logger.warning(f"Meeting date {attendance_date} is in the future. Using today's date {today} for attendance record.")
+                            attendance_date = today
                         
                         logger.info(f"Adding group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {attendance_date}, Type: {type(attendance_date)}")
                         
