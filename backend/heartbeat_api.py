@@ -166,6 +166,9 @@ def get_person_heartbeat(person_id):
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
+        # Refresh person from database to ensure we have latest milestone data
+        db.session.refresh(person)
+        
         # Get latest snapshot
         snapshot = HeartbeatSnapshot.query.filter_by(
             person_id=person_id
@@ -248,6 +251,9 @@ def get_person_heartbeat(person_id):
         # Include ALL milestones regardless of date (not just last 12 weeks) since these are significant life events
         person_milestones = []
         
+        # Debug: Log person milestone fields
+        logger.info(f"DEBUG: Person {person_id} milestone fields - baptised_on: {person.baptised_on}, dna_completed: {person.dna_completed}, filled_holy_spirit: {person.filled_holy_spirit}")
+        
         if person.baptised_on:
             person_milestones.append({
                 'id': f'person_milestone_baptism_{person.id}',
@@ -305,6 +311,14 @@ def get_person_heartbeat(person_id):
         
         # Combine DiscipleshipStep records with Person milestones
         all_discipleship_steps = [d.to_dict() for d in recent_steps] + person_milestones
+        
+        # Debug: Log what we're returning
+        logger.info(f"DEBUG: Returning {len(all_discipleship_steps)} total discipleship steps:")
+        logger.info(f"  - DiscipleshipStep records: {len(recent_steps)}")
+        logger.info(f"  - Person milestones: {len(person_milestones)}")
+        for milestone in person_milestones:
+            logger.info(f"    Person milestone: {milestone.get('type')} - {milestone.get('description')} on {milestone.get('date')}")
+        
         # Sort by date (newest first)
         all_discipleship_steps.sort(key=lambda x: x.get('date') or x.get('created_at') or '', reverse=True)
         
