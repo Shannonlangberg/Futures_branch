@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import LogStats from './pages/LogStats';
 import Finance from './pages/Finance';
+import GivingAnalytics from './pages/GivingAnalytics';
 import CampusManagement from './pages/CampusManagement';
 import UserManagement from './pages/UserManagement';
 import DataExport from './pages/DataExport';
@@ -376,6 +377,7 @@ function App() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/stats" element={<LogStats />} />
                   <Route path="/finance" element={<Finance />} />
+                  <Route path="/giving-analytics" element={<GivingAnalytics />} />
                   <Route path="/passport" element={<Passport />} />
                   {userRole && RESOURCE_ALLOWED_ROLES.includes(userRole) && (
                     <>

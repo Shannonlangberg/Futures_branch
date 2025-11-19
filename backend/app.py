@@ -12550,10 +12550,37 @@ def update_person_demo(person_id):
             person.email = data['email']
         if 'campus' in data:
             person.campus = data['campus']
+        if 'phone' in data:
+            person.phone = data['phone'] if data['phone'] else None
+        if 'department' in data:
+            person.department = data['department'] if data['department'] else None
         if 'connect_group' in data:
             person.connect_group = data['connect_group']
         if 'dream_team_roles' in data:
-            person.dream_team_roles = data['dream_team_roles']
+            # Convert array to JSON string for storage
+            roles = data['dream_team_roles']
+            person.dream_team_roles = json.dumps(roles) if roles and len(roles) > 0 else None
+        if 'tags' in data:
+            # Convert array to JSON string for storage
+            tags = data['tags']
+            person.tags = json.dumps(tags) if tags and len(tags) > 0 else None
+        if 'pastoral_notes' in data:
+            person.pastoral_notes = data['pastoral_notes'] if data['pastoral_notes'] else None
+        
+        # Update birthday (convert empty strings to None)
+        if 'birthday' in data:
+            value = data['birthday']
+            if value == '' or value is None:
+                person.birthday = None
+            else:
+                try:
+                    if isinstance(value, str):
+                        from datetime import datetime
+                        person.birthday = datetime.strptime(value, '%Y-%m-%d').date()
+                    else:
+                        person.birthday = value
+                except ValueError:
+                    return jsonify({'error': 'Invalid date format for birthday'}), 400
         
         # Update discipleship milestones (convert empty strings to None)
         milestone_fields = [
@@ -12802,11 +12829,17 @@ def update_person(person_id):
         if 'preferred_name' in data:
             person.preferred_name = data['preferred_name']
         if 'email' in data:
-            # Check if email is already taken by another person
-            existing = Person.query.filter_by(email=data['email'], is_active=True).first()
-            if existing and existing.id != person.id:
-                return jsonify({'error': 'Email already in use'}), 400
-            person.email = data['email']
+            # Normalize email - convert empty string to None
+            email_value = data['email'].strip() if data.get('email') else None
+            email_value = email_value if email_value else None
+            
+            # Check if email is already taken by another person (only if provided)
+            if email_value:
+                existing = Person.query.filter_by(email=email_value, is_active=True).first()
+                if existing and existing.id != person.id:
+                    return jsonify({'error': 'Email already in use'}), 400
+            
+            person.email = email_value
         if 'campus' in data:
             person.campus = data['campus']
         if 'department' in data:
@@ -12814,7 +12847,24 @@ def update_person(person_id):
         if 'connect_group' in data:
             person.connect_group = data['connect_group']
         if 'dream_team_roles' in data:
-            person.dream_team_roles = data['dream_team_roles']
+            # Convert array to JSON string for storage
+            person.dream_team_roles = json.dumps(data['dream_team_roles']) if data['dream_team_roles'] else None
+        if 'tags' in data:
+            # Convert array to JSON string for storage
+            person.tags = json.dumps(data['tags']) if data['tags'] else None
+        if 'pastoral_notes' in data:
+            person.pastoral_notes = data['pastoral_notes'] if data['pastoral_notes'] else None
+        if 'phone' in data:
+            person.phone = data['phone'] if data['phone'] else None
+        if 'birthday' in data:
+            if data['birthday']:
+                try:
+                    from datetime import datetime
+                    person.birthday = datetime.strptime(data['birthday'], '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({'error': 'Invalid birthday format'}), 400
+            else:
+                person.birthday = None
         
         # Update discipleship milestones (convert empty strings to None)
         milestone_fields = [
@@ -13989,6 +14039,14 @@ app.register_blueprint(serving_bp)
 # WEBHOOK ROUTES
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
+
+# GIVING API ROUTES (Stripe integration, analytics, QR codes)
+try:
+    from giving_api import giving_bp
+    app.register_blueprint(giving_bp)
+    logger.info("Giving API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import giving_api: {e}")
 
 # USER MANAGEMENT ROUTES
 @app.route('/api/users', methods=['GET'])
