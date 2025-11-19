@@ -170,14 +170,16 @@ function App() {
       }
       
       if (event.data && event.data.type === 'googleAuthSuccess') {
-        // OAuth completed successfully
+        // OAuth completed successfully - close modal and refresh page
+        setNeedsDriveAuth(false);
+        setShowDriveModal(false);
+        setDriveError('');
+        setDriveConnecting(false);
+        
+        // Refresh the page to ensure all components see the updated auth state
         setTimeout(() => {
-          checkAuthStatus().then(() => {
-            setNeedsDriveAuth(false);
-            setShowDriveModal(false);
-            setDriveError('');
-          });
-        }, 500);
+          window.location.reload();
+        }, 300);
       }
     };
     
@@ -271,16 +273,15 @@ function App() {
           clearInterval(checkWindow);
           setDriveConnecting(false);
 
-          // After the popup is closed, always re-check auth
-          // and then hide the modal so the user doesn't need
-          // to manually refresh.
+          // After the popup is closed, close modal and refresh page
+          setNeedsDriveAuth(false);
+          setShowDriveModal(false);
+          setDriveError('');
+          
+          // Refresh the page to ensure all components see the updated auth state
           setTimeout(() => {
-            checkAuthStatus().finally(() => {
-              setNeedsDriveAuth(false);
-              setShowDriveModal(false);
-              setDriveError('');
-            });
-          }, 800);
+            window.location.reload();
+          }, 500);
         }
       }, 500);
 
@@ -312,17 +313,16 @@ function App() {
       }
 
       if (event.data && event.data.type === 'googleAuthSuccess') {
+        // OAuth completed successfully - close modal and refresh page
         setDriveConnecting(false);
         setDriveError('');
+        setNeedsDriveAuth(false);
+        setShowDriveModal(false);
         
-        // Immediately check auth status
-        checkAuthStatus().then(() => {
-          // Close modal after confirming auth
-          setTimeout(() => {
-            setNeedsDriveAuth(false);
-            setShowDriveModal(false);
-          }, 500);
-        });
+        // Refresh the page to ensure all components see the updated auth state
+        setTimeout(() => {
+          window.location.reload();
+        }, 300);
       }
     };
 
