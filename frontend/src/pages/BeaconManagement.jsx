@@ -418,57 +418,55 @@ const BeaconManagement = () => {
                   </tr>
                 ) : (
                   beacons.map((beacon) => (
-                    <tr 
-                      key={beacon.id} 
-                      className="hover:bg-slate-700/30 transition-colors"
-                    >
-                      <td className="px-6 py-4 text-white font-medium">{beacon.zone_name}</td>
-                      <td className="px-6 py-4 text-slate-300">{beacon.campus}</td>
-                      <td className="px-6 py-4 text-slate-300 font-mono text-xs">
-                        {formatUUID(beacon.beacon_uuid)}
-                      </td>
-                      <td className="px-6 py-4 text-slate-300">{beacon.beacon_major}</td>
-                      <td className="px-6 py-4 text-slate-300">{beacon.beacon_minor}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${
-                          beacon.is_active 
-                            ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                            : 'bg-slate-500/20 text-slate-400 border-slate-500/30'
-                        }`}>
-                          {beacon.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setExpandedBeacon(expandedBeacon === beacon.id ? null : beacon.id)}
-                            title="View Schedules"
-                            className="p-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-lg transition-colors"
-                          >
-                            <span className="text-xs font-semibold">
-                              {beacon.schedules?.length || 0} Schedule{beacon.schedules?.length !== 1 ? 's' : ''}
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => handleOpenModal(beacon)}
-                            title="Edit Beacon"
-                            className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
-                          >
-                            <PencilIcon className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(beacon)}
-                            title="Delete Beacon"
-                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                          >
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedBeacon === beacon.id && (
-                      <tr>
-                        <td colSpan="7" className="px-6 py-4 bg-slate-700/30">
+                    <React.Fragment key={beacon.id}>
+                      <tr className="hover:bg-slate-700/30 transition-colors">
+                        <td className="px-6 py-4 text-white font-medium">{beacon.zone_name}</td>
+                        <td className="px-6 py-4 text-slate-300">{beacon.campus}</td>
+                        <td className="px-6 py-4 text-slate-300 font-mono text-xs">
+                          {formatUUID(beacon.beacon_uuid)}
+                        </td>
+                        <td className="px-6 py-4 text-slate-300">{beacon.beacon_major}</td>
+                        <td className="px-6 py-4 text-slate-300">{beacon.beacon_minor}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${
+                            beacon.is_active 
+                              ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                              : 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+                          }`}>
+                            {beacon.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setExpandedBeacon(expandedBeacon === beacon.id ? null : beacon.id)}
+                              title="View Schedules"
+                              className="p-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-lg transition-colors"
+                            >
+                              <span className="text-xs font-semibold">
+                                {beacon.schedules?.length || 0} Schedule{beacon.schedules?.length !== 1 ? 's' : ''}
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenModal(beacon)}
+                              title="Edit Beacon"
+                              className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            >
+                              <PencilIcon className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(beacon)}
+                              title="Delete Beacon"
+                              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                            >
+                              <TrashIcon className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedBeacon === beacon.id && (
+                        <tr>
+                          <td colSpan="7" className="px-6 py-4 bg-slate-700/30">
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <h3 className="text-lg font-semibold text-white">Schedules</h3>
@@ -551,7 +549,8 @@ const BeaconManagement = () => {
                           </div>
                         </td>
                       </tr>
-                    )}
+                      )}
+                    </React.Fragment>
                   ))
                 )}
               </tbody>
