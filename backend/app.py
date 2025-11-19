@@ -13075,10 +13075,15 @@ def update_profile():
         # Commit changes
         db.session.commit()
         
+        # Refresh the person object to ensure we have the latest data
+        db.session.refresh(person)
+        
         logger.info(f"Profile updated for {email}: {', '.join(updated_fields)}")
         
         # Return updated person data
         try:
+            # Reload from database to ensure fresh data
+            person = Person.query.filter_by(id=person.id).first()
             person_data = person.to_dict()
             # Format campus name
             if person_data.get('campus'):
@@ -14574,21 +14579,37 @@ def get_connect_group_health(group_id):
         from collections import defaultdict
         
         # Get the connect group
-        group = ConnectGroup.query.filter_by(id=group_id).first()
-        if not group:
-            return jsonify({'error': 'Connect group not found'}), 404
+        try:
+            group = ConnectGroup.query.filter_by(id=group_id).first()
+            if not group:
+                return jsonify({'error': 'Connect group not found'}), 404
+        except Exception as e:
+            logger.error(f"Error querying ConnectGroup {group_id}: {e}", exc_info=True)
+            return jsonify({'error': f'Failed to load connect group: {str(e)}'}), 500
         
         # Get all members (including leaders)
-        members = group.get_members()
+        try:
+            members = group.get_members() if hasattr(group, 'get_members') else []
+        except Exception as e:
+            logger.warning(f"Error getting members for group {group_id}: {e}")
+            members = []
+        
         leader_ids = []
-        if group.leader_id:
-            leader_ids.append(group.leader_id)
-        if group.co_leader_id:
-            leader_ids.append(group.co_leader_id)
+        try:
+            if hasattr(group, 'leader_id') and group.leader_id:
+                leader_ids.append(group.leader_id)
+            if hasattr(group, 'co_leader_id') and group.co_leader_id:
+                leader_ids.append(group.co_leader_id)
+        except Exception as e:
+            logger.warning(f"Error getting leader IDs for group {group_id}: {e}")
         
         # Get all person IDs (members + leaders)
-        all_person_ids = [m.id for m in members] + leader_ids
-        all_person_ids = list(set(all_person_ids))  # Remove duplicates
+        try:
+            all_person_ids = [m.id for m in members if hasattr(m, 'id')] + leader_ids
+            all_person_ids = list(set(all_person_ids))  # Remove duplicates
+        except Exception as e:
+            logger.warning(f"Error processing person IDs for group {group_id}: {e}")
+            all_person_ids = []
         
         # Calculate average heartbeat for all members and leaders
         heartbeat_scores = []
@@ -14602,76 +14623,110 @@ def get_connect_group_health(group_id):
             'status_breakdown': {}
         }
         
-        for person_id in all_person_ids:
-            snapshot = HeartbeatSnapshot.query.filter_by(
-                person_id=person_id
-            ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+        try:
+            for person_id in all_person_ids:
+                try:
+                    snapshot = HeartbeatSnapshot.query.filter_by(
+                        person_id=person_id
+                    ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                    
+                    if snapshot:
+                        heartbeat_scores.append({
+                            'person_id': person_id,
+                            'total_score': snapshot.total_score or 0,
+                            'engagement_score': snapshot.engagement_score or 0,
+                            'gather_score': snapshot.gather_score or 0,
+                            'spiritual_score': snapshot.spiritual_score or 0,
+                            'care_score': snapshot.care_score or 0,
+                            'status': snapshot.status or 'unknown'
+                        })
+                        # Track status breakdown
+                        status = snapshot.status or 'unknown'
+                        heartbeat_data['status_breakdown'][status] = heartbeat_data['status_breakdown'].get(status, 0) + 1
+                except Exception as e:
+                    logger.warning(f"Error getting heartbeat for person {person_id}: {e}")
+                    continue
             
-            if snapshot:
-                heartbeat_scores.append({
-                    'person_id': person_id,
-                    'total_score': snapshot.total_score,
-                    'engagement_score': snapshot.engagement_score,
-                    'gather_score': snapshot.gather_score,
-                    'spiritual_score': snapshot.spiritual_score,
-                    'care_score': snapshot.care_score,
-                    'status': snapshot.status
-                })
-                # Track status breakdown
-                status = snapshot.status or 'unknown'
-                heartbeat_data['status_breakdown'][status] = heartbeat_data['status_breakdown'].get(status, 0) + 1
-        
-        if heartbeat_scores:
-            heartbeat_data['average_total_score'] = sum(s['total_score'] for s in heartbeat_scores) / len(heartbeat_scores)
-            heartbeat_data['average_engagement_score'] = sum(s['engagement_score'] for s in heartbeat_scores) / len(heartbeat_scores)
-            heartbeat_data['average_gather_score'] = sum(s['gather_score'] for s in heartbeat_scores) / len(heartbeat_scores)
-            heartbeat_data['average_spiritual_score'] = sum(s['spiritual_score'] for s in heartbeat_scores) / len(heartbeat_scores)
-            heartbeat_data['average_care_score'] = sum(s['care_score'] for s in heartbeat_scores) / len(heartbeat_scores)
-            heartbeat_data['member_count'] = len(heartbeat_scores)
+            if heartbeat_scores:
+                heartbeat_data['average_total_score'] = sum(s['total_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+                heartbeat_data['average_engagement_score'] = sum(s['engagement_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+                heartbeat_data['average_gather_score'] = sum(s['gather_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+                heartbeat_data['average_spiritual_score'] = sum(s['spiritual_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+                heartbeat_data['average_care_score'] = sum(s['care_score'] for s in heartbeat_scores) / len(heartbeat_scores)
+                heartbeat_data['member_count'] = len(heartbeat_scores)
+        except Exception as e:
+            logger.error(f"Error calculating heartbeat data for group {group_id}: {e}", exc_info=True)
+            # Continue with empty heartbeat data
         
         # Get the HeartbeatConnectGroup to match attendance records
-        heartbeat_group = HeartbeatConnectGroup.query.filter_by(
-            name=group.name,
-            campus_id=group.campus
-        ).first()
-        
-        # If not found by name, try to find by leader
-        if not heartbeat_group and group.leader_id:
-            heartbeat_group = HeartbeatConnectGroup.query.filter_by(
-                leader_id=group.leader_id
-            ).first()
+        heartbeat_group = None
+        try:
+            group_name = getattr(group, 'name', '')
+            group_campus = getattr(group, 'campus', '')
+            if group_name and group_campus:
+                heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+                    name=group_name,
+                    campus_id=group_campus
+                ).first()
+            
+            # If not found by name, try to find by leader
+            if not heartbeat_group and hasattr(group, 'leader_id') and group.leader_id:
+                heartbeat_group = HeartbeatConnectGroup.query.filter_by(
+                    leader_id=group.leader_id
+                ).first()
+        except Exception as e:
+            logger.warning(f"Error finding HeartbeatConnectGroup for group {group_id}: {e}")
         
         # Get date range (last 3 months)
-        end_date = date.today()
-        start_date = end_date - timedelta(days=90)
+        try:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=90)
+        except Exception as e:
+            logger.error(f"Error calculating date range: {e}")
+            end_date = date.today()
+            start_date = end_date - timedelta(days=90)
         
         # Get attendance records for this specific group
         attendance_records = []
-        if heartbeat_group:
-            attendance_records = ConnectAttendance.query.filter(
-                ConnectAttendance.connect_group_id == heartbeat_group.id,
-                ConnectAttendance.date >= start_date,
-                ConnectAttendance.date <= end_date
-            ).all()
-        else:
-            # Fallback: try to match by person IDs if we can't find the heartbeat group
-            # This handles cases where the group exists but hasn't been synced to HeartbeatConnectGroup
-            attendance_records = ConnectAttendance.query.filter(
-                ConnectAttendance.person_id.in_(all_person_ids),
-                ConnectAttendance.date >= start_date,
-                ConnectAttendance.date <= end_date
-            ).all()
+        try:
+            if heartbeat_group and hasattr(heartbeat_group, 'id'):
+                attendance_records = ConnectAttendance.query.filter(
+                    ConnectAttendance.connect_group_id == heartbeat_group.id,
+                    ConnectAttendance.date >= start_date,
+                    ConnectAttendance.date <= end_date
+                ).all()
+            elif all_person_ids:
+                # Fallback: try to match by person IDs if we can't find the heartbeat group
+                # This handles cases where the group exists but hasn't been synced to HeartbeatConnectGroup
+                attendance_records = ConnectAttendance.query.filter(
+                    ConnectAttendance.person_id.in_(all_person_ids),
+                    ConnectAttendance.date >= start_date,
+                    ConnectAttendance.date <= end_date
+                ).all()
+        except Exception as e:
+            logger.error(f"Error querying attendance records for group {group_id}: {e}", exc_info=True)
+            attendance_records = []
         
         # Group by date and status
         daily_stats = defaultdict(lambda: {'present': 0, 'absent': 0, 'total': 0})
         
-        for record in attendance_records:
-            date_key = record.date.isoformat()
-            if record.status == 'present':
-                daily_stats[date_key]['present'] += 1
-            elif record.status == 'absent':
-                daily_stats[date_key]['absent'] += 1
-            daily_stats[date_key]['total'] += 1
+        try:
+            for record in attendance_records:
+                try:
+                    if not hasattr(record, 'date') or not record.date:
+                        continue
+                    date_key = record.date.isoformat() if hasattr(record.date, 'isoformat') else str(record.date)
+                    status = getattr(record, 'status', None)
+                    if status == 'present':
+                        daily_stats[date_key]['present'] += 1
+                    elif status == 'absent':
+                        daily_stats[date_key]['absent'] += 1
+                    daily_stats[date_key]['total'] += 1
+                except Exception as e:
+                    logger.warning(f"Error processing attendance record: {e}")
+                    continue
+        except Exception as e:
+            logger.error(f"Error processing attendance records: {e}", exc_info=True)
         
         # Convert to list sorted by date
         attendance_data = []
