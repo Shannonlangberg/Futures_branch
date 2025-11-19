@@ -14068,6 +14068,22 @@ app.register_blueprint(serving_bp)
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
 
+# HEARTBEAT API ROUTES
+try:
+    from heartbeat_api import heartbeat_bp
+    app.register_blueprint(heartbeat_bp)
+    logger.info("Heartbeat API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import heartbeat_api: {e}")
+
+# CONNECT GROUPS API ROUTES
+try:
+    from connect_groups_api import connect_groups_bp
+    app.register_blueprint(connect_groups_bp)
+    logger.info("Connect Groups API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import connect_groups_api: {e}")
+
 # GIVING API ROUTES (Stripe integration, analytics, QR codes)
 try:
     from giving_api import giving_bp

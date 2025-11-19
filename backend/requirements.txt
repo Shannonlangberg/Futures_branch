@@ -29,3 +29,6 @@ Pillow==10.1.0
 # Security
 bcrypt==4.1.1
 cryptography==41.0.7
+
+# Payments
+stripe==7.8.0
