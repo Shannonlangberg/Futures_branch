@@ -60,16 +60,18 @@ const People = () => {
   // Check for edit query parameter and open modal
   useEffect(() => {
     const editPersonId = searchParams.get('edit');
-    if (editPersonId && persons.length > 0) {
+    if (editPersonId && persons.length > 0 && !showModal) {
       const personToEdit = persons.find(p => p.id === editPersonId);
       if (personToEdit) {
         handleOpenModal(personToEdit);
         // Remove the query parameter from URL
-        searchParams.delete('edit');
-        setSearchParams(searchParams, { replace: true });
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('edit');
+        setSearchParams(newSearchParams, { replace: true });
       }
     }
-  }, [searchParams, persons]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, persons, showModal]);
 
   const loadCampuses = async () => {
     try {
