@@ -15016,7 +15016,17 @@ def get_resource_category_files(category_id):
         ).filter_by(is_active=True).first()
         
         if category:
-            links = json.loads(category.links) if category.links else []
+            # Parse links from JSON string, handle errors gracefully
+            try:
+                links = json.loads(category.links) if category.links else []
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f"Error parsing links for category {category_id}: {e}")
+                links = []
+            
+            # Ensure links is a list
+            if not isinstance(links, list):
+                links = []
+            
             # For now, return links from category - Google Drive files not yet implemented
             return jsonify({
                 'files': [],  # Google Drive files not yet implemented

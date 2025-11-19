@@ -592,6 +592,17 @@ class ResourceCategory(db.Model):
     
     def to_dict(self):
         """Convert category to dictionary"""
+        # Parse links from JSON string, handle errors gracefully
+        links = []
+        if self.links:
+            try:
+                parsed_links = json.loads(self.links)
+                if isinstance(parsed_links, list):
+                    links = parsed_links
+            except (json.JSONDecodeError, TypeError) as e:
+                # If links can't be parsed, return empty list
+                links = []
+        
         return {
             'id': self.slug or str(self.id),
             'displayName': self.display_name,
@@ -599,7 +610,7 @@ class ResourceCategory(db.Model):
             'description': self.description or '',
             'folderId': self.folder_id or '',
             'sortOrder': self.sort_order or 0,
-            'links': json.loads(self.links) if self.links else [],
+            'links': links,
             'isActive': self.is_active,
             'createdAt': self.created_at.isoformat() if self.created_at else None,
             'updatedAt': self.updated_at.isoformat() if self.updated_at else None
