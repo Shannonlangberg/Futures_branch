@@ -795,20 +795,14 @@ def save_conversation_memory(memory: Dict[str, Any]):
 
 print("[DEBUG] Creating Flask app instance")
 app = Flask(__name__, static_folder='static', template_folder='templates')
-# SECURITY: Require SECRET_KEY to be set - fail if not provided
-secret_key = os.environ.get('SECRET_KEY')
-if not secret_key:
-    raise ValueError("SECRET_KEY environment variable is required for security. Please set it in your environment variables.")
-app.secret_key = secret_key
+app.secret_key = os.environ.get('SECRET_KEY', 'futures-church-secret-key-2025')
 
-# Configure session cookies - SECURITY HARDENED
+# Configure session cookies
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-# Use SECURE=True in production (HTTPS required)
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('RAILWAY_ENVIRONMENT') == 'production'
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_NAME'] = 'session'
-# Reduced session lifetime for better security (24 hours instead of 7 days)
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Keep session for 7 days
 
 # Configure SQLAlchemy database
 # Strip whitespace from DATABASE_URL to handle Railway environment variable issues
@@ -963,24 +957,7 @@ def run_migrations():
         # This prevents the app from crashing on startup due to migration issues
         logger.warning("Continuing app startup despite migration errors...")
 
-# CORS configuration - allow localhost for development and Railway domains for production
-allowed_origins = [
-    "http://localhost:3000",
-    "http://localhost:3001", 
-    "http://localhost:5173",
-    "https://futuresbranch-production.up.railway.app",
-    "https://futures-pulse-production.up.railway.app",
-    "https://futures.pulse.com"
-]
-# Also allow any Railway subdomain
-railway_origin = os.environ.get('RAILWAY_PUBLIC_DOMAIN') or os.environ.get('RAILWAY_STATIC_URL')
-if railway_origin:
-    allowed_origins.append(railway_origin)
-    # Also add HTTP version if HTTPS is provided
-    if railway_origin.startswith('https://'):
-        allowed_origins.append(railway_origin.replace('https://', 'http://'))
-
-CORS(app, supports_credentials=True, origins=allowed_origins, allow_headers=["Content-Type", "Authorization"])
+CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"], allow_headers=["Content-Type", "Authorization"])
 
 # Enable response compression for better performance
 Compress(app)
@@ -1003,12 +980,6 @@ try:
     seed_users()
 except Exception as e:
     logger.warning(f"Failed to seed users: {e}")
-
-try:
-    from seed_pathways import main as seed_pathways
-    seed_pathways()
-except Exception as e:
-    logger.warning(f"Failed to seed pathways: {e}")
 
 # Configure Flask-Login
 login_manager = LoginManager()
@@ -1178,19 +1149,8 @@ class User(UserMixin):
         from werkzeug.security import check_password_hash
         return check_password_hash(self.password_hash, password)
         
-    def has_permission(self, permission_type, action=None, campus=None):
-        """Check if user has specific permission based on role
-        
-        Supports both old-style (permission_type only) and RBAC-style (resource, action) calls:
-        - Old: has_permission('log_stats')
-        - RBAC: has_permission('groups', 'view')
-        """
-        # If action is provided, this is an RBAC-style call (resource, action)
-        if action is not None:
-            from utils.rbac import rbac_manager
-            return rbac_manager.has_permission(self.role, permission_type, action)
-        
-        # Legacy permission system for backward compatibility
+    def has_permission(self, permission_type, campus=None):
+        """Check if user has specific permission based on role"""
         # Define permissions for each role
         role_permissions = {
             'admin': {
@@ -1201,9 +1161,7 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True,
-                'system_settings': True,
-                'admin_access': True
+                'view_all_campuses': True
             },
             'senior_leadership': {
                 'log_stats': True,
@@ -1213,9 +1171,7 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True,
-                'system_settings': True,
-                'admin_access': True
+                'view_all_campuses': True
             },
             'senior_leader': {
                 'log_stats': True,
@@ -1225,9 +1181,7 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True,
-                'system_settings': True,
-                'admin_access': True
+                'view_all_campuses': True
             },
             'senior_pastor': {
                 'log_stats': True,
@@ -1237,9 +1191,7 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True,
-                'system_settings': True,
-                'admin_access': True
+                'view_all_campuses': True
             },
             'lead_pastor': {
                 'log_stats': True,
@@ -1249,9 +1201,7 @@ class User(UserMixin):
                 'finance_access': True,
                 'manage_users': True,
                 'manage_campuses': True,
-                'view_all_campuses': True,
-                'system_settings': True,
-                'admin_access': True
+                'view_all_campuses': True
             },
             'finance': {
                 'log_stats': False,
@@ -1261,9 +1211,7 @@ class User(UserMixin):
                 'finance_access': True,  # Can ONLY submit finance data
                 'manage_users': False,
                 'manage_campuses': False,
-                'view_all_campuses': False,
-                'system_settings': False,
-                'admin_access': False
+                'view_all_campuses': False
             },
             'campus_pastor': {
                 'log_stats': True,  # Can log stats for their campus
@@ -1273,9 +1221,7 @@ class User(UserMixin):
                 'finance_access': False,
                 'manage_users': False,
                 'manage_campuses': False,
-                'view_all_campuses': False,
-                'system_settings': False,
-                'admin_access': False
+                'view_all_campuses': False
             },
             'pastor': {
                 'log_stats': True,  # Can log stats
@@ -1285,21 +1231,7 @@ class User(UserMixin):
                 'finance_access': False,
                 'manage_users': False,
                 'manage_campuses': False,
-                'view_all_campuses': False,
-                'system_settings': False,
-                'admin_access': False
-            },
-            'connect_group_leader': {
-                'log_stats': False,
-                'recall_stats': False,
-                'dashboard_access': False,
-                'query_access': False,
-                'finance_access': False,
-                'manage_users': False,
-                'manage_campuses': False,
-                'view_all_campuses': False,
-                'system_settings': False,
-                'admin_access': False
+                'view_all_campuses': False
             }
         }
         
@@ -1346,30 +1278,20 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Load user by ID for Flask-Login - with security validation"""
+    """Load user by ID for Flask-Login"""
     try:
-        # Validate user_id is a valid integer/string
-        if not user_id:
-            return None
-        
         conn = get_db()
         cursor = conn.cursor()
-        # SECURITY: Only load active users, verify user exists
         cursor.execute('''
             SELECT id, username, password_hash, full_name, email, role, campus, active
             FROM users
             WHERE id = ? AND active = 1
-        ''', (str(user_id),))
+        ''', (user_id,))
         
         row = cursor.fetchone()
         conn.close()
         
         if row:
-            # SECURITY: Double-check user is active
-            if not bool(row[7]):  # active column
-                logger.warning(f"Attempted to load inactive user {user_id}")
-                return None
-                
             user_data = {
                 'id': str(row[0]),  # Flask-Login expects string ID
                 'username': row[1],
@@ -1384,7 +1306,6 @@ def load_user(user_id):
         return None
     except Exception as e:
         logger.error(f"Error loading user {user_id}: {e}")
-        # On error, return None to prevent unauthorized access
         return None
 
 def authenticate_user(username, password):
@@ -4040,7 +3961,6 @@ def generate_monthly_report(campus: str, year: int, month: int) -> dict:
                 'youth_attendance': safe_int_stat(entry.get('Youth Attendance')),
                 'youth_salvations': safe_int_stat(entry.get('Youth Salvations')),
                 'youth_new_people': safe_int_stat(entry.get('Youth New People')),
-                'youth_leaders': safe_int_stat(entry.get('Youth Leaders')),
                 'kids_attendance': safe_int_stat(entry.get('Kids Attendance') or entry.get('Kids Total')),
                 'kids_leaders': safe_int_stat(entry.get('Kids Leaders')),
                 'new_kids': safe_int_stat(entry.get('New Kids')),
@@ -4938,7 +4858,6 @@ def calculate_stats_from_filtered_rows(filtered_rows: List[dict]) -> dict:
                 'youth_attendance': get_stat_value(['Youth Attendance', 'youth']),
                 'youth_salvations': get_stat_value(['Youth Salvations', 'youth_salvations']),
                 'youth_new_people': get_stat_value(['Youth New People', 'youth_new']),
-                'youth_leaders': get_stat_value(['Youth Leaders', 'youth_leaders']),
                 'kids_attendance': get_stat_value(['Kids Attendance', 'Kids Total', 'kids']),
                 'kids_leaders': get_stat_value(['Kids Leaders', 'kids_leaders']),
                 'new_kids': get_stat_value(['New Kids', 'new_kids']),
@@ -5762,7 +5681,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             'youth_attendance': 0,
             'youth_salvations': 0,
             'youth_new_people': 0,
-            'youth_leaders': 0,
             
             # Kids breakdown
             'kids_attendance': 0,
@@ -5948,7 +5866,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     period_stats['youth_attendance'] += get_stat_value(row, ['Youth Attendance', 'youth_attendance'])
                     period_stats['youth_salvations'] += get_stat_value(row, ['Youth Salvations', 'youth_salvations'])
                     period_stats['youth_new_people'] += get_stat_value(row, ['Youth New People', 'youth_new_people'])
-                    period_stats['youth_leaders'] += get_stat_value(row, ['Youth Leaders', 'youth_leaders'])
                     
                     # Kids breakdown
                     period_stats['kids_attendance'] += calculate_kids_attendance(row)
@@ -6185,7 +6102,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             period_stats['avg_youth_attendance'] = period_stats['youth_attendance'] / period_stats['entry_count']
             period_stats['avg_youth_salvations'] = period_stats['youth_salvations'] / period_stats['entry_count']
             period_stats['avg_youth_new_people'] = period_stats['youth_new_people'] / period_stats['entry_count']
-            period_stats['avg_youth_leaders'] = period_stats['youth_leaders'] / period_stats['entry_count']
             
             # Kids breakdown - average per SERVICE for attendance
             period_stats['avg_kids_attendance'] = period_stats['kids_attendance'] / period_stats['entry_count']
@@ -6852,7 +6768,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
         total_youth_attendance = sum(safe_int(row.get('Youth Attendance', 0)) for row in filtered_rows)
         total_youth_salvations = sum(safe_int(row.get('Youth Salvations', 0)) for row in filtered_rows)
         total_youth_new_people = sum(safe_int(row.get('Youth New People', 0)) for row in filtered_rows)
-        total_youth_leaders = sum(safe_int(row.get('Youth Leaders', 0)) for row in filtered_rows)
         total_kids_attendance = sum(safe_int(row.get('Kids Attendance', 0)) for row in filtered_rows)
         total_kids_leaders = sum(safe_int(row.get('Kids Leaders', 0)) for row in filtered_rows)
         total_new_kids = sum(safe_int(row.get('New Kids', 0)) for row in filtered_rows)
@@ -6900,7 +6815,6 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 'youth_attendance': total_youth_attendance,
                 'youth_salvations': total_youth_salvations,
                 'youth_new_people': total_youth_new_people,
-                'youth_leaders': total_youth_leaders,
                 'kids_attendance': total_kids_attendance,
                 'kids_leaders': total_kids_leaders,
                 'new_kids': total_new_kids,
@@ -7596,41 +7510,13 @@ def api_login():
     
     user = authenticate_user(username, password)
     if user:
-        # SECURITY: Verify user is still active before logging in
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute('SELECT active FROM users WHERE id = ?', (user.id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row or not bool(row[0]):
-            logger.warning(f"Login attempt for inactive user: {username}")
-            return jsonify({"error": "Invalid username or password."}), 401
-        
-        # Mark session as permanent for session lifetime enforcement
         login_user(user, remember=True)
-        session.permanent = True
         # Ensure session is saved
         session.modified = True
-        logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}, IP: {request.remote_addr}")
+        logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
         # Log successful login
-        log_security_event(user.id, 'login_success', f'User logged in successfully from IP: {request.remote_addr}')
-        
-        # Check if admin user needs Google Drive auth
-        needs_drive_auth = False
-        if user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
-            # Check if Google Drive is authenticated
-            drive_authenticated = session.get('google_drive_authenticated', False)
-            token_expiry = session.get('google_drive_token_expiry', 0)
-            token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
-            # Admin users need Drive auth if not authenticated or token expired
-            needs_drive_auth = not (drive_authenticated and token_valid)
-        
-        return jsonify({
-            "success": True, 
-            "redirect": "/",
-            "needs_drive_auth": needs_drive_auth
-        })
+        log_security_event(user.id, 'login_success', 'User logged in successfully')
+        return jsonify({"success": True, "redirect": "/"})
     else:
         # Log failed login attempt
         log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
@@ -8062,56 +7948,44 @@ def save_users(data):
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    """Logout user and clear all session data - SECURITY HARDENED"""
+    """Logout user and clear session"""
     try:
-        # Get user ID before logout for logging
+        # Get user ID before logout
         user_id = None
-        username = None
         if hasattr(current_user, 'id') and current_user.is_authenticated:
             user_id = current_user.id
-            username = current_user.username
         elif 'user_id' in session:
             user_id = session.get('user_id')
         
-        # SECURITY: Clear all session data including Google Drive tokens
         # Remove Flask-Login user session data
-        session_keys_to_remove = [
-            '_user_id', 'user_id', '_fresh', '_permanent',
-            'google_drive_authenticated', 'google_drive_access_token',
-            'google_drive_refresh_token', 'google_drive_token_expiry',
-            'google_oauth_state', 'google_oauth_user_id'
-        ]
-        
-        for key in session_keys_to_remove:
-            session.pop(key, None)
-        
+        if '_user_id' in session:
+            session.pop('_user_id', None)
+        if 'user_id' in session:
+            session.pop('user_id', None)
+        if '_fresh' in session:
+            session.pop('_fresh', None)
+            
         # Call Flask-Login logout
         logout_user()
         
-        # SECURITY: Force clear ALL remaining session data
+        # Force clear the entire session
         for key in list(session.keys()):
             session.pop(key, None)
         
-        # Mark session as modified and cleared
+        # Modify session to force save
         session.modified = True
-        session.clear()
         
-        # Log security event
-        if user_id:
-            logger.info(f"User {username} (ID: {user_id}) logged out successfully, IP: {request.remote_addr}")
-            log_security_event(user_id, 'logout', f'User logged out from IP: {request.remote_addr}')
+        logger.info(f"User {user_id} logged out successfully")
         
-        # Return response with clear cookie headers - SECURITY: Expire all cookies
+        # Return response with clear cookie headers
         response = jsonify({"success": True, "message": "Logged out successfully"})
-        # Clear session cookie
-        response.set_cookie('session', '', expires=0, samesite='Lax', path='/', httponly=True, secure=app.config.get('SESSION_COOKIE_SECURE', False))
-        # Clear any remember token cookies
-        response.set_cookie('remember_token', '', expires=0, path='/', httponly=True)
+        response.set_cookie('session', '', expires=0, samesite='Lax', path='/')
+        response.set_cookie('remember_token', '', expires=0, path='/')
         
         return response
     except Exception as e:
         logger.error(f"Logout error: {e}", exc_info=True)
-        # SECURITY: Even if there's an error, try to clear everything
+        # Even if there's an error, try to clear everything
         for key in list(session.keys()):
             session.pop(key, None)
         session.modified = True
@@ -8313,84 +8187,41 @@ def debug_claude():
 
 @app.route('/api/session')
 def session_info():
-    """Get current session information - validates authentication properly"""
-    # CRITICAL: Validate that user is actually authenticated and session is valid
-    # Don't trust current_user.is_authenticated alone - verify the user exists and is active
     if current_user.is_authenticated:
-        try:
-            # Verify user still exists and is active in database
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT id, username, role, campus, active
-                FROM users
-                WHERE id = ? AND active = 1
-            ''', (current_user.id,))
+        # Check if user needs Google Drive auth (admin users only)
+        needs_drive_auth = False
+        drive_status = {
+            'authenticated': False,
+            'token_valid': False,
+            'has_token': False
+        }
+        
+        if current_user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            # Check if Google Drive is authenticated
+            drive_authenticated = session.get('google_drive_authenticated', False)
+            drive_status['authenticated'] = drive_authenticated
+            drive_status['has_token'] = bool(session.get('google_drive_access_token'))
             
-            row = cursor.fetchone()
-            conn.close()
+            # Check if token is still valid
+            token_expiry = session.get('google_drive_token_expiry', 0)
+            token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
+            drive_status['token_valid'] = token_valid
             
-            # If user doesn't exist or is inactive, invalidate session
-            if not row:
-                logout_user()
-                session.clear()
-                return jsonify({
-                    "authenticated": False,
-                    "user": None,
-                    "role": None,
-                    "campus": None,
-                    "full_name": None,
-                    "needs_drive_auth": False,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-            
-            # User is valid - check if admin needs Google Drive auth
-            needs_drive_auth = False
-            drive_status = {
-                'authenticated': False,
-                'token_valid': False,
-                'has_token': False
-            }
-            
-            if current_user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
-                # Check if Google Drive is authenticated
-                drive_authenticated = session.get('google_drive_authenticated', False)
-                drive_status['authenticated'] = drive_authenticated
-                drive_status['has_token'] = bool(session.get('google_drive_access_token'))
-                
-                # Check if token is still valid
-                token_expiry = session.get('google_drive_token_expiry', 0)
-                token_valid = token_expiry > datetime.now(timezone.utc).timestamp()
-                drive_status['token_valid'] = token_valid
-                
-                # Admin users need Drive auth if not authenticated or token expired
-                needs_drive_auth = not (drive_authenticated and token_valid)
-            
-            return jsonify({
-                "authenticated": True,
-                "user": current_user.username,
-                "role": current_user.role,
-                "campus": current_user.campus,
-                "full_name": current_user.full_name,
-                "needs_drive_auth": needs_drive_auth,
-                "drive_status": drive_status,
-                "user_id": current_user.id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-        except Exception as e:
-            logger.error(f"Error validating session: {e}")
-            # On error, invalidate session for security
-            logout_user()
-            session.clear()
-            return jsonify({
-                "authenticated": False,
-                "user": None,
-                "role": None,
-                "campus": None,
-                "full_name": None,
-                "needs_drive_auth": False,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            # Admin users need Drive auth if not authenticated or token expired
+            needs_drive_auth = not (drive_authenticated and token_valid)
+        
+        return jsonify({
+            "authenticated": True,
+            "user": current_user.username,
+            "role": current_user.role,
+            "campus": current_user.campus,
+            "full_name": current_user.full_name,
+            "needs_drive_auth": needs_drive_auth,
+            "drive_status": drive_status,  # Debug info
+            "user_id": current_user.id,  # Debug info
+            "session_keys": list(session.keys()),  # Debug info
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
     else:
         return jsonify({
             "authenticated": False,
@@ -8958,8 +8789,8 @@ def process_voice():
             
             # Create row in exact column order matching full structure:
             # A=Timestamp, B=Date, C=Campus, D=Total Attendance, E=First Time Visitors, F=Visitors, G=Cards Back,
-            # H=First Time Christians, I=Rededications, J=Youth Attendance, K=Youth Salvations, L=Youth New People, M=Youth Leaders,
-            # N=Kids Attendance, O=Kids Leaders, P=New Kids, Q=New Kids Salvations, R=Connect Groups, S=Dream Team, T=Tithe, U=Baptisms, V=Child Dedications
+            # H=First Time Christians, I=Rededications, J=Youth Attendance, K=Youth Salvations, L=Youth New People,
+            # M=Kids Attendance, N=Kids Leaders, O=New Kids, P=New Kids Salvations, Q=Connect Groups, R=Dream Team, S=Tithe, T=Baptisms, U=Child Dedications
             row = [
                 timestamp,  # A - Timestamp
                 date,  # B - Date (Sunday date)
@@ -8973,16 +8804,15 @@ def process_voice():
                 result.get("Youth Attendance", ""),  # J - Youth Attendance
                 result.get("Youth Salvations", ""),  # K - Youth Salvations
                 result.get("Youth New People", ""),  # L - Youth New People
-                result.get("Youth Leaders", ""),  # M - Youth Leaders
-                result.get("Kids Attendance", ""),  # N - Kids Attendance
-                result.get("Kids Leaders", ""),  # O - Kids Leaders
-                result.get("New Kids", ""),  # P - New Kids
-                result.get("New Kids Salvations", ""),  # Q - New Kids Salvations
-                result.get("Connect Groups", ""),  # R - Connect Groups
-                result.get("Dream Team", ""),  # S - Dream Team
-                result.get("Tithe", ""),  # T - Tithe
-                result.get("Baptisms", ""),  # U - Baptisms
-                result.get("Child Dedications", "")  # V - Child Dedications
+                result.get("Kids Attendance", ""),  # M - Kids Attendance
+                result.get("Kids Leaders", ""),  # N - Kids Leaders
+                result.get("New Kids", ""),  # O - New Kids
+                result.get("New Kids Salvations", ""),  # P - New Kids Salvations
+                result.get("Connect Groups", ""),  # Q - Connect Groups
+                result.get("Dream Team", ""),  # R - Dream Team
+                result.get("Tithe", ""),  # S - Tithe
+                result.get("Baptisms", ""),  # T - Baptisms
+                result.get("Child Dedications", "")  # U - Child Dedications
             ]
             sheet.append_row(row, value_input_option='USER_ENTERED', table_range='A1')
         except Exception as e:
@@ -10385,7 +10215,6 @@ def quick_input():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
-                'Youth Leaders': safe_value('Youth Leaders'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -10636,7 +10465,6 @@ def quick_input_update():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
-                'Youth Leaders': safe_value('Youth Leaders'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -10804,7 +10632,7 @@ def get_sheets_headers():
                 'expected_headers': [
                     'Timestamp', 'Date', 'Campus', 'Total Attendance', 'First Time Visitors', 
                     'Visitors', 'Cards Back', 'First Time Christians', 'Rededications',
-                    'Youth Attendance', 'Youth Salvations', 'Youth New People', 'Youth Leaders', 'Kids Attendance',
+                    'Youth Attendance', 'Youth Salvations', 'Youth New People', 'Kids Attendance',
                     'Kids Leaders', 'New Kids', 'New Kids Salvations', 'Connect Groups', 
                     'Dream Team', 'Tithe', 'Baptisms', 'Child Dedications'
                 ],
@@ -11980,7 +11808,7 @@ def generate_cross_campus_report(review_type: str, date_range: str) -> dict:
         average = analysis_data.get("averages", {}).get(avg_key, 0)
         
         # Include all stats that have data or are important to show (including tithe)
-        if total > 0 or label in ["Total Attendance", "First Time Visitors", "New People", "New Christians", "Rededications", "Youth Attendance", "Youth Salvations", "Youth New People", "Youth Leaders", "Kids Attendance", "Kids Leaders", "New Kids", "New Kids Salvations", "Connect Groups", "Dream Team", "Tithe", "Baptisms", "Child Dedications", "Cards Back"]:
+        if total > 0 or label in ["Total Attendance", "First Time Visitors", "New People", "New Christians", "Rededications", "Youth Attendance", "Youth Salvations", "Youth New People", "Kids Attendance", "Kids Leaders", "New Kids", "New Kids Salvations", "Connect Groups", "Dream Team", "Tithe", "Baptisms", "Child Dedications", "Cards Back"]:
             comprehensive_stats[avg_key] = {
                 "total": total,
                 "average": round(average, 1),
@@ -12768,8 +12596,8 @@ def update_person_demo(person_id):
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error updating person {person_id} (demo): {e}")
-        return jsonify({'error': 'Failed to update person'}), 500
+        logger.error(f"Error updating person {person_id} (demo): {e}", exc_info=True)
+        return jsonify({'error': f'Failed to update person: {str(e)}'}), 500
 
 
 @app.route('/api/persons', methods=['GET'])
@@ -12811,13 +12639,12 @@ def get_persons():
         
         persons = query.order_by(Person.full_name).all()
         
-        # Include engagement profile data and Heartbeat snapshot
-        from models import HeartbeatSnapshot
+        # Include engagement profile data
         result = []
         for person in persons:
             person_data = person.to_dict()
             
-            # Add engagement profile data (legacy)
+            # Add engagement profile data
             if person.engagement_profile:
                 engagement_data = person.engagement_profile.to_dict()
                 person_data['pulse_status'] = engagement_data.get('pulse_status', 'red')
@@ -12833,16 +12660,6 @@ def get_persons():
                 person_data['attendance_frequency'] = 0.0
                 person_data['serving_frequency'] = 0.0
                 person_data['overall_engagement'] = 0.0
-            
-            # Add Heartbeat snapshot data (new system)
-            heartbeat_snapshot = HeartbeatSnapshot.query.filter_by(
-                person_id=person.id
-            ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
-            
-            if heartbeat_snapshot:
-                person_data['heartbeat'] = heartbeat_snapshot.to_dict()
-            else:
-                person_data['heartbeat'] = None
             
             # Apply pulse filter if specified
             if pulse_filter and person_data['pulse_status'] != pulse_filter:
@@ -12877,20 +12694,24 @@ def create_person():
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['full_name', 'email', 'campus']
+        required_fields = ['full_name', 'campus']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Check if email already exists
-        existing_person = Person.query.filter_by(email=data['email']).first()
-        if existing_person:
-            return jsonify({'error': 'Person with this email already exists'}), 400
+        # Normalize email - convert empty string to None
+        email = data.get('email', '').strip() or None
+        
+        # Check if email already exists (only if provided)
+        if email:
+            existing_person = Person.query.filter_by(email=email, is_active=True).first()
+            if existing_person:
+                return jsonify({'error': 'Person with this email already exists'}), 400
         
         # Create person and engagement profile
         person, engagement = create_person_with_engagement(
             full_name=data['full_name'],
-            email=data['email'],
+            email=email,
             campus=data['campus'],
             preferred_name=data.get('preferred_name'),
             phone=data.get('phone'),
@@ -13560,11 +13381,7 @@ def log_group_attendance():
 def get_connect_groups():
     """Get list of connect groups (campus-scoped)"""
     try:
-        # Check if user has view permission or view_own_groups permission
-        has_view = current_user.has_permission('groups', 'view')
-        has_view_own = current_user.has_permission('groups', 'view_own_groups')
-        
-        if not has_view and not has_view_own:
+        if not current_user.has_permission('groups', 'view'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         campus_filter = request.args.get('campus', None)
@@ -13573,22 +13390,9 @@ def get_connect_groups():
         # Build query
         query = ConnectGroup.query
         
-        # If user only has view_own_groups, filter to groups they lead
-        if has_view_own and not has_view:
-            # Get person ID from current user's email
-            user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
-            if user_person:
-                query = query.filter(
-                    (ConnectGroup.leader_id == user_person.id) | 
-                    (ConnectGroup.co_leader_id == user_person.id)
-                )
-            else:
-                # No person record found, return empty
-                return jsonify({'groups': [], 'total': 0})
-        else:
-            # Apply campus scoping for users with full view access
-            from utils.campus_scope import apply_campus_filter
-            query = apply_campus_filter(query, 'groups')
+        # Apply campus scoping
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'groups')
         
         if campus_filter and campus_filter != 'all_campuses':
             query = query.filter(ConnectGroup.campus == campus_filter)
@@ -13661,139 +13465,20 @@ def create_connect_group():
         return jsonify({'error': 'Failed to create connect group'}), 500
 
 
-def _auto_create_upcoming_meetings(group):
-    """Automatically create upcoming meetings based on group schedule"""
-    try:
-        if not group.meeting_day or not group.meeting_frequency:
-            return
-        
-        # Map day names to weekday numbers (Monday=0, Sunday=6)
-        day_map = {
-            'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
-            'Friday': 4, 'Saturday': 5, 'Sunday': 6
-        }
-        
-        target_weekday = day_map.get(group.meeting_day)
-        if target_weekday is None:
-            return
-        
-        today = datetime.now().date()
-        
-        # Determine how many meetings to create ahead
-        if group.meeting_frequency == 'weekly':
-            days_ahead = 28  # 4 weeks ahead
-        elif group.meeting_frequency == 'bi-weekly':
-            days_ahead = 42  # 6 weeks ahead
-        elif group.meeting_frequency == 'monthly':
-            days_ahead = 90  # ~3 months ahead
-        else:
-            return  # Unknown frequency
-        
-        # Find next occurrence of the meeting day
-        days_until_next = (target_weekday - today.weekday()) % 7
-        if days_until_next == 0:
-            # If today is the meeting day, check if we already have today's meeting
-            existing_today = ConnectGroupMeeting.query.filter_by(
-                group_id=group.id,
-                meeting_date=today
-            ).first()
-            if not existing_today:
-                days_until_next = 0  # Create today's meeting
-            else:
-                days_until_next = 7  # Start from next week
-        
-        next_meeting_date = today + timedelta(days=days_until_next)
-        
-        # Create meetings up to days_ahead
-        meetings_created = 0
-        current_date = next_meeting_date
-        
-        while (current_date - today).days <= days_ahead and meetings_created < 10:  # Limit to 10 meetings
-            # Check if meeting already exists
-            existing = ConnectGroupMeeting.query.filter_by(
-                group_id=group.id,
-                meeting_date=current_date
-            ).first()
-            
-            if not existing:
-                meeting = ConnectGroupMeeting(
-                    group_id=group.id,
-                    meeting_date=current_date,
-                    notes=f"Auto-created based on {group.meeting_frequency} schedule"
-                )
-                db.session.add(meeting)
-                meetings_created += 1
-            
-            # Move to next meeting date
-            if group.meeting_frequency == 'weekly':
-                current_date += timedelta(days=7)
-            elif group.meeting_frequency == 'bi-weekly':
-                current_date += timedelta(days=14)
-            elif group.meeting_frequency == 'monthly':
-                # Approximate monthly (30 days)
-                current_date += timedelta(days=30)
-        
-        if meetings_created > 0:
-            db.session.commit()
-            logger.info(f"Auto-created {meetings_created} meetings for group {group.id}")
-    except Exception as e:
-        logger.error(f"Error auto-creating meetings for group {group.id}: {e}")
-        db.session.rollback()
-
-
 @app.route('/api/connect-groups/<group_id>', methods=['GET'])
+@login_required
 def get_connect_group(group_id):
-    """Get connect group details with members (allows leader access via email + access code)"""
+    """Get connect group details with members"""
     try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
         
-        # Check permissions - either logged-in user OR leader via email + access code
-        is_leader = False
-        is_authenticated_user = False
-        
-        # Check if user is logged in
-        try:
-            if current_user and hasattr(current_user, 'email'):
-                has_view = current_user.has_permission('groups', 'view')
-                has_view_own = current_user.has_permission('groups', 'view_own_groups')
-                
-                if has_view:
-                    is_authenticated_user = True
-                elif has_view_own:
-                    user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
-                    if user_person and (group.leader_id == user_person.id or group.co_leader_id == user_person.id):
-                        is_authenticated_user = True
-        except:
-            pass  # Not logged in, check email + access code
-        
-        # If not authenticated user, check email + access code from query params
-        if not is_authenticated_user:
-            leader_email = request.args.get('leader_email', '').lower()
-            access_code = request.args.get('access_code', '')
-            
-            group_leader_email = group.leader.email.lower() if group.leader and group.leader.email else None
-            group_co_leader_email = group.co_leader.email.lower() if group.co_leader and group.co_leader.email else None
-            
-            if leader_email and (leader_email == group_leader_email or leader_email == group_co_leader_email):
-                # Verify access code if set
-                if group.leader_access_code:
-                    if access_code == group.leader_access_code:
-                        is_leader = True
-                else:
-                    # No access code required
-                    is_leader = True
-        
-        if not is_authenticated_user and not is_leader:
-            return jsonify({'error': 'Insufficient permissions'}), 403
-        
         # Get members
         members = group.get_members()
-        
-        # Auto-create upcoming meetings based on schedule
-        if group.meeting_day and group.meeting_frequency:
-            _auto_create_upcoming_meetings(group)
         
         # Get meetings (sorted by date, most recent first)
         meetings = ConnectGroupMeeting.query.filter_by(group_id=group_id).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
@@ -13814,22 +13499,12 @@ def get_connect_group(group_id):
 def update_connect_group(group_id):
     """Update connect group"""
     try:
-        # Check if user has edit permission or edit_own_groups permission
-        has_edit = current_user.has_permission('groups', 'edit')
-        has_edit_own = current_user.has_permission('groups', 'edit_own_groups')
-        
-        if not has_edit and not has_edit_own:
+        if not current_user.has_permission('groups', 'edit'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
-        
-        # If user only has edit_own_groups, verify they're the leader
-        if has_edit_own and not has_edit:
-            user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
-            if not user_person or (group.leader_id != user_person.id and group.co_leader_id != user_person.id):
-                return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         
@@ -13875,52 +13550,16 @@ def update_connect_group(group_id):
 
 
 @app.route('/api/connect-groups/<group_id>/members', methods=['POST'])
+@login_required
 def add_group_member(group_id):
-    """Add member to connect group (allows leader access via email + access code)"""
+    """Add member to connect group"""
     try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
-        
-        # Check permissions - either logged-in user OR leader via email + access code
-        is_leader = False
-        is_authenticated_user = False
-        
-        # Check if user is logged in
-        try:
-            if current_user and hasattr(current_user, 'email'):
-                has_edit = current_user.has_permission('groups', 'edit')
-                has_edit_own = current_user.has_permission('groups', 'edit_own_groups')
-                
-                if has_edit:
-                    is_authenticated_user = True
-                elif has_edit_own:
-                    user_person = Person.query.filter_by(email=current_user.email, is_active=True).first()
-                    if user_person and (group.leader_id == user_person.id or group.co_leader_id == user_person.id):
-                        is_authenticated_user = True
-        except:
-            pass  # Not logged in, check email + access code
-        
-        # If not authenticated user, check email + access code from request body
-        if not is_authenticated_user:
-            data = request.get_json()
-            leader_email = data.get('leader_email', '').lower() if data else ''
-            access_code = data.get('access_code', '') if data else ''
-            
-            group_leader_email = group.leader.email.lower() if group.leader and group.leader.email else None
-            group_co_leader_email = group.co_leader.email.lower() if group.co_leader and group.co_leader.email else None
-            
-            if leader_email and (leader_email == group_leader_email or leader_email == group_co_leader_email):
-                # Verify access code if set
-                if group.leader_access_code:
-                    if access_code == group.leader_access_code:
-                        is_leader = True
-                else:
-                    # No access code required
-                    is_leader = True
-        
-        if not is_authenticated_user and not is_leader:
-            return jsonify({'error': 'Insufficient permissions'}), 403
         
         data = request.get_json()
         person_id = data.get('person_id')
@@ -14343,72 +13982,6 @@ def get_passport_data(person_email):
 from prayer_api import prayer_bp
 app.register_blueprint(prayer_bp)
 
-# CONNECT GROUPS API
-try:
-    from connect_groups_api import connect_groups_bp
-    app.register_blueprint(connect_groups_bp)
-    logger.info("Connect Groups API registered successfully")
-except ImportError as e:
-    logger.warning(f"Could not import connect_groups_api: {e}")
-
-# EVENTS API
-try:
-    from events_api import events_bp
-    app.register_blueprint(events_bp)
-    logger.info("Events API registered successfully")
-except ImportError as e:
-    logger.warning(f"Could not import events_api: {e}")
-
-# Mobile app profile endpoint
-@app.route('/api/persons/email/<email>', methods=['GET'])
-def get_person_by_email_endpoint(email):
-    """Get person profile by email (for mobile app)"""
-    try:
-        person = Person.query.filter_by(email=email, is_active=True).first()
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
-        
-        person_data = person.to_dict()
-        
-        # Add engagement profile if exists
-        if person.engagement_profile:
-            person_data['engagement'] = person.engagement_profile.to_dict()
-        
-        return jsonify(person_data), 200
-        
-    except Exception as e:
-        logger.error(f"Error getting person by email: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/push-tokens', methods=['POST'])
-def save_push_token():
-    """Save push notification token for a person"""
-    try:
-        data = request.get_json()
-        email = data.get('email')
-        push_token = data.get('push_token')
-        
-        if not email or not push_token:
-            return jsonify({'error': 'Email and push_token required'}), 400
-        
-        # TODO: Store push token in database for later use
-        # For now, just acknowledge receipt
-        logger.info(f"Push token saved for {email}")
-        
-        return jsonify({'success': True, 'message': 'Push token saved'}), 200
-        
-    except Exception as e:
-        logger.error(f"Error saving push token: {e}")
-        return jsonify({'error': str(e)}), 500
-
-# Giving API (Stripe integration)
-try:
-    from giving_api import giving_bp
-    app.register_blueprint(giving_bp)
-    print("[INFO] Giving API (Stripe) registered")
-except Exception as e:
-    print(f"[WARNING] Failed to register Giving API: {e}")
-
 # SERVING MODULE ROUTES
 from serving_api import serving_bp
 app.register_blueprint(serving_bp)
@@ -14416,33 +13989,6 @@ app.register_blueprint(serving_bp)
 # WEBHOOK ROUTES
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
-
-# HEARTBEAT MODULE ROUTES
-try:
-    from heartbeat_api import heartbeat_bp
-    app.register_blueprint(heartbeat_bp)
-    
-    # BEACON MANAGEMENT ROUTES
-    try:
-        from beacon_api import beacon_bp
-        app.register_blueprint(beacon_bp)
-        logger.info("Beacon API blueprint registered successfully")
-    except ImportError as e:
-        logger.warning(f"Could not import beacon_api: {e}. Beacon features will be unavailable.")
-    
-    # PATHWAY MANAGEMENT ROUTES
-    try:
-        from pathway_api import pathway_bp
-        app.register_blueprint(pathway_bp)
-        logger.info("Pathway API blueprint registered successfully")
-    except ImportError as e:
-        logger.warning(f"Could not import pathway_api: {e}. Pathway features will be unavailable.")
-    
-    logger.info("Heartbeat API blueprint registered successfully")
-except ImportError as e:
-    logger.warning(f"Could not import heartbeat_api: {e}. Heartbeat features will be unavailable.")
-except Exception as e:
-    logger.error(f"Error registering heartbeat blueprint: {e}. Heartbeat features will be unavailable.")
 
 # USER MANAGEMENT ROUTES
 @app.route('/api/users', methods=['GET'])
@@ -14978,22 +14524,6 @@ def get_admin_resource_categories():
         logger.error(f"Error fetching resource categories: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch resource categories'}), 500
 
-def generate_slug_from_name(name):
-    """Generate a URL-safe slug from a display name"""
-    if not name:
-        return ''
-    # Convert to lowercase
-    slug = name.lower()
-    # Replace spaces and underscores with hyphens
-    slug = re.sub(r'[\s_]+', '-', slug)
-    # Remove all non-alphanumeric characters except hyphens
-    slug = re.sub(r'[^a-z0-9\-]', '', slug)
-    # Replace multiple hyphens with a single hyphen
-    slug = re.sub(r'-+', '-', slug)
-    # Remove leading and trailing hyphens
-    slug = slug.strip('-')
-    return slug
-
 @app.route('/api/admin/resource-categories', methods=['POST'])
 @admin_required_json
 def create_resource_category():
@@ -15006,12 +14536,8 @@ def create_resource_category():
         if not data.get('displayName'):
             return jsonify({'error': 'Display name is required'}), 400
         
-        # Generate slug from display name if not provided
-        slug = data.get('slug', '').strip()
-        if not slug:
-            slug = generate_slug_from_name(data['displayName'])
-            if not slug:
-                return jsonify({'error': 'Unable to generate slug from display name'}), 400
+        if not data.get('slug'):
+            return jsonify({'error': 'Slug is required'}), 400
         
         # Ensure table exists
         try:
@@ -15019,20 +14545,15 @@ def create_resource_category():
         except Exception as create_error:
             logger.warning(f"Table creation check: {create_error}")
         
-        # Check if slug already exists, and if so, append a number
-        base_slug = slug
-        counter = 1
-        while ResourceCategory.query.filter_by(slug=slug).first():
-            slug = f"{base_slug}-{counter}"
-            counter += 1
-            # Safety check to prevent infinite loop
-            if counter > 100:
-                return jsonify({'error': 'Unable to generate unique slug'}), 500
+        # Check if slug already exists
+        existing = ResourceCategory.query.filter_by(slug=data['slug']).first()
+        if existing:
+            return jsonify({'error': 'A category with this slug already exists'}), 400
         
         # Create new category
         category = ResourceCategory(
             display_name=data['displayName'],
-            slug=slug,
+            slug=data['slug'],
             description=data.get('description', ''),
             folder_id=data.get('folderId', ''),
             sort_order=data.get('sortOrder', 0),
@@ -15160,13 +14681,9 @@ def get_google_auth_url():
         session['google_oauth_user_id'] = current_user.id
         
         # Google OAuth scopes for Drive
-        # drive.readonly: Read files and folders
-        # drive.file: Create and manage files/folders that the app creates
-        # drive: Full access to create, link, and see all Google Drive folders
         scopes = [
             'https://www.googleapis.com/auth/drive.readonly',
-            'https://www.googleapis.com/auth/drive.file',
-            'https://www.googleapis.com/auth/drive'
+            'https://www.googleapis.com/auth/drive.file'
         ]
         scope_string = ' '.join(scopes)
         
@@ -15257,108 +14774,84 @@ def google_oauth_callback():
         session.pop('google_oauth_state', None)
         session.pop('google_oauth_user_id', None)
         
-        # CRITICAL: Mark session as modified and ensure it's saved
+        # CRITICAL: Mark session as modified and save it before redirecting
         session.modified = True
-        session.permanent = True
-        
-        # Force session to be saved by accessing it (triggers save)
-        _ = session.get('google_drive_authenticated')
         
         # Log success (don't re-login user as it can cause recursion)
         if current_user.is_authenticated:
-            logger.info(f"Google Drive OAuth successful for authenticated user {current_user.username} (ID: {user_id}), tokens stored in session. Session keys: {list(session.keys())}")
+            logger.info(f"Google Drive OAuth successful for authenticated user {current_user.username} (ID: {user_id}), tokens stored in session")
         else:
-            logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session. Session keys: {list(session.keys())}")
+            logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session")
         
-        # Return success page that DIRECTLY redirects the opener window
-        # This is the simplest and most reliable approach
+        # Return success page that handles both popup and redirect scenarios
         return '''
         <!DOCTYPE html>
         <html>
         <head>
             <title>Google Drive Connected</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-align: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(10px);
+                    border-radius: 20px;
+                    padding: 40px;
+                    max-width: 400px;
+                }
+                h1 { margin-top: 0; }
+                .checkmark {
+                    font-size: 64px;
+                    margin-bottom: 20px;
+                }
+            </style>
         </head>
         <body>
+            <div class="container">
+                <div class="checkmark">✓</div>
+                <h1>Google Drive Connected!</h1>
+                <p>You can close this window or return to the app.</p>
+            </div>
             <script>
-                (function() {
-                    console.log('[OAuth Callback] Starting redirect...');
-                    
-                    // CRITICAL: This is a POPUP - it must NEVER redirect itself
-                    // Only redirect the opener window, then close immediately
-                    if (window.opener && !window.opener.closed) {
-                        console.log('[OAuth Callback] Opener found, redirecting opener window...');
-                        
-                        // Send postMessage to redirect opener (this is the most reliable method)
-                        const sendRedirect = () => {
-                            try {
-                                // Send with specific origin
-                                window.opener.postMessage({ 
-                                    type: 'redirect',
-                                    url: '/',
-                                    timestamp: Date.now()
-                                }, window.location.origin);
-                                
-                                // Send with wildcard as fallback
-                                window.opener.postMessage({ 
-                                    type: 'redirect',
-                                    url: '/',
-                                    timestamp: Date.now()
-                                }, '*');
-                                
-                                // Also send legacy format
-                                window.opener.postMessage({ 
-                                    type: 'googleAuthSuccess',
-                                    redirect: '/',
-                                    timestamp: Date.now()
-                                }, '*');
-                                
-                                console.log('[OAuth Callback] Redirect messages sent');
-                            } catch (e) {
-                                console.error('[OAuth Callback] Error sending messages:', e);
-                            }
-                        };
-                        
-                        // Send immediately
-                        sendRedirect();
-                        
-                        // Send again after short delays
-                        setTimeout(sendRedirect, 100);
-                        setTimeout(sendRedirect, 300);
-                        setTimeout(sendRedirect, 600);
-                        
-                        // Try direct redirect (may be blocked by browser security)
-                        try {
-                            window.opener.location.href = '/';
-                            console.log('[OAuth Callback] Direct location redirect attempted');
-                        } catch (e) {
-                            console.log('[OAuth Callback] Direct redirect blocked (this is normal):', e.message);
-                        }
-                        
-                        // CRITICAL: Close popup IMMEDIATELY - do NOT redirect this window
-                        // Wait just long enough for messages to be sent, then close
-                        setTimeout(() => {
-                            try {
-                                console.log('[OAuth Callback] Closing popup window...');
-                                window.close();
-                            } catch (e) {
-                                console.log('[OAuth Callback] Could not close window:', e);
-                                // If we can't close, redirect to blank page (NOT to /)
-                                window.location.href = 'about:blank';
-                            }
-                        }, 800);
-                    } else {
-                        // No opener - this shouldn't happen, but if it does, just close
-                        console.log('[OAuth Callback] No opener found - closing popup');
-                        try {
-                            window.close();
-                        } catch (e) {
-                            window.location.href = 'about:blank';
-                        }
+                // Immediately try to notify parent/opener
+                try {
+                    if (window.opener) {
+                        // Desktop popup scenario
+                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
+                        setTimeout(() => window.close(), 500);
+                    } else if (window.parent && window.parent !== window) {
+                        // Iframe scenario
+                        window.parent.postMessage({ type: 'googleAuthSuccess' }, '*');
                     }
-                })();
+                } catch (e) {
+                    console.log('Could not post message:', e);
+                }
+                
+                // For mobile redirects, always redirect back to app immediately
+                // This ensures we get back to the app even if postMessage fails
+                if (!window.opener) {
+                    // Store success in sessionStorage for the app to detect
+                    try {
+                        sessionStorage.setItem('google_oauth_success', 'true');
+                    } catch (e) {
+                        console.log('Could not set sessionStorage:', e);
+                    }
+                    
+                    // Redirect immediately with a flag to force auth refresh
+                    window.location.href = '/?oauth_success=true';
+                }
             </script>
-            <p>Redirecting...</p>
         </body>
         </html>
         '''
@@ -15378,17 +14871,7 @@ def get_resource_category_files(category_id):
         ).filter_by(is_active=True).first()
         
         if category:
-            # Parse links from JSON string, handle errors gracefully
-            try:
-                links = json.loads(category.links) if category.links else []
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.warning(f"Error parsing links for category {category_id}: {e}")
-                links = []
-            
-            # Ensure links is a list
-            if not isinstance(links, list):
-                links = []
-            
+            links = json.loads(category.links) if category.links else []
             # For now, return links from category - Google Drive files not yet implemented
             return jsonify({
                 'files': [],  # Google Drive files not yet implemented
