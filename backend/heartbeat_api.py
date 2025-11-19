@@ -171,13 +171,42 @@ def get_person_heartbeat(person_id):
             person_id=person_id
         ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
         
+        # Check if we need to recalculate (if snapshot is old or doesn't exist)
+        should_recalculate = False
         if not snapshot:
-            return jsonify({
-                'person_id': person_id,
-                'person': person.to_dict(),
-                'heartbeat': None,
-                'message': 'No heartbeat snapshot found. Run recalculation to generate one.'
-            }), 200
+            should_recalculate = True
+            logger.info(f"No heartbeat snapshot found for {person_id}, will recalculate")
+        else:
+            # Recalculate if snapshot is older than 1 day OR if there's new connect attendance
+            snapshot_age = datetime.utcnow() - snapshot.calculated_at
+            if snapshot_age.days > 1:
+                should_recalculate = True
+                logger.info(f"Heartbeat snapshot for {person_id} is {snapshot_age.days} days old, will recalculate")
+            else:
+                # Check if there's new connect attendance since last calculation
+                recent_connect_count = ConnectAttendance.query.filter(
+                    ConnectAttendance.person_id == person_id,
+                    ConnectAttendance.date >= snapshot.calculated_at.date()
+                ).count()
+                if recent_connect_count > 0:
+                    should_recalculate = True
+                    logger.info(f"Found {recent_connect_count} new connect attendance records for {person_id} since last calculation, will recalculate")
+        
+        # Auto-recalculate if needed
+        if should_recalculate:
+            try:
+                snapshot = engine.calculate_heartbeat(person_id)
+                logger.info(f"Auto-recalculated heartbeat for {person_id}: engagement={snapshot.engagement_score}, total={snapshot.total_score}")
+            except Exception as e:
+                logger.error(f"Error auto-recalculating heartbeat for {person_id}: {e}", exc_info=True)
+                # Continue with existing snapshot or None
+                if not snapshot:
+                    return jsonify({
+                        'person_id': person_id,
+                        'person': person.to_dict(),
+                        'heartbeat': None,
+                        'message': 'No heartbeat snapshot found. Run recalculation to generate one.'
+                    }), 200
         
         # Get recent events for context
         twelve_weeks_ago = date.today() - timedelta(weeks=12)

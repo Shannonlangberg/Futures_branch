@@ -183,6 +183,15 @@ class HeartbeatEngine:
         ).all()
         
         # Connect group attendance
+        # Query ALL records first to debug
+        all_connect_attendance = ConnectAttendance.query.filter(
+            ConnectAttendance.person_id == person_id
+        ).all()
+        logger.info(f"DEBUG: Found {len(all_connect_attendance)} total ConnectAttendance records for person {person_id}")
+        for att in all_connect_attendance:
+            logger.info(f"  DEBUG: ConnectAttendance - Date: {att.date}, Status: {att.status}, Group: {att.connect_group_id}, In range: {start_date <= att.date <= end_date}")
+        
+        # Now filter by date range
         connect_attendance = ConnectAttendance.query.filter(
             ConnectAttendance.person_id == person_id,
             ConnectAttendance.date >= start_date,
@@ -347,6 +356,12 @@ class HeartbeatEngine:
         
         logger.info(f"Calculating engagement score: active_groups={len(active_groups)}, connect_attendance={len(connect_attendance)}")
         
+        # Debug: Log all connect_attendance details
+        if connect_attendance:
+            logger.info(f"DEBUG: Connect attendance details:")
+            for att in connect_attendance:
+                logger.info(f"  - Date: {att.date}, Status: '{att.status}', Status type: {type(att.status)}, Status == 'present': {att.status == 'present'}")
+        
         # Check if in active group OR has attendance records (attendance is proof of membership)
         in_group = len(active_groups) > 0
         has_attendance = len(connect_attendance) > 0
@@ -355,9 +370,13 @@ class HeartbeatEngine:
         
         # Calculate attendance rate in groups
         if connect_attendance:
+            # Debug: Check status values
+            status_values = [a.status for a in connect_attendance]
+            logger.info(f"DEBUG: All status values: {status_values}")
             present_count = len([a for a in connect_attendance if a.status == 'present'])
             total_meetings = len(connect_attendance)
             group_attendance_rate = present_count / total_meetings if total_meetings > 0 else 0.0
+            logger.info(f"DEBUG: present_count={present_count}, total_meetings={total_meetings}, rate={group_attendance_rate}")
         else:
             group_attendance_rate = 0.0
         
@@ -370,7 +389,21 @@ class HeartbeatEngine:
             # Target: attend at least once every 2 weeks (6 times in 12 weeks)
             weeks_in_range = (end_date - start_date).days / 7
             target_attendances = max(1, int(weeks_in_range / 2))
-            attendance_count = len([a for a in connect_attendance if a.status == 'present']) if connect_attendance else 0
+            
+            # Count present attendances - be more flexible with status matching
+            if connect_attendance:
+                # Try multiple ways to match 'present'
+                present_attendances = [
+                    a for a in connect_attendance 
+                    if (a.status == 'present' or 
+                        str(a.status).lower() == 'present' or
+                        (hasattr(a, 'present') and a.present == True))
+                ]
+                attendance_count = len(present_attendances)
+                logger.info(f"DEBUG: Filtered present attendances: {len(present_attendances)} out of {len(connect_attendance)}")
+            else:
+                attendance_count = 0
+            
             attendance_rate = min(attendance_count / target_attendances, 1.0) if target_attendances > 0 else 0.0
             connect_score = 40.0 * attendance_rate
             logger.info(f"Connect score calculation: weeks={weeks_in_range:.1f}, target={target_attendances}, "
