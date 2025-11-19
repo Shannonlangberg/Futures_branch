@@ -1423,8 +1423,18 @@ const PersonHealthReport = () => {
                     });
                     categoryIcon = '👥';
                     categoryColor = 'purple';
-                  } else if (selectedCategory === 'spiritual' && recent_activity?.discipleship_steps && recent_activity.discipleship_steps.length > 0) {
-                    categoryEvents = recent_activity.discipleship_steps.map(d => {
+                  } else if (selectedCategory === 'spiritual') {
+                    // Debug: Log spiritual data
+                    console.log('Spiritual modal data:', {
+                      has_recent_activity: !!recent_activity,
+                      has_discipleship_steps: !!recent_activity?.discipleship_steps,
+                      discipleship_steps_length: recent_activity?.discipleship_steps?.length || 0,
+                      discipleship_steps: recent_activity?.discipleship_steps,
+                      person: data?.person
+                    });
+                    
+                    if (recent_activity?.discipleship_steps && recent_activity.discipleship_steps.length > 0) {
+                      categoryEvents = recent_activity.discipleship_steps.map(d => {
                       // Handle Person milestones (baptism, DNA, etc.) vs DiscipleshipStep records
                       const isPersonMilestone = d.is_person_milestone;
                       let title = '';
@@ -1454,8 +1464,14 @@ const PersonHealthReport = () => {
                         color: 'indigo'
                       };
                     });
-                    categoryIcon = '✨';
-                    categoryColor = 'indigo';
+                      categoryIcon = '✨';
+                      categoryColor = 'indigo';
+                    } else {
+                      // No discipleship steps found
+                      categoryEvents = [];
+                      categoryIcon = '✨';
+                      categoryColor = 'indigo';
+                    }
                   } else if (selectedCategory === 'care' && recent_activity?.open_care_cases) {
                     categoryEvents = recent_activity.open_care_cases.map(c => ({
                       ...c,
