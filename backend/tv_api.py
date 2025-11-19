@@ -152,6 +152,43 @@ def update_episode_progress(episode_id):
         return jsonify({'error': str(e)}), 500
 
 
+@tv_bp.route('/person/<person_id>/watched', methods=['GET'])
+@login_required
+def get_person_watched_episodes(person_id):
+    """Get all episodes a person has watched (for Heartbeat profile)"""
+    try:
+        # Check permissions - only admins or the person themselves
+        current_person_id = getattr(current_user, 'id', None)
+        user_role = getattr(current_user, 'role', None)
+        is_admin = user_role in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']
+        
+        if not is_admin and current_person_id != person_id:
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get all completed episodes for this person
+        progress_records = TVUserEpisodeProgress.query.filter_by(
+            person_id=person_id,
+            completed=True
+        ).order_by(TVUserEpisodeProgress.completed_at.desc()).all()
+        
+        episodes = []
+        for progress in progress_records:
+            if progress.episode and progress.episode.is_published:
+                episode_dict = progress.episode.to_dict()
+                episode_dict['completed_at'] = progress.completed_at.isoformat() if progress.completed_at else None
+                episode_dict['series'] = progress.episode.series.to_dict() if progress.episode.series else None
+                episodes.append(episode_dict)
+        
+        return jsonify({
+            'episodes': episodes,
+            'count': len(episodes)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting person watched episodes: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @tv_bp.route('/continue-watching', methods=['GET'])
 @login_required
 def get_continue_watching():

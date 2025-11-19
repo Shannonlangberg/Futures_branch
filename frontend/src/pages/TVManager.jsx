@@ -685,11 +685,23 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
     duration_seconds: 0,
     order_index: 0,
     is_published: false,
-    downloadable_notes_url: ''
+    downloadable_notes_url: '',
+    discipleship_links: []
   });
   const [loading, setLoading] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [youtubeError, setYoutubeError] = useState('');
+  
+  // Available discipleship step types
+  const discipleshipStepTypes = [
+    { value: 'salvation', label: 'Salvation' },
+    { value: 'baptism', label: 'Baptism' },
+    { value: 'holy_spirit', label: 'Holy Spirit' },
+    { value: 'next_steps', label: 'Next Steps' },
+    { value: 'dna_completed', label: 'DNA Completed' },
+    { value: 'rise_attended', label: 'Rise Attended' },
+    { value: 'first_served', label: 'First Served' }
+  ];
 
   useEffect(() => {
     if (episode) {
@@ -700,7 +712,11 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
         duration_seconds: episode.duration_seconds || 0,
         order_index: episode.order_index || 0,
         is_published: episode.is_published || false,
-        downloadable_notes_url: episode.downloadable_notes_url || ''
+        downloadable_notes_url: episode.downloadable_notes_url || '',
+        discipleship_links: episode.discipleship_links?.map(link => ({
+          discipleship_step_type: link.discipleship_step_type,
+          auto_complete: link.auto_complete
+        })) || []
       });
       // Extract YouTube URL if it's already in video_url
       if (episode.video_url) {
@@ -948,6 +964,71 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
                 className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
                 placeholder="https://..."
               />
+            </div>
+
+            {/* Discipleship Links */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Discipleship Step Links (Optional)
+              </label>
+              <p className="text-xs text-slate-500 mb-3">
+                When someone completes this episode, automatically mark these discipleship steps as complete
+              </p>
+              <div className="space-y-2">
+                {formData.discipleship_links.map((link, index) => (
+                  <div key={index} className="flex items-center gap-2 p-3 bg-slate-900 rounded-lg border border-slate-700">
+                    <select
+                      value={link.discipleship_step_type}
+                      onChange={(e) => {
+                        const newLinks = [...formData.discipleship_links];
+                        newLinks[index].discipleship_step_type = e.target.value;
+                        setFormData({ ...formData, discipleship_links: newLinks });
+                      }}
+                      className="flex-1 px-3 py-2 bg-slate-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700 text-sm"
+                    >
+                      <option value="">Select step type...</option>
+                      {discipleshipStepTypes.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={link.auto_complete}
+                        onChange={(e) => {
+                          const newLinks = [...formData.discipleship_links];
+                          newLinks[index].auto_complete = e.target.checked;
+                          setFormData({ ...formData, discipleship_links: newLinks });
+                        }}
+                        className="w-4 h-4 rounded bg-slate-800 text-purple-600 focus:ring-purple-500 border-slate-700"
+                      />
+                      Auto-complete
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newLinks = formData.discipleship_links.filter((_, i) => i !== index);
+                        setFormData({ ...formData, discipleship_links: newLinks });
+                      }}
+                      className="px-3 py-2 text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      <XMarkIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      discipleship_links: [...formData.discipleship_links, { discipleship_step_type: '', auto_complete: true }]
+                    });
+                  }}
+                  className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors text-sm"
+                >
+                  + Add Discipleship Step Link
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">

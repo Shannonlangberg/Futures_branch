@@ -142,7 +142,26 @@ const PersonHealthReport = () => {
   useEffect(() => {
     fetchPersonData();
     fetchPathways();
+    fetchWatchedEpisodes();
   }, [personId]);
+  
+  const fetchWatchedEpisodes = async () => {
+    try {
+      setLoadingWatched(true);
+      const response = await fetch(`/api/tv/person/${personId}/watched`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setWatchedEpisodes(result.episodes || []);
+      }
+    } catch (err) {
+      console.error('Error fetching watched episodes:', err);
+    } finally {
+      setLoadingWatched(false);
+    }
+  };
 
   useEffect(() => {
     // Fetch AI suggestion when pathway data is available
@@ -406,6 +425,10 @@ const PersonHealthReport = () => {
   const { person, heartbeat, recent_activity, pathway } = data;
   const hasHeartbeat = heartbeat !== null;
   const hasPathway = pathway !== null;
+  
+  // State for watched episodes
+  const [watchedEpisodes, setWatchedEpisodes] = useState([]);
+  const [loadingWatched, setLoadingWatched] = useState(false);
 
   // Combine all recent activity for timeline
   const allActivities = [];
@@ -835,6 +858,81 @@ const PersonHealthReport = () => {
                 </p>
                 </div>
               )}
+
+            {/* Watched Episodes - Engagement Section */}
+            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
+              <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                <span>📺</span>
+                Watched on Pulse TV
+                {watchedEpisodes.length > 0 && (
+                  <span className="ml-auto px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-semibold">
+                    {watchedEpisodes.length} {watchedEpisodes.length === 1 ? 'Episode' : 'Episodes'}
+                  </span>
+                )}
+              </h2>
+              
+              {loadingWatched ? (
+                <div className="text-center py-8">
+                  <div className="inline-block w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-slate-400 mt-2">Loading watched episodes...</p>
+                </div>
+              ) : watchedEpisodes.length > 0 ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {watchedEpisodes.map((episode) => (
+                    <div
+                      key={episode.id}
+                      className="flex items-start gap-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-purple-500/50 transition-colors"
+                    >
+                      {episode.series?.thumbnail_url ? (
+                        <div className="w-24 h-16 bg-slate-700 rounded overflow-hidden flex-shrink-0">
+                          <img
+                            src={episode.series.thumbnail_url}
+                            alt={episode.series.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-24 h-16 bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded flex items-center justify-center flex-shrink-0">
+                          <span className="text-white/30 text-2xl">📺</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-white font-semibold mb-1 line-clamp-1">{episode.title}</h3>
+                            {episode.series && (
+                              <p className="text-sm text-slate-400 mb-1">{episode.series.title}</p>
+                            )}
+                            {episode.completed_at && (
+                              <p className="text-xs text-slate-500">
+                                Watched {new Date(episode.completed_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                            )}
+                          </div>
+                          <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-semibold flex-shrink-0">
+                            ✓ Completed
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-slate-400 mb-2">No episodes watched yet</p>
+                  <p className="text-sm text-slate-500">
+                    When this person watches episodes on Pulse TV, they'll appear here
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Recent Activity Timeline */}
             {allActivities.length > 0 && (
