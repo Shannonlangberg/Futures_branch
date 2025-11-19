@@ -1487,8 +1487,9 @@ const PersonHealthReport = () => {
                     
                     if (recent_activity?.discipleship_steps && recent_activity.discipleship_steps.length > 0) {
                       categoryEvents = recent_activity.discipleship_steps.map(d => {
-                      // Handle Person milestones (baptism, DNA, etc.) vs DiscipleshipStep records
+                      // Handle Person milestones, pathway steps, and DiscipleshipStep records
                       const isPersonMilestone = d.is_person_milestone;
+                      const isPathwayStep = d.is_pathway_step;
                       let title = '';
                       let icon = '✨';
                       
@@ -1501,6 +1502,19 @@ const PersonHealthReport = () => {
                         else if (d.type === 'filled_holy_spirit') icon = '🔥';
                         else if (d.type === 'rise_attended') icon = '🌟';
                         else if (d.type === 'first_served') icon = '🤝';
+                      } else if (isPathwayStep) {
+                        // Pathway step completions (e.g., "Salvation", "Baptism", "This is Christianity")
+                        title = d.description || d.step_name || d.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        // Use specific icons based on milestone_type or step name
+                        const milestoneType = d.milestone_type || '';
+                        const stepName = (d.description || '').toLowerCase();
+                        if (milestoneType === 'baptism' || stepName.includes('baptism')) icon = '💧';
+                        else if (milestoneType === 'salvation' || stepName.includes('salvation')) icon = '✝️';
+                        else if (milestoneType === 'holy_spirit' || stepName.includes('holy spirit')) icon = '🔥';
+                        else if (milestoneType === 'dna' || stepName.includes('dna')) icon = '📖';
+                        else if (milestoneType === 'rise' || stepName.includes('rise')) icon = '🌟';
+                        else if (milestoneType === 'group_join' || stepName.includes('connect group')) icon = '👥';
+                        else if (stepName.includes('christianity') || stepName.includes('course')) icon = '📚';
                       } else {
                         // Regular DiscipleshipStep
                         title = d.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -1512,7 +1526,7 @@ const PersonHealthReport = () => {
                         icon: icon,
                         title: title,
                         date: d.date || d.created_at,
-                        details: d.description || '',
+                        details: d.description || d.step_name || '',
                         color: 'indigo'
                       };
                     });
