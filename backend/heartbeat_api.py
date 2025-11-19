@@ -340,6 +340,16 @@ def get_person_heartbeat(person_id):
             is_active=True
         ).first()
         
+        # Refresh pathway progress to ensure latest completion data is loaded
+        if pathway_progress:
+            db.session.refresh(pathway_progress)
+            # Refresh relationships to get latest step completions
+            try:
+                # Force reload of step_completions relationship
+                _ = pathway_progress.step_completions.all()
+            except Exception as e:
+                logger.warning(f"Error refreshing pathway step completions: {e}")
+        
         return jsonify({
             'person_id': person_id,
             'person': person.to_dict(),

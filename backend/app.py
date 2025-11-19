@@ -13296,8 +13296,15 @@ def update_person(person_id):
                                 
                                 logger.info(f"Auto-completed 'Joined Connect Group' step for person {person_id} with connect group: {connect_group_value}")
                                 
-                                # Commit pathway completion first
+                                # Flush to ensure completion is saved before committing
+                                db.session.flush()
+                                
+                                # Commit pathway completion
                                 db.session.commit()
+                                
+                                # Refresh to ensure latest data is available
+                                db.session.refresh(active_progress)
+                                _ = active_progress.step_completions.all()  # Force reload of relationship
                                 
                                 # Trigger Heartbeat recalculation since spiritual score may have changed
                                 try:
