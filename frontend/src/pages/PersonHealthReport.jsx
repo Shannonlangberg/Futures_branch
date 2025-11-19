@@ -50,14 +50,14 @@ const ScoreCard = ({ label, value, weight, color, maxValue = 100 }) => {
     indigo: 'bg-indigo-500',
     pink: 'bg-pink-500'
   };
-
+  
   return (
     <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
       <div className="flex items-center justify-between mb-3">
-        <div>
+          <div>
           <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">{label}</div>
           <div className="text-3xl font-bold text-white">{Math.round(value)}</div>
-        </div>
+          </div>
         <div className="text-right">
           <div className="text-xs text-slate-500">Weight</div>
           <div className="text-sm font-semibold text-slate-300">{weight}</div>
@@ -66,9 +66,9 @@ const ScoreCard = ({ label, value, weight, color, maxValue = 100 }) => {
       <div className="w-full bg-slate-900/50 rounded-full h-3 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${colorClasses[color] || colorClasses.blue}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
       <div className="mt-2 text-xs text-slate-400">
         {percentage.toFixed(1)}% of maximum
       </div>
@@ -116,41 +116,129 @@ const PersonHealthReport = () => {
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
   const [recalculating, setRecalculating] = useState(false);
+  const [showPathwayModal, setShowPathwayModal] = useState(false);
+  const [pathways, setPathways] = useState([]);
+  const [selectedPathwayId, setSelectedPathwayId] = useState(null);
 
   useEffect(() => {
     fetchPersonData();
+    fetchPathways();
   }, [personId]);
 
-  const fetchPersonData = async () => {
+  const fetchPathways = async () => {
     try {
-      setLoading(true);
-      setError('');
+      const response = await fetch('/api/pathways', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPathways(data.pathways || []);
+      }
+    } catch (err) {
+      console.error('Error loading pathways:', err);
+    }
+  };
+
+  const handleAssignPathway = async () => {
+    if (!selectedPathwayId) {
+      alert('Please select a pathway');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/pathways/person/${personId}/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          pathway_id: parseInt(selectedPathwayId),
+          start_immediately: true
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        alert('Pathway assigned successfully!');
+        setShowPathwayModal(false);
+        await fetchPersonData();
+      } else {
+        alert(result.error || 'Failed to assign pathway');
+      }
+    } catch (err) {
+      console.error('Error assigning pathway:', err);
+      alert('Failed to assign pathway');
+    }
+  };
+
+  const handleCompleteStep = async (stepId) => {
+    if (!data.pathway) {
+      alert('No pathway assigned');
+      return;
+    }
+
+    if (!confirm('Mark this step as completed?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/pathways/progress/${data.pathway.id}/complete-step`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          step_id: stepId
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        alert('Step marked as completed!');
+        await fetchPersonData();
+      } else {
+        alert(result.error || 'Failed to complete step');
+      }
+    } catch (err) {
+      console.error('Error completing step:', err);
+      alert('Failed to complete step');
+    }
+  };
+
+  const fetchPersonData = async () => {
+      try {
+        setLoading(true);
+        setError('');
 
       const response = await fetch(`/api/heartbeat/person/${personId}`, {
         credentials: 'include'
-      });
+        });
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Person not found');
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('Person not found');
+          }
+          throw new Error('Failed to load person details');
         }
-        throw new Error('Failed to load person details');
-      }
 
       const result = await response.json();
-      
+        
       if (result.error) {
         throw new Error(result.error);
-      }
-      
+        }
+        
       setData(result);
-    } catch (err) {
+      } catch (err) {
       console.error('Person heartbeat load error:', err);
       setError(err.message || 'Unable to load person details.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const handleRecalculate = async () => {
     try {
@@ -372,11 +460,11 @@ const PersonHealthReport = () => {
         {hasHeartbeat ? (
           <>
             {/* Score Breakdown */}
-            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <span>📊</span>
+        <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <span>📊</span>
                 Heartbeat Score Breakdown
-              </h2>
+          </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <ScoreCard
                   label="Gather"
@@ -402,8 +490,8 @@ const PersonHealthReport = () => {
                   weight="15%"
                   color="pink"
                 />
-              </div>
-              
+            </div>
+
               {/* Total Score */}
               <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/40 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -415,8 +503,8 @@ const PersonHealthReport = () => {
                   <div className="text-6xl opacity-20">💜</div>
                 </div>
                 <div className="w-full bg-slate-900/50 rounded-full h-4 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-500"
+                <div
+                  className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-500"
                     style={{ width: `${Math.min(heartbeat.total_score, 100)}%` }}
                   />
                 </div>
@@ -498,8 +586,8 @@ const PersonHealthReport = () => {
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-slate-300 mb-2">All Steps:</div>
                   {pathway.pathway && pathway.pathway.steps ? (
-                    pathway.pathway.steps.map((step, index) => {
-                      const isCompleted = pathway.completed_steps > index;
+                    pathway.pathway.steps.map((step) => {
+                      const isCompleted = step.is_completed || false;
                       const isCurrent = pathway.next_step && pathway.next_step.id === step.id;
                       
                       return (
@@ -537,6 +625,15 @@ const PersonHealthReport = () => {
                               Current
                             </span>
                           )}
+                          {!isCompleted && !isCurrent && (
+                            <button
+                              onClick={() => handleCompleteStep(step.id)}
+                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
+                              title="Mark as completed"
+                            >
+                              Complete
+                            </button>
+                          )}
                         </div>
                       );
                     })
@@ -547,16 +644,24 @@ const PersonHealthReport = () => {
               </div>
             ) : (
               <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
-                <h2 className="text-xl font-semibold text-white mb-2 flex items-center gap-2">
-                  <span>🎓</span>
-                  Discipleship Pathway
-                </h2>
-                <p className="text-slate-400 mb-4">No pathway assigned yet.</p>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                    <span>🎓</span>
+                    Discipleship Pathway
+                  </h2>
+                  <button
+                    onClick={() => setShowPathwayModal(true)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold"
+                  >
+                    Assign Pathway
+                  </button>
+                </div>
+                <p className="text-slate-400 mb-2">No pathway assigned yet.</p>
                 <p className="text-sm text-slate-500">
-                  Assign a pathway via Settings → Pathway Manager or from the Heartbeat dashboard.
+                  Assign a pathway to track their discipleship journey and next steps.
                 </p>
-              </div>
-            )}
+                </div>
+              )}
 
             {/* Recent Activity Timeline */}
             {allActivities.length > 0 && (
@@ -576,12 +681,12 @@ const PersonHealthReport = () => {
                       type={activity.type}
                     />
                   ))}
-                </div>
+            </div>
                 {allActivities.length === 0 && (
                   <div className="text-center py-8 text-slate-400">
                     No recent activity recorded
-                  </div>
-                )}
+                    </div>
+                  )}
               </div>
             )}
           </>
@@ -595,6 +700,76 @@ const PersonHealthReport = () => {
             <p className="text-sm text-slate-500">
               Note: You'll need attendance, engagement, and other data in the system for accurate scores.
             </p>
+                    </div>
+                  )}
+
+        {/* Assign Pathway Modal */}
+        {showPathwayModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-2xl w-full">
+              <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Assign Pathway</h2>
+                <button
+                  onClick={() => {
+                    setShowPathwayModal(false);
+                    setSelectedPathwayId(null);
+                  }}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Select Pathway
+                  </label>
+                  <select
+                    value={selectedPathwayId || ''}
+                    onChange={(e) => setSelectedPathwayId(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="">Choose a pathway...</option>
+                    {pathways.map((pathway) => (
+                      <option key={pathway.id} value={pathway.id}>
+                        {pathway.name} {pathway.is_template && '(Template)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedPathwayId && (
+                  <div className="bg-slate-700/50 rounded-lg p-4">
+                    <div className="text-sm text-slate-300">
+                      {pathways.find(p => p.id === parseInt(selectedPathwayId))?.description || 'No description'}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                      {pathways.find(p => p.id === parseInt(selectedPathwayId))?.step_count || 0} steps
+                    </div>
+                    </div>
+                  )}
+
+                <div className="flex gap-3 pt-4 border-t border-slate-700">
+                  <button
+                    onClick={() => {
+                      setShowPathwayModal(false);
+                      setSelectedPathwayId(null);
+                    }}
+                    className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAssignPathway}
+                    disabled={!selectedPathwayId}
+                    className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Assign Pathway
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

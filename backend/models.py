@@ -588,11 +588,31 @@ class PersonPathwayProgress(db.Model):
     def to_dict(self):
         """Convert progress to dictionary"""
         next_step = self.get_next_step()
+        completed_step_ids = [c.pathway_step_id for c in self.step_completions.all()]
+        
+        # Include full pathway with steps
+        pathway_dict = None
+        if self.pathway:
+            pathway_dict = {
+                'id': self.pathway.id,
+                'name': self.pathway.name,
+                'description': self.pathway.description,
+                'category': self.pathway.category,
+                'steps': [
+                    {
+                        **step.to_dict(),
+                        'is_completed': step.id in completed_step_ids
+                    }
+                    for step in self.pathway.steps.order_by(PathwayStep.step_order).all()
+                ]
+            }
+        
         return {
             'id': self.id,
             'person_id': self.person_id,
             'pathway_id': self.pathway_id,
             'pathway_name': self.pathway.name if self.pathway else None,
+            'pathway': pathway_dict,  # Full pathway with steps
             'assigned_by_person_id': self.assigned_by_person_id,
             'assigned_at': self.assigned_at.isoformat() if self.assigned_at else None,
             'started_at': self.started_at.isoformat() if self.started_at else None,
