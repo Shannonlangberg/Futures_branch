@@ -617,6 +617,349 @@ class ResourceCategory(db.Model):
         }
 
 
+# ============================================================================
+# HEARTBEAT MODULE MODELS
+# ============================================================================
+
+class Campus(db.Model):
+    """Campus model for Heartbeat module"""
+    __tablename__ = 'heartbeat_campuses'
+    
+    id = db.Column(db.String(50), primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    timezone = db.Column(db.String(50), default='UTC')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'timezone': self.timezone,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class Service(db.Model):
+    """Service model for tracking church services"""
+    __tablename__ = 'heartbeat_services'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    campus_id = db.Column(db.String(50), db.ForeignKey('heartbeat_campuses.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # 'sunday', 'youth', 'kids', 'prayer_night', etc.
+    starts_at = db.Column(db.DateTime, nullable=False)
+    ends_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    campus = db.relationship('Campus', backref='services')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'campus_id': self.campus_id,
+            'type': self.type,
+            'starts_at': self.starts_at.isoformat() if self.starts_at else None,
+            'ends_at': self.ends_at.isoformat() if self.ends_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class AttendanceEvent(db.Model):
+    """Attendance event tracking"""
+    __tablename__ = 'heartbeat_attendance_events'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    service_id = db.Column(db.Integer, db.ForeignKey('heartbeat_services.id'), nullable=False)
+    source = db.Column(db.String(50), nullable=False)  # 'beacon', 'manual', 'checkin', 'import'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='attendance_events')
+    service = db.relationship('Service', backref='attendance_events')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'service_id': self.service_id,
+            'source': self.source,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class HeartbeatConnectGroup(db.Model):
+    """Connect Group model for Heartbeat (extends existing ConnectGroup concept)"""
+    __tablename__ = 'heartbeat_connect_groups'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    campus_id = db.Column(db.String(50), db.ForeignKey('heartbeat_campuses.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    leader_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # 'home', 'youth', 'interest'
+    day_of_week = db.Column(db.String(20))  # 'Monday', 'Tuesday', etc.
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    campus = db.relationship('Campus', backref='connect_groups')
+    leader = db.relationship('Person', foreign_keys=[leader_person_id], backref='led_heartbeat_groups')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'campus_id': self.campus_id,
+            'name': self.name,
+            'leader_person_id': self.leader_person_id,
+            'type': self.type,
+            'day_of_week': self.day_of_week,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class ConnectAttendance(db.Model):
+    """Connect group attendance records"""
+    __tablename__ = 'heartbeat_connect_attendance'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    connect_group_id = db.Column(db.Integer, db.ForeignKey('heartbeat_connect_groups.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), nullable=False)  # 'present', 'absent', 'apology'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='connect_attendance')
+    connect_group = db.relationship('HeartbeatConnectGroup', backref='attendance_records')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'connect_group_id': self.connect_group_id,
+            'date': self.date.isoformat() if self.date else None,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class Team(db.Model):
+    """Serving team model"""
+    __tablename__ = 'heartbeat_teams'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    campus_id = db.Column(db.String(50), db.ForeignKey('heartbeat_campuses.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    campus = db.relationship('Campus', backref='teams')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'campus_id': self.campus_id,
+            'name': self.name,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class ServingAssignment(db.Model):
+    """Serving assignment tracking"""
+    __tablename__ = 'heartbeat_serving_assignments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('heartbeat_teams.id'), nullable=False)
+    service_id = db.Column(db.Integer, db.ForeignKey('heartbeat_services.id'), nullable=False)
+    role = db.Column(db.String(200))
+    status = db.Column(db.String(20), nullable=False)  # 'scheduled', 'served', 'no_show'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='serving_assignments')
+    team = db.relationship('Team', backref='assignments')
+    service = db.relationship('Service', backref='serving_assignments')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'team_id': self.team_id,
+            'service_id': self.service_id,
+            'role': self.role,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class GivingSummary(db.Model):
+    """Giving summary for a person over a period"""
+    __tablename__ = 'heartbeat_giving_summaries'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+    frequency = db.Column(db.String(20), nullable=False)  # 'none', 'occasional', 'monthly', 'weekly'
+    pattern_score = db.Column(db.Float, default=0.0)  # 0-1.0
+    last_gift_at = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='giving_summaries')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'period_start': self.period_start.isoformat() if self.period_start else None,
+            'period_end': self.period_end.isoformat() if self.period_end else None,
+            'frequency': self.frequency,
+            'pattern_score': self.pattern_score,
+            'last_gift_at': self.last_gift_at.isoformat() if self.last_gift_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class DiscipleshipStep(db.Model):
+    """Discipleship milestone tracking"""
+    __tablename__ = 'heartbeat_discipleship_steps'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # 'salvation', 'baptism', 'holy_spirit', 'next_steps', etc.
+    description = db.Column(db.Text)
+    date = db.Column(db.Date, nullable=False)
+    created_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    person = db.relationship('Person', foreign_keys=[person_id], backref='discipleship_steps')
+    created_by = db.relationship('Person', foreign_keys=[created_by_person_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'type': self.type,
+            'description': self.description,
+            'date': self.date.isoformat() if self.date else None,
+            'created_by_person_id': self.created_by_person_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class CareCase(db.Model):
+    """Pastoral care case tracking"""
+    __tablename__ = 'heartbeat_care_cases'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # 'bereavement', 'marriage', 'mental_health', etc.
+    status = db.Column(db.String(20), nullable=False)  # 'open', 'in_progress', 'closed'
+    priority = db.Column(db.String(20), nullable=False)  # 'low', 'medium', 'high'
+    summary = db.Column(db.String(500))
+    details = db.Column(db.Text)
+    created_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    person = db.relationship('Person', foreign_keys=[person_id], backref='care_cases')
+    created_by = db.relationship('Person', foreign_keys=[created_by_person_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'type': self.type,
+            'status': self.status,
+            'priority': self.priority,
+            'summary': self.summary,
+            'details': self.details,
+            'created_by_person_id': self.created_by_person_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class CareTouchpoint(db.Model):
+    """Care touchpoint tracking"""
+    __tablename__ = 'heartbeat_care_touchpoints'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    care_case_id = db.Column(db.Integer, db.ForeignKey('heartbeat_care_cases.id'), nullable=False)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    contacted_by_person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    method = db.Column(db.String(50), nullable=False)  # 'phone', 'in_person', 'message', 'email', 'visit', 'prayer'
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    care_case = db.relationship('CareCase', backref='touchpoints')
+    person = db.relationship('Person', foreign_keys=[person_id], backref='care_touchpoints')
+    contacted_by = db.relationship('Person', foreign_keys=[contacted_by_person_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'care_case_id': self.care_case_id,
+            'person_id': self.person_id,
+            'contacted_by_person_id': self.contacted_by_person_id,
+            'method': self.method,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class HeartbeatSnapshot(db.Model):
+    """Heartbeat health snapshot for a person"""
+    __tablename__ = 'heartbeat_snapshots'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    campus_id = db.Column(db.String(50), db.ForeignKey('heartbeat_campuses.id'), nullable=False)
+    calculated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    gather_score = db.Column(db.Float, nullable=False)  # 0-100
+    engagement_score = db.Column(db.Float, nullable=False)  # 0-100
+    spiritual_score = db.Column(db.Float, nullable=False)  # 0-100
+    care_score = db.Column(db.Float, nullable=False)  # 0-100
+    total_score = db.Column(db.Float, nullable=False)  # 0-100
+    status = db.Column(db.String(20), nullable=False)  # 'healthy', 'watch', 'at_risk', 'critical'
+    risk_reasons = db.Column(db.Text)  # JSON array of strings
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='heartbeat_snapshots')
+    campus = db.relationship('Campus', backref='snapshots')
+    
+    def to_dict(self):
+        risk_reasons_list = []
+        if self.risk_reasons:
+            try:
+                risk_reasons_list = json.loads(self.risk_reasons)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'campus_id': self.campus_id,
+            'calculated_at': self.calculated_at.isoformat() if self.calculated_at else None,
+            'gather_score': self.gather_score,
+            'engagement_score': self.engagement_score,
+            'spiritual_score': self.spiritual_score,
+            'care_score': self.care_score,
+            'total_score': self.total_score,
+            'status': self.status,
+            'risk_reasons': risk_reasons_list,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
 def init_db(app):
     """Initialize database"""
     db.init_app(app)
