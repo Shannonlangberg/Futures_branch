@@ -14005,19 +14005,37 @@ def submit_meeting_attendance(meeting_id):
         db.session.commit()
         logger.info(f"Successfully committed attendance for meeting {meeting_id}")
         
-        # Refresh engagement profiles to ensure they're up to date
+        # Refresh engagement profiles and recalculate heartbeat for affected people
+        recalculated_people = []
         for att_data in attendance_list:
             if att_data.get('present', False):
                 person_id = att_data.get('person_id')
                 if person_id:
                     person = Person.query.filter_by(id=person_id, is_active=True).first()
-                    if person and person.engagement_profile:
-                        db.session.refresh(person.engagement_profile)
-                        logger.info(f"Refreshed engagement profile for {person.full_name} - engagement: {person.engagement_profile.overall_engagement}, pulse: {person.engagement_profile.pulse_status}")
+                    if person:
+                        if person.engagement_profile:
+                            db.session.refresh(person.engagement_profile)
+                            logger.info(f"Refreshed engagement profile for {person.full_name} - engagement: {person.engagement_profile.overall_engagement}, pulse: {person.engagement_profile.pulse_status}")
+                        
+                        # Recalculate Heartbeat snapshot for this person
+                        try:
+                            from heartbeat_engine import HeartbeatEngine
+                            engine = HeartbeatEngine()
+                            snapshot = engine.calculate_heartbeat(person_id)
+                            recalculated_people.append(person.full_name)
+                            logger.info(f"Recalculated Heartbeat for {person.full_name} - Score: {snapshot.total_score}, Status: {snapshot.status}")
+                        except Exception as hb_recalc_error:
+                            logger.error(f"Error recalculating heartbeat for {person.full_name}: {hb_recalc_error}", exc_info=True)
+                            # Don't fail the whole operation if recalculation fails
+        
+        if recalculated_people:
+            logger.info(f"Successfully recalculated heartbeat for {len(recalculated_people)} people: {', '.join(recalculated_people)}")
         
         return jsonify({
             'message': 'Attendance submitted successfully',
-            'meeting': meeting.to_dict()
+            'meeting': meeting.to_dict(),
+            'heartbeat_recalculated': len(recalculated_people),
+            'people': recalculated_people
         })
         
     except Exception as e:
