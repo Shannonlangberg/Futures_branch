@@ -14016,11 +14016,18 @@ def submit_meeting_attendance(meeting_id):
                 )
                 db.session.add(attendance)
             
-            # Update engagement profile if present
+            # Update engagement profile if present (creates profile if it doesn't exist)
             if present:
-                person = Person.query.filter_by(id=person_id).first()
-                if person and person.engagement_profile:
-                    person.engagement_profile.add_group_attendance(
+                person = Person.query.filter_by(id=person_id, is_active=True).first()
+                if person:
+                    # Get or create engagement profile
+                    engagement = person.engagement_profile
+                    if not engagement:
+                        engagement = EngagementProfile(person_id=person.id)
+                        db.session.add(engagement)
+                    
+                    # Add group attendance to engagement profile (feeds to heartbeat)
+                    engagement.add_group_attendance(
                         group_id=group.id,
                         attendance_date=meeting.meeting_date,
                         present=True

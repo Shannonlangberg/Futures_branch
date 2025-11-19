@@ -5,7 +5,9 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
-  MapPinIcon
+  MapPinIcon,
+  ArrowLeftOnRectangleIcon,
+  HomeIcon
 } from '@heroicons/react/24/outline';
 
 const ConnectGroupLeader = () => {
@@ -18,6 +20,7 @@ const ConnectGroupLeader = () => {
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentView, setCurrentView] = useState('groups'); // 'groups', 'group-details', 'attendance'
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -54,6 +57,7 @@ const ConnectGroupLeader = () => {
         if (userGroups.length > 0) {
           setMyGroups(userGroups);
           setLoggedIn(true);
+          setCurrentView('groups');
         } else {
           setError('No groups found for this email, or incorrect access code');
         }
@@ -76,6 +80,7 @@ const ConnectGroupLeader = () => {
       if (response.ok) {
         const data = await response.json();
         setSelectedGroup(data);
+        setCurrentView('group-details');
         // Also load meetings if available
         if (data.meetings) {
           // Meetings are already included in the response
@@ -109,6 +114,7 @@ const ConnectGroupLeader = () => {
         const data = await response.json();
         await loadGroupDetails(group);
         setSelectedMeeting(data.meeting);
+        setCurrentView('attendance');
         // Load attendance for this meeting
         loadMeetingAttendance(data.meeting.id);
       } else {
@@ -130,6 +136,7 @@ const ConnectGroupLeader = () => {
       if (response.ok) {
         const data = await response.json();
         setSelectedMeeting(data);
+        setCurrentView('attendance');
         // Initialize attendance for all members if not already set
         // Use selectedGroup from state (it should be set by loadGroupDetails)
         if (selectedGroup && selectedGroup.members) {
@@ -180,8 +187,10 @@ const ConnectGroupLeader = () => {
       );
 
       if (response.ok) {
-        alert('Attendance submitted successfully!');
+        alert('Attendance submitted successfully! Attendance has been recorded in Heartbeat.');
         await loadGroupDetails(selectedGroup);
+        setCurrentView('group-details');
+        setSelectedMeeting(null);
       } else {
         const errorData = await response.json();
         alert(errorData.error || 'Failed to submit attendance');
@@ -261,34 +270,89 @@ const ConnectGroupLeader = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-2 flex items-center">
-                <UserGroupIcon className="w-10 h-10 mr-3 text-blue-500" />
-                My Connect Groups
-              </h1>
-              <p className="text-slate-400">Manage your connect groups and take attendance</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex">
+      {/* Left Sidebar Navigation */}
+      <div className="w-64 bg-slate-800/50 backdrop-blur-sm border-r border-slate-700/50 flex flex-col">
+        {/* Logo/Header */}
+        <div className="p-6 border-b border-slate-700/50">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+              <UserGroupIcon className="w-6 h-6 text-blue-500" />
             </div>
-            <button
-              onClick={() => {
-                setLoggedIn(false);
-                setMyGroups([]);
-                setSelectedGroup(null);
-                setSelectedMeeting(null);
-              }}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-            >
-              Log Out
-            </button>
+            <div>
+              <h1 className="text-lg font-bold text-white">Leader Portal</h1>
+              <p className="text-xs text-slate-400">Connect Groups</p>
+            </div>
           </div>
         </div>
 
-        {/* Groups List */}
-        {!selectedGroup && (
+        {/* Navigation Menu */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <button
+            onClick={() => {
+              setSelectedGroup(null);
+              setSelectedMeeting(null);
+              setCurrentView('groups');
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              currentView === 'groups'
+                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                : 'text-slate-300 hover:bg-slate-700/50'
+            }`}
+          >
+            <HomeIcon className="w-5 h-5" />
+            <span className="font-medium">My Groups</span>
+          </button>
+
+          {/* Group List */}
+          {myGroups.map(group => (
+            <button
+              key={group.id}
+              onClick={() => loadGroupDetails(group)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${
+                selectedGroup?.id === group.id
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                  : 'text-slate-300 hover:bg-slate-700/50'
+              }`}
+            >
+              <UserGroupIcon className="w-5 h-5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium truncate">{group.name}</div>
+                <div className="text-xs text-slate-400 truncate">{group.campus}</div>
+              </div>
+            </button>
+          ))}
+        </nav>
+
+        {/* User Info & Logout */}
+        <div className="p-4 border-t border-slate-700/50">
+          <div className="mb-3 px-4 py-2 bg-slate-700/30 rounded-lg">
+            <p className="text-xs text-slate-400 mb-1">Logged in as</p>
+            <p className="text-sm font-medium text-white truncate">{email}</p>
+          </div>
+          <button
+            onClick={() => {
+              setLoggedIn(false);
+              setMyGroups([]);
+              setSelectedGroup(null);
+              setSelectedMeeting(null);
+              setCurrentView('groups');
+              setEmail('');
+              setAccessCode('');
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition-colors"
+          >
+            <ArrowLeftOnRectangleIcon className="w-5 h-5" />
+            <span className="font-medium">Log Out</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-6xl mx-auto p-6">
+          {/* Groups List */}
+          {currentView === 'groups' && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {myGroups.map(group => (
               <div
@@ -318,17 +382,11 @@ const ConnectGroupLeader = () => {
           </div>
         )}
 
-        {/* Group Details & Meetings */}
-        {selectedGroup && !selectedMeeting && (
+          {/* Group Details & Meetings */}
+          {currentView === 'group-details' && selectedGroup && (
           <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6">
               <h2 className="text-2xl font-bold text-white">{selectedGroup.name}</h2>
-              <button
-                onClick={() => setSelectedGroup(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                ← Back to Groups
-              </button>
             </div>
 
             {/* Group Info */}
@@ -421,8 +479,8 @@ const ConnectGroupLeader = () => {
           </div>
         )}
 
-        {/* Attendance Taking */}
-        {selectedMeeting && (
+          {/* Attendance Taking */}
+          {currentView === 'attendance' && selectedMeeting && (
           <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -435,10 +493,11 @@ const ConnectGroupLeader = () => {
                 onClick={() => {
                   setSelectedMeeting(null);
                   setAttendance([]);
+                  setCurrentView('group-details');
                 }}
                 className="text-slate-400 hover:text-white"
               >
-                ← Back
+                ← Back to Group
               </button>
             </div>
 
@@ -499,6 +558,7 @@ const ConnectGroupLeader = () => {
                 onClick={() => {
                   setSelectedMeeting(null);
                   setAttendance([]);
+                  setCurrentView('group-details');
                 }}
                 className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
               >
@@ -507,6 +567,7 @@ const ConnectGroupLeader = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
