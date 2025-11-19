@@ -10,7 +10,12 @@ import {
   SparklesIcon,
   CurrencyDollarIcon,
   BookOpenIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  UserGroupIcon,
+  ShieldCheckIcon,
+  ChartBarIcon,
+  BuildingOfficeIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 
 const gradientBackground = 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950';
@@ -74,40 +79,127 @@ const Landing = () => {
 
   const navigate = useNavigate();
 
-  const quickActions = useMemo(() => ([
-    {
-      name: 'Dashboard',
-      description: 'Explore ministry metrics and weekend pulse data visualisations.',
-      href: '/dashboard',
-      icon: DocumentChartBarIcon,
-      highlight: true
-    },
-    {
-      name: 'Input',
-      description: 'Submit the latest weekend figures and service insights.',
-      href: '/stats',
-      icon: ClipboardDocumentListIcon
-    },
-    {
-      name: 'Resources',
-      description: 'Find templates, playbooks, and media to support your teams.',
-      href: '/resources',
-      icon: BookOpenIcon,
-      highlight: true
-    },
-    {
-      name: 'Finance',
-      description: 'Submit tithe data and view financial reports.',
-      href: '/finance',
-      icon: CurrencyDollarIcon
-    },
-    {
-      name: 'Settings',
-      description: 'Manage your profile and account settings.',
-      href: '/profile',
-      icon: Cog6ToothIcon
-    },
-  ]), []);
+  // Extract first name from full name
+  const getFirstName = (fullName) => {
+    if (!fullName) return 'team';
+    return fullName.split(' ')[0];
+  };
+
+  // Get role-specific quick actions
+  const getQuickActions = () => {
+    const userRole = session?.role || 'user';
+    const baseActions = [
+      {
+        name: 'Dashboard',
+        description: 'Explore ministry metrics and weekend pulse data visualisations.',
+        href: '/dashboard',
+        icon: DocumentChartBarIcon,
+        highlight: true
+      },
+      {
+        name: 'Input',
+        description: 'Submit the latest weekend figures and service insights.',
+        href: '/stats',
+        icon: ClipboardDocumentListIcon
+      },
+      {
+        name: 'Settings',
+        description: 'Manage your profile and account settings.',
+        href: '/profile',
+        icon: Cog6ToothIcon
+      },
+    ];
+
+    // Admin-specific actions
+    if (userRole === 'admin') {
+      return [
+        ...baseActions,
+        {
+          name: 'User Management',
+          description: 'Manage users, roles, and permissions across the platform.',
+          href: '/users',
+          icon: UserGroupIcon,
+          highlight: true,
+          adminOnly: true
+        },
+        {
+          name: 'Campus Management',
+          description: 'Configure campuses and their settings.',
+          href: '/campuses',
+          icon: BuildingOfficeIcon,
+          adminOnly: true
+        },
+        {
+          name: 'Resources',
+          description: 'Manage and organize resource categories and files.',
+          href: '/resources',
+          icon: BookOpenIcon,
+          highlight: true,
+          adminOnly: true
+        },
+        {
+          name: 'Finance',
+          description: 'View and manage financial data across all campuses.',
+          href: '/finance',
+          icon: CurrencyDollarIcon,
+          adminOnly: true
+        },
+        {
+          name: 'People',
+          description: 'Access the complete people database and health reports.',
+          href: '/people',
+          icon: UserCircleIcon,
+          adminOnly: true
+        },
+        {
+          name: 'Data Export',
+          description: 'Export data for analysis and reporting.',
+          href: '/export',
+          icon: ChartBarIcon,
+          adminOnly: true
+        },
+      ];
+    }
+
+    // Leadership roles
+    if (['senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'].includes(userRole)) {
+      return [
+        ...baseActions,
+        {
+          name: 'Resources',
+          description: 'Find templates, playbooks, and media to support your teams.',
+          href: '/resources',
+          icon: BookOpenIcon,
+          highlight: true
+        },
+        {
+          name: 'Finance',
+          description: 'Submit tithe data and view financial reports.',
+          href: '/finance',
+          icon: CurrencyDollarIcon
+        },
+        {
+          name: 'People',
+          description: 'View people database and health reports.',
+          href: '/people',
+          icon: UserGroupIcon
+        },
+      ];
+    }
+
+    // Default actions for other roles
+    return [
+      ...baseActions,
+      {
+        name: 'Finance',
+        description: 'Submit tithe data and view financial reports.',
+        href: '/finance',
+        icon: CurrencyDollarIcon
+      },
+    ];
+  };
+
+  const quickActions = useMemo(() => getQuickActions(), [session?.role]);
 
   const featuredCategories = categories.filter(Boolean);
 
@@ -140,7 +232,9 @@ const Landing = () => {
   ];
 
   const greeting = getTimeOfDayGreeting();
-  const displayName = session?.full_name || session?.username || 'team';
+  const firstName = getFirstName(session?.full_name) || session?.username || 'team';
+  const userRole = session?.role || 'user';
+  const isAdmin = userRole === 'admin';
 
   return (
     <div className={`min-h-screen ${gradientBackground} text-white`}>
@@ -152,20 +246,34 @@ const Landing = () => {
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-10 sm:space-y-12">
-          <header className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 md:p-12 backdrop-blur-md shadow-xl shadow-blue-500/10">
-            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 lg:gap-8">
+          <header className="bg-gradient-to-br from-white/5 via-white/5 to-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 md:p-12 backdrop-blur-md shadow-xl shadow-blue-500/10 relative overflow-hidden">
+            {isAdmin && (
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse" />
+            )}
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 lg:gap-8 relative z-10">
               <div className="space-y-3 sm:space-y-4">
                 <div className="inline-flex items-center gap-2 text-blue-300 text-sm font-medium bg-blue-500/10 border border-blue-400/40 rounded-full px-3 py-1">
                   <SparklesIcon className="h-4 w-4" />
-                  {sessionLoading ? 'Loading profile...' : 'Welcome to Futures PULSE'}
+                  {sessionLoading ? 'Loading profile...' : isAdmin ? 'Admin Dashboard - Futures PULSE' : 'Welcome to Futures PULSE'}
                 </div>
                 <div className="space-y-2 sm:space-y-3">
-                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">
-                    {sessionLoading ? 'Loading...' : `${greeting}, ${displayName}.`}
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
+                    {sessionLoading ? 'Loading...' : `${greeting}, ${firstName}!`}
                   </h1>
                   <p className="text-white/70 text-sm sm:text-base lg:text-lg max-w-2xl leading-relaxed">
-                    Your launchpad for the week ahead—track key metrics, share weekend stories, and access the resources your teams rely on.
+                    {isAdmin 
+                      ? 'Your command center for managing Futures PULSE—oversee users, campuses, resources, and data across the entire platform.'
+                      : 'Your launchpad for the week ahead—track key metrics, share weekend stories, and access the resources your teams rely on.'
+                    }
                   </p>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-400/40 rounded-lg">
+                        <ShieldCheckIcon className="h-4 w-4 text-purple-300" />
+                        <span className="text-xs font-medium text-purple-200">Administrator Access</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10 rounded-2xl p-5 sm:p-6 w-full max-w-full sm:max-w-sm">
@@ -202,26 +310,42 @@ const Landing = () => {
               </div>
               <span className="text-xs uppercase tracking-[0.2em] text-white/40">Quick links</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 sm:gap-6">
-              {quickActions.map((action) => (
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'xl:grid-cols-3' : 'xl:grid-cols-5'} gap-4 sm:gap-6`}>
+              {quickActions.map((action, index) => (
                 <button
                   key={action.name}
                   onClick={() => navigate(action.href)}
                   className={`
-                    group rounded-2xl border border-white/10 p-5 sm:p-6 transition-transform duration-200
-                    bg-white/5 hover:bg-white/10 hover:-translate-y-1 text-left
-                    ${action.highlight ? 'shadow-lg shadow-blue-500/10' : 'shadow-sm shadow-black/10'}
+                    group rounded-2xl border p-5 sm:p-6 transition-all duration-300 text-left
+                    ${action.highlight 
+                      ? 'border-blue-400/40 bg-gradient-to-br from-blue-500/10 to-purple-500/10 hover:from-blue-500/20 hover:to-purple-500/20 shadow-lg shadow-blue-500/20' 
+                      : 'border-white/10 bg-white/5 hover:bg-white/10 shadow-sm shadow-black/10'
+                    }
+                    hover:-translate-y-2 hover:scale-[1.02] hover:shadow-xl
+                    ${action.adminOnly ? 'ring-2 ring-purple-500/30' : ''}
                   `}
+                  style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/15 flex items-center justify-center text-blue-200">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 ${
+                      action.highlight 
+                        ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 text-blue-200' 
+                        : 'bg-blue-500/15 text-blue-200'
+                    }`}>
                       <action.icon className="h-6 w-6" />
                     </div>
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4 text-white/30 group-hover:text-blue-200" />
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4 text-white/30 group-hover:text-blue-200 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-300" />
                   </div>
                   <div className="mt-4 sm:mt-5 space-y-2">
-                    <h3 className="text-base sm:text-lg font-semibold leading-snug">{action.name}</h3>
-                    <p className="text-sm text-white/60 leading-relaxed">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-semibold leading-snug group-hover:text-blue-200 transition-colors">{action.name}</h3>
+                      {action.adminOnly && (
+                        <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-400/40">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-white/60 leading-relaxed group-hover:text-white/80 transition-colors">
                       {action.description}
                     </p>
                   </div>
@@ -230,6 +354,7 @@ const Landing = () => {
             </div>
           </section>
 
+          {!isAdmin && (
           <section className="space-y-5 sm:space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
@@ -283,6 +408,70 @@ const Landing = () => {
               ))}
             </div>
           </section>
+          )}
+
+          {isAdmin && (
+          <section className="space-y-5 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
+                  <ShieldCheckIcon className="h-6 w-6 text-purple-400" />
+                  Admin Quick Stats
+                </h2>
+                <p className="text-white/60 text-sm sm:text-base">
+                  Key metrics and system overview at a glance.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-400/30 rounded-2xl p-6 hover:scale-105 transition-transform duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <UserGroupIcon className="h-8 w-8 text-blue-300" />
+                  <span className="text-2xl font-bold text-blue-200">—</span>
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-1">User Management</h3>
+                <p className="text-sm text-white/60">Manage all users and permissions</p>
+                <button
+                  onClick={() => navigate('/users')}
+                  className="mt-4 text-sm text-blue-300 hover:text-blue-200 flex items-center gap-1 group"
+                >
+                  Go to Users
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-400/30 rounded-2xl p-6 hover:scale-105 transition-transform duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <BuildingOfficeIcon className="h-8 w-8 text-purple-300" />
+                  <span className="text-2xl font-bold text-purple-200">—</span>
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-1">Campus Management</h3>
+                <p className="text-sm text-white/60">Configure campus settings</p>
+                <button
+                  onClick={() => navigate('/campuses')}
+                  className="mt-4 text-sm text-purple-300 hover:text-purple-200 flex items-center gap-1 group"
+                >
+                  Go to Campuses
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+              <div className="bg-gradient-to-br from-teal-500/10 to-cyan-500/10 border border-teal-400/30 rounded-2xl p-6 hover:scale-105 transition-transform duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <BookOpenIcon className="h-8 w-8 text-teal-300" />
+                  <span className="text-2xl font-bold text-teal-200">—</span>
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-1">Resource Manager</h3>
+                <p className="text-sm text-white/60">Organize and manage resources</p>
+                <button
+                  onClick={() => navigate('/resources/manage')}
+                  className="mt-4 text-sm text-teal-300 hover:text-teal-200 flex items-center gap-1 group"
+                >
+                  Manage Resources
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
+          </section>
+          )}
 
           <section className="space-y-5 sm:space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
