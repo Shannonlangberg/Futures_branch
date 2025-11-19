@@ -1279,6 +1279,99 @@ const ConnectGroups = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Detailed Attendance Breakdown */}
+                    {healthData.detailed_attendance && healthData.detailed_attendance.length > 0 && (
+                      <div className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-6">
+                        <h3 className="text-xl font-semibold text-white mb-4">Attendance Breakdown by Meeting</h3>
+                        <div className="space-y-4">
+                          {healthData.detailed_attendance.map((meeting, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-slate-800/50 border border-slate-600/50 rounded-lg p-4"
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="text-lg font-semibold text-white">
+                                    {new Date(meeting.date).toLocaleDateString('en-US', {
+                                      weekday: 'long',
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    })}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded">
+                                      {meeting.total_present} present
+                                    </span>
+                                    {meeting.total_absent > 0 && (
+                                      <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded">
+                                        {meeting.total_absent} absent
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Present */}
+                                {meeting.present.length > 0 && (
+                                  <div>
+                                    <div className="text-sm font-semibold text-green-400 mb-2 flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Present ({meeting.present.length})
+                                    </div>
+                                    <div className="space-y-1">
+                                      {meeting.present.map((person, pIdx) => (
+                                        <div
+                                          key={pIdx}
+                                          className="text-sm text-slate-300 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded"
+                                        >
+                                          {person.person_name}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Absent */}
+                                {meeting.absent.length > 0 && (
+                                  <div>
+                                    <div className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                      Absent ({meeting.absent.length})
+                                    </div>
+                                    <div className="space-y-1">
+                                      {meeting.absent.map((person, pIdx) => (
+                                        <div
+                                          key={pIdx}
+                                          className="text-sm text-slate-300 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded"
+                                        >
+                                          {person.person_name}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* If no absent, show message */}
+                                {meeting.absent.length === 0 && (
+                                  <div>
+                                    <div className="text-sm font-semibold text-green-400 mb-2 flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Absent (0)
+                                    </div>
+                                    <div className="text-sm text-slate-400 italic px-3 py-1.5 bg-slate-700/30 rounded">
+                                      Everyone attended! 🎉
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-12 text-slate-400">

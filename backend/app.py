@@ -12992,6 +12992,81 @@ def get_person_by_email(email):
         return jsonify({'error': 'Failed to fetch person profile'}), 500
 
 
+@app.route('/api/people/profile', methods=['PUT'])
+def update_profile():
+    """Update person profile by email - public endpoint for mobile app (users can edit their own profile)"""
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        
+        if not email:
+            return jsonify({'error': 'Email parameter required'}), 400
+        
+        # Find person by email (case-insensitive)
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Allow users to update their own profile (general info only, not pastoral notes)
+        updated_fields = []
+        
+        # Update allowed fields only
+        if 'full_name' in data and data['full_name']:
+            person.full_name = data['full_name'].strip()
+            updated_fields.append('full_name')
+        
+        if 'preferred_name' in data:
+            person.preferred_name = data['preferred_name'].strip() if data.get('preferred_name') else None
+            updated_fields.append('preferred_name')
+        
+        if 'phone' in data:
+            person.phone = data['phone'].strip() if data.get('phone') else None
+            updated_fields.append('phone')
+        
+        # Note: email changes would require additional verification, so not allowing for now
+        # Note: campus, department, connect_group should be managed by admins in Pulse
+        
+        # Commit changes
+        db.session.commit()
+        
+        logger.info(f"Profile updated for {email}: {', '.join(updated_fields)}")
+        
+        # Return updated person data
+        try:
+            person_data = person.to_dict()
+            # Format campus name
+            if person_data.get('campus'):
+                campus_name = person_data['campus']
+                if '_' in campus_name:
+                    campus_name = ' '.join(word.capitalize() for word in campus_name.split('_'))
+                else:
+                    campus_name = campus_name.title()
+                person_data['campus_display'] = campus_name
+                person_data['campus'] = campus_name
+        except Exception as e:
+            logger.error(f"Error serializing updated person: {e}")
+            person_data = {
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+            }
+        
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated successfully',
+            'profile': person_data
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating profile for email {email}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to update profile'}), 500
+
+
 @app.route('/api/pathways/my-pathway', methods=['GET'])
 def get_my_pathway():
     """Get pathway/journey data for a person by email - public endpoint for mobile app"""
@@ -13910,18 +13985,30 @@ def get_my_groups():
         # Note: Pulse stores the group NAME, not ID, so we match by name
         if person.connect_group:
             try:
+                # Use raw SQL query to avoid SQLAlchemy loading columns that don't exist
+                from sqlalchemy import text
+                
                 # First try by ID (in case it is an ID)
-                group = ConnectGroup.query.filter_by(
-                    id=person.connect_group,
-                    is_active=True
-                ).first()
+                group_by_id = db.session.execute(
+                    text("SELECT id, name, campus, leader_id, co_leader_id, meeting_day, meeting_time, meeting_frequency, location, is_active FROM connect_groups WHERE id = :group_id AND is_active = 1"),
+                    {'group_id': person.connect_group}
+                ).fetchone()
                 
                 # If not found by ID, try by name (Pulse stores names)
-                if not group:
-                    group = ConnectGroup.query.filter(
-                        db.func.lower(ConnectGroup.name) == person.connect_group.lower(),
-                        ConnectGroup.is_active == True
-                    ).first()
+                if not group_by_id:
+                    group_by_name = db.session.execute(
+                        text("SELECT id, name, campus, leader_id, co_leader_id, meeting_day, meeting_time, meeting_frequency, location, is_active FROM connect_groups WHERE LOWER(name) = LOWER(:group_name) AND is_active = 1"),
+                        {'group_name': person.connect_group}
+                    ).fetchone()
+                    
+                    if group_by_name:
+                        # Convert to SQLAlchemy object
+                        group = ConnectGroup.query.filter_by(id=group_by_name[0]).first()
+                    else:
+                        group = None
+                else:
+                    # Convert to SQLAlchemy object
+                    group = ConnectGroup.query.filter_by(id=group_by_id[0]).first()
                 
                 if group:
                     try:
@@ -14492,6 +14579,40 @@ def get_connect_group_health(group_id):
         total_absent = sum(d['absent'] for d in attendance_data)
         total_attendance = total_present + total_absent
         
+        # Build detailed attendance breakdown by meeting date
+        # Group attendance records by date
+        attendance_by_date = defaultdict(lambda: {'present': [], 'absent': []})
+        
+        for record in attendance_records:
+            # Eagerly load person relationship
+            if not record.person:
+                continue
+                
+            person_info = {
+                'person_id': record.person_id,
+                'person_name': record.person.full_name if record.person else 'Unknown'
+            }
+            
+            date_key = record.date.isoformat()
+            if record.status == 'present':
+                attendance_by_date[date_key]['present'].append(person_info)
+            elif record.status == 'absent':
+                attendance_by_date[date_key]['absent'].append(person_info)
+        
+        # Convert to list sorted by date (most recent first)
+        detailed_attendance = []
+        for date_key in sorted(attendance_by_date.keys(), reverse=True):
+            date_info = attendance_by_date[date_key]
+            if len(date_info['present']) > 0 or len(date_info['absent']) > 0:
+                detailed_attendance.append({
+                    'date': date_key,
+                    'present': date_info['present'],
+                    'absent': date_info['absent'],
+                    'total_present': len(date_info['present']),
+                    'total_absent': len(date_info['absent']),
+                    'total': len(date_info['present']) + len(date_info['absent'])
+                })
+        
         return jsonify({
             'group_id': group.id,
             'group_name': group.name,
@@ -14501,6 +14622,7 @@ def get_connect_group_health(group_id):
             },
             'heartbeat': heartbeat_data,
             'daily_attendance': attendance_data,
+            'detailed_attendance': detailed_attendance,  # New: detailed breakdown
             'summary': {
                 'total_meetings': total_meetings,
                 'total_present': total_present,
