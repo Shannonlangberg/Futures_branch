@@ -201,25 +201,6 @@ const PersonHealthReport = () => {
     };
   }, [personId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-refresh heartbeat data every 30 seconds and on window focus
-  useEffect(() => {
-    // Refresh on window focus (user switches back to tab)
-    const handleFocus = () => {
-      fetchPersonData();
-    };
-    window.addEventListener('focus', handleFocus);
-
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(() => {
-      fetchPersonData();
-    }, 30000); // 30 seconds
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
-    };
-  }, [personId]);
-
   const fetchPathways = async () => {
     try {
       const response = await fetch('/api/pathways', {
