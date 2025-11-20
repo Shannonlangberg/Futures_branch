@@ -75,8 +75,8 @@ class EngagementProfile(db.Model):
     """Engagement profile tracking for persons"""
     __tablename__ = 'engagement_profiles'
     
-    id = db.Column(db.Integer, primary_key=True)
-    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False, unique=True)
+    # Note: Database uses person_id as PRIMARY KEY (no separate id column)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), primary_key=True, nullable=False)
     
     # Summary pulse
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red

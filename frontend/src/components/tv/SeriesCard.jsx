@@ -82,47 +82,17 @@ const SeriesCard = ({ series, isLarge = false }) => {
       </Link>
 
       {/* Hover Preview - Netflix Style */}
-      {isHovered && cardRef.current && (() => {
-        const cardRect = cardRef.current.getBoundingClientRect();
-        const previewWidth = 320;
-        const previewHeight = 320;
-        const viewportWidth = window.innerWidth;
-        
-        // Calculate vertical position
-        const isTop = previewPosition.includes('top');
-        const top = isTop 
-          ? `${cardRect.top - previewHeight - 8}px`
-          : `${cardRect.bottom + 8}px`;
-        
-        // Calculate horizontal position - align with card's left edge (Netflix style)
-        // Try to align with the left edge of the card first
-        let left = cardRect.left;
-        
-        // If card is on the left side of screen, keep preview left-aligned
-        // If card is on the right side, right-align preview to card's right edge
-        if (cardRect.left + previewWidth > viewportWidth - 16) {
-          // Card is too far right - right-align preview to card
-          left = cardRect.right - previewWidth;
-          // Make sure we don't go off left edge
-          left = Math.max(16, left);
-        } else if (cardRect.left < 16) {
-          // Card is too far left - left-align to screen edge
-          left = 16;
-        }
-        // Otherwise, left-align with card (default)
-        
-        return (
-          <div
-            ref={previewRef}
-            className="fixed z-[9999] w-80 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 overflow-hidden pointer-events-auto"
-            style={{
-              top,
-              left: `${left}px`,
-              animation: 'fadeIn 0.2s ease-out'
-            }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
+      {isHovered && (
+        <div
+          ref={previewRef}
+          className="fixed z-[9999] w-80 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 overflow-hidden pointer-events-auto transition-opacity duration-200"
+          style={{
+            ...previewStyle,
+            transition: 'opacity 0.2s ease-out'
+          }}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
           {/* Preview Image */}
           <div className="relative w-full h-44 bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40">
             {series.thumbnail_url ? (
@@ -198,21 +168,8 @@ const SeriesCard = ({ series, isLarge = false }) => {
             )}
           </div>
         </div>
-        );
-      })()}
+      )}
 
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateX(-50%) translateY(${previewPosition === 'top' ? '10px' : '-10px'});
-          }
-          to {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 };
