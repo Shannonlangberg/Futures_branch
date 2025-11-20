@@ -87,18 +87,27 @@ class EngagementProfile(db.Model):
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red
     last_seen = db.Column(db.Date)  # Note: DB uses DATE not DATETIME
     # Note: pulse_last_calculated column removed - not in actual database schema
+    # Note: created_at column removed - not in actual database schema
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
     # Raw logs (JSON columns as per actual DB schema)
     attendance_log = db.Column(db.Text, nullable=False, default='[]')  # JSON array
     serving_log = db.Column(db.Text, nullable=False, default='[]')     # JSON array
-    milestones_log = db.Column(db.Text, default='[]')                  # JSON array
     email_engagement = db.Column(db.Text, default='[]')                # JSON array
     social_engagement = db.Column(db.Text, default='[]')               # JSON array
     
-    # Note: These columns don't exist in actual DB schema - handle gracefully via properties
-    # The actual DB has: attendance_log, serving_log, milestones_log, email_engagement, social_engagement
+    # Note: The actual DB has: attendance_log, serving_log, email_engagement, social_engagement
+    # milestones_log and created_at do NOT exist - use serving_log as fallback
+    
+    @property
+    def milestones_log(self):
+        """Property to access milestones - use serving_log as storage since milestones_log doesn't exist"""
+        return self.serving_log
+    
+    @milestones_log.setter
+    def milestones_log(self, value):
+        """Setter for milestones - store in serving_log"""
+        self.serving_log = value
     
     # Derived metrics (simple v1)
     attendance_frequency = db.Column(db.Float, default=0.0)

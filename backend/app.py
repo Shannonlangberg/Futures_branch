@@ -13133,7 +13133,7 @@ def get_persons():
                 engagement_row = db.session.execute(
                     text("""
                         SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, 
-                               overall_engagement, attendance_log, serving_log, milestones_log
+                               overall_engagement, attendance_log, serving_log, email_engagement, social_engagement
                         FROM engagement_profiles 
                         WHERE person_id = :person_id
                     """),
@@ -13155,7 +13155,8 @@ def get_persons():
                         attendance_log = []
                     
                     try:
-                        milestones_log = json.loads(engagement_row[7] or '[]')
+                        # Note: milestones_log doesn't exist - get from serving_log (index 6) instead
+                        milestones_log = json.loads(engagement_row[6] or '[]') if len(engagement_row) > 6 else []
                     except:
                         milestones_log = []
                     
@@ -14002,7 +14003,7 @@ def update_person(person_id):
             engagement_row = db.session.execute(
                 text("""
                     SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, 
-                           overall_engagement, attendance_log, serving_log, milestones_log
+                           overall_engagement, attendance_log, serving_log, email_engagement, social_engagement
                     FROM engagement_profiles 
                     WHERE person_id = :person_id
                 """),
@@ -14321,12 +14322,12 @@ def log_attendance_simple():
                     db.session.execute(
                         text("""
                             INSERT INTO engagement_profiles 
-                            (person_id, pulse_status, last_seen, updated_at, created_at, 
-                             attendance_log, serving_log, milestones_log, email_engagement, social_engagement,
+                            (person_id, pulse_status, last_seen, updated_at, 
+                             attendance_log, serving_log, email_engagement, social_engagement,
                              attendance_frequency, serving_frequency, overall_engagement)
                             VALUES 
-                            (:person_id, 'green', :today, :now, :now, 
-                             '[]', '[]', '[]', '[]', '[]',
+                            (:person_id, 'green', :today, :now, 
+                             '[]', '[]', '[]', '[]',
                              0.0, 0.0, 0.0)
                         """),
                         {
@@ -14549,7 +14550,7 @@ def log_engagement():
         
         # Log different types of engagement
         if engagement_type == 'sermon_notes':
-            # Add to milestones_log as engagement activity
+            # Add to milestones_log as engagement activity (stored in serving_log)
             milestones_log = engagement._load_json(engagement.milestones_log or '[]')
             milestones_log.append({
                 'type': 'sermon_notes',
@@ -14558,7 +14559,7 @@ def log_engagement():
                 'word_count': data.get('word_count', 0),
                 'timestamp': datetime.now().isoformat()
             })
-            engagement.milestones_log = engagement._dump_json(milestones_log)
+            engagement.milestones_log = engagement._dump_json(milestones_log)  # Uses property setter to save to serving_log
         
         # Trigger heartbeat recalculation
         try:
