@@ -282,13 +282,8 @@ const Landing = () => {
   const displayRole = previewRole || actualRole;
   const isAdmin = actualRole === 'admin';
   const isDisplayingAdmin = displayRole === 'admin';
-  // Beta mode detection - show role switcher in beta/staging environments or development
-  const isBetaMode = typeof window !== 'undefined' && (
-    window.location.hostname.includes('beta') || 
-    window.location.hostname.includes('staging') ||
-    window.location.hostname.includes('localhost') ||
-    process.env.NODE_ENV === 'development'
-  );
+  // Beta mode - always show role switcher for admins
+  const isBetaMode = true; // Always enabled for admins to preview roles
 
   return (
     <div className={`min-h-screen ${gradientBackground} text-white`}>
@@ -586,13 +581,13 @@ const Landing = () => {
             </div>
           </section>
 
-          {/* Beta Role Switcher - Only visible to admins in beta mode */}
+          {/* Beta Role Switcher - Only visible to admins */}
           {isAdmin && isBetaMode && (
-            <div className="fixed bottom-4 right-4 z-50">
+            <div className="fixed bottom-6 right-6 z-[9999]">
               {!showRoleSwitcher ? (
                 <button
                   onClick={() => setShowRoleSwitcher(true)}
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 font-semibold text-sm border border-purple-400/50"
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-5 py-3 rounded-xl shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 flex items-center gap-2 font-semibold text-sm border-2 border-purple-400/60 hover:scale-105"
                 >
                   <ArrowsRightLeftIcon className="h-5 w-5" />
                   <span>Preview Roles</span>
