@@ -94,8 +94,10 @@ function App() {
         setIsAuthenticated(data.authenticated);
         const role = data.role || null;
         setUserRole(role);
-        // Default to 'beta' (show all features) unless explicitly 'main'
-        setRailwayBranch(data.railway_branch || 'beta');
+        // Get branch detection from backend
+        const detectedBranch = data.railway_branch || 'beta';
+        console.log('[App] Railway Branch:', detectedBranch);
+        setRailwayBranch(detectedBranch);
         const allowsDriveAuth = role ? RESOURCE_ALLOWED_ROLES.includes(role) : false;
         const requiresDrive = allowsDriveAuth && Boolean(data.needs_drive_auth);
         setNeedsDriveAuth(requiresDrive);
@@ -388,7 +390,11 @@ function App() {
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <Routes>
-                  <Route path="/" element={<Landing />} />
+                  {/* Main branch: redirect to dashboard, Beta: show landing */}
+                  <Route 
+                    path="/" 
+                    element={railwayBranch === 'main' ? <Navigate to="/dashboard" replace /> : <Landing />} 
+                  />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/stats" element={<LogStats />} />
                   <Route path="/finance" element={<Finance />} />

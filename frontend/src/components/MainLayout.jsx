@@ -54,9 +54,11 @@ const MainLayout = ({ children }) => {
             campus: data.campus || 'all_campuses'
           });
         }
-        // Set branch info regardless of auth status
-        // Default to 'beta' (show all) unless explicitly 'main' (restricted)
-        setRailwayBranch(data.railway_branch || 'beta');
+        // Set branch info - critical for navigation filtering
+        // The backend will return 'main' or 'beta' based on detection
+        const detectedBranch = data.railway_branch || 'beta';
+        console.log('[MainLayout] Railway Branch:', detectedBranch);
+        setRailwayBranch(detectedBranch);
       } catch (error) {
         console.error('Error fetching session data:', error);
       }
@@ -127,6 +129,16 @@ const MainLayout = ({ children }) => {
 
     // Filter items based on user role, feature flags, and Railway branch
     const filteredItems = allItems.filter(item => {
+      // MAIN BRANCH RESTRICTION: Only show Dashboard and Input
+      if (railwayBranch === 'main') {
+        // Only allow Dashboard and Input on main branch
+        const allowedOnMain = ['Dashboard', 'Input'];
+        if (!allowedOnMain.includes(item.name)) {
+          return false;
+        }
+      }
+      
+      // For all branches: Check role permission
       // Pulse TV is visible to all authenticated users
       if (item.name === 'Pulse TV') {
         return true;
