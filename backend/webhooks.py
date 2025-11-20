@@ -19,6 +19,11 @@ def stripe_webhook():
     Handle Stripe webhooks for payments and subscriptions
     This ensures all payments go through our system for security
     """
+    # Log ALL requests to this endpoint (even GET for testing)
+    logger.info(f"[WEBHOOK] ⚡ Request received: {request.method} {request.url}")
+    print(f"[WEBHOOK] ⚡ Request received: {request.method} {request.url}")
+    print(f"[WEBHOOK] Headers: {dict(request.headers)}")
+    
     # Allow GET for testing endpoint accessibility
     if request.method == 'GET':
         return jsonify({
@@ -31,11 +36,10 @@ def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
     
-    logger.info(f"[WEBHOOK] Received Stripe webhook request")
-    print(f"[WEBHOOK] Received Stripe webhook request")
-    print(f"[WEBHOOK] Headers: {dict(request.headers)}")
-    print(f"[WEBHOOK] Method: {request.method}")
-    print(f"[WEBHOOK] URL: {request.url}")
+    logger.info(f"[WEBHOOK] ✅ POST request received - processing webhook")
+    print(f"[WEBHOOK] ✅ POST request received - processing webhook")
+    print(f"[WEBHOOK] Payload length: {len(payload)}")
+    print(f"[WEBHOOK] Has signature header: {bool(sig_header)}")
     
     if not STRIPE_WEBHOOK_SECRET:
         logger.warning("[WEBHOOK] Stripe webhook secret not configured")
