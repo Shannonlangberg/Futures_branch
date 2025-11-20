@@ -12780,6 +12780,10 @@ def get_persons():
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
+        # Log database URI for debugging
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        logger.info(f"GET /api/persons - Using database: {db_uri}")
+        
         # Get query parameters
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
@@ -12815,6 +12819,11 @@ def get_persons():
             )
         
         persons = query.order_by(Person.full_name).all()
+        
+        # Log what we found
+        logger.info(f"GET /api/persons - Query returned {len(persons)} persons")
+        for person in persons:
+            logger.info(f"  • {person.id}: '{person.full_name}' ({person.email})")
         
         # Serialize persons with engagement data
         result = []

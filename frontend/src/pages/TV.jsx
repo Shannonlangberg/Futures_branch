@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import SeriesCard from '../components/tv/SeriesCard';
 
 const TV = () => {
   const [series, setSeries] = useState([]);
@@ -138,31 +139,7 @@ const TV = () => {
                     );
                   }
                   return (
-                    <Link
-                      key={item.id}
-                      to={`/tv/series/${item.id}`}
-                      className="group flex-shrink-0 w-64 h-40 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-200 relative"
-                    >
-                      <div className="relative w-full h-full bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40">
-                        {item.thumbnail_url ? (
-                          <img
-                            src={item.thumbnail_url}
-                            alt={item.title}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        ) : null}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-4">
-                          <h3 className="text-white font-semibold text-sm line-clamp-2">{item.title}</h3>
-                          {item.episode_count > 0 && (
-                            <p className="text-xs text-gray-300 mt-1">{item.episode_count} episodes</p>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
+                    <SeriesCard key={item.id} series={item} isLarge={true} />
                   );
                 })}
               </div>
@@ -240,39 +217,7 @@ const TV = () => {
                 </h2>
                 <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                   {categorySeries.map((s) => (
-                    <Link
-                      key={s.id}
-                      to={`/tv/series/${s.id}`}
-                      className="group flex-shrink-0 w-48 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-200 relative"
-                    >
-                      <div className="relative aspect-video bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40">
-                        {s.thumbnail_url ? (
-                          <img
-                            src={s.thumbnail_url}
-                            alt={s.title}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        ) : null}
-                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-                        {/* Badges */}
-                        {s.is_published && (
-                          <div className="absolute top-2 right-2 px-2 py-1 bg-red-600/90 text-white text-xs font-semibold rounded">
-                            NEW
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-2">
-                        <h3 className="text-white font-medium text-sm line-clamp-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-purple-400 group-hover:via-blue-400 group-hover:to-pink-400 group-hover:bg-clip-text transition-all">
-                          {s.title}
-                        </h3>
-                        {s.episode_count > 0 && (
-                          <p className="text-xs text-gray-400 mt-1">{s.episode_count} episodes</p>
-                        )}
-                      </div>
-                    </Link>
+                    <SeriesCard key={s.id} series={s} />
                   ))}
                   {/* Add placeholders to show more content is coming */}
                   {createPlaceholders(Math.min(3, 6 - categorySeries.length)).map((item) => (
