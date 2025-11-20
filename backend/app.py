@@ -13216,6 +13216,15 @@ def get_person_detail(person_id):
 def get_person_by_email(email):
     """Get person profile by email - public endpoint for mobile app"""
     try:
+        # Log which database we're using
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        db_path = get_db_path()
+        logger.info(f"GET /api/persons/email/{email} - Using database: {db_uri}")
+        logger.info(f"GET /api/persons/email/{email} - Database path: {db_path}")
+        
+        # Force fresh query
+        db.session.expire_all()
+        
         # Find person by email (case-insensitive)
         person = Person.query.filter(
             db.func.lower(Person.email) == email.lower(),
@@ -13343,6 +13352,13 @@ def update_profile():
         
         if not person:
             return jsonify({'error': 'Person not found. Please ensure your profile exists in Pulse.'}), 404
+        
+        # Log which database we're using
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        db_path = get_db_path()
+        logger.info(f"PUT /api/people/profile - Using database: {db_uri}")
+        logger.info(f"PUT /api/people/profile - Database path: {db_path}")
+        logger.info(f"PUT /api/people/profile - Person ID: {person.id}")
         
         # Log what we're updating
         logger.info(f"Updating profile for {email} - Before: full_name='{person.full_name}', preferred_name='{person.preferred_name}', phone='{person.phone}'")
