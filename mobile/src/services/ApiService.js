@@ -275,5 +275,34 @@ export const ApiService = {
     });
     return response.data;
   },
+
+  // Attendance Logging (for "I'm Here" button - adds to heartbeat gather metric)
+  async logAttendance(email, attendanceData) {
+    try {
+      const response = await api.post('/api/attendance/log', {
+        email,
+        ...attendanceData
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error logging attendance:', error);
+      throw error;
+    }
+  },
+
+  // Engagement Logging (for sermon notes, etc.)
+  async logEngagement(email, type, data) {
+    try {
+      const response = await api.post('/api/engagement/log', {
+        email,
+        type,
+        ...data
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error logging engagement:', error);
+      throw error;
+    }
+  },
 };
 
