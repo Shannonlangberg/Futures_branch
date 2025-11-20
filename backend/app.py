@@ -17169,22 +17169,24 @@ def get_events():
                 # If it's not a number, try to match by category name
                 query = query.join(EventCategory).filter(EventCategory.name.ilike(f'%{category}%'))
         
-        # Filter by status
-        if status == 'upcoming':
-            query = query.filter(
-                db.or_(
-                    Event.start_time > datetime.utcnow(),
-                    Event.start_time.is_(None)
+        # Filter by status (now supports: draft, published, cancelled, completed)
+        if status != 'all':
+            if status in ['draft', 'published', 'cancelled', 'completed']:
+                query = query.filter(Event.status == status)
+            elif status == 'upcoming':
+                query = query.filter(
+                    db.or_(
+                        Event.start_time > datetime.utcnow(),
+                        Event.start_time.is_(None)
+                    )
                 )
-            )
-        elif status == 'past':
-            query = query.filter(
-                db.and_(
-                    Event.start_time.isnot(None),
-                    Event.start_time < datetime.utcnow()
+            elif status == 'past':
+                query = query.filter(
+                    db.and_(
+                        Event.start_time.isnot(None),
+                        Event.start_time < datetime.utcnow()
+                    )
                 )
-            )
-        # Note: is_cancelled column doesn't exist in Event model - removed filter
         
         # Filter by upcoming/past
         # If upcoming='all', show all events (no date filtering)
@@ -17209,6 +17211,17 @@ def get_events():
             )
         
         # Note: is_cancelled column doesn't exist in Event model - removed filter
+        
+        # Filter by ministry
+        ministry = request.args.get('ministry', '')
+        if ministry:
+            query = query.filter(Event.ministry == ministry)
+        
+        # Filter by tags (tags stored as JSON array in TEXT field)
+        tag = request.args.get('tag', '')
+        if tag:
+            # Search for tag in JSON array
+            query = query.filter(Event.tags.contains(tag))
         
         # Search by title or description
         if search:
@@ -17242,8 +17255,8 @@ def get_events():
                     'description': event.category.description
                 }
             
-            # Calculate registration count (placeholder for now)
-            registration_count = 0  # TODO: Implement actual registration counting
+            # Calculate registration count from actual registrations
+            registration_count = event.get_registration_count()
             
             events_data.append({
                 'id': event.id,

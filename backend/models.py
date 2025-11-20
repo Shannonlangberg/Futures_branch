@@ -1092,7 +1092,7 @@ class EventCategory(db.Model):
 
 
 class Event(db.Model):
-    """Event model"""
+    """Event model - PCO-level events functionality"""
     __tablename__ = 'events'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -1103,6 +1103,7 @@ class Event(db.Model):
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime)
     location = db.Column(db.String(200))
+    location_id = db.Column(db.Integer, nullable=True)  # Optional reference to saved location
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -1112,11 +1113,40 @@ class Event(db.Model):
     requires_payment = db.Column(db.Boolean, default=False)
     stripe_price_id = db.Column(db.String(200), nullable=True)  # Stripe Price ID for checkout
     
-    # Relationship to category
+    # Enhanced event fields
+    ministry = db.Column(db.String(100))  # e.g. Kids, Youth, Sunday Services, Prayer, Courses
+    is_all_day = db.Column(db.Boolean, default=False)
+    recurrence_rule = db.Column(db.Text)  # iCal-style RRULE or JSON recurrence object
+    status = db.Column(db.String(20), default='draft')  # draft, published, cancelled, completed
+    visibility = db.Column(db.String(20), default='public')  # internal, public, leaders_only
+    capacity = db.Column(db.Integer, nullable=True)  # Optional max capacity
+    registration_required = db.Column(db.Boolean, default=False)
+    registration_form_id = db.Column(db.Integer, nullable=True)  # Optional reference to form
+    tags = db.Column(db.Text)  # JSON array of tags
+    created_by_user_id = db.Column(db.Integer, nullable=True)  # User who created
+    updated_by_user_id = db.Column(db.Integer, nullable=True)  # User who last updated
+    
+    # Relationships
     category = db.relationship('EventCategory', backref='events')
+    registrations = db.relationship('EventRegistration', backref='event', lazy='dynamic', cascade='all, delete-orphan')
+    team_assignments = db.relationship('EventTeamAssignment', backref='event', lazy='dynamic', cascade='all, delete-orphan')
+    resource_bookings = db.relationship('EventResourceBooking', backref='event', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def get_registration_count(self):
+        """Get count of active registrations"""
+        return self.registrations.filter_by(status='registered').count()
+    
+    def get_waitlist_count(self):
+        """Get count of waitlisted registrations"""
+        return self.registrations.filter_by(status='waitlisted').count()
     
     def to_dict(self):
         """Convert event to dictionary"""
+        try:
+            tags_list = json.loads(self.tags) if self.tags else []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            tags_list = []
+        
         return {
             'id': self.id,
             'title': self.title,
@@ -1125,12 +1155,130 @@ class Event(db.Model):
             'category_id': self.category_id,
             'category': self.category.to_dict() if self.category else None,
             'start_time': self.start_time.isoformat() if self.start_time else None,
+            'start_datetime': self.start_time.isoformat() if self.start_time else None,  # Alias for compatibility
             'end_time': self.end_time.isoformat() if self.end_time else None,
+            'end_datetime': self.end_time.isoformat() if self.end_time else None,  # Alias for compatibility
             'location': self.location,
+            'location_id': self.location_id,
             'is_active': self.is_active,
             'price': float(self.price) if self.price else None,
             'requires_payment': self.requires_payment if self.requires_payment else False,
             'stripe_price_id': self.stripe_price_id,
+            'ministry': self.ministry,
+            'is_all_day': self.is_all_day,
+            'recurrence_rule': self.recurrence_rule,
+            'status': self.status,
+            'visibility': self.visibility,
+            'capacity': self.capacity,
+            'registration_required': self.registration_required,
+            'registration_form_id': self.registration_form_id,
+            'tags': tags_list,
+            'created_by_user_id': self.created_by_user_id,
+            'updated_by_user_id': self.updated_by_user_id,
+            'registration_count': self.get_registration_count(),
+            'waitlist_count': self.get_waitlist_count(),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class EventRegistration(db.Model):
+    """Event registration model"""
+    __tablename__ = 'event_registrations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)  # Nullable for guest registrations
+    email = db.Column(db.String(200))  # For non-person registrations
+    name = db.Column(db.String(200))  # For non-person registrations
+    phone = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='registered')  # registered, waitlisted, cancelled, attended, no_show
+    guest_count = db.Column(db.Integer, default=0)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    person = db.relationship('Person', backref='event_registrations')
+    
+    def to_dict(self):
+        """Convert registration to dictionary"""
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'email': self.email or (self.person.email if self.person else None),
+            'name': self.name or (self.person.full_name if self.person else None),
+            'phone': self.phone or (self.person.phone if self.person else None),
+            'status': self.status,
+            'guest_count': self.guest_count,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class EventTeamAssignment(db.Model):
+    """Event team assignment model"""
+    __tablename__ = 'event_team_assignments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    team_name = db.Column(db.String(100), nullable=False)  # e.g. Worship, Host, Kids, Production
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    role = db.Column(db.String(100))  # e.g. Leader, Member
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    person = db.relationship('Person', backref='event_team_assignments')
+    
+    def to_dict(self):
+        """Convert team assignment to dictionary"""
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'team_name': self.team_name,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'person_email': self.person.email if self.person else None,
+            'role': self.role,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class EventResourceBooking(db.Model):
+    """Event resource booking model"""
+    __tablename__ = 'event_resource_bookings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    resource_type = db.Column(db.String(50), nullable=False)  # Room, Equipment, Vehicle, Other
+    resource_name = db.Column(db.String(200), nullable=False)
+    quantity = db.Column(db.Integer, default=1)
+    start_datetime = db.Column(db.DateTime, nullable=False)
+    end_datetime = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), default='requested')  # requested, approved, declined, conflict
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        """Convert resource booking to dictionary"""
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'resource_type': self.resource_type,
+            'resource_name': self.resource_name,
+            'quantity': self.quantity,
+            'start_datetime': self.start_datetime.isoformat() if self.start_datetime else None,
+            'end_datetime': self.end_datetime.isoformat() if self.end_datetime else None,
+            'status': self.status,
+            'notes': self.notes,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
