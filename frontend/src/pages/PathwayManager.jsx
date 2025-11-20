@@ -163,6 +163,7 @@ const PathwayManager = () => {
       const payload = {
         ...formData,
         steps: formData.steps.map((s, i) => ({
+          id: s.id, // Include step ID if it exists (for updates)
           step_order: i + 1,
           step_name: s.step_name,
           step_description: s.step_description,

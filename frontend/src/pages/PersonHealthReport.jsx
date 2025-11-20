@@ -131,6 +131,7 @@ const PersonHealthReport = () => {
   const [showPathwayModal, setShowPathwayModal] = useState(false);
   const [pathways, setPathways] = useState([]);
   const [selectedPathwayId, setSelectedPathwayId] = useState(null);
+  const [replaceExistingPathway, setReplaceExistingPathway] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [stepToComplete, setStepToComplete] = useState(null);
   const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
@@ -264,15 +265,18 @@ const PersonHealthReport = () => {
         credentials: 'include',
         body: JSON.stringify({
           pathway_id: parseInt(selectedPathwayId),
-          start_immediately: true
+          start_immediately: true,
+          replace_existing: replaceExistingPathway || hasPathway
         }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        alert('Pathway assigned successfully!');
+        alert(replaceExistingPathway || hasPathway ? 'Pathway replaced successfully!' : 'Pathway assigned successfully!');
         setShowPathwayModal(false);
+        setSelectedPathwayId(null);
+        setReplaceExistingPathway(false);
         await fetchPersonData();
       } else {
         alert(result.error || 'Failed to assign pathway');
@@ -992,9 +996,18 @@ const PersonHealthReport = () => {
                     <span>🎓</span>
                     Discipleship Pathway: {pathway.pathway_name}
                   </h2>
-                  <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-semibold">
-                    {pathway.progress_percentage}% Complete
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-semibold">
+                      {pathway.progress_percentage}% Complete
+                    </span>
+                    <button
+                      onClick={() => setShowPathwayModal(true)}
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition-colors"
+                      title="Assign or change pathway"
+                    >
+                      Change Pathway
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Progress Bar */}
@@ -1060,12 +1073,20 @@ const PersonHealthReport = () => {
                   </div>
                 ) : (
                   <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">🎉</span>
-                      <div>
-                        <div className="text-sm font-semibold text-green-300 mb-1">Pathway Complete!</div>
-                        <div className="text-sm text-slate-300">All steps have been completed.</div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">🎉</span>
+                        <div>
+                          <div className="text-sm font-semibold text-green-300 mb-1">Pathway Complete!</div>
+                          <div className="text-sm text-slate-300">All steps have been completed.</div>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => setShowPathwayModal(true)}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        Assign New Pathway
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1344,14 +1365,36 @@ const PersonHealthReport = () => {
                     <div className="text-xs text-slate-400 mt-2">
                       {pathways.find(p => p.id === parseInt(selectedPathwayId))?.step_count || 0} steps
                     </div>
-                    </div>
-                  )}
+                  </div>
+                )}
+
+                {hasPathway && (
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={replaceExistingPathway}
+                        onChange={(e) => setReplaceExistingPathway(e.target.checked)}
+                        className="mt-1 w-4 h-4 rounded bg-slate-700 border-slate-600 text-amber-600 focus:ring-amber-500"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-amber-300 mb-1">
+                          Replace Current Pathway
+                        </div>
+                        <div className="text-xs text-amber-300/70">
+                          This will replace the current "{pathway.pathway_name}" pathway. The person will start fresh with the new pathway.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4 border-t border-slate-700">
                   <button
                     onClick={() => {
                       setShowPathwayModal(false);
                       setSelectedPathwayId(null);
+                      setReplaceExistingPathway(false);
                     }}
                     className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
                   >
@@ -1362,7 +1405,7 @@ const PersonHealthReport = () => {
                     disabled={!selectedPathwayId}
                     className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Assign Pathway
+                    {hasPathway && replaceExistingPathway ? 'Replace Pathway' : 'Assign Pathway'}
                   </button>
                 </div>
               </div>

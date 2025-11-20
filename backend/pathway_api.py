@@ -160,6 +160,59 @@ def update_pathway(pathway_id):
         if 'is_template' in data:
             pathway.is_template = bool(data['is_template'])
         
+        # Handle step updates if provided
+        if 'steps' in data and isinstance(data['steps'], list):
+            # Get existing step IDs
+            existing_step_ids = {step.id for step in pathway.steps.all()}
+            new_step_ids = {step.get('id') for step in data['steps'] if step.get('id') and not str(step.get('id')).startswith('temp_')}
+            
+            # Delete steps that are no longer in the list
+            steps_to_delete = existing_step_ids - new_step_ids
+            for step_id in steps_to_delete:
+                step = PathwayStep.query.get(step_id)
+                if step and step.pathway_id == pathway_id:
+                    # Don't delete if there are completions - just mark as inactive or skip
+                    # Actually, let's keep the step but mark it as not required
+                    # Or we could soft-delete, but for now let's just not delete steps with completions
+                    completion_count = PersonPathwayStepCompletion.query.filter_by(pathway_step_id=step_id).count()
+                    if completion_count == 0:
+                        db.session.delete(step)
+                    else:
+                        logger.info(f"Keeping step {step_id} because it has {completion_count} completions")
+            
+            # Update or create steps
+            for idx, step_data in enumerate(data['steps']):
+                step_order = idx + 1
+                
+                # Check if this is an existing step (has ID and not a temp ID)
+                if step_data.get('id') and not str(step_data.get('id')).startswith('temp_'):
+                    step_id = step_data['id']
+                    step = PathwayStep.query.get(step_id)
+                    if step and step.pathway_id == pathway_id:
+                        # Update existing step
+                        step.step_order = step_order
+                        step.step_name = step_data.get('step_name', step.step_name)
+                        step.step_description = step_data.get('step_description', step.step_description)
+                        step.milestone_type = step_data.get('milestone_type', step.milestone_type)
+                        step.is_required = step_data.get('is_required', True)
+                else:
+                    # Create new step
+                    new_step = PathwayStep(
+                        pathway_id=pathway_id,
+                        step_order=step_order,
+                        step_name=step_data.get('step_name', ''),
+                        step_description=step_data.get('step_description'),
+                        milestone_type=step_data.get('milestone_type'),
+                        is_required=step_data.get('is_required', True)
+                    )
+                    db.session.add(new_step)
+            
+            # Reorder all steps to ensure proper ordering
+            db.session.flush()
+            all_steps = pathway.steps.order_by(PathwayStep.step_order).all()
+            for idx, step in enumerate(all_steps, 1):
+                step.step_order = idx
+        
         pathway.updated_at = datetime.utcnow()
         
         db.session.commit()
@@ -367,15 +420,27 @@ def assign_pathway_to_person(person_id):
         if not pathway:
             return jsonify({'error': 'Pathway not found'}), 404
         
-        # Check if already assigned
-        existing = PersonPathwayProgress.query.filter_by(
+        # Check if this exact pathway is already assigned (prevent duplicates)
+        existing_same = PersonPathwayProgress.query.filter_by(
             person_id=person_id,
             pathway_id=data['pathway_id'],
             is_active=True
         ).first()
         
-        if existing:
-            return jsonify({'error': 'Pathway already assigned to this person'}), 400
+        if existing_same:
+            return jsonify({'error': 'This pathway is already assigned to this person'}), 400
+        
+        # Allow assigning new pathways even if others exist
+        # Optionally, if replace_existing is true, mark old pathways as inactive
+        if data.get('replace_existing', False):
+            existing_all = PersonPathwayProgress.query.filter_by(
+                person_id=person_id,
+                is_active=True
+            ).all()
+            for old_progress in existing_all:
+                old_progress.is_active = False
+                old_progress.updated_at = datetime.utcnow()
+            db.session.flush()  # Flush before creating new progress
         
         # Get first step
         first_step = pathway.steps.order_by(PathwayStep.step_order).first()
