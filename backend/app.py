@@ -17726,32 +17726,15 @@ def create_event():
         requires_payment = data.get('requires_payment', False) if price else False
         stripe_price_id = data.get('stripe_price_id', None) if requires_payment else None
         
+        # Create event with only fields that exist in the model
         new_event = Event(
             title=data['title'],
             description=data.get('description'),
-            short_description=data.get('short_description'),
             category_id=data['category_id'],
             campus=data.get('campus', 'all_campuses'),
             location=data.get('location'),
-            virtual_link=data.get('virtual_link'),
-            start_time=start_datetime,  # Use start_time instead of start_datetime
-            end_time=end_datetime,  # Use end_time instead of end_datetime
-            is_all_day=data.get('is_all_day', False),
-            registration_required=data.get('registration_required', True),
-            registration_opens=registration_opens,
-            registration_closes=registration_closes,
-            max_capacity=data.get('max_capacity'),
-            allow_waitlist=data.get('allow_waitlist', True),
-            is_public=data.get('is_public', True),
-            requires_approval=data.get('requires_approval', False),
-            minimum_age=data.get('minimum_age'),
-            maximum_age=data.get('maximum_age'),
-            required_departments=data.get('required_departments'),
-            image_url=data.get('image_url'),
-            additional_info=data.get('additional_info'),
-            contact_person=data.get('contact_person'),
-            contact_email=data.get('contact_email'),
-            contact_phone=data.get('contact_phone'),
+            start_time=start_datetime,
+            end_time=end_datetime,
             price=price,
             requires_payment=requires_payment,
             stripe_price_id=stripe_price_id
@@ -17783,21 +17766,17 @@ def update_event(event_id):
         
         data = request.get_json()
         
-        # Update fields
+        # Update fields (only fields that exist in the Event model)
         if 'title' in data:
             event.title = data['title']
         if 'description' in data:
             event.description = data['description']
-        if 'short_description' in data:
-            event.short_description = data['short_description']
         if 'category_id' in data:
             event.category_id = data['category_id']
         if 'campus' in data:
             event.campus = data['campus']
         if 'location' in data:
             event.location = data['location']
-        if 'virtual_link' in data:
-            event.virtual_link = data['virtual_link']
         if 'start_datetime' in data or 'start_time' in data:
             start_time_value = data.get('start_datetime') or data.get('start_time')
             event.start_time = datetime.fromisoformat(start_time_value.replace('Z', '+00:00'))
@@ -17819,46 +17798,8 @@ def update_event(event_id):
             event.requires_payment = data['requires_payment']
         if 'stripe_price_id' in data:
             event.stripe_price_id = data['stripe_price_id']
-        if 'is_all_day' in data:
-            event.is_all_day = data['is_all_day']
-        if 'registration_required' in data:
-            event.registration_required = data['registration_required']
-        if 'registration_opens' in data:
-            if data['registration_opens']:
-                event.registration_opens = datetime.fromisoformat(data['registration_opens'].replace('Z', '+00:00'))
-            else:
-                event.registration_opens = None
-        if 'registration_closes' in data:
-            if data['registration_closes']:
-                event.registration_closes = datetime.fromisoformat(data['registration_closes'].replace('Z', '+00:00'))
-            else:
-                event.registration_closes = None
-        if 'max_capacity' in data:
-            event.max_capacity = data['max_capacity']
-        if 'allow_waitlist' in data:
-            event.allow_waitlist = data['allow_waitlist']
-        if 'is_public' in data:
-            event.is_public = data['is_public']
-        if 'requires_approval' in data:
-            event.requires_approval = data['requires_approval']
-        if 'minimum_age' in data:
-            event.minimum_age = data['minimum_age']
-        if 'maximum_age' in data:
-            event.maximum_age = data['maximum_age']
-        if 'required_departments' in data:
-            event.required_departments = data['required_departments']
-        if 'image_url' in data:
-            event.image_url = data['image_url']
-        if 'additional_info' in data:
-            event.additional_info = data['additional_info']
-        if 'contact_person' in data:
-            event.contact_person = data['contact_person']
-        if 'contact_email' in data:
-            event.contact_email = data['contact_email']
-        if 'contact_phone' in data:
-            event.contact_phone = data['contact_phone']
-        if 'is_cancelled' in data:
-            event.is_cancelled = data['is_cancelled']
+        if 'is_active' in data:
+            event.is_active = data['is_active']
         
         event.updated_at = datetime.utcnow()
         db.session.commit()
