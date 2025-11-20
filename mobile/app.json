@@ -4,12 +4,10 @@
     "slug": "futures-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0f172a"
+      "backgroundColor": "#0f172a",
+      "resizeMode": "contain"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -27,7 +25,6 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
       },
       "package": "com.futureschurch.futures",
@@ -43,14 +40,11 @@
         "RECEIVE_BOOT_COMPLETED"
       ]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    "web": {},
     "plugins": [
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
           "color": "#6366f1"
         }
       ],
@@ -62,9 +56,7 @@
       ]
     ],
     "extra": {
-      "eas": {
-        "projectId": null
-      }
+      "eas": {}
     }
   }
 }

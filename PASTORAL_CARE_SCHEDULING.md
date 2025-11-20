@@ -188,3 +188,4 @@ backend/migrations/019_pastoral_care_appointments.sql
 
 The table will be created automatically when the app starts if using SQLite migrations.
 
+

@@ -12838,16 +12838,41 @@ def get_persons():
             
             person_data = person.to_dict()
             
-            # Add engagement profile data
-            if person.engagement_profile:
-                engagement_data = person.engagement_profile.to_dict()
-                person_data['pulse_status'] = engagement_data.get('pulse_status', 'red')
-                person_data['last_seen'] = engagement_data.get('last_seen')
-                person_data['pulse_reasons'] = engagement_data.get('pulse_reasons', ['No engagement data'])
-                person_data['attendance_frequency'] = engagement_data.get('attendance_frequency', 0.0)
-                person_data['serving_frequency'] = engagement_data.get('serving_frequency', 0.0)
-                person_data['overall_engagement'] = engagement_data.get('overall_engagement', 0.0)
-            else:
+            # Add engagement profile data - use direct SQL to avoid schema issues
+            try:
+                import sqlite3
+                db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+                db_path = db_uri.replace('sqlite:///', '')
+                if not os.path.isabs(db_path):
+                    backend_dir = os.path.dirname(os.path.abspath(__file__))
+                    instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
+                    db_path = instance_path if os.path.exists(instance_path) else os.path.join(backend_dir, 'futures_link.db')
+                
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, overall_engagement FROM engagement_profiles WHERE person_id = ?",
+                    (person_id,)
+                )
+                row = cursor.fetchone()
+                conn.close()
+                
+                if row:
+                    person_data['pulse_status'] = row[0] or 'red'
+                    person_data['last_seen'] = row[1]
+                    person_data['pulse_reasons'] = ['No engagement data']  # Could query from other sources if needed
+                    person_data['attendance_frequency'] = row[2] or 0.0
+                    person_data['serving_frequency'] = row[3] or 0.0
+                    person_data['overall_engagement'] = row[4] or 0.0
+                else:
+                    person_data['pulse_status'] = 'red'
+                    person_data['last_seen'] = None
+                    person_data['pulse_reasons'] = ['No engagement data']
+                    person_data['attendance_frequency'] = 0.0
+                    person_data['serving_frequency'] = 0.0
+                    person_data['overall_engagement'] = 0.0
+            except Exception as e:
+                logger.warning(f"Error fetching engagement profile for {person_id}: {e}")
                 person_data['pulse_status'] = 'red'
                 person_data['last_seen'] = None
                 person_data['pulse_reasons'] = ['No engagement data']
@@ -13008,16 +13033,36 @@ def get_person_by_email(email):
             }
         
         # Add engagement profile if it exists (handle gracefully if table structure doesn't match)
+        # Use direct SQL to avoid SQLAlchemy schema mismatch issues
         try:
-            # Use db.session.query to avoid lazy loading issues
-            engagement = db.session.query(EngagementProfile).filter_by(person_id=person.id).first()
-            if engagement:
-                try:
-                    engagement_data = engagement.to_dict()
-                    person_data['engagement'] = engagement_data
-                except Exception as e:
-                    logger.warning(f"Error serializing engagement profile: {e}")
-                    person_data['engagement'] = None
+            import sqlite3
+            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            db_path = db_uri.replace('sqlite:///', '')
+            if not os.path.isabs(db_path):
+                backend_dir = os.path.dirname(os.path.abspath(__file__))
+                instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
+                if os.path.exists(instance_path):
+                    db_path = instance_path
+                else:
+                    db_path = os.path.join(backend_dir, 'futures_link.db')
+            
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, overall_engagement FROM engagement_profiles WHERE person_id = ?",
+                (person.id,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                person_data['engagement'] = {
+                    'pulse_status': row[0] or 'red',
+                    'last_seen': row[1],
+                    'attendance_frequency': row[2] or 0.0,
+                    'serving_frequency': row[3] or 0.0,
+                    'overall_engagement': row[4] or 0.0,
+                }
             else:
                 person_data['engagement'] = None
         except Exception as e:

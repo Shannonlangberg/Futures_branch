@@ -22,3 +22,4 @@ CREATE INDEX IF NOT EXISTS idx_beacon_schedules_active ON beacon_schedules(is_ac
 CREATE INDEX IF NOT EXISTS idx_beacon_schedules_day ON beacon_schedules(day_of_week);
 
 
+

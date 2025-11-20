@@ -82,3 +82,4 @@ This will show the QR code in that terminal window.
 
 **Ready to test!** 🚀
 
+

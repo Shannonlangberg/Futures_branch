@@ -57,3 +57,4 @@ BEGIN
     UPDATE pastoral_care_appointments SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 
+

@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { ApiService } from './ApiService';
 
@@ -23,9 +24,12 @@ export const NotificationService = {
       return null;
     }
 
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId: 'your-expo-project-id', // Get from Expo dashboard
-    });
+    // Get projectId from Expo constants (set automatically by Expo)
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+    
+    const token = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
@@ -41,12 +45,17 @@ export const NotificationService = {
 
   async getPushToken() {
     try {
-      const token = await Notifications.getExpoPushTokenAsync({
-        projectId: 'your-expo-project-id',
-      });
+      // Get projectId from Expo constants (set automatically by Expo)
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+      
+      // Only include projectId if it's set (not required in development)
+      const token = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined
+      );
       return token.data;
     } catch (error) {
       console.error('Error getting push token:', error);
+      // In development without a projectId, this is expected - just return null
       return null;
     }
   },

@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function PrayerScreen() {
+export default function PrayerScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('prayer'); // 'prayer' or 'praise'
   const [request, setRequest] = useState('');

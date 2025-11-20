@@ -148,6 +148,57 @@
       "description": "User logged in successfully",
       "ip_address": "127.0.0.1",
       "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+    },
+    {
+      "timestamp": "2025-11-20T08:16:39.056198",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "192.168.20.10",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-11-20T09:34:06.665147",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    }
+  ],
+  "unknown": [
+    {
+      "timestamp": "2025-11-20T08:13:07.090458",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: admin@futures.church",
+      "ip_address": "192.168.20.10",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-11-20T08:13:15.978585",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: admin@futures.church",
+      "ip_address": "192.168.20.10",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-11-20T08:13:54.216500",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: admin",
+      "ip_address": "192.168.20.10",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-11-20T09:29:50.903697",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: test@test.com",
+      "ip_address": "192.168.15.167",
+      "user_agent": "curl/8.7.1"
+    },
+    {
+      "timestamp": "2025-11-20T09:33:31.311763",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: test@test.com",
+      "ip_address": "192.168.15.167",
+      "user_agent": "curl/8.7.1"
     }
   ]
 }

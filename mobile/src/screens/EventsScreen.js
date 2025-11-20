@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function EventsScreen({ route }) {
+export default function EventsScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,8 +100,7 @@ export default function EventsScreen({ route }) {
         colors={[Colors.background, Colors.surface, Colors.background]}
         style={styles.gradient}
       >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Events</Text>
+        <View style={[styles.header, { paddingTop: insets.top > 0 ? 0 : Spacing.md }]}>
           <Text style={styles.headerSubtitle}>Upcoming church events</Text>
         </View>
 
@@ -175,13 +176,7 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: Spacing.xl,
-    marginTop: Spacing.lg,
-  },
-  headerTitle: {
-    fontSize: FontSizes.xxl,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
+    marginTop: Spacing.sm,
   },
   headerSubtitle: {
     fontSize: FontSizes.md,

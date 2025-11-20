@@ -4,13 +4,54 @@ import { API_BASE_URL } from '../constants/config';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 60000, // Increased to 60 seconds for office networks
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Cache-Control': 'no-cache',
+  },
+  // Add keepalive for better connection handling
+  maxRedirects: 5,
+  validateStatus: function (status) {
+    return status >= 200 && status < 500; // Don't throw on 4xx errors
   },
 });
 
-// Add auth token to requests
+// Add request logging for debugging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('❌ API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response logging for debugging
+api.interceptors.response.use(
+  (response) => {
+    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    return response;
+  },
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error(`⏱️ API Timeout: ${error.config?.method?.toUpperCase()} ${error.config?.url}`);
+      console.error(`   Attempted URL: ${error.config?.baseURL}${error.config?.url}`);
+    } else if (error.response) {
+      console.error(`❌ API Error: ${error.response.status} - ${error.config?.url}`);
+    } else if (error.request) {
+      console.error(`🌐 Network Error: No response received from ${error.config?.baseURL}${error.config?.url}`);
+      console.error(`   This usually means: network unreachable, firewall blocking, or wrong IP address`);
+    } else {
+      console.error('❌ API Error:', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Add auth token to requests (separate from logging interceptor)
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('authToken');
@@ -24,7 +65,7 @@ api.interceptors.request.use(
   }
 );
 
-// Handle auth errors
+// Handle auth errors (chained after response logging)
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -41,8 +82,24 @@ api.interceptors.response.use(
 export const ApiService = {
   // Auth
   async login(email, password) {
+    console.log('📤 Sending login request to:', `${API_BASE_URL}/api/login`);
     const response = await api.post('/api/login', { email, password });
+    console.log('📥 Login response received:', response.status, response.data);
     return response.data;
+  },
+  
+  // Network connectivity test
+  async testConnection() {
+    try {
+      const response = await api.get('/api/session', { timeout: 5000 });
+      return { success: true, status: response.status };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.code || error.message,
+        url: `${API_BASE_URL}/api/session`
+      };
+    }
   },
 
   async getSession() {
@@ -196,7 +253,9 @@ export const ApiService = {
   },
 
   async updateProfile(email, updates) {
-    const response = await api.put(`/api/people/profile?email=${email}`, updates);
+    console.log('📤 Updating profile for:', email, updates);
+    const response = await api.put('/api/people/profile', { email, ...updates });
+    console.log('📥 Profile update response:', response.data);
     return response.data;
   },
 

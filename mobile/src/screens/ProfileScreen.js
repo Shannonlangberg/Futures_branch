@@ -101,6 +101,19 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Edit Profile Button */}
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => navigation.navigate('EditProfile')}
+        >
+          <LinearGradient
+            colors={[Colors.primary, Colors.accent]}
+            style={styles.editButtonGradient}
+          >
+            <Text style={styles.editButtonText}>✏️ Edit Profile</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* Quick Access Links */}
         <View style={styles.menu}>
           <Text style={styles.sectionTitle}>Quick Access</Text>
@@ -199,6 +212,21 @@ const styles = StyleSheet.create({
   profileCampus: {
     fontSize: FontSizes.sm,
     color: Colors.textMuted,
+  },
+  editButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+  },
+  editButtonGradient: {
+    padding: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButtonText: {
+    color: Colors.text,
+    fontSize: FontSizes.md,
+    fontWeight: '600',
   },
   menu: {
     marginBottom: Spacing.xl,

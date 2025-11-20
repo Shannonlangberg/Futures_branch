@@ -6,7 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/config';
 
@@ -18,6 +19,7 @@ import GroupsScreen from './src/screens/GroupsScreen';
 import GivingScreen from './src/screens/GivingScreen';
 import PassportScreen from './src/screens/PassportScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import EditProfileScreen from './src/screens/EditProfileScreen';
 import EventsScreen from './src/screens/EventsScreen';
 import PrayerScreen from './src/screens/PrayerScreen';
 
@@ -38,6 +40,8 @@ Notifications.setNotificationHandler({
 });
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       screenOptions={{
@@ -48,9 +52,9 @@ function MainTabs() {
           backgroundColor: '#1e293b',
           borderTopColor: '#334155',
           borderTopWidth: 1,
-          paddingBottom: 8,
+          paddingBottom: Math.max(insets.bottom, 8), // Use safe area bottom inset
           paddingTop: 8,
-          height: 65,
+          height: 60 + Math.max(insets.bottom - 8, 0), // Adjust height for safe area
           elevation: 10,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
@@ -60,10 +64,11 @@ function MainTabs() {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
-          marginTop: 4,
+          marginTop: 2,
+          marginBottom: 0,
         },
         tabBarIconStyle: {
-          marginTop: 4,
+          marginTop: 2,
         },
       }}
     >
@@ -223,10 +228,11 @@ export default function App() {
   }
 
   return (
-    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <SafeAreaProvider>
+      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+        <NavigationContainer>
+          <StatusBar style="light" />
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
           {isAuthenticated ? (
             <>
               <Stack.Screen name="Main" component={MainTabs} />
@@ -236,7 +242,17 @@ export default function App() {
                 component={EventsScreen}
                 options={{ 
                   presentation: 'card',
-                  animation: 'slide_from_right'
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Events',
+                  headerBackTitleVisible: false,
                 }}
               />
               <Stack.Screen 
@@ -244,7 +260,17 @@ export default function App() {
                 component={PrayerScreen}
                 options={{ 
                   presentation: 'card',
-                  animation: 'slide_from_right'
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Prayer',
+                  headerBackTitleVisible: false,
                 }}
               />
               {/* Profile accessible from Journey tab */}
@@ -253,7 +279,35 @@ export default function App() {
                 component={ProfileScreen}
                 options={{ 
                   presentation: 'card',
-                  animation: 'slide_from_right'
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Profile',
+                  headerBackTitleVisible: false,
+                }}
+              />
+              <Stack.Screen 
+                name="EditProfile" 
+                component={EditProfileScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Edit Profile',
+                  headerBackTitleVisible: false,
                 }}
               />
             </>
@@ -262,9 +316,10 @@ export default function App() {
               {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
             </Stack.Screen>
           )}
-        </Stack.Navigator>
-      </NavigationContainer>
-    </StripeProvider>
+          </Stack.Navigator>
+        </NavigationContainer>
+      </StripeProvider>
+    </SafeAreaProvider>
   );
 }
 

@@ -216,23 +216,28 @@ def get_giving_history():
         
         person = get_person_by_email(email)
         if not person:
-            return jsonify({'error': 'Person not found'}), 404
+            # Return empty history instead of error
+            return jsonify({'transactions': []}), 200
         
         engagement = person.engagement_profile
         if not engagement:
             return jsonify({'transactions': []}), 200
         
         # Get giving log
-        giving_log = engagement._load_json(engagement.giving_log)
+        try:
+            giving_log = engagement._load_json(engagement.giving_log)
+        except:
+            giving_log = []
         
         # Return pattern view (dates only, not amounts)
         transactions = []
         for record in giving_log:
-            transactions.append({
-                'date': record.get('date'),
-                'type': 'giving',  # Generic type for privacy
-                # Don't include amount - only pattern
-            })
+            if isinstance(record, dict) and record.get('date'):
+                transactions.append({
+                    'date': record.get('date'),
+                    'type': record.get('type', 'giving'),  # Generic type for privacy
+                    # Don't include amount - only pattern
+                })
         
         # Sort by date descending
         transactions.sort(key=lambda x: x.get('date', ''), reverse=True)
@@ -243,8 +248,9 @@ def get_giving_history():
         }), 200
         
     except Exception as e:
-        logger.error(f"Error getting giving history: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error getting giving history: {e}", exc_info=True)
+        # Return empty history instead of error to prevent app crashes
+        return jsonify({'transactions': [], 'total_count': 0}), 200
 
 
 @giving_bp.route('/webhook', methods=['POST'])

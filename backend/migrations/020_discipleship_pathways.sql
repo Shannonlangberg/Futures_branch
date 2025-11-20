@@ -68,3 +68,4 @@ CREATE INDEX IF NOT EXISTS idx_step_completion_progress ON person_pathway_step_c
 CREATE INDEX IF NOT EXISTS idx_step_completion_step ON person_pathway_step_completion(pathway_step_id);
 
 
+

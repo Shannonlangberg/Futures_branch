@@ -125,8 +125,17 @@ const People = () => {
         params.append('include_archived', 'true');
       }
 
+      // Add cache-busting timestamp to ensure fresh data
+      params.append('_t', Date.now().toString());
+      
       const response = await fetch(`/api/persons?${params.toString()}`, {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
       
       if (response.ok) {
@@ -148,6 +157,24 @@ const People = () => {
 
   const handleOpenModal = async (person = null) => {
     if (person) {
+      // ALWAYS fetch fresh data from server, never use cached person object
+      try {
+        const freshResponse = await fetch(`/api/persons/${person.id}?${Date.now()}`, {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        if (freshResponse.ok) {
+          const freshData = await freshResponse.json();
+          person = freshData; // Use fresh data from server
+        }
+      } catch (err) {
+        console.error('Error fetching fresh person data:', err);
+        // Continue with existing person data if fetch fails
+      }
+      
       setEditingPerson(person);
       setFormData({
         full_name: person.full_name || '',
@@ -231,6 +258,7 @@ const People = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // Force reload persons with cache-busting
         await loadPersons();
         handleCloseModal();
         alert(editingPerson ? 'Person updated successfully' : 'Person created successfully');

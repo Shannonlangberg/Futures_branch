@@ -21,3 +21,4 @@ echo ""
 # Start Expo
 npx expo start --clear
 
+

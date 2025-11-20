@@ -3,7 +3,7 @@
 // For testing on physical device or simulator, update this to your local IP address
 // e.g., 'http://192.168.1.100:5000' (get your IP with: ipconfig getifaddr en0 or ifconfig)
 export const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.20.12:5000'  // Your local IP for physical device testing
+  ? 'http://192.168.15.167:5002'  // Your local IP for physical device testing (port 5002, not 5000 - AirPlay uses 5000)
   : 'https://futures-pulse-production.up.railway.app';
 
 export const STRIPE_PUBLISHABLE_KEY = 'pk_test_your_stripe_publishable_key'; // Replace with your actual Stripe key
