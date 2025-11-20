@@ -14403,11 +14403,26 @@ def log_attendance_simple():
                 
                 # Try to recalculate heartbeat using heartbeat engine (more accurate than engagement.recalculate_heartbeat)
                 try:
+                    # Ensure attendance is committed before recalculating
+                    db.session.flush()
+                    
                     from heartbeat_engine import HeartbeatEngine
                     heartbeat_engine = HeartbeatEngine()
-                    snapshot = heartbeat_engine.calculate_heartbeat(person.id)
+                    
+                    # Force recalculation with explicit date range (last 12 weeks including today)
+                    from datetime import date, timedelta
+                    end_date = date.today()
+                    start_date = end_date - timedelta(weeks=12)
+                    
+                    snapshot = heartbeat_engine.calculate_heartbeat(person.id, date_range_start=start_date, date_range_end=end_date)
                     db.session.commit()
-                    logger.info(f"✅ Heartbeat recalculated for {person.id} - GATHER score: {snapshot.gather_score}, Total: {snapshot.total_score}")
+                    
+                    logger.info(f"✅✅✅ Heartbeat recalculated for {person.id} after check-in:")
+                    logger.info(f"    GATHER score: {snapshot.gather_score}")
+                    logger.info(f"    Engagement score: {snapshot.engagement_score}")
+                    logger.info(f"    Total score: {snapshot.total_score}")
+                    logger.info(f"    Status: {snapshot.status}")
+                    logger.info(f"    Calculated at: {snapshot.calculated_at}")
                 except Exception as hb_error:
                     logger.warning(f"Could not recalculate heartbeat (but attendance logged): {hb_error}", exc_info=True)
                     # Try fallback to engagement.recalculate_heartbeat
