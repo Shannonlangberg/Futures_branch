@@ -515,7 +515,18 @@ const PersonHealthReport = () => {
         discipleship_steps_count: result.recent_activity?.discipleship_steps?.length || 0
       });
         
-      setData(result);
+      // Force React to recognize this as new data by creating new object
+      setData({...result});
+      
+      // Log if heartbeat scores changed
+      if (result.heartbeat && data?.heartbeat) {
+        const oldGather = data.heartbeat.gather_score || 0;
+        const newGather = result.heartbeat.gather_score || 0;
+        if (oldGather !== newGather) {
+          console.log(`🔄 GATHER score updated: ${oldGather} → ${newGather}`);
+        }
+      }
+      
       } catch (err) {
       console.error('Person heartbeat load error:', err);
       setError(err.message || 'Unable to load person details.');
@@ -584,8 +595,20 @@ const PersonHealthReport = () => {
   }
 
   const { person, heartbeat, recent_activity, pathway } = data;
-  const hasHeartbeat = heartbeat !== null;
-  const hasPathway = pathway !== null;
+  const hasHeartbeat = heartbeat !== null && heartbeat !== undefined;
+  const hasPathway = pathway !== null && pathway !== undefined;
+  
+  // Log heartbeat data for debugging
+  if (heartbeat) {
+    console.log('💓 Current heartbeat scores:', {
+      gather: heartbeat.gather_score,
+      engagement: heartbeat.engagement_score,
+      spiritual: heartbeat.spiritual_score,
+      care: heartbeat.care_score,
+      total: heartbeat.total_score,
+      status: heartbeat.status
+    });
+  }
 
   // Combine all recent activity for timeline
   const allActivities = [];
