@@ -363,7 +363,7 @@ def upload_thumbnail():
             logger.warning(f"Failed to optimize image: {e}")
             # Continue anyway - file is saved
         
-        # Return URL for the uploaded file
+        # Return URL for the uploaded file (accessible via static route)
         file_url = f"/uploads/tv/{unique_filename}"
         
         return jsonify({

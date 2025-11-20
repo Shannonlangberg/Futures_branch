@@ -6,7 +6,7 @@ Endpoints for handling giving/tithe/donations with Stripe payments.
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from models import db, Person, EngagementProfile, GivingTransaction, GivingQRCode, GivingSubscription
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import logging
 import os
 import stripe
