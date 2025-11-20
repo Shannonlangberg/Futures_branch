@@ -13703,18 +13703,54 @@ def update_person(person_id):
         # Update engagement profile pulse status if attendance/serving changed
         # (Pulse will be recalculated automatically on next access)
         
+        # Commit changes
         db.session.commit()
-        db.session.flush()
+        
+        # Expire all to force fresh queries
         db.session.expire_all()
         
-        # Re-query to get absolutely fresh data
+        # Re-query to get absolutely fresh data - but avoid loading engagement_profile relationship
+        # to prevent schema mismatch errors
         person = Person.query.filter_by(id=person_id, is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found after update'}), 404
+        
+        # Refresh person without loading relationships
         db.session.refresh(person)
         
         # Return updated person data
         person_data = person.to_dict()
-        if person.engagement_profile:
-            person_data['engagement'] = person.engagement_profile.to_dict()
+        
+        # Try to get engagement data using raw SQL to avoid schema issues
+        try:
+            from sqlalchemy import text
+            engagement_row = db.session.execute(
+                text("""
+                    SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, 
+                           overall_engagement, attendance_log, serving_log, milestones_log
+                    FROM engagement_profiles 
+                    WHERE person_id = :person_id
+                """),
+                {'person_id': person.id}
+            ).fetchone()
+            
+            if engagement_row:
+                pulse_status = engagement_row[0] or 'red'
+                last_seen = engagement_row[1].isoformat() if engagement_row[1] else None
+                attendance_frequency = float(engagement_row[2] or 0.0)
+                serving_frequency = float(engagement_row[3] or 0.0)
+                overall_engagement = float(engagement_row[4] or 0.0)
+                
+                person_data['engagement'] = {
+                    'pulse_status': pulse_status,
+                    'last_seen': last_seen,
+                    'attendance_frequency': attendance_frequency,
+                    'serving_frequency': serving_frequency,
+                    'overall_engagement': overall_engagement
+                }
+        except Exception as e:
+            logger.warning(f"Error fetching engagement profile for {person.id}: {e}")
+            person_data['engagement'] = None
         
         response = jsonify({
             'message': 'Person updated successfully',
@@ -15741,7 +15777,7 @@ def get_pulse_status(person_id):
             'person_id': person_id,
             'pulse_status': engagement.pulse_status,
             'pulse_reasons': engagement.get_pulse_reasons(),
-            'last_calculated': engagement.pulse_last_calculated.isoformat(),
+            'last_calculated': engagement.pulse_last_calculated.isoformat() if hasattr(engagement, 'pulse_last_calculated') and engagement.pulse_last_calculated else None,
             'metrics': {
                 'attendance_frequency': engagement.attendance_frequency,
                 'serving_frequency': engagement.serving_frequency,

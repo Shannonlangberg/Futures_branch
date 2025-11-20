@@ -86,7 +86,7 @@ class EngagementProfile(db.Model):
     # Summary pulse
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red
     last_seen = db.Column(db.Date)  # Note: DB uses DATE not DATETIME
-    # Note: pulse_last_calculated doesn't exist in actual DB schema - removed to avoid errors
+    pulse_last_calculated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # Note: This may not exist in all DBs - handled gracefully
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
