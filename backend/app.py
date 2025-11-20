@@ -1393,24 +1393,34 @@ def load_user(user_id):
 
 def authenticate_user(username_or_email, password):
     """Authenticate user and return User object if valid
-    Accepts either username or email for login
+    Accepts either username or email for login (case-insensitive)
     """
     try:
-        logger.info(f"[AUTH] Attempting authentication for: {username_or_email}")
+        logger.info(f"[AUTH] 🔐 Attempting authentication for: '{username_or_email}'")
         conn = get_db()
         cursor = conn.cursor()
-        # Use TRIM to handle any trailing spaces in database
-        # Check both username and email fields for mobile app compatibility
+        
+        # Normalize input (trim and lowercase for case-insensitive matching)
+        normalized_input = username_or_email.strip().lower()
+        
+        # Check both username and email fields (case-insensitive)
+        # SQLite LOWER() function for case-insensitive comparison
         cursor.execute('''
             SELECT id, username, password_hash, full_name, email, role, campus, active
             FROM users
-            WHERE (TRIM(username) = ? OR TRIM(email) = ?) AND active = 1
-        ''', (username_or_email, username_or_email))
+            WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
+        ''', (normalized_input, normalized_input))
         
         row = cursor.fetchone()
         
         if row:
-            logger.info(f"[AUTH] User found: username={row[1]}, email={row[4]}, role={row[5]}")
+            logger.info(f"[AUTH] ✅ User FOUND in database:")
+            logger.info(f"      - ID: {row[0]}")
+            logger.info(f"      - Username: '{row[1]}'")
+            logger.info(f"      - Email: '{row[4]}'")
+            logger.info(f"      - Role: {row[5]}")
+            logger.info(f"      - Active: {bool(row[7])}")
+            
             user_data = {
                 'id': str(row[0]),
                 'username': row[1],
@@ -1424,19 +1434,35 @@ def authenticate_user(username_or_email, password):
             
             user = User(user_data)
             password_valid = user.check_password(password)
-            logger.info(f"[AUTH] Password check result: {password_valid}")
+            
+            logger.info(f"[AUTH] 🔑 Password check result: {password_valid}")
             if password_valid:
                 # Update last login
                 cursor.execute('UPDATE users SET last_login = ? WHERE id = ?', 
                              (datetime.now(), row[0]))
                 conn.commit()
                 conn.close()
+                logger.info(f"[AUTH] ✅ Authentication SUCCESS for '{username_or_email}'")
                 return user
+            else:
+                logger.warning(f"[AUTH] ❌ Password INVALID for '{username_or_email}'")
+        else:
+            logger.warning(f"[AUTH] ❌ User NOT FOUND: '{username_or_email}' (normalized: '{normalized_input}')")
+            # Try to find similar users for debugging
+            cursor.execute('''
+                SELECT username, email, active
+                FROM users
+                WHERE LOWER(email) LIKE ? OR LOWER(username) LIKE ?
+                LIMIT 5
+            ''', (f'%{normalized_input}%', f'%{normalized_input}%'))
+            similar = cursor.fetchall()
+            if similar:
+                logger.warning(f"[AUTH] Found similar users: {similar}")
         
         conn.close()
         return None
     except Exception as e:
-        logger.error(f"Authentication error for user {username_or_email}: {e}")
+        logger.error(f"[AUTH] ❌ Authentication ERROR for '{username_or_email}': {e}", exc_info=True)
         return None
 
 print("[DEBUG] User management functions and classes defined")
