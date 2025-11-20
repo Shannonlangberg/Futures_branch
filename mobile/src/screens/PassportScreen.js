@@ -38,19 +38,25 @@ export default function PassportScreen() {
         const userObj = JSON.parse(userData);
         setUser(userObj);
 
-        // Load profile (this includes engagement data)
+        // Load profile (this includes pathway data)
         try {
           const profileData = await ApiService.getPersonProfile(userObj.email);
-          if (profileData) {
-            setProfile(profileData);
-            // Pathway data might be included in profile
-            if (profileData.pathway) {
-              setPathway(profileData.pathway);
+          console.log('Profile Data:', JSON.stringify(profileData, null, 2));
+          
+          if (profileData && profileData.profile) {
+            setProfile(profileData.profile);
+            
+            // Pathway data is included in profile response
+            if (profileData.profile.pathway) {
+              console.log('Pathway found in profile:', profileData.profile.pathway);
+              setPathway(profileData.profile.pathway);
+            } else {
+              console.warn('No pathway data in profile response');
             }
           }
         } catch (profileError) {
-          console.warn('Error loading profile, trying pathway separately:', profileError);
-          // Fallback: try pathway endpoint if it exists
+          console.error('Error loading profile:', profileError);
+          // Fallback: try pathway endpoint
           try {
             const pathwayData = await ApiService.getMyPathway(userObj.email);
             if (pathwayData?.pathway) {
@@ -58,7 +64,6 @@ export default function PassportScreen() {
             }
           } catch (pathwayError) {
             console.warn('Error loading pathway:', pathwayError);
-            // Continue without pathway data - app won't crash
           }
         }
       }
@@ -153,123 +158,83 @@ export default function PassportScreen() {
           <Text style={styles.headerSubtitle}>Your discipleship journey</Text>
         </View>
 
-        {/* Progress Card */}
+        {/* Progress Summary */}
         {pathway && (
           <View style={styles.section}>
-            <View style={styles.progressCard}>
-              <LinearGradient
-                colors={[Colors.primary, Colors.accent]}
-                style={styles.progressGradient}
-              >
-                <Text style={styles.progressTitle}>{pathway.pathway_name || 'Pathway'}</Text>
-                <Text style={styles.progressPercent}>
-                  {pathway.progress_percentage || 0}% Complete
-                </Text>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${pathway.progress_percentage || 0}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.progressSteps}>
-                  {pathway.completed_steps || 0} of {pathway.total_steps || 0} steps
-                </Text>
-              </LinearGradient>
+            <View style={styles.progressSummary}>
+              <Text style={styles.progressPercent}>{pathway.progress_percentage || 0}%</Text>
+              <Text style={styles.progressLabel}>Journey Complete</Text>
+              <Text style={styles.progressSteps}>
+                {pathway.completed_steps || 0} of {pathway.total_steps || 0} steps
+              </Text>
             </View>
 
-            {/* All Steps */}
+            {/* Visual Journey Path */}
             {pathway.steps && pathway.steps.length > 0 && (
-              <View style={styles.stepsSection}>
-                <Text style={styles.stepsTitle}>All Steps:</Text>
+              <View style={styles.journeyPath}>
+                <Text style={styles.journeyPathTitle}>🗺️ Your Discipleship Journey</Text>
+                
                 {pathway.steps.map((step, index) => {
                   const isCompleted = step.is_completed;
                   const isCurrent = pathway.current_step_id === step.id && !isCompleted;
-                  // Check both milestone_type and step name to identify connect group step
-                  const isConnectGroup = step.milestone_type === 'group_join' || 
-                                         (step.step_name && step.step_name.toLowerCase().includes('connect group'));
-                  // Show Assign button for connect group step if not completed, even if not current
-                  const showAssignButton = isConnectGroup && !isCompleted;
-                  
-                  // Debug logging
-                  if (step.step_name && step.step_name.toLowerCase().includes('connect')) {
-                    console.log('Connect Group Step Debug:', {
-                      step_name: step.step_name,
-                      milestone_type: step.milestone_type,
-                      isConnectGroup,
-                      isCompleted,
-                      showAssignButton,
-                      isCurrent
-                    });
-                  }
+                  const isNextStep = isCurrent;
+                  const isLast = index === pathway.steps.length - 1;
                   
                   return (
-                    <View
-                      key={step.id || index}
-                      style={[
-                        styles.stepCard,
-                        isCurrent && styles.currentStepCard,
-                        isCompleted && styles.completedStepCard,
-                      ]}
-                    >
-                      <View style={styles.stepLeft}>
-                        {isCompleted ? (
-                          <View style={styles.completedIcon}>
-                            <Text style={styles.checkmark}>✓</Text>
-                          </View>
-                        ) : (
-                          <View style={styles.stepNumber}>
-                            <Text style={styles.stepNumberText}>{step.step_order}</Text>
-                          </View>
+                    <View key={step.id || index}>
+                      {/* Step Node */}
+                      <View style={[
+                        styles.stepNode,
+                        index % 2 === 0 ? styles.stepNodeLeft : styles.stepNodeRight
+                      ]}>
+                        {/* Connector Line (except for last step) */}
+                        {!isLast && (
+                          <View style={[
+                            styles.connector,
+                            isCompleted ? styles.connectorCompleted : styles.connectorIncomplete,
+                            index % 2 === 0 ? styles.connectorCurveRight : styles.connectorCurveLeft
+                          ]} />
                         )}
-                        <View style={styles.stepContent}>
-                          <Text style={[styles.stepName, isCompleted && styles.completedStepName]}>
+                        
+                        {/* Circle */}
+                        <View style={[
+                          styles.stepCircle,
+                          isCompleted && styles.stepCircleCompleted,
+                          isNextStep && styles.stepCircleNext,
+                        ]}>
+                          {isCompleted ? (
+                            <Text style={styles.stepCircleCheck}>✓</Text>
+                          ) : (
+                            <Text style={styles.stepCircleNumber}>{step.step_order}</Text>
+                          )}
+                        </View>
+                        
+                        {/* Step Info Card */}
+                        <View style={[
+                          styles.stepInfoCard,
+                          isNextStep && styles.stepInfoCardNext,
+                          isCompleted && styles.stepInfoCardCompleted,
+                        ]}>
+                          <Text style={[
+                            styles.stepInfoName,
+                            isCompleted && styles.stepInfoNameCompleted
+                          ]}>
                             {step.step_name}
                           </Text>
-                          {step.step_description && (
-                            <Text style={styles.stepDescription}>{step.step_description}</Text>
-                          )}
+                          
                           {isCompleted && step.completed_at && (
-                            <Text style={styles.completedDate}>
-                              Completed: {formatDate(step.completed_at)}
+                            <Text style={styles.stepInfoDate}>
+                              ✓ {formatDate(step.completed_at)}
                             </Text>
+                          )}
+                          
+                          {isNextStep && (
+                            <View style={styles.nextStepBadge}>
+                              <Text style={styles.nextStepText}>NEXT STEP →</Text>
+                            </View>
                           )}
                         </View>
                       </View>
-                      {!isCompleted && (
-                        <View style={styles.stepActions}>
-                          {isCurrent && !showAssignButton && (
-                            <Text style={styles.currentBadge}>Current</Text>
-                          )}
-                          {showAssignButton ? (
-                            <TouchableOpacity
-                              style={styles.assignButton}
-                              onPress={() => {
-                                loadConnectGroups();
-                                setShowConnectModal(true);
-                              }}
-                            >
-                              <Text style={styles.assignButtonText}>Assign</Text>
-                            </TouchableOpacity>
-                          ) : !isConnectGroup ? (
-                            <TouchableOpacity
-                              style={styles.completeButton}
-                              onPress={() => handleCompleteStep(step)}
-                            >
-                              <Text style={styles.completeButtonText}>Complete</Text>
-                            </TouchableOpacity>
-                          ) : isCurrent ? (
-                            <Text style={styles.currentBadge}>Current</Text>
-                          ) : null}
-                        </View>
-                      )}
-                      {/* Debug: Show step info if it's connect group related */}
-                      {step.step_name && step.step_name.toLowerCase().includes('connect') && __DEV__ && (
-                        <Text style={{color: 'red', fontSize: 10}}>
-                          Debug: milestone_type={step.milestone_type}, isConnectGroup={isConnectGroup ? 'true' : 'false'}, isCompleted={isCompleted ? 'true' : 'false'}
-                        </Text>
-                      )}
                     </View>
                   );
                 })}
@@ -382,44 +347,150 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: Spacing.md,
   },
-  progressCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: Spacing.md,
-  },
-  progressGradient: {
-    padding: Spacing.lg,
+  progressSummary: {
     alignItems: 'center',
-  },
-  progressTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
+    padding: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    marginBottom: Spacing.xl,
   },
   progressPercent: {
-    fontSize: FontSizes.xxxl,
+    fontSize: 56,
     fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: Spacing.md,
+    color: Colors.primary,
+    marginBottom: Spacing.xs,
   },
-  progressBar: {
-    width: '100%',
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 4,
+  progressLabel: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
     marginBottom: Spacing.sm,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.text,
-    borderRadius: 4,
   },
   progressSteps: {
     fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+  },
+  journeyPath: {
+    paddingVertical: Spacing.md,
+  },
+  journeyPathTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
     color: Colors.text,
-    opacity: 0.9,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
+  },
+  stepNode: {
+    position: 'relative',
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
+  },
+  stepNodeLeft: {
+    alignItems: 'flex-start',
+  },
+  stepNodeRight: {
+    alignItems: 'flex-end',
+  },
+  connector: {
+    position: 'absolute',
+    top: 60,
+    width: 4,
+    height: 80,
+    left: '50%',
+    marginLeft: -2,
+  },
+  connectorCompleted: {
+    backgroundColor: Colors.success,
+  },
+  connectorIncomplete: {
+    backgroundColor: Colors.border,
+  },
+  connectorCurveRight: {
+    transform: [{ rotate: '10deg' }],
+  },
+  connectorCurveLeft: {
+    transform: [{ rotate: '-10deg' }],
+  },
+  stepCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.surface,
+    borderWidth: 3,
+    borderColor: Colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    zIndex: 10,
+  },
+  stepCircleCompleted: {
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
+  },
+  stepCircleNext: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  stepCircleCheck: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  stepCircleNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  stepInfoCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    maxWidth: '75%',
+  },
+  stepInfoCardCompleted: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderColor: Colors.success,
+  },
+  stepInfoCardNext: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  stepInfoName: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  stepInfoNameCompleted: {
+    color: Colors.success,
+  },
+  stepInfoDate: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+  },
+  nextStepBadge: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  nextStepText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: '#fff',
   },
   nextStepCard: {
     backgroundColor: Colors.surface,
