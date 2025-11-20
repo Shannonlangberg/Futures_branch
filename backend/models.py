@@ -85,16 +85,20 @@ class EngagementProfile(db.Model):
     
     # Summary pulse
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red
-    last_seen = db.Column(db.DateTime)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_seen = db.Column(db.Date)  # Note: DB uses DATE not DATETIME
+    pulse_last_calculated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
-    # Raw logs (JSON text – we can normalize later)
-    attendance_log = db.Column(db.Text)          # [{timestamp, campus, zones}]
-    interaction_log = db.Column(db.Text)         # reserved for notes etc.
-    bible_log = db.Column(db.Text)               # [{date}]
-    giving_log = db.Column(db.Text)              # [{date, amount, campus}]
-    serving_log = db.Column(db.Text)             # [{date, role, campus, location}]
-    group_attendance_log = db.Column(db.Text)    # [{group_id, date, present}]
+    # Raw logs (JSON columns as per actual DB schema)
+    attendance_log = db.Column(db.Text, nullable=False, default='[]')  # JSON array
+    serving_log = db.Column(db.Text, nullable=False, default='[]')     # JSON array
+    milestones_log = db.Column(db.Text, default='[]')                  # JSON array
+    email_engagement = db.Column(db.Text, default='[]')                # JSON array
+    social_engagement = db.Column(db.Text, default='[]')               # JSON array
+    
+    # Note: These columns don't exist in actual DB schema - handle gracefully via properties
+    # The actual DB has: attendance_log, serving_log, milestones_log, email_engagement, social_engagement
     
     # Derived metrics (simple v1)
     attendance_frequency = db.Column(db.Float, default=0.0)
@@ -125,33 +129,35 @@ class EngagementProfile(db.Model):
         self.recalculate_heartbeat()
     
     def add_bible_reading(self, reading_date=None):
-        """Add Bible reading record"""
+        """Add Bible reading record to milestones_log"""
         if reading_date is None:
             reading_date = datetime.utcnow().date()
         elif isinstance(reading_date, str):
             reading_date = datetime.fromisoformat(reading_date).date()
         
-        bible_log = self._load_json(self.bible_log)
-        bible_log.append({
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        milestones_log.append({
+            'type': 'bible_reading',
             'date': reading_date.isoformat()
         })
-        self.bible_log = self._dump_json(bible_log)
+        self.milestones_log = self._dump_json(milestones_log)
         self.recalculate_heartbeat()
     
     def add_giving(self, amount, giving_date=None, campus=None):
-        """Add giving record"""
+        """Add giving record to milestones_log"""
         if giving_date is None:
             giving_date = datetime.utcnow().date()
         elif isinstance(giving_date, str):
             giving_date = datetime.fromisoformat(giving_date).date()
         
-        giving_log = self._load_json(self.giving_log)
-        giving_log.append({
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        milestones_log.append({
+            'type': 'giving',
             'date': giving_date.isoformat(),
             'amount': float(amount),
             'campus': campus
         })
-        self.giving_log = self._dump_json(giving_log)
+        self.milestones_log = self._dump_json(milestones_log)
         self.recalculate_heartbeat()
     
     def add_serving_record(self, role, campus, serving_date=None, location=None):
@@ -192,7 +198,9 @@ class EngagementProfile(db.Model):
             self.last_seen = attendance_datetime
             logger.info(f"Updated last_seen from {old_last_seen} to {self.last_seen}")
         
-        group_log = self._load_json(self.group_attendance_log)
+        # Get group attendance from milestones_log
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        group_log = [log for log in milestones_log if log.get('type') == 'group_attendance']
         logger.info(f"Current group_attendance_log has {len(group_log)} entries")
         
         # Check for duplicate entries (same group_id and date)
@@ -261,7 +269,8 @@ class EngagementProfile(db.Model):
                 latest_activity = latest_attendance
         
         # Also check group attendance for last_seen
-        group_log = self._load_json(self.group_attendance_log)
+        milestones_log_all = self._load_json(self.milestones_log or '[]')
+        group_log = [log for log in milestones_log_all if log.get('type') == 'group_attendance']
         if group_log:
             recent_group_dates = []
             for r in group_log:
@@ -290,7 +299,8 @@ class EngagementProfile(db.Model):
         
         # 2. BIBLE READING (25% weight)
         # Target: Daily reading = 56 days in 8 weeks
-        bible_log = self._load_json(self.bible_log)
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        bible_log = [m for m in milestones_log if m.get('type') == 'bible_reading']
         recent_bible = [
             r for r in bible_log
             if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
@@ -300,7 +310,7 @@ class EngagementProfile(db.Model):
         
         # 3. GIVING (15% weight)
         # Target: Weekly giving = 8 times in 8 weeks
-        giving_log = self._load_json(self.giving_log)
+        giving_log = [m for m in milestones_log if m.get('type') == 'giving']
         recent_giving = [
             r for r in giving_log
             if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
@@ -324,7 +334,7 @@ class EngagementProfile(db.Model):
         import logging
         logger = logging.getLogger(__name__)
         
-        group_log = self._load_json(self.group_attendance_log)
+        group_log = [m for m in milestones_log if m.get('type') == 'group_attendance']
         logger.info(f"Recalculating heartbeat for person {self.person_id} - group_log has {len(group_log)} entries")
         logger.info(f"Group log entries: {group_log}")
         logger.info(f"Eight weeks ago date: {eight_weeks_ago.date()}")
@@ -415,28 +425,29 @@ class EngagementProfile(db.Model):
         services_last_8_weeks = len(recent_attendance)
         reasons.append(f"Services: {services_last_8_weeks}/8 in last 8 weeks")
         
-        bible_log = self._load_json(self.bible_log)
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        bible_log = [m for m in milestones_log if m.get('type') == 'bible_reading']
         recent_bible = [
             r for r in bible_log
             if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
         ]
         reasons.append(f"Bible reading: {len(recent_bible)} days in last 8 weeks")
         
-        giving_log = self._load_json(self.giving_log)
+        giving_log = [m for m in milestones_log if m.get('type') == 'giving']
         recent_giving = [
             r for r in giving_log
             if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
         ]
         reasons.append(f"Giving: {len(recent_giving)} times in last 8 weeks")
         
-        serving_log = self._load_json(self.serving_log)
+        serving_log = self._load_json(self.serving_log or '[]')
         recent_serving = [
             r for r in serving_log
             if 'date' in r and datetime.fromisoformat(r['date']).date() >= eight_weeks_ago.date()
         ]
         reasons.append(f"Serving: {len(recent_serving)} times in last 8 weeks")
         
-        group_log = self._load_json(self.group_attendance_log)
+        group_log = [m for m in milestones_log if m.get('type') == 'group_attendance']
         recent_groups = [
             r for r in group_log
             if 'date' in r and r.get('present', True) and 
@@ -454,17 +465,23 @@ class EngagementProfile(db.Model):
         if recalculate:
             self.recalculate_heartbeat()
         
+        # Parse milestones_log to extract different types
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        bible_log = [m for m in milestones_log if m.get('type') == 'bible_reading']
+        giving_log = [m for m in milestones_log if m.get('type') == 'giving']
+        group_attendance_log = [m for m in milestones_log if m.get('type') == 'group_attendance']
+        
         return {
             'id': self.person_id,  # Use person_id as id (it's the primary key)
             'person_id': self.person_id,
             'pulse_status': self.pulse_status,
             'last_seen': self.last_seen.isoformat() if self.last_seen else None,
-            'attendance_log': self._load_json(self.attendance_log),
-            'interaction_log': self._load_json(self.interaction_log),
-            'bible_log': self._load_json(self.bible_log),
-            'giving_log': self._load_json(self.giving_log),
-            'serving_log': self._load_json(self.serving_log),
-            'group_attendance_log': self._load_json(self.group_attendance_log),
+            'attendance_log': self._load_json(self.attendance_log or '[]'),
+            'interaction_log': [],  # Not stored in DB
+            'bible_log': bible_log,
+            'giving_log': giving_log,
+            'serving_log': self._load_json(self.serving_log or '[]'),
+            'group_attendance_log': group_attendance_log,
             'attendance_frequency': self.attendance_frequency,
             'serving_frequency': self.serving_frequency,
             'overall_engagement': self.overall_engagement,

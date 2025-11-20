@@ -13298,6 +13298,12 @@ def update_profile():
         db.session.commit()
         db.session.flush()
         db.session.expire_all()
+        
+        # Re-query to get absolutely fresh data
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
         db.session.refresh(person)
         
         # Return updated person data
@@ -13473,6 +13479,18 @@ def update_person(person_id):
                     # For other values, use Title Case
                     dept_value = dept_value.title()
             person.department = dept_value if dept_value else None
+        if 'phone' in data:
+            person.phone = data['phone'].strip() if data.get('phone') else None
+        
+        # Force commit and refresh
+        db.session.commit()
+        db.session.flush()
+        db.session.expire_all()
+        
+        # Re-query to get absolutely fresh data
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        db.session.refresh(person)
+        
         if 'connect_group' in data:
             # Normalize connect_group - convert empty string to None
             connect_group_value = data['connect_group'].strip() if data.get('connect_group') else None
@@ -13615,6 +13633,12 @@ def update_person(person_id):
         # (Pulse will be recalculated automatically on next access)
         
         db.session.commit()
+        db.session.flush()
+        db.session.expire_all()
+        
+        # Re-query to get absolutely fresh data
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        db.session.refresh(person)
         
         # Return updated person data
         person_data = person.to_dict()
