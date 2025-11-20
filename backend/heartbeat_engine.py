@@ -204,26 +204,38 @@ class HeartbeatEngine:
                                 
                                 # Only include entries within date range
                                 if start_date <= entry_date <= end_date:
-                                    # Create a mock AttendanceEvent-like object
-                                    class MockAttendanceEvent:
-                                        def __init__(self, person_id, created_at, service_id=None, zones=None, campus=None):
-                                            self.person_id = person_id
-                                            self.created_at = created_at
-                                            self.service_id = service_id
-                                            self.zones = zones or ['sunday_service']
-                                            self.campus = campus
-                                    
-                                    # Try to find matching service
+                                    # Try to find matching service by date
                                     matching_service = None
                                     for service in sunday_services:
                                         if service.starts_at.date() == entry_date:
                                             matching_service = service
                                             break
                                     
+                                    # If no matching service found, create a mock service for this date
+                                    if not matching_service:
+                                        from models import Service
+                                        # Create a minimal mock service object
+                                        class MockService:
+                                            def __init__(self, starts_at):
+                                                self.id = None
+                                                self.starts_at = starts_at
+                                                self.type = 'sunday'
+                                        matching_service = MockService(entry_time)
+                                    
+                                    # Create a mock AttendanceEvent-like object with service attribute
+                                    class MockAttendanceEvent:
+                                        def __init__(self, person_id, created_at, service, zones=None, campus=None):
+                                            self.person_id = person_id
+                                            self.created_at = created_at
+                                            self.service = service  # Must have service attribute, not service_id
+                                            self.service_id = service.id if hasattr(service, 'id') and service.id else None
+                                            self.zones = zones or ['sunday_service']
+                                            self.campus = campus
+                                    
                                     mock_event = MockAttendanceEvent(
                                         person_id=person_id,
                                         created_at=entry_time,
-                                        service_id=matching_service.id if matching_service else None,
+                                        service=matching_service,  # Pass service object, not service_id
                                         zones=entry.get('zones', ['sunday_service']),
                                         campus=entry.get('campus', person.campus)
                                     )
