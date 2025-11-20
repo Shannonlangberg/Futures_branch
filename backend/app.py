@@ -16275,7 +16275,7 @@ def get_pulse_status(person_id):
             'person_id': person_id,
             'pulse_status': engagement.pulse_status,
             'pulse_reasons': engagement.get_pulse_reasons(),
-            'last_calculated': engagement.pulse_last_calculated.isoformat() if hasattr(engagement, 'pulse_last_calculated') and engagement.pulse_last_calculated else None,
+            # Note: pulse_last_calculated column removed - not in database schema
             'metrics': {
                 'attendance_frequency': engagement.attendance_frequency,
                 'serving_frequency': engagement.serving_frequency,
