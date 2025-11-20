@@ -13585,14 +13585,38 @@ def update_person(person_id):
         if 'phone' in data:
             person.phone = data['phone'].strip() if data.get('phone') else None
         
-        # Force commit and refresh
-        db.session.commit()
+        # Force commit and flush to ensure data is written to disk
         db.session.flush()
+        db.session.commit()
+        logger.info(f"  Committed changes to database: {db_path}")
+        
+        # Verify the update was actually saved by querying directly from database
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT full_name, preferred_name, phone FROM persons WHERE id = ?", (person.id,))
+        db_row = cursor.fetchone()
+        conn.close()
+        if db_row:
+            logger.info(f"  Verified in database: full_name='{db_row[0]}', preferred_name='{db_row[1]}', phone='{db_row[2]}'")
+        else:
+            logger.error(f"  ERROR: Person not found in database after commit!")
+        
+        # Expire all to force fresh queries
         db.session.expire_all()
         
-        # Re-query to get absolutely fresh data
-        person = Person.query.filter_by(id=person_id, is_active=True).first()
-        db.session.refresh(person)
+        # Close and reopen session to ensure fresh connection
+        db.session.close()
+        
+        # Re-query using the ID to get absolutely fresh data
+        # Use the actual person.id (not person_id parameter) in case email lookup was used
+        actual_person_id = person.id
+        person = Person.query.filter_by(id=actual_person_id, is_active=True).first()
+        if person:
+            db.session.refresh(person)
+            logger.info(f"  After re-query: full_name='{person.full_name}', preferred_name='{person.preferred_name}', phone='{person.phone}'")
+        else:
+            logger.error(f"  ERROR: Person not found after re-query!")
         
         if 'connect_group' in data:
             # Normalize connect_group - convert empty string to None
@@ -16391,37 +16415,33 @@ def get_events():
         # Build query
         query = Event.query.filter_by(is_active=True)
         
-        # Filter by public_only parameter
-        if public_only == 'true':
-            query = query.filter_by(is_public=True)
-        
         # Filter by campus
         if campus != 'all_campuses':
             query = query.filter(Event.campus.in_(['all_campuses', campus]))
         
-        # Filter by category
+        # Filter by category (using category_id if provided as number, or name if string)
         if category != 'all':
-            query = query.join(EventCategory).filter(EventCategory.key == category)
+            try:
+                category_id = int(category)
+                query = query.filter(Event.category_id == category_id)
+            except ValueError:
+                # If it's not a number, try to match by category name
+                query = query.join(EventCategory).filter(EventCategory.name.ilike(f'%{category}%'))
         
         # Filter by status
         if status == 'upcoming':
-            query = query.filter(Event.start_time > datetime.now())
+            query = query.filter(Event.start_time > datetime.utcnow())
         elif status == 'past':
-            query = query.filter(Event.start_time < datetime.now())
-        elif status == 'cancelled':
-            query = query.filter_by(is_cancelled=True)
+            query = query.filter(Event.start_time < datetime.utcnow())
+        # Note: is_cancelled column doesn't exist in Event model - removed filter
         
         # Filter by upcoming/past
         if upcoming == 'true':
-            query = query.filter(Event.start_time > datetime.now())
+            query = query.filter(Event.start_time > datetime.utcnow())
         elif upcoming == 'false':
-            query = query.filter(Event.start_time < datetime.now())
+            query = query.filter(Event.start_time < datetime.utcnow())
         
-        # Filter by cancelled
-        if cancelled == 'true':
-            query = query.filter_by(is_cancelled=True)
-        elif cancelled == 'false':
-            query = query.filter_by(is_cancelled=False)
+        # Note: is_cancelled column doesn't exist in Event model - removed filter
         
         # Search by title or description
         if search:
