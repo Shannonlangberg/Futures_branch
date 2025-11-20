@@ -84,9 +84,10 @@ class HeartbeatEngine:
         # Calculate individual scores
         gather_score = self._calculate_gather_score(data, date_range_start, date_range_end)
         engagement_score = self._calculate_engagement_score(data, date_range_start, date_range_end)
-        logger.info(f"Calculated scores for {person_id}: gather={gather_score}, engagement={engagement_score}")
         spiritual_score = self._calculate_spiritual_score(data, date_range_start, date_range_end)
         care_score = self._calculate_care_score(data)
+        
+        logger.info(f"🎯 Calculated scores for {person_id}: gather={gather_score}, engagement={engagement_score}, spiritual={spiritual_score}, care={care_score}")
         
         # Calculate total score
         total_score = (

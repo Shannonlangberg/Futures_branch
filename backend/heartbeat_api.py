@@ -203,9 +203,11 @@ def get_person_heartbeat(person_id):
         if should_recalculate:
             try:
                 snapshot = engine.calculate_heartbeat(person_id)
-                logger.info(f"Auto-recalculated heartbeat for {person_id}: engagement={snapshot.engagement_score}, total={snapshot.total_score}")
+                db.session.commit()  # Ensure snapshot is saved
+                logger.info(f"✅ Auto-recalculated heartbeat for {person_id}: gather={snapshot.gather_score}, engagement={snapshot.engagement_score}, spiritual={snapshot.spiritual_score}, care={snapshot.care_score}, total={snapshot.total_score}, status={snapshot.status}")
             except Exception as e:
-                logger.error(f"Error auto-recalculating heartbeat for {person_id}: {e}", exc_info=True)
+                logger.error(f"❌ Error auto-recalculating heartbeat for {person_id}: {e}", exc_info=True)
+                db.session.rollback()
                 # Continue with existing snapshot or None
                 if not snapshot:
                     return jsonify({
@@ -433,10 +435,14 @@ def get_person_heartbeat(person_id):
             CareCase.status.in_(['open', 'in_progress'])
         ).all()
         
+        # Log what we're returning
+        heartbeat_dict = snapshot.to_dict() if snapshot else None
+        logger.info(f"📤 Returning heartbeat data for {person_id}: gather_score={heartbeat_dict.get('gather_score') if heartbeat_dict else 'None'}, total_score={heartbeat_dict.get('total_score') if heartbeat_dict else 'None'}, attendance_count={len(recent_attendance)}")
+        
         return jsonify({
             'person_id': person_id,
             'person': person.to_dict(),
-            'heartbeat': snapshot.to_dict(),
+            'heartbeat': heartbeat_dict,
             'pathway': pathway_progress.to_dict() if pathway_progress else None,
             'recent_activity': {
                 'attendance': recent_attendance if recent_attendance and isinstance(recent_attendance[0], dict) else ([a.to_dict() for a in recent_attendance] if recent_attendance else []),
