@@ -1396,6 +1396,7 @@ def authenticate_user(username_or_email, password):
     Accepts either username or email for login
     """
     try:
+        logger.info(f"[AUTH] Attempting authentication for: {username_or_email}")
         conn = get_db()
         cursor = conn.cursor()
         # Use TRIM to handle any trailing spaces in database
@@ -1409,6 +1410,7 @@ def authenticate_user(username_or_email, password):
         row = cursor.fetchone()
         
         if row:
+            logger.info(f"[AUTH] User found: username={row[1]}, email={row[4]}, role={row[5]}")
             user_data = {
                 'id': str(row[0]),
                 'username': row[1],
@@ -1421,7 +1423,9 @@ def authenticate_user(username_or_email, password):
             }
             
             user = User(user_data)
-            if user.check_password(password):
+            password_valid = user.check_password(password)
+            logger.info(f"[AUTH] Password check result: {password_valid}")
+            if password_valid:
                 # Update last login
                 cursor.execute('UPDATE users SET last_login = ? WHERE id = ?', 
                              (datetime.now(), row[0]))
