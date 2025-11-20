@@ -16504,27 +16504,27 @@ def get_events():
                 'category': category_info,
                 'campus': event.campus,
                 'location': event.location,
-                'virtual_link': event.virtual_link,
-                'start_datetime': event.start_datetime.isoformat() if event.start_datetime else None,
-                'end_datetime': event.end_datetime.isoformat() if event.end_datetime else None,
-                'is_all_day': event.is_all_day,
-                'registration_required': event.registration_required,
-                'registration_opens': event.registration_opens.isoformat() if event.registration_opens else None,
-                'registration_closes': event.registration_closes.isoformat() if event.registration_closes else None,
-                'max_capacity': event.max_capacity,
-                'allow_waitlist': event.allow_waitlist,
-                'is_public': event.is_public,
-                'requires_approval': event.requires_approval,
-                'minimum_age': event.minimum_age,
-                'maximum_age': event.maximum_age,
-                'required_departments': event.required_departments,
-                'image_url': event.image_url,
-                'additional_info': event.additional_info,
-                'contact_person': event.contact_person,
-                'contact_email': event.contact_email,
-                'contact_phone': event.contact_phone,
+                'virtual_link': getattr(event, 'virtual_link', None),  # May not exist
+                'start_datetime': event.start_time.isoformat() if event.start_time else None,
+                'end_datetime': event.end_time.isoformat() if event.end_time else None,
+                'is_all_day': getattr(event, 'is_all_day', False),  # May not exist
+                'registration_required': False,  # Column doesn't exist
+                'registration_opens': None,  # Column doesn't exist
+                'registration_closes': None,  # Column doesn't exist
+                'max_capacity': getattr(event, 'max_capacity', None),  # May not exist
+                'allow_waitlist': False,  # Column doesn't exist
+                'is_public': True,  # Column doesn't exist - default to public
+                'requires_approval': False,  # Column doesn't exist
+                'minimum_age': getattr(event, 'minimum_age', None),  # May not exist
+                'maximum_age': getattr(event, 'maximum_age', None),  # May not exist
+                'required_departments': getattr(event, 'required_departments', None),  # May not exist
+                'image_url': getattr(event, 'image_url', None),  # May not exist
+                'additional_info': event.description,  # Use description as fallback
+                'contact_person': getattr(event, 'contact_person', None),  # May not exist
+                'contact_email': getattr(event, 'contact_email', None),  # May not exist
+                'contact_phone': getattr(event, 'contact_phone', None),  # May not exist
                 'registration_count': registration_count,
-                'can_register': False,  # Registration columns don't exist
+                'can_register': False,  # Registration not supported
                 'is_cancelled': False,  # Column doesn't exist
                 'created_at': event.created_at.isoformat(),
                 'updated_at': event.updated_at.isoformat()
