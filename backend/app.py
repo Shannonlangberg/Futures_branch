@@ -13322,11 +13322,8 @@ def get_person_detail(person_id):
 def get_person_by_email(email):
     """Get person profile by email - public endpoint for mobile app"""
     try:
-        # Log which database we're using
-        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        db_path = get_db_path()
-        logger.info(f"GET /api/persons/email/{email} - Using database: {db_uri}")
-        logger.info(f"GET /api/persons/email/{email} - Database path: {db_path}")
+        logger.info(f"========== PERSON EMAIL LOOKUP ==========")
+        logger.info(f"Searching for email: '{email}'")
         
         # Force fresh query
         db.session.expire_all()
@@ -13338,7 +13335,22 @@ def get_person_by_email(email):
         ).first()
         
         if not person:
+            # Try to find persons with similar email
+            logger.error(f"❌ Person NOT FOUND for email: '{email}'")
+            
+            # Check if any persons exist
+            total_count = Person.query.filter(Person.is_active == True).count()
+            logger.error(f"Total active persons in database: {total_count}")
+            
+            # Get first 5 persons to see what emails exist
+            sample_persons = Person.query.filter(Person.is_active == True).limit(5).all()
+            logger.error(f"Sample persons in database:")
+            for p in sample_persons:
+                logger.error(f"  - {p.id}: email='{p.email}', name={p.full_name}")
+            
             return jsonify({'error': 'Person not found'}), 404
+        
+        logger.info(f"✅ Person FOUND: {person.id} - {person.full_name}")
         
         # Get person data (handle errors in to_dict)
         try:
