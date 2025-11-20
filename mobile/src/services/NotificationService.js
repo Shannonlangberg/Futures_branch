@@ -54,8 +54,8 @@ export const NotificationService = {
       );
       return token.data;
     } catch (error) {
-      console.error('Error getting push token:', error);
-      // In development without a projectId, this is expected - just return null
+      // Silently handle - push notifications not configured yet (expected in development)
+      console.log('Push notifications not configured - skipping');
       return null;
     }
   },
