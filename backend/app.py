@@ -993,22 +993,27 @@ def run_migrations():
         # This prevents the app from crashing on startup due to migration issues
         logger.warning("Continuing app startup despite migration errors...")
 
-CORS(app, supports_credentials=True, origins=[
-    "http://localhost:3000", 
-    "http://localhost:3001", 
-    "http://localhost:5173",
-    "exp://192.168.20.12:8081",
-    "exp://192.168.20.12:8082",
-    "exp://192.168.15.167:8081",
-    "exp://192.168.15.167:8082",
-    "exp://localhost:8081",
-    "exp://localhost:8082",
-    "http://192.168.20.12:8081",
-    "http://192.168.20.12:8082",
-    "http://192.168.15.167:8081",
-    "http://192.168.15.167:8082",
-    "*"  # Allow all origins for mobile app testing
-], allow_headers=["Content-Type", "Authorization"])
+CORS(app, 
+     supports_credentials=True, 
+     origins=[
+         "http://localhost:3000", 
+         "http://localhost:3001", 
+         "http://localhost:5173",
+         "exp://192.168.20.12:8081",
+         "exp://192.168.20.12:8082",
+         "exp://192.168.15.167:8081",
+         "exp://192.168.15.167:8082",
+         "exp://localhost:8081",
+         "exp://localhost:8082",
+         "http://192.168.20.12:8081",
+         "http://192.168.20.12:8082",
+         "http://192.168.15.167:8081",
+         "http://192.168.15.167:8082",
+         "https://futures-pulse-production.up.railway.app",  # Production domain
+         "*"  # Allow all origins for mobile app testing
+     ], 
+     allow_headers=["Content-Type", "Authorization", "Accept", "Cache-Control", "Pragma", "Expires"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 # Enable response compression for better performance
 Compress(app)
