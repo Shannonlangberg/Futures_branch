@@ -13714,38 +13714,20 @@ def update_person(person_id):
         if 'phone' in data:
             person.phone = data['phone'].strip() if data.get('phone') else None
         
-        # Force commit and flush to ensure data is written to disk
-        db.session.flush()
+        # Save the person ID before any session operations
+        saved_person_id = person.id
+        
+        # Commit changes
         db.session.commit()
-        logger.info(f"  Committed changes to database: {db_path}")
+        logger.info(f"  Committed changes to database")
         
-        # Verify the update was actually saved by querying directly from database
-        import sqlite3
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT full_name, preferred_name, phone FROM persons WHERE id = ?", (person.id,))
-        db_row = cursor.fetchone()
-        conn.close()
-        if db_row:
-            logger.info(f"  Verified in database: full_name='{db_row[0]}', preferred_name='{db_row[1]}', phone='{db_row[2]}'")
-        else:
-            logger.error(f"  ERROR: Person not found in database after commit!")
-        
-        # Expire all to force fresh queries
+        # Re-query to get fresh data with a new session
         db.session.expire_all()
+        person = Person.query.filter_by(id=saved_person_id, is_active=True).first()
         
-        # Close and reopen session to ensure fresh connection
-        db.session.close()
-        
-        # Re-query using the ID to get absolutely fresh data
-        # Use the actual person.id (not person_id parameter) in case email lookup was used
-        actual_person_id = person.id
-        person = Person.query.filter_by(id=actual_person_id, is_active=True).first()
-        if person:
-            db.session.refresh(person)
-            logger.info(f"  After re-query: full_name='{person.full_name}', preferred_name='{person.preferred_name}', phone='{person.phone}'")
-        else:
-            logger.error(f"  ERROR: Person not found after re-query!")
+        if not person:
+            logger.error(f"  ERROR: Person not found after commit!")
+            return jsonify({'error': 'Person not found after update'}), 404
         
         if 'connect_group' in data:
             # Normalize connect_group - convert empty string to None
