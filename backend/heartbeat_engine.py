@@ -177,6 +177,11 @@ class HeartbeatEngine:
         ).all()
         service_ids = [s.id for s in sunday_services]
         
+        # Create a set of service dates for faster lookup
+        service_dates = {s.starts_at.date() for s in sunday_services}
+        
+        logger.info(f"Loaded {len(sunday_services)} Sunday services for {person_id} between {start_date} and {end_date}")
+        
         # Attendance events from AttendanceEvent table
         attendance_events = AttendanceEvent.query.filter(
             AttendanceEvent.person_id == person_id,
@@ -204,42 +209,52 @@ class HeartbeatEngine:
                                 
                                 # Only include entries within date range
                                 if start_date <= entry_date <= end_date:
-                                    # Try to find matching service by date
-                                    matching_service = None
-                                    for service in sunday_services:
-                                        if service.starts_at.date() == entry_date:
-                                            matching_service = service
-                                            break
-                                    
-                                    # If no matching service found, create a mock service for this date
-                                    if not matching_service:
-                                        # Create a minimal mock service object
-                                        class MockService:
-                                            def __init__(self, starts_at):
-                                                self.id = None
-                                                self.starts_at = starts_at
-                                                self.type = 'sunday'
-                                        matching_service = MockService(entry_time)
-                                    
-                                    # Create a mock AttendanceEvent-like object with service attribute
-                                    class MockAttendanceEvent:
-                                        def __init__(self, person_id, created_at, service, zones=None, campus=None):
-                                            self.person_id = person_id
-                                            self.created_at = created_at
-                                            self.service = service  # Must have service attribute, not service_id
-                                            self.service_id = service.id if hasattr(service, 'id') and service.id else None
-                                            self.zones = zones or ['sunday_service']
-                                            self.campus = campus
-                                    
-                                    mock_event = MockAttendanceEvent(
-                                        person_id=person_id,
-                                        created_at=entry_time,
-                                        service=matching_service,  # Pass service object, not service_id
-                                        zones=entry.get('zones', ['sunday_service']),
-                                        campus=entry.get('campus', person.campus)
-                                    )
-                                    attendance_events.append(mock_event)
-                                    logger.info(f"Added attendance from engagement_log for {person_id} on {entry_date}")
+                                    # Check if this is a Sunday (day of week 6 = Sunday)
+                                    if entry_date.weekday() == 6:  # Sunday
+                                        # Try to find matching service by date
+                                        matching_service = None
+                                        if entry_date in service_dates:
+                                            # Fast lookup using set
+                                            for service in sunday_services:
+                                                if service.starts_at.date() == entry_date:
+                                                    matching_service = service
+                                                    break
+                                        
+                                        # If no matching service found, create a mock service for this date
+                                        if not matching_service:
+                                            # Create a minimal mock service object
+                                            class MockService:
+                                                def __init__(self, starts_at):
+                                                    self.id = None
+                                                    self.starts_at = starts_at
+                                                    self.type = 'sunday'
+                                            matching_service = MockService(entry_time)
+                                            # Also add to sunday_services list so it's counted
+                                            sunday_services.append(matching_service)
+                                            service_dates.add(entry_date)
+                                            logger.info(f"Created mock service for mobile check-in on {entry_date}")
+                                        
+                                        # Create a mock AttendanceEvent-like object with service attribute
+                                        class MockAttendanceEvent:
+                                            def __init__(self, person_id, created_at, service, zones=None, campus=None):
+                                                self.person_id = person_id
+                                                self.created_at = created_at
+                                                self.service = service  # Must have service attribute, not service_id
+                                                self.service_id = service.id if hasattr(service, 'id') and service.id else None
+                                                self.zones = zones or ['sunday_service']
+                                                self.campus = campus
+                                        
+                                        mock_event = MockAttendanceEvent(
+                                            person_id=person_id,
+                                            created_at=entry_time,
+                                            service=matching_service,  # Pass service object, not service_id
+                                            zones=entry.get('zones', ['sunday_service']),
+                                            campus=entry.get('campus', person.campus)
+                                        )
+                                        attendance_events.append(mock_event)
+                                        logger.info(f"✅ Added attendance from engagement_log for {person_id} on {entry_date} - Total events: {len(attendance_events)}")
+                                    else:
+                                        logger.debug(f"Skipping non-Sunday attendance entry for {person_id} on {entry_date}")
                             except Exception as e:
                                 logger.warning(f"Error parsing attendance_log entry for {person_id}: {e}")
             except Exception as e:
@@ -320,6 +335,13 @@ class HeartbeatEngine:
             CareTouchpoint.care_case_id.in_(care_case_ids) if care_case_ids else False
         ).all() if care_case_ids else []
         
+        # Log summary of loaded data
+        logger.info(f"📊 Loaded data for {person_id}: "
+                   f"attendance_events={len(attendance_events)} "
+                   f"(from table: {len([e for e in attendance_events if hasattr(e, 'service_id') and e.service_id])}, "
+                   f"from mobile: {len([e for e in attendance_events if hasattr(e, 'service_id') and not e.service_id])}), "
+                   f"sunday_services={len(sunday_services)}")
+        
         return {
             'attendance_events': attendance_events,
             'sunday_services': sunday_services,
@@ -349,20 +371,27 @@ class HeartbeatEngine:
         attendance_events = data['attendance_events']
         sunday_services = data['sunday_services']
         
-        if not sunday_services:
-            return 0.0
-        
         # Count attended services
         attended_count = len(attendance_events)
         total_services = len(sunday_services)
         
+        logger.info(f"🎯 Calculating GATHER score: {attended_count} attendance events, {total_services} Sunday services")
+        
         # Base score from attendance frequency
+        # If no services in database but we have mobile check-ins, still count them
         if total_services == 0:
-            attendance_rate = 0.0
+            if attended_count > 0:
+                # We have attendance but no services - give credit for attendance
+                # Assume weekly attendance pattern (12 weeks = max score)
+                attendance_rate = min(attended_count / 12.0, 1.0)  # Cap at 100% for 12+ attendances
+                logger.info(f"⚠️  No services in database, using mobile check-ins: {attended_count} attendances = {attendance_rate * 100:.1f}%")
+            else:
+                attendance_rate = 0.0
         else:
             attendance_rate = min(attended_count / total_services, 1.0)
         
         base_score = attendance_rate * 100.0
+        logger.info(f"📈 GATHER base score: {base_score:.2f} (rate: {attendance_rate:.2%}, attended: {attended_count}/{total_services})")
         
         # Penalty for absence streaks
         if attendance_events:
