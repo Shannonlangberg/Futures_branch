@@ -218,11 +218,44 @@ def get_person_heartbeat(person_id):
         # Get recent events for context
         twelve_weeks_ago = date.today() - timedelta(weeks=12)
         
-        # Recent attendance
-        recent_attendance = AttendanceEvent.query.filter(
+        # Recent attendance from AttendanceEvent table
+        recent_attendance_events = AttendanceEvent.query.filter(
             AttendanceEvent.person_id == person_id,
             AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
         ).order_by(AttendanceEvent.created_at.desc()).limit(10).all()
+        
+        # Also get attendance from engagement_profiles.attendance_log (mobile app logs here)
+        attendance_from_log = []
+        try:
+            if person.engagement_profile:
+                import json as json_lib
+                attendance_log_str = person.engagement_profile.attendance_log or '[]'
+                attendance_log = json_lib.loads(attendance_log_str) if attendance_log_str else []
+                
+                # Convert attendance_log entries to same format as AttendanceEvent
+                for entry in attendance_log:
+                    if isinstance(entry, dict) and 'timestamp' in entry:
+                        try:
+                            entry_time = datetime.fromisoformat(entry['timestamp'].replace('Z', '+00:00'))
+                            # Only include entries from last 12 weeks
+                            if entry_time.date() >= twelve_weeks_ago:
+                                attendance_from_log.append({
+                                    'id': f"log_{entry_time.isoformat()}",
+                                    'person_id': person_id,
+                                    'created_at': entry_time.isoformat(),
+                                    'source': entry.get('zones', ['sunday_service'])[0] if entry.get('zones') else 'sunday_service',
+                                    'campus': entry.get('campus', person.campus),
+                                    'zones': entry.get('zones', ['sunday_service'])
+                                })
+                        except Exception as e:
+                            logger.warning(f"Error parsing attendance log entry: {e}")
+        except Exception as e:
+            logger.warning(f"Error reading attendance_log from engagement profile: {e}")
+        
+        # Combine both sources and sort by date (newest first)
+        all_attendance = [a.to_dict() for a in recent_attendance_events] + attendance_from_log
+        all_attendance.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        recent_attendance = all_attendance[:10]  # Limit to 10 most recent
         
         # Recent connect attendance (include more to show missed meetings)
         recent_connect = ConnectAttendance.query.filter(
@@ -406,7 +439,7 @@ def get_person_heartbeat(person_id):
             'heartbeat': snapshot.to_dict(),
             'pathway': pathway_progress.to_dict() if pathway_progress else None,
             'recent_activity': {
-                'attendance': [a.to_dict() for a in recent_attendance],
+                'attendance': recent_attendance if recent_attendance and isinstance(recent_attendance[0], dict) else ([a.to_dict() for a in recent_attendance] if recent_attendance else []),
                 'connect_groups': [
                     (c._enriched_dict if hasattr(c, '_enriched_dict') else c.to_dict()) 
                     for c in recent_connect
