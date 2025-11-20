@@ -14401,16 +14401,25 @@ def log_attendance_simple():
                 db.session.commit()
                 logger.info(f"✅ Attendance logged successfully for {person.email} at {campus}")
                 
-                # Try to recalculate heartbeat (non-critical - can fail)
+                # Try to recalculate heartbeat using heartbeat engine (more accurate than engagement.recalculate_heartbeat)
                 try:
-                    engagement = EngagementProfile.query.filter_by(person_id=person.id).first()
-                    if engagement:
-                        engagement.recalculate_heartbeat()
-                        db.session.commit()
-                        logger.info(f"✅ Heartbeat recalculated for {person.id}")
+                    from heartbeat_engine import HeartbeatEngine
+                    heartbeat_engine = HeartbeatEngine()
+                    snapshot = heartbeat_engine.calculate_heartbeat(person.id)
+                    db.session.commit()
+                    logger.info(f"✅ Heartbeat recalculated for {person.id} - GATHER score: {snapshot.gather_score}, Total: {snapshot.total_score}")
                 except Exception as hb_error:
-                    logger.warning(f"Could not recalculate heartbeat (but attendance logged): {hb_error}")
-                    db.session.rollback()  # Rollback the heartbeat calc, but attendance is already saved
+                    logger.warning(f"Could not recalculate heartbeat (but attendance logged): {hb_error}", exc_info=True)
+                    # Try fallback to engagement.recalculate_heartbeat
+                    try:
+                        engagement = EngagementProfile.query.filter_by(person_id=person.id).first()
+                        if engagement:
+                            engagement.recalculate_heartbeat()
+                            db.session.commit()
+                            logger.info(f"✅ Heartbeat recalculated using engagement.recalculate_heartbeat for {person.id}")
+                    except Exception as fallback_error:
+                        logger.warning(f"Fallback heartbeat recalculation also failed: {fallback_error}")
+                        db.session.rollback()  # Rollback the heartbeat calc, but attendance is already saved
                 
             except Exception as update_error:
                 db.session.rollback()
