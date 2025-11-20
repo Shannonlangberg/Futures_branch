@@ -4,7 +4,7 @@ import { PlayIcon, InformationCircleIcon } from '@heroicons/react/24/solid';
 
 const SeriesCard = ({ series, isLarge = false }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [previewPosition, setPreviewPosition] = useState('bottom');
+  const [previewPosition, setPreviewPosition] = useState('');
   const cardRef = useRef(null);
   const previewRef = useRef(null);
 
@@ -12,16 +12,25 @@ const SeriesCard = ({ series, isLarge = false }) => {
     if (isHovered && cardRef.current) {
       const cardRect = cardRef.current.getBoundingClientRect();
       const previewHeight = 320; // Approximate preview height
+      const previewWidth = 320; // Preview width (w-80 = 320px)
       const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      
       const spaceBelow = viewportHeight - cardRect.bottom;
       const spaceAbove = cardRect.top;
+      const spaceRight = viewportWidth - cardRect.right;
+      const spaceLeft = cardRect.left;
 
-      // Position preview above if not enough space below, but enough above
+      // Determine vertical position (above or below)
+      let position = '';
       if (spaceBelow < previewHeight && spaceAbove > previewHeight) {
-        setPreviewPosition('top');
+        position = 'top';
       } else {
-        setPreviewPosition('bottom');
+        position = 'bottom';
       }
+      
+      // We'll handle horizontal positioning in the render, just track vertical
+      setPreviewPosition(position);
     }
   }, [isHovered]);
 
@@ -73,23 +82,47 @@ const SeriesCard = ({ series, isLarge = false }) => {
       </Link>
 
       {/* Hover Preview - Netflix Style */}
-      {isHovered && cardRef.current && (
-        <div
-          ref={previewRef}
-          className="fixed z-[9999] w-80 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 overflow-hidden pointer-events-auto"
-          style={{
-            top: previewPosition === 'top' 
-              ? `${cardRef.current.getBoundingClientRect().top - 320}px`
-              : `${cardRef.current.getBoundingClientRect().bottom + 8}px`,
-            left: `${Math.max(16, Math.min(
-              window.innerWidth - 336,
-              (cardRef.current.getBoundingClientRect().left + cardRef.current.getBoundingClientRect().right) / 2 - 160
-            ))}px`,
-            animation: 'fadeIn 0.2s ease-out'
-          }}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
+      {isHovered && cardRef.current && (() => {
+        const cardRect = cardRef.current.getBoundingClientRect();
+        const previewWidth = 320;
+        const previewHeight = 320;
+        const viewportWidth = window.innerWidth;
+        
+        // Calculate vertical position
+        const isTop = previewPosition.includes('top');
+        const top = isTop 
+          ? `${cardRect.top - previewHeight - 8}px`
+          : `${cardRect.bottom + 8}px`;
+        
+        // Calculate horizontal position - align with card's left edge (Netflix style)
+        // Try to align with the left edge of the card first
+        let left = cardRect.left;
+        
+        // If card is on the left side of screen, keep preview left-aligned
+        // If card is on the right side, right-align preview to card's right edge
+        if (cardRect.left + previewWidth > viewportWidth - 16) {
+          // Card is too far right - right-align preview to card
+          left = cardRect.right - previewWidth;
+          // Make sure we don't go off left edge
+          left = Math.max(16, left);
+        } else if (cardRect.left < 16) {
+          // Card is too far left - left-align to screen edge
+          left = 16;
+        }
+        // Otherwise, left-align with card (default)
+        
+        return (
+          <div
+            ref={previewRef}
+            className="fixed z-[9999] w-80 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 overflow-hidden pointer-events-auto"
+            style={{
+              top,
+              left: `${left}px`,
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
           {/* Preview Image */}
           <div className="relative w-full h-44 bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40">
             {series.thumbnail_url ? (
@@ -165,7 +198,8 @@ const SeriesCard = ({ series, isLarge = false }) => {
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <style>{`
         @keyframes fadeIn {
