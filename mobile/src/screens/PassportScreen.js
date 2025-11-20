@@ -340,11 +340,68 @@ export default function PathwayScreen() {
                                 style={styles.quickCompleteButton}
                                 onPress={(e) => {
                                   e.stopPropagation();
-                                  handleStepPress(step);
-                                  // Small delay to ensure modal opens before we trigger completion
+                                  // Set selected step and complete it directly
+                                  setSelectedStep(step);
+                                  // Small delay to ensure state is set
                                   setTimeout(() => {
-                                    handleCompleteStep();
-                                  }, 300);
+                                    Alert.alert(
+                                      'Complete Step',
+                                      `Mark "${step.step_name}" as complete?`,
+                                      [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        {
+                                          text: 'Complete',
+                                          onPress: async () => {
+                                            try {
+                                              setCompletingStep(true);
+                                              const userData = await AsyncStorage.getItem('userData');
+                                              if (!userData) {
+                                                Alert.alert('Error', 'Please log in again');
+                                                setCompletingStep(false);
+                                                return;
+                                              }
+                                              
+                                              const userObj = JSON.parse(userData);
+                                              const result = await ApiService.completePathwayStep(
+                                                userObj.email,
+                                                step.id
+                                              );
+                                              
+                                              if (result.pathway) {
+                                                setPathway(result.pathway);
+                                                // Trigger celebration animation
+                                                Animated.sequence([
+                                                  Animated.timing(celebrationAnim, {
+                                                    toValue: 1,
+                                                    duration: 300,
+                                                    useNativeDriver: true,
+                                                  }),
+                                                  Animated.delay(1500),
+                                                  Animated.timing(celebrationAnim, {
+                                                    toValue: 0,
+                                                    duration: 300,
+                                                    useNativeDriver: true,
+                                                  }),
+                                                ]).start();
+                                                
+                                                setSelectedStep(null);
+                                                
+                                                // Reload data to get updated streaks/next steps
+                                                setTimeout(() => {
+                                                  loadData();
+                                                }, 500);
+                                              }
+                                            } catch (error) {
+                                              console.error('Error completing step:', error);
+                                              Alert.alert('Error', error.response?.data?.error || 'Failed to complete step');
+                                            } finally {
+                                              setCompletingStep(false);
+                                            }
+                                          },
+                                        },
+                                      ]
+                                    );
+                                  }, 50);
                                 }}
                                 activeOpacity={0.7}
                               >
