@@ -11,7 +11,8 @@ import {
   ArchiveBoxIcon,
   TrashIcon,
   ArrowPathIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  ListBulletIcon
 } from '@heroicons/react/24/outline';
 
 const People = () => {
@@ -57,14 +58,6 @@ const People = () => {
     loadPersons();
   }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
   
-  // Force reload on window focus to catch updates from mobile app
-  useEffect(() => {
-    const handleFocus = () => {
-      // Reload persons when window regains focus (user switches back from mobile app)
-      loadPersons();
-    };
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
 
   // Check for edit query parameter and open modal
   useEffect(() => {
@@ -481,6 +474,13 @@ const People = () => {
               <p className="text-slate-400">Manage church members and track engagement</p>
             </div>
             <div className="flex gap-3">
+              <button
+                onClick={() => navigate('/lists')}
+                className="flex items-center px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+              >
+                <ListBulletIcon className="w-5 h-5 mr-2" />
+                Lists
+              </button>
               <button
                 onClick={() => setShowImportModal(true)}
                 className="flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
