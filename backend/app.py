@@ -8342,41 +8342,56 @@ def debug_claude():
 def session_info():
     """Get current session info - public endpoint for mobile app"""
     # Detect Railway branch/environment
-    # Priority: 1. Custom APP_ENV variable, 2. Detect from hostname/URL, 3. RAILWAY_BRANCH, 4. RAILWAY_ENVIRONMENT, 5. Service name, 6. Default to 'main'
+    # Priority: 1. Custom APP_ENV variable, 2. Detect from hostname/URL, 3. RAILWAY_BRANCH, 4. RAILWAY_ENVIRONMENT, 5. Service name, 6. Default to 'beta' (safer default)
     app_env = os.getenv('APP_ENV', '').strip().lower()
     railway_branch_env = os.getenv('RAILWAY_BRANCH', '').strip().lower()
     railway_env = os.getenv('RAILWAY_ENVIRONMENT', '').strip().lower()
     
+    railway_branch = None
+    
     # Use APP_ENV first if set and not empty
     if app_env:
         railway_branch = app_env
+        logger.info(f"[BRANCH_DETECT] Using APP_ENV: {app_env}")
     elif railway_branch_env:
         railway_branch = railway_branch_env
+        logger.info(f"[BRANCH_DETECT] Using RAILWAY_BRANCH: {railway_branch_env}")
     elif railway_env:
         railway_branch = railway_env
-    else:
-        railway_branch = None
+        logger.info(f"[BRANCH_DETECT] Using RAILWAY_ENVIRONMENT: {railway_env}")
     
     # If not explicitly set, try to detect from request hostname
     if not railway_branch:
         try:
             hostname = request.host.lower() if request else ''
+            logger.info(f"[BRANCH_DETECT] Checking hostname: {hostname}")
+            
             # Check if URL contains 'branch' or 'beta' (e.g., futuresbranch-production.up.railway.app)
-            if 'branch' in hostname or 'beta' in hostname:
+            if 'branch' in hostname or 'beta' in hostname or 'staging' in hostname:
                 railway_branch = 'beta'
                 logger.info(f"[BRANCH_DETECT] Detected 'beta' from hostname: {hostname}")
+            # Check if it's the main/production URL (futures-pulse-production)
+            elif 'futures-pulse-production' in hostname:
+                railway_branch = 'main'
+                logger.info(f"[BRANCH_DETECT] Detected 'main' from hostname: {hostname}")
         except Exception as e:
-            logger.debug(f"[BRANCH_DETECT] Could not detect from hostname: {e}")
+            logger.warning(f"[BRANCH_DETECT] Could not detect from hostname: {e}")
     
     # If still not set, try to detect from Railway service name
     if not railway_branch:
         service_name = os.getenv('RAILWAY_SERVICE_NAME', '').lower()
+        logger.info(f"[BRANCH_DETECT] Checking service name: {service_name}")
         if 'beta' in service_name or 'branch' in service_name:
             railway_branch = 'beta'
-            logger.info(f"[BRANCH_DETECT] Detected 'beta' from service name: {service_name}")
-        else:
-            railway_branch = 'main'  # Default to 'main' for production safety
-            logger.info(f"[BRANCH_DETECT] Defaulting to 'main' (no detection)")
+            logger.info(f"[BRANCH_DETECT] Detected 'beta' from service name")
+        elif service_name:
+            railway_branch = 'main'
+            logger.info(f"[BRANCH_DETECT] Detected 'main' from service name")
+    
+    # Default to 'beta' if still not determined (safer to show more features than hide them)
+    if not railway_branch:
+        railway_branch = 'beta'
+        logger.info(f"[BRANCH_DETECT] Defaulting to 'beta' (no detection)")
     
     # Normalize branch name
     if railway_branch in ['production', 'prod', 'main']:
@@ -8385,7 +8400,7 @@ def session_info():
         railway_branch = 'beta'
     
     # Log the final detected branch for debugging
-    logger.info(f"[BRANCH_DETECT] Final branch: {railway_branch} (APP_ENV={app_env}, hostname={request.host if request else 'N/A'})")
+    logger.info(f"[BRANCH_DETECT] ✓ FINAL: branch={railway_branch}, APP_ENV={app_env}, hostname={request.host if request else 'N/A'}")
     
     # Allow unauthenticated access for mobile app session check
     if current_user.is_authenticated:
