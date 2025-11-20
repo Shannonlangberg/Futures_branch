@@ -213,7 +213,6 @@ class HeartbeatEngine:
                                     
                                     # If no matching service found, create a mock service for this date
                                     if not matching_service:
-                                        from models import Service
                                         # Create a minimal mock service object
                                         class MockService:
                                             def __init__(self, starts_at):
