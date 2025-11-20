@@ -1501,8 +1501,6 @@ def get_active_campuses():
         
         for row in cursor.fetchall():
             campus_id = row[0]
-            # Try to get notes/description if it exists in the row
-            description = row[5] if len(row) > 5 else None
             active_campuses.append({
                 'id': campus_id,
                 'name': row[2],  # display_name
@@ -1510,7 +1508,7 @@ def get_active_campuses():
                 'region_id': row[3],  # region_id
                 'region_code': row[4],  # region_code (AU, US, etc.)
                 'service_times': service_times_map.get(campus_id, []),
-                'description': description or campuses_db.get('campuses', {}).get(campus_id, {}).get('description', None)
+                'description': campuses_db.get('campuses', {}).get(campus_id, {}).get('description', None)
             })
         
         conn.close()
