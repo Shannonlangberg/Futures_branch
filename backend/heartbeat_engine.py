@@ -184,7 +184,7 @@ class HeartbeatEngine:
         
         # Also get attendance from engagement_profiles.attendance_log (mobile app logs here)
         # Create mock AttendanceEvent objects from attendance_log entries
-        from models import EngagementProfile, Person
+        from models import EngagementProfile
         person = Person.query.get(person_id)
         if person:
             try:
