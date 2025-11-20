@@ -14301,7 +14301,9 @@ def log_attendance_simple():
                     'campus': campus
                 })
                 engagement.attendance_log = engagement._dump_json(attendance_log)
-                engagement.last_seen = attendance_time.date()
+                # last_seen is a DATE column, not DATETIME
+                from datetime import date as date_class
+                engagement.last_seen = attendance_time.date() if isinstance(attendance_time, datetime) else date_class.today()
                 
                 # Try to recalculate heartbeat (might fail, but that's ok)
                 try:
