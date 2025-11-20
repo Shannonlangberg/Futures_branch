@@ -34,6 +34,7 @@ const MainLayout = ({ children }) => {
   const [userRole, setUserRole] = useState('user');
   const [userName, setUserName] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [railwayBranch, setRailwayBranch] = useState(null);
   const location = useLocation();
 
   // Fetch user session data on component mount
@@ -53,6 +54,8 @@ const MainLayout = ({ children }) => {
             campus: data.campus || 'all_campuses'
           });
         }
+        // Set branch info regardless of auth status
+        setRailwayBranch(data.railway_branch || 'main');
       } catch (error) {
         console.error('Error fetching session data:', error);
       }
@@ -121,8 +124,24 @@ const MainLayout = ({ children }) => {
       // { name: 'Finance Dashboard', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance'] },
     ];
 
-    // Filter items based on user role and feature flags
+    // Filter items based on user role, feature flags, and Railway branch
     const filteredItems = allItems.filter(item => {
+      // If on main branch, only show Dashboard, Input, and Settings
+      // (Settings is handled separately in getSettingsItems)
+      if (railwayBranch === 'main') {
+        // Main branch: Only Dashboard and Input (no Home, no other features)
+        if (item.name === 'Home') {
+          return false; // No homepage on main
+        }
+        if (item.name === 'Dashboard' || item.name === 'Input') {
+          // Check role permission for these
+          return item.roles.includes(userRole);
+        }
+        // Hide everything else on main branch
+        return false;
+      }
+      
+      // Beta branch: Show everything based on role permissions
       // Pulse TV is visible to all authenticated users
       if (item.name === 'Pulse TV') {
         return true;

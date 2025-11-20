@@ -46,3 +46,10 @@ BEACON_MGMT_ENABLED=false
 HEARTBEAT_ENABLED=false
 RBAC_ENABLED=true
 CAMPUS_SCOPING_ENABLED=true
+
+# Railway Branch/Environment Detection
+# Set this to control which features are visible:
+# - 'main' or 'production' = Restricted view (Dashboard, Input, Settings only)
+# - 'beta' or 'staging' = Full feature access
+# Leave unset to default to 'main' (production-safe)
+APP_ENV=main

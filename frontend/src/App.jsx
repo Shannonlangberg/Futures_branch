@@ -81,6 +81,7 @@ function App() {
   const [driveConnecting, setDriveConnecting] = useState(false);
   const [driveError, setDriveError] = useState('');
   const [userRole, setUserRole] = useState(null);
+  const [railwayBranch, setRailwayBranch] = useState(null);
 
   const checkAuthStatus = useCallback(async () => {
     try {
@@ -93,6 +94,7 @@ function App() {
         setIsAuthenticated(data.authenticated);
         const role = data.role || null;
         setUserRole(role);
+        setRailwayBranch(data.railway_branch || 'main');
         const allowsDriveAuth = role ? RESOURCE_ALLOWED_ROLES.includes(role) : false;
         const requiresDrive = allowsDriveAuth && Boolean(data.needs_drive_auth);
         setNeedsDriveAuth(requiresDrive);
@@ -101,6 +103,7 @@ function App() {
       } else {
         setIsAuthenticated(false);
         setUserRole(null);
+        setRailwayBranch(null);
         setNeedsDriveAuth(false);
         setShowDriveModal(false);
         return false;
@@ -109,6 +112,7 @@ function App() {
       console.error('Auth check failed:', error);
       setIsAuthenticated(false);
       setUserRole(null);
+      setRailwayBranch(null);
       setNeedsDriveAuth(false);
       setShowDriveModal(false);
       return false;
@@ -383,7 +387,16 @@ function App() {
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <Routes>
-                  <Route path="/" element={<Landing />} />
+                  <Route 
+                    path="/" 
+                    element={
+                      railwayBranch === 'main' ? (
+                        <Navigate to="/dashboard" replace />
+                      ) : (
+                        <Landing />
+                      )
+                    } 
+                  />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/stats" element={<LogStats />} />
                   <Route path="/finance" element={<Finance />} />
