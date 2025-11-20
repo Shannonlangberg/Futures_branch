@@ -4,13 +4,15 @@ import {
   CalendarIcon,
   CheckCircleIcon,
   XCircleIcon,
+  XMarkIcon,
   ClockIcon,
   MapPinIcon,
   ArrowLeftOnRectangleIcon,
   HomeIcon,
   PlusIcon,
   MagnifyingGlassIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 
 const ConnectGroupLeader = () => {
@@ -28,6 +30,7 @@ const ConnectGroupLeader = () => {
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar state
   const memberDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -368,29 +371,66 @@ const ConnectGroupLeader = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col md:flex-row">
+      {/* Mobile Header */}
+      <div className="md:hidden bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 text-white hover:bg-slate-700/50 rounded-lg"
+          >
+            <Bars3Icon className="w-6 h-6" />
+          </button>
+          <div>
+            <h1 className="text-lg font-bold text-white">Leader Portal</h1>
+            <p className="text-xs text-slate-400">Connect Groups</p>
+          </div>
+        </div>
+        <div className="px-3 py-1 bg-slate-700/30 rounded-lg">
+          <p className="text-xs text-slate-400">Logged in as</p>
+          <p className="text-sm font-medium text-white truncate max-w-[120px]">{email}</p>
+        </div>
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Left Sidebar Navigation */}
-      <div className="w-64 bg-slate-800/50 backdrop-blur-sm border-r border-slate-700/50 flex flex-col">
+      <div className={`fixed md:static inset-y-0 left-0 z-50 md:z-auto w-64 bg-slate-800/50 backdrop-blur-sm border-r border-slate-700/50 flex flex-col transform transition-transform duration-300 ease-in-out md:translate-x-0 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}>
         {/* Logo/Header */}
-        <div className="p-6 border-b border-slate-700/50">
+        <div className="p-4 md:p-6 border-b border-slate-700/50">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
               <UserGroupIcon className="w-6 h-6 text-blue-500" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-white">Leader Portal</h1>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold text-white truncate">Leader Portal</h1>
               <p className="text-xs text-slate-400">Connect Groups</p>
             </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="md:hidden p-2 text-slate-400 hover:text-white"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
         {/* Navigation Menu */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-2 md:p-4 space-y-2 overflow-y-auto">
           <button
             onClick={() => {
               setSelectedGroup(null);
               setSelectedMeeting(null);
               setCurrentView('groups');
+              setSidebarOpen(false); // Close sidebar on mobile when navigating
             }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               currentView === 'groups'
@@ -398,7 +438,7 @@ const ConnectGroupLeader = () => {
                 : 'text-slate-300 hover:bg-slate-700/50'
             }`}
           >
-            <HomeIcon className="w-5 h-5" />
+            <HomeIcon className="w-5 h-5 flex-shrink-0" />
             <span className="font-medium">My Groups</span>
           </button>
 
@@ -406,7 +446,10 @@ const ConnectGroupLeader = () => {
           {myGroups.map(group => (
             <button
               key={group.id}
-              onClick={() => loadGroupDetails(group)}
+              onClick={() => {
+                loadGroupDetails(group);
+                setSidebarOpen(false); // Close sidebar on mobile when selecting group
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${
                 selectedGroup?.id === group.id
                   ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
@@ -423,8 +466,8 @@ const ConnectGroupLeader = () => {
         </nav>
 
         {/* User Info & Logout */}
-        <div className="p-4 border-t border-slate-700/50">
-          <div className="mb-3 px-4 py-2 bg-slate-700/30 rounded-lg">
+        <div className="p-2 md:p-4 border-t border-slate-700/50">
+          <div className="mb-3 px-3 md:px-4 py-2 bg-slate-700/30 rounded-lg">
             <p className="text-xs text-slate-400 mb-1">Logged in as</p>
             <p className="text-sm font-medium text-white truncate">{email}</p>
           </div>
@@ -437,41 +480,42 @@ const ConnectGroupLeader = () => {
               setCurrentView('groups');
               setEmail('');
               setAccessCode('');
+              setSidebarOpen(false);
             }}
             className="w-full flex items-center gap-3 px-4 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition-colors"
           >
-            <ArrowLeftOnRectangleIcon className="w-5 h-5" />
+            <ArrowLeftOnRectangleIcon className="w-5 h-5 flex-shrink-0" />
             <span className="font-medium">Log Out</span>
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-6">
+      <div className="flex-1 overflow-y-auto w-full">
+        <div className="max-w-6xl mx-auto p-4 md:p-6">
           {/* Groups List */}
           {currentView === 'groups' && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {myGroups.map(group => (
               <div
                 key={group.id}
-                className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-blue-500/50 transition-colors cursor-pointer"
+                className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 md:p-6 hover:border-blue-500/50 transition-colors cursor-pointer touch-manipulation"
                 onClick={() => loadGroupDetails(group)}
               >
-                <h3 className="text-xl font-semibold text-white mb-4">{group.name}</h3>
+                <h3 className="text-lg md:text-xl font-semibold text-white mb-3 md:mb-4">{group.name}</h3>
                 <div className="space-y-2 text-sm text-slate-300">
                   <div className="flex items-center gap-2">
-                    <MapPinIcon className="w-4 h-4 text-slate-400" />
-                    <span>{group.campus}</span>
+                    <MapPinIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span className="truncate">{group.campus}</span>
                   </div>
                   {group.meeting_day && group.meeting_time && (
                     <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4 text-slate-400" />
-                      <span>{group.meeting_day} {group.meeting_time}</span>
+                      <CalendarIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      <span className="truncate">{group.meeting_day} {group.meeting_time}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-2">
-                    <UserGroupIcon className="w-4 h-4 text-slate-400" />
+                    <UserGroupIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
                     <span>{group.member_count || 0} members</span>
                   </div>
                 </div>
@@ -482,42 +526,54 @@ const ConnectGroupLeader = () => {
 
           {/* Group Details & Meetings */}
           {currentView === 'group-details' && selectedGroup && (
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white">{selectedGroup.name}</h2>
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 md:p-6">
+            {/* Mobile Back Button */}
+            <button
+              onClick={() => {
+                setSelectedGroup(null);
+                setCurrentView('groups');
+              }}
+              className="md:hidden mb-4 flex items-center gap-2 text-blue-400 hover:text-blue-300"
+            >
+              <ArrowLeftOnRectangleIcon className="w-5 h-5 rotate-180" />
+              <span>Back to Groups</span>
+            </button>
+
+            <div className="mb-4 md:mb-6">
+              <h2 className="text-xl md:text-2xl font-bold text-white">{selectedGroup.name}</h2>
             </div>
 
             {/* Group Info */}
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label className="text-sm text-slate-400">Campus</label>
-                <p className="text-white">{selectedGroup.campus}</p>
+                <label className="text-xs md:text-sm text-slate-400">Campus</label>
+                <p className="text-white text-sm md:text-base">{selectedGroup.campus}</p>
               </div>
               {selectedGroup.meeting_day && (
                 <div>
-                  <label className="text-sm text-slate-400">Meeting Schedule</label>
-                  <p className="text-white">
+                  <label className="text-xs md:text-sm text-slate-400">Meeting Schedule</label>
+                  <p className="text-white text-sm md:text-base">
                     {selectedGroup.meeting_day} {selectedGroup.meeting_time || ''} ({selectedGroup.meeting_frequency || 'weekly'})
                   </p>
                 </div>
               )}
               {selectedGroup.location && (
-                <div>
-                  <label className="text-sm text-slate-400">Location</label>
-                  <p className="text-white">{selectedGroup.location}</p>
+                <div className="md:col-span-2">
+                  <label className="text-xs md:text-sm text-slate-400">Location</label>
+                  <p className="text-white text-sm md:text-base">{selectedGroup.location}</p>
                 </div>
               )}
             </div>
 
             {/* Members */}
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <h3 className="text-base md:text-lg font-semibold text-white">
                   Members ({selectedGroup.members?.length || 0})
                 </h3>
                 <button
                   onClick={() => setShowAddMember(!showAddMember)}
-                  className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                  className="flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm touch-manipulation w-full sm:w-auto"
                 >
                   <PlusIcon className="w-4 h-4 mr-2" />
                   Add Member
@@ -658,37 +714,45 @@ const ConnectGroupLeader = () => {
 
             {/* Meetings */}
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Meetings</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <h3 className="text-base md:text-lg font-semibold text-white">Meetings</h3>
                 <button
                   onClick={() => handleCreateMeeting(selectedGroup)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                  className="flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm touch-manipulation w-full sm:w-auto"
                 >
-                  + Create Meeting
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Create Meeting
                 </button>
               </div>
               {selectedGroup.meetings && selectedGroup.meetings.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {selectedGroup.meetings
                     .sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
                     .map(meeting => (
                       <div
                         key={meeting.id}
-                        className="p-4 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors"
+                        className="p-4 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700 active:bg-slate-600 transition-colors touch-manipulation"
                         onClick={() => loadMeetingAttendance(meeting.id)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-white font-medium">
-                              {new Date(meeting.meeting_date).toLocaleDateString()}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="flex-1">
+                            <p className="text-white font-medium text-base md:text-lg">
+                              {new Date(meeting.meeting_date).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
                             </p>
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-slate-400 mt-1">
                               {meeting.attendance_count || 0} of {meeting.total_members || 0} present
                             </p>
                           </div>
-                          <button className="text-blue-400 hover:text-blue-300">
-                            Take Attendance →
-                          </button>
+                          <div className="flex items-center justify-end sm:justify-start">
+                            <span className="text-blue-400 font-medium">
+                              Take Attendance →
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -702,13 +766,18 @@ const ConnectGroupLeader = () => {
 
           {/* Attendance Taking */}
           {currentView === 'attendance' && selectedMeeting && (
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">
-                  Attendance - {new Date(selectedMeeting.meeting_date).toLocaleDateString()}
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
+              <div className="flex-1">
+                <h2 className="text-xl md:text-2xl font-bold text-white">
+                  Attendance - {new Date(selectedMeeting.meeting_date).toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
                 </h2>
-                <p className="text-slate-400">{selectedGroup.name}</p>
+                <p className="text-sm md:text-base text-slate-400 mt-1">{selectedGroup.name}</p>
               </div>
               <button
                 onClick={() => {
@@ -716,9 +785,10 @@ const ConnectGroupLeader = () => {
                   setAttendance([]);
                   setCurrentView('group-details');
                 }}
-                className="text-slate-400 hover:text-white"
+                className="flex items-center gap-2 text-slate-400 hover:text-white px-4 py-2 rounded-lg hover:bg-slate-700/50 touch-manipulation w-full sm:w-auto justify-center sm:justify-start"
               >
-                ← Back to Group
+                <ArrowLeftOnRectangleIcon className="w-5 h-5 rotate-180" />
+                <span>Back to Group</span>
               </button>
             </div>
 
@@ -816,10 +886,10 @@ const ConnectGroupLeader = () => {
             </div>
 
             {/* Submit Button */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleSubmitAttendance}
-                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                className="flex-1 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg transition-colors font-medium text-base touch-manipulation"
               >
                 Submit Attendance
               </button>
@@ -829,7 +899,7 @@ const ConnectGroupLeader = () => {
                   setAttendance([]);
                   setCurrentView('group-details');
                 }}
-                className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                className="px-6 py-3.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white rounded-lg transition-colors text-base touch-manipulation sm:w-auto w-full"
               >
                 Cancel
               </button>
