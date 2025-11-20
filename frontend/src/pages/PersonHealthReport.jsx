@@ -178,6 +178,46 @@ const PersonHealthReport = () => {
     }
   }, [data?.pathway?.id]);
 
+  // Auto-refresh heartbeat data every 30 seconds and on window focus
+  useEffect(() => {
+    // Refresh on window focus (user switches back to tab)
+    const handleFocus = () => {
+      console.log('Window focused - refreshing heartbeat data');
+      fetchPersonData(true); // Silent refresh
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Auto-refresh every 30 seconds to catch mobile check-ins (silent refresh - don't show loading)
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing heartbeat data');
+      fetchPersonData(true); // Silent refresh
+    }, 30000); // 30 seconds
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [personId]);
+
+  // Auto-refresh heartbeat data every 30 seconds and on window focus
+  useEffect(() => {
+    // Refresh on window focus (user switches back to tab)
+    const handleFocus = () => {
+      fetchPersonData();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchPersonData();
+    }, 30000); // 30 seconds
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [personId]);
+
   const fetchPathways = async () => {
     try {
       const response = await fetch('/api/pathways', {
@@ -470,15 +510,19 @@ const PersonHealthReport = () => {
       // Debug: Log the data we received
       console.log('Fetched person data:', {
         has_person: !!result.person,
+        has_heartbeat: !!result.heartbeat,
+        heartbeat_scores: result.heartbeat ? {
+          gather: result.heartbeat.gather_score,
+          engagement: result.heartbeat.engagement_score,
+          spiritual: result.heartbeat.spiritual_score,
+          care: result.heartbeat.care_score,
+          total: result.heartbeat.total_score,
+          status: result.heartbeat.status
+        } : null,
         has_pathway: !!result.pathway,
         has_recent_activity: !!result.recent_activity,
-        discipleship_steps_count: result.recent_activity?.discipleship_steps?.length || 0,
-        person_milestones: {
-          baptised_on: result.person?.baptised_on,
-          dna_completed: result.person?.dna_completed,
-          filled_holy_spirit: result.person?.filled_holy_spirit,
-          rise_attended: result.person?.rise_attended
-        }
+        attendance_count: result.recent_activity?.attendance?.length || 0,
+        discipleship_steps_count: result.recent_activity?.discipleship_steps?.length || 0
       });
         
       setData(result);
