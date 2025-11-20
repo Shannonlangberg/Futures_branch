@@ -34,8 +34,10 @@ def create_payment_intent():
     """
     try:
         data = request.get_json()
+        logger.info(f"Creating payment intent with data: {data}")
         
         if not stripe.api_key:
+            logger.error("Stripe API key not configured")
             return jsonify({'error': 'Stripe not configured'}), 500
         
         amount = data.get('amount')  # Amount in cents
@@ -47,30 +49,43 @@ def create_payment_intent():
         service_date = data.get('service_date', None)  # Service date if from QR
         
         if not amount or amount <= 0:
+            logger.warning(f"Invalid amount: {amount}")
             return jsonify({'error': 'Invalid amount'}), 400
         
         if not email:
+            logger.warning("Email not provided in request")
             return jsonify({'error': 'Email required'}), 400
         
+        logger.info(f"Looking up person with email: {email}")
         # Verify person exists
-        person = get_person_by_email(email)
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+        try:
+            person = get_person_by_email(email)
+            if not person:
+                logger.warning(f"Person not found for email: {email}")
+                return jsonify({'error': f'Person not found for email: {email}'}), 404
+            logger.info(f"Found person: {person.id} - {person.full_name}")
+        except Exception as e:
+            logger.error(f"Error looking up person: {e}", exc_info=True)
+            return jsonify({'error': f'Database error: {str(e)}'}), 500
         
         # Use person's campus if not provided
         if not campus:
-            campus = person.campus
+            campus = person.campus or ''
         
         # If from QR code, update scan count
         if qr_code_id and source in ['qr_code', 'tap_to_give']:
-            qr_code = GivingQRCode.query.filter_by(qr_code_id=qr_code_id, is_active=True).first()
-            if qr_code:
-                qr_code.scan_count += 1
-                qr_code.last_scan_at = datetime.utcnow()
-                db.session.commit()
+            try:
+                qr_code = GivingQRCode.query.filter_by(qr_code_id=qr_code_id, is_active=True).first()
+                if qr_code:
+                    qr_code.scan_count += 1
+                    qr_code.last_scan_at = datetime.utcnow()
+                    db.session.commit()
+            except Exception as e:
+                logger.warning(f"Error updating QR code scan count: {e}")
         
         # Create Payment Intent
         try:
+            logger.info(f"Creating Stripe payment intent for ${amount/100} {giving_type}")
             payment_intent = stripe.PaymentIntent.create(
                 amount=int(amount),
                 currency='aud',  # Australian Dollars
@@ -86,18 +101,21 @@ def create_payment_intent():
                 receipt_email=email,
             )
             
+            logger.info(f"Payment intent created: {payment_intent.id}")
             return jsonify({
                 'client_secret': payment_intent.client_secret,
                 'payment_intent_id': payment_intent.id,
             }), 200
             
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe error creating payment intent: {e}")
-            return jsonify({'error': str(e)}), 500
+            logger.error(f"Stripe error creating payment intent: {e}", exc_info=True)
+            return jsonify({'error': f'Stripe error: {str(e)}'}), 500
         
     except Exception as e:
-        logger.error(f"Error creating payment intent: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error creating payment intent: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
 @giving_bp.route('/confirm-payment', methods=['POST'])
@@ -204,6 +222,107 @@ def confirm_payment():
         return jsonify({'error': str(e)}), 500
 
 
+@giving_bp.route('/create-setup-intent', methods=['POST'])
+def create_setup_intent():
+    """
+    Create a Stripe Setup Intent for collecting payment method for subscriptions
+    Public endpoint - uses email to identify person
+    """
+    try:
+        data = request.get_json()
+        
+        if not stripe.api_key:
+            return jsonify({'error': 'Stripe not configured'}), 500
+        
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email required'}), 400
+        
+        # Verify person exists
+        person = get_person_by_email(email)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Create or retrieve Stripe Customer
+        stripe_customer = None
+        existing_subscription = GivingSubscription.query.filter_by(
+            person_id=person.id,
+            status='active'
+        ).first()
+        
+        if existing_subscription:
+            try:
+                stripe_customer = stripe.Customer.retrieve(existing_subscription.stripe_customer_id)
+            except:
+                pass
+        
+        if not stripe_customer:
+            stripe_customer = stripe.Customer.create(
+                email=email,
+                name=person.full_name,
+                metadata={
+                    'person_id': person.id,
+                    'campus': person.campus or '',
+                }
+            )
+        
+        # Create Setup Intent
+        setup_intent = stripe.SetupIntent.create(
+            customer=stripe_customer.id,
+            payment_method_types=['card'],
+        )
+        
+        return jsonify({
+            'client_secret': setup_intent.client_secret,
+            'setup_intent_id': setup_intent.id,
+            'customer_id': stripe_customer.id,
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error creating setup intent: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@giving_bp.route('/get-setup-intent-payment-method', methods=['POST'])
+def get_setup_intent_payment_method():
+    """
+    Retrieve payment method ID from a confirmed setup intent
+    Public endpoint
+    """
+    try:
+        data = request.get_json()
+        setup_intent_id = data.get('setup_intent_id')
+        
+        if not setup_intent_id:
+            return jsonify({'error': 'Setup intent ID required'}), 400
+        
+        if not stripe.api_key:
+            return jsonify({'error': 'Stripe not configured'}), 500
+        
+        # Retrieve setup intent from Stripe
+        setup_intent = stripe.SetupIntent.retrieve(setup_intent_id)
+        
+        if setup_intent.status != 'succeeded':
+            return jsonify({'error': 'Setup intent not succeeded'}), 400
+        
+        payment_method_id = setup_intent.payment_method
+        
+        if not payment_method_id:
+            return jsonify({'error': 'Payment method not found'}), 404
+        
+        return jsonify({
+            'payment_method_id': payment_method_id,
+        }), 200
+        
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error retrieving setup intent: {e}")
+        return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        logger.error(f"Error retrieving setup intent payment method: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @giving_bp.route('/create-subscription', methods=['POST'])
 def create_subscription():
     """
@@ -224,12 +343,22 @@ def create_subscription():
         qr_code_id = data.get('qr_code_id', None)
         interval = data.get('interval', 'month')  # 'week', 'month', 'year'
         payment_method_id = data.get('payment_method_id')  # From Stripe Elements
+        setup_intent_id = data.get('setup_intent_id')  # Alternative: get payment method from setup intent
         
         if not amount or amount <= 0:
             return jsonify({'error': 'Invalid amount'}), 400
         
         if not email:
             return jsonify({'error': 'Email required'}), 400
+        
+        # Get payment method from setup intent if provided
+        if setup_intent_id and not payment_method_id:
+            try:
+                setup_intent = stripe.SetupIntent.retrieve(setup_intent_id)
+                if setup_intent.status == 'succeeded':
+                    payment_method_id = setup_intent.payment_method
+            except:
+                pass
         
         if not payment_method_id:
             return jsonify({'error': 'Payment method required'}), 400

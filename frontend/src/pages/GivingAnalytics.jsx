@@ -181,7 +181,7 @@ const GivingAnalytics = () => {
           color: {
             dark: '#000000',
             light: '#FFFFFF'
-          }
+    }
         });
         images[code.qr_code_id] = qrImage;
       } catch (error) {
@@ -573,13 +573,13 @@ const GivingAnalytics = () => {
             <div className="mb-6 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-white">Tap to Give Analytics</h2>
               <div className="flex gap-3">
-                <button
+              <button
                   onClick={() => handleCreateQRCode('qr')}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center gap-2"
-                >
+              >
                   <QrCodeIcon className="h-5 w-5" />
-                  Generate QR Codes
-                </button>
+                Generate QR Codes
+              </button>
                 <button
                   onClick={() => handleCreateQRCode('nfc')}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold flex items-center gap-2"

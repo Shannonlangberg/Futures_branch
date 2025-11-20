@@ -194,7 +194,7 @@ const TVManager = () => {
 
         {/* Series List */}
         <div className="space-y-6">
-          {series.map((s) => (
+          {(series || []).map((s) => (
             <div
               key={s.id}
               className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700"
@@ -284,7 +284,7 @@ const TVManager = () => {
                 <div className="p-6 bg-slate-900/50">
                   <h4 className="text-lg font-semibold text-white mb-4">Episodes ({s.episodes.length})</h4>
                   <div className="space-y-3">
-                    {s.episodes.map((episode) => (
+                    {(s.episodes || []).map((episode) => (
                       <div
                         key={episode.id}
                         className="flex items-center justify-between p-4 bg-slate-800 rounded-lg border border-slate-700"

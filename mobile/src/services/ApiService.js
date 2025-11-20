@@ -208,11 +208,13 @@ export const ApiService = {
   },
 
   // Giving
-  async createPaymentIntent(amount, type, campus) {
+  async createPaymentIntent(amount, type, campus, email) {
     const response = await api.post('/api/giving/create-intent', {
       amount,
       type, // 'tithe', 'offering', 'missions', 'event'
       campus,
+      email, // Required by backend
+      source: 'app',
     });
     return response.data;
   },
@@ -227,6 +229,33 @@ export const ApiService = {
 
   async getGivingHistory(email) {
     const response = await api.get(`/api/giving/history?email=${email}`);
+    return response.data;
+  },
+
+  async createSetupIntent(email) {
+    const response = await api.post('/api/giving/create-setup-intent', {
+      email,
+    });
+    return response.data;
+  },
+
+  async getSetupIntentPaymentMethod(setupIntentId) {
+    const response = await api.post('/api/giving/get-setup-intent-payment-method', {
+      setup_intent_id: setupIntentId,
+    });
+    return response.data;
+  },
+
+  async createSubscription(amount, type, campus, interval, paymentMethodId, email) {
+    const response = await api.post('/api/giving/create-subscription', {
+      amount,
+      type,
+      campus,
+      interval,
+      payment_method_id: paymentMethodId,
+      email,
+      source: 'app',
+    });
     return response.data;
   },
 

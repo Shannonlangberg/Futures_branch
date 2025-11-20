@@ -19,7 +19,12 @@ from heartbeat_engine import HeartbeatEngine
 import logging
 import os
 import uuid
-from PIL import Image
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    logger.warning("PIL/Pillow not available - image optimization will be skipped")
 
 logger = logging.getLogger(__name__)
 
@@ -345,23 +350,31 @@ def upload_thumbnail():
         filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
         
         # Save file
-        file.save(filepath)
+        try:
+            file.save(filepath)
+            logger.info(f"File saved to: {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save file: {e}")
+            return jsonify({'error': f'Failed to save file: {str(e)}'}), 500
         
         # Optional: Resize/optimize image (keep it reasonable size)
-        try:
-            with Image.open(filepath) as img:
-                # Convert to RGB if necessary (handles RGBA, P, etc.)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                
-                # Resize if larger than 1920x1080 (keep aspect ratio)
-                max_size = (1920, 1080)
-                if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
-                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
-                    img.save(filepath, 'JPEG', quality=85, optimize=True)
-        except Exception as e:
-            logger.warning(f"Failed to optimize image: {e}")
-            # Continue anyway - file is saved
+        if PIL_AVAILABLE:
+            try:
+                with Image.open(filepath) as img:
+                    # Convert to RGB if necessary (handles RGBA, P, etc.)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Resize if larger than 1920x1080 (keep aspect ratio)
+                    max_size = (1920, 1080)
+                    if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
+                        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                        img.save(filepath, 'JPEG', quality=85, optimize=True)
+            except Exception as e:
+                logger.warning(f"Failed to optimize image: {e}")
+                # Continue anyway - file is saved
+        else:
+            logger.info("Skipping image optimization - PIL not available")
         
         # Return URL for the uploaded file (accessible via static route)
         file_url = f"/uploads/tv/{unique_filename}"

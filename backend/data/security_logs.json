@@ -162,6 +162,20 @@
       "description": "User logged in successfully",
       "ip_address": "192.168.15.107",
       "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-11-20T12:36:58.389834",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-11-20T13:19:48.609545",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
     }
   ],
   "unknown": [

@@ -14,15 +14,18 @@ import { useStripe } from '@stripe/stripe-react-native';
 import { Colors, FontSizes, Spacing, STRIPE_PUBLISHABLE_KEY } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Switch } from 'react-native';
 
 export default function GivingScreen({ navigation }) {
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { initPaymentSheet, presentPaymentSheet, createPaymentMethod } = useStripe();
   const [user, setUser] = useState(null);
   const [amount, setAmount] = useState('');
   const [selectedType, setSelectedType] = useState('tithe');
   const [loading, setLoading] = useState(false);
   const [givingHistory, setGivingHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringInterval, setRecurringInterval] = useState('month');
 
   const givingTypes = [
     { id: 'tithe', label: 'Tithe', emoji: '💰' },
@@ -71,58 +74,166 @@ export default function GivingScreen({ navigation }) {
       return;
     }
 
+    if (!user.email) {
+      Alert.alert('Error', 'User email not found. Please log in again.');
+      console.error('User object:', user);
+      return;
+    }
+
+    console.log('Creating payment intent with:', {
+      amount: parseFloat(amount) * 100,
+      type: selectedType,
+      campus: user.campus,
+      email: user.email,
+    });
+
     setLoading(true);
 
     try {
-      // Create payment intent
-      const intentResult = await ApiService.createPaymentIntent(
-        parseFloat(amount) * 100, // Convert to cents
-        selectedType,
-        user.campus
-      );
+      if (isRecurring) {
+        // Handle recurring subscription
+        // Step 1: Create setup intent to collect payment method
+        const setupResult = await ApiService.createSetupIntent(user.email);
 
-      if (!intentResult.client_secret) {
-        throw new Error('Failed to create payment intent');
-      }
+        if (!setupResult.client_secret) {
+          throw new Error('Failed to create setup intent');
+        }
 
-      // Initialize payment sheet
-      const { error: initError } = await initPaymentSheet({
-        merchantDisplayName: 'Futures Church',
-        paymentIntentClientSecret: intentResult.client_secret,
-        defaultBillingDetails: {
-          email: user.email,
-        },
-      });
+        // Step 2: Initialize payment sheet with setup intent
+        const { error: initError } = await initPaymentSheet({
+          merchantDisplayName: 'Futures Church',
+          setupIntentClientSecret: setupResult.client_secret,
+          defaultBillingDetails: {
+            email: user.email,
+          },
+        });
 
-      if (initError) {
-        Alert.alert('Error', initError.message);
-        setLoading(false);
-        return;
-      }
+        if (initError) {
+          Alert.alert('Error', initError.message);
+          setLoading(false);
+          return;
+        }
 
-      // Present payment sheet
-      const { error: presentError } = await presentPaymentSheet();
+        // Step 3: Present payment sheet to collect payment method
+        const { error: presentError } = await presentPaymentSheet();
 
-      if (presentError) {
-        if (presentError.code !== 'Canceled') {
-          Alert.alert('Error', presentError.message);
+        if (presentError) {
+          if (presentError.code !== 'Canceled') {
+            Alert.alert('Error', presentError.message);
+          }
+          setLoading(false);
+          return;
+        }
+
+        // Step 4: Retrieve payment method ID from setup intent
+        const pmResult = await ApiService.getSetupIntentPaymentMethod(setupResult.setup_intent_id);
+
+        if (!pmResult.payment_method_id) {
+          Alert.alert('Error', 'Failed to retrieve payment method. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        // Step 5: Create subscription with payment method
+        const subscriptionResult = await ApiService.createSubscription(
+          parseFloat(amount) * 100, // Convert to cents
+          selectedType,
+          user.campus,
+          recurringInterval,
+          pmResult.payment_method_id,
+          user.email
+        );
+
+        if (subscriptionResult.success) {
+          // If there's a client secret for confirming the first payment, handle it
+          if (subscriptionResult.client_secret) {
+            const { error: confirmError } = await initPaymentSheet({
+              merchantDisplayName: 'Futures Church',
+              paymentIntentClientSecret: subscriptionResult.client_secret,
+            });
+
+            if (!confirmError) {
+              const { error: presentConfirmError } = await presentPaymentSheet();
+              if (presentConfirmError && presentConfirmError.code !== 'Canceled') {
+                Alert.alert('Error', presentConfirmError.message);
+                setLoading(false);
+                return;
+              }
+            }
+          }
+
+          const intervalLabel = recurringInterval === 'week' ? 'weekly' : 
+                               recurringInterval === 'month' ? 'monthly' : 'yearly';
+          Alert.alert(
+            'Subscription Created! 🙏',
+            `Your ${intervalLabel} ${givingTypes.find(t => t.id === selectedType)?.label || 'gift'} of $${amount} has been set up.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setAmount('');
+                  setIsRecurring(false);
+                  loadGivingHistory();
+                  navigation.goBack();
+                },
+              },
+            ]
+          );
+        } else {
+          throw new Error(subscriptionResult.error || 'Failed to create subscription');
         }
       } else {
-        // Payment successful
-        Alert.alert(
-          'Thank You! 🙏',
-          `Your ${givingTypes.find(t => t.id === selectedType)?.label || 'gift'} of $${amount} has been received.`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setAmount('');
-                loadGivingHistory();
-                navigation.goBack();
-              },
-            },
-          ]
+        // Handle one-time payment (existing flow)
+        const intentResult = await ApiService.createPaymentIntent(
+          parseFloat(amount) * 100, // Convert to cents
+          selectedType,
+          user.campus,
+          user.email
         );
+
+        if (!intentResult.client_secret) {
+          throw new Error('Failed to create payment intent');
+        }
+
+        // Initialize payment sheet
+        const { error: initError } = await initPaymentSheet({
+          merchantDisplayName: 'Futures Church',
+          paymentIntentClientSecret: intentResult.client_secret,
+          defaultBillingDetails: {
+            email: user.email,
+          },
+        });
+
+        if (initError) {
+          Alert.alert('Error', initError.message);
+          setLoading(false);
+          return;
+        }
+
+        // Present payment sheet
+        const { error: presentError } = await presentPaymentSheet();
+
+        if (presentError) {
+          if (presentError.code !== 'Canceled') {
+            Alert.alert('Error', presentError.message);
+          }
+        } else {
+          // Payment successful
+          Alert.alert(
+            'Thank You! 🙏',
+            `Your ${givingTypes.find(t => t.id === selectedType)?.label || 'gift'} of $${amount} has been received.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setAmount('');
+                  loadGivingHistory();
+                  navigation.goBack();
+                },
+              },
+            ]
+          );
+        }
       }
     } catch (error) {
       console.error('Giving error:', error);
@@ -208,6 +319,55 @@ export default function GivingScreen({ navigation }) {
           </View>
         </View>
 
+        {/* Recurring Payment Toggle */}
+        <View style={styles.section}>
+          <View style={styles.recurringContainer}>
+            <View style={styles.recurringHeader}>
+              <Text style={styles.sectionTitle}>Make this recurring</Text>
+              <Switch
+                value={isRecurring}
+                onValueChange={setIsRecurring}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor={Colors.text}
+              />
+            </View>
+            {isRecurring && (
+              <View style={styles.intervalContainer}>
+                <Text style={styles.intervalLabel}>Frequency:</Text>
+                <View style={styles.intervalButtons}>
+                  {[
+                    { value: 'week', label: 'Weekly' },
+                    { value: 'month', label: 'Monthly' },
+                    { value: 'year', label: 'Yearly' },
+                  ].map((interval) => (
+                    <TouchableOpacity
+                      key={interval.value}
+                      style={[
+                        styles.intervalButton,
+                        recurringInterval === interval.value && styles.intervalButtonActive,
+                      ]}
+                      onPress={() => setRecurringInterval(interval.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.intervalButtonText,
+                          recurringInterval === interval.value && styles.intervalButtonTextActive,
+                        ]}
+                      >
+                        {interval.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.recurringPreview}>
+                  ${amount || '0.00'} {recurringInterval === 'week' ? 'per week' : 
+                                     recurringInterval === 'month' ? 'per month' : 'per year'}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* Give Button */}
         <TouchableOpacity
           style={styles.giveButton}
@@ -221,7 +381,9 @@ export default function GivingScreen({ navigation }) {
             {loading ? (
               <ActivityIndicator color={Colors.text} />
             ) : (
-              <Text style={styles.giveButtonText}>Give ${amount || '0.00'}</Text>
+              <Text style={styles.giveButtonText}>
+                {isRecurring ? 'Set Up Recurring Gift' : `Give $${amount || '0.00'}`}
+              </Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -408,6 +570,65 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     padding: Spacing.lg,
+  },
+  recurringContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  recurringHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  intervalContainer: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  intervalLabel: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  intervalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  intervalButton: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    padding: Spacing.sm,
+    marginHorizontal: Spacing.xs,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  intervalButtonActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '20',
+  },
+  intervalButtonText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  intervalButtonTextActive: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  recurringPreview: {
+    fontSize: FontSizes.md,
+    color: Colors.primary,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: Spacing.sm,
   },
 });
 

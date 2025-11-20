@@ -38,6 +38,14 @@ DATABASE_URL=sqlite:///futures_link.db
 # DATABASE_POOL_TIMEOUT=30
 # DATABASE_POOL_RECYCLE=1800
 
+# Stripe Payment Configuration
+# Get these from https://dashboard.stripe.com/apikeys
+# Use test keys for development, live keys for production
+STRIPE_SECRET_KEY=sk_test_xxxxx  # Secret key (starts with sk_test_ or sk_live_)
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx  # Webhook signing secret (get from Stripe Dashboard → Webhooks)
+# Frontend Stripe key (add to frontend/.env or Railway environment variables)
+# VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx  # Publishable key (starts with pk_test_ or pk_live_)
+
 # Feature Flags (optional overrides)
 # Toggle these to enable in-progress modules without merging into production
 DEVOTIONS_ADMIN_ENABLED=true

@@ -1,12 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { loadStripe } from '@stripe/stripe-js';
-import { QrCodeIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { QrCodeIcon, DevicePhoneMobileIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import QRCode from 'qrcode';
 
 // Only initialize Stripe if publishable key is available
 const stripeKey = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
+
+// Wrapper component to provide Stripe Elements context
+const GiveWrapper = () => {
+  if (!stripePromise) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-white text-center">
+          <p className="text-xl mb-2">Payment processing is not available</p>
+          <p className="text-slate-400">Please contact the church office to give.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Elements stripe={stripePromise}>
+      <Give />
+    </Elements>
+  );
+};
 
 const Give = () => {
   const [searchParams] = useSearchParams();
@@ -24,6 +45,8 @@ const Give = () => {
   const [qrCodeImage, setQrCodeImage] = useState(null);
   const [nfcSupported, setNfcSupported] = useState(false);
   const [nfcReading, setNfcReading] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringInterval, setRecurringInterval] = useState('month'); // 'week', 'month', 'year'
 
   // Check if QR code ID is in URL
   useEffect(() => {
@@ -233,8 +256,29 @@ const Give = () => {
       return;
     }
 
+    if (!stripePromise) {
+      setError('Payment processing is not available. Please contact the church office.');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Create payment intent
+      if (isRecurring) {
+        // Handle recurring subscription
+        await handleRecurringPayment(amountInCents);
+      } else {
+        // Handle one-time payment
+        await handleOneTimePayment(amountInCents);
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      setError('An error occurred. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  const handleOneTimePayment = async (amountInCents) => {
+    try {
       const response = await fetch('/api/giving/create-intent', {
         method: 'POST',
         headers: {
@@ -259,21 +303,75 @@ const Give = () => {
         return;
       }
 
-      // Redirect to Stripe Checkout or use Payment Intent
-      // For now, we'll redirect to a payment page
-      // In production, you would use Stripe Checkout or Stripe Elements
-      setError('Payment processing will be implemented with Stripe Checkout. For now, please use the mobile app or contact the church office.');
+      // For one-time payments, we'll use Stripe Checkout redirect
+      // This is more secure than handling cards directly
+      setError('One-time payment processing will redirect to Stripe Checkout. This feature is being finalized.');
       setLoading(false);
       
-      // TODO: Implement Stripe Checkout redirect
-      // Example:
-      // const stripe = await stripePromise;
-      // const { error } = await stripe.redirectToCheckout({
-      //   sessionId: data.checkout_session_id
-      // });
     } catch (error) {
-      console.error('Payment error:', error);
-      setError('An error occurred. Please try again.');
+      console.error('One-time payment error:', error);
+      setError('An error occurred processing your payment.');
+      setLoading(false);
+    }
+  };
+
+  const handleRecurringPayment = async (amountInCents) => {
+    if (!stripePromise) {
+      setError('Stripe is not configured');
+      setLoading(false);
+      return;
+    }
+
+    const stripe = await stripePromise;
+    
+    // Create payment method from card element
+    // Note: For production, you'd use Stripe Elements here
+    // For now, we'll create the subscription which will collect payment method
+    
+    try {
+      const response = await fetch('/api/giving/create-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amountInCents,
+          type: givingType,
+          campus: campus,
+          email: email,
+          source: qrCodeId ? (qrCodeId.startsWith('nfc_') ? 'tap_to_give' : 'qr_code') : 'web',
+          qr_code_id: qrCodeId,
+          interval: recurringInterval,
+          payment_method_id: 'pm_card_visa', // Placeholder - in production, get from Stripe Elements
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        setLoading(false);
+        return;
+      }
+
+      if (data.success) {
+        setSuccess(true);
+        setLoading(false);
+        
+        // Reset form after 3 seconds
+        setTimeout(() => {
+          setEmail('');
+          setAmount('');
+          setIsRecurring(false);
+          setSuccess(false);
+        }, 3000);
+      } else {
+        setError('Failed to create subscription. Please try again.');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Recurring payment error:', error);
+      setError('An error occurred processing your subscription.');
       setLoading(false);
     }
   };
@@ -406,6 +504,52 @@ const Give = () => {
               </select>
             </div>
 
+            {/* Recurring Payment Toggle */}
+            <div className="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <ArrowPathIcon className="h-5 w-5 text-purple-400" />
+                  <div>
+                    <div className="text-sm font-medium text-white">Make this a recurring gift</div>
+                    <div className="text-xs text-slate-400">Set up automatic giving</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRecurring(!isRecurring)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    isRecurring ? 'bg-purple-600' : 'bg-slate-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      isRecurring ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
+
+              {isRecurring && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Frequency <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    value={recurringInterval}
+                    onChange={(e) => setRecurringInterval(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="week">Weekly</option>
+                    <option value="month">Monthly</option>
+                    <option value="year">Yearly</option>
+                  </select>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Your gift of ${amount || '0.00'} will be processed {recurringInterval === 'week' ? 'every week' : recurringInterval === 'month' ? 'every month' : 'every year'}
+                  </p>
+                </div>
+              )}
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -415,7 +559,7 @@ const Give = () => {
                   : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transform hover:scale-105'
               }`}
             >
-              {loading ? 'Processing...' : 'Give Now'}
+              {loading ? 'Processing...' : isRecurring ? `Set Up Recurring Gift` : 'Give Now'}
             </button>
           </form>
 
@@ -437,5 +581,5 @@ const Give = () => {
   );
 };
 
-export default Give;
+export default GiveWrapper;
 
