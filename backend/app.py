@@ -1,9 +1,9 @@
 # app.py
 
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
+from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, make_response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ResourceCategory
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -13928,8 +13928,6 @@ def complete_pathway_step():
             return jsonify({'error': 'Person not found'}), 404
         
         # Get person's active pathway progress
-        from models import PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
-        
         pathway_progress = PersonPathwayProgress.query.filter_by(
             person_id=person.id,
             is_active=True
@@ -17976,6 +17974,454 @@ def delete_event(event_id):
     except Exception as e:
         logger.error(f"Error deleting event: {e}")
         return jsonify({'error': 'Failed to delete event'}), 500
+
+@app.route('/api/events/<event_id>', methods=['GET'])
+@login_required
+def get_event_detail(event_id):
+    """Get a single event with all related data"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        event_data = event.to_dict()
+        
+        # Include registrations
+        registrations = EventRegistration.query.filter_by(event_id=event_id).all()
+        event_data['registrations'] = [r.to_dict() for r in registrations]
+        
+        # Include team assignments
+        team_assignments = EventTeamAssignment.query.filter_by(event_id=event_id).all()
+        event_data['team_assignments'] = [t.to_dict() for t in team_assignments]
+        
+        # Include resource bookings
+        resource_bookings = EventResourceBooking.query.filter_by(event_id=event_id).all()
+        event_data['resource_bookings'] = [r.to_dict() for r in resource_bookings]
+        
+        return jsonify({'event': event_data})
+        
+    except Exception as e:
+        logger.error(f"Error fetching event detail: {e}")
+        return jsonify({'error': 'Failed to fetch event'}), 500
+
+# Event Registrations endpoints
+@app.route('/api/events/<event_id>/registrations', methods=['GET'])
+@login_required
+def get_event_registrations(event_id):
+    """Get all registrations for an event"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        registrations = EventRegistration.query.filter_by(event_id=event_id).all()
+        return jsonify({
+            'registrations': [r.to_dict() for r in registrations],
+            'count': len(registrations)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching registrations: {e}")
+        return jsonify({'error': 'Failed to fetch registrations'}), 500
+
+@app.route('/api/events/<event_id>/registrations', methods=['POST'])
+@login_required
+def create_event_registration(event_id):
+    """Create a new registration for an event"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        data = request.get_json()
+        
+        # Check capacity if set
+        if event.capacity:
+            current_registrations = EventRegistration.query.filter_by(
+                event_id=event_id,
+                status='registered'
+            ).count()
+            if current_registrations >= event.capacity:
+                # Add to waitlist
+                status = 'waitlisted'
+            else:
+                status = 'registered'
+        else:
+            status = data.get('status', 'registered')
+        
+        registration = EventRegistration(
+            event_id=event_id,
+            person_id=data.get('person_id'),
+            email=data.get('email'),
+            name=data.get('name'),
+            phone=data.get('phone'),
+            status=status,
+            guest_count=data.get('guest_count', 0),
+            notes=data.get('notes')
+        )
+        
+        db.session.add(registration)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Registration created successfully',
+            'registration': registration.to_dict()
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating registration: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create registration'}), 500
+
+@app.route('/api/events/<event_id>/registrations/<registration_id>', methods=['PUT'])
+@login_required
+def update_event_registration(event_id, registration_id):
+    """Update an event registration"""
+    try:
+        registration = EventRegistration.query.filter_by(
+            id=registration_id,
+            event_id=event_id
+        ).first()
+        
+        if not registration:
+            return jsonify({'error': 'Registration not found'}), 404
+        
+        data = request.get_json()
+        
+        if 'status' in data:
+            registration.status = data['status']
+        if 'guest_count' in data:
+            registration.guest_count = data['guest_count']
+        if 'notes' in data:
+            registration.notes = data['notes']
+        if 'email' in data:
+            registration.email = data['email']
+        if 'name' in data:
+            registration.name = data['name']
+        if 'phone' in data:
+            registration.phone = data['phone']
+        
+        registration.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Registration updated successfully',
+            'registration': registration.to_dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating registration: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update registration'}), 500
+
+@app.route('/api/events/<event_id>/registrations/<registration_id>', methods=['DELETE'])
+@login_required
+def delete_event_registration(event_id, registration_id):
+    """Delete an event registration"""
+    try:
+        registration = EventRegistration.query.filter_by(
+            id=registration_id,
+            event_id=event_id
+        ).first()
+        
+        if not registration:
+            return jsonify({'error': 'Registration not found'}), 404
+        
+        db.session.delete(registration)
+        db.session.commit()
+        
+        return jsonify({'message': 'Registration deleted successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error deleting registration: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete registration'}), 500
+
+@app.route('/api/events/<event_id>/registrations/export', methods=['GET'])
+@login_required
+def export_event_registrations(event_id):
+    """Export event registrations as CSV"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        registrations = EventRegistration.query.filter_by(event_id=event_id).all()
+        
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Name', 'Email', 'Phone', 'Status', 'Guest Count', 'Notes', 'Registered At'])
+        
+        # Write data
+        for reg in registrations:
+            writer.writerow([
+                reg.name or reg.person.full_name if reg.person else '',
+                reg.email or reg.person.email if reg.person else '',
+                reg.phone or reg.person.phone if reg.person else '',
+                reg.status,
+                reg.guest_count,
+                reg.notes or '',
+                reg.created_at.isoformat() if reg.created_at else ''
+            ])
+        
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename=event_{event_id}_registrations.csv'
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error exporting registrations: {e}")
+        return jsonify({'error': 'Failed to export registrations'}), 500
+
+# Event Team Assignments endpoints
+@app.route('/api/events/<event_id>/teams', methods=['GET'])
+@login_required
+def get_event_teams(event_id):
+    """Get all team assignments for an event"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        assignments = EventTeamAssignment.query.filter_by(event_id=event_id).all()
+        return jsonify({
+            'team_assignments': [t.to_dict() for t in assignments],
+            'count': len(assignments)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching team assignments: {e}")
+        return jsonify({'error': 'Failed to fetch team assignments'}), 500
+
+@app.route('/api/events/<event_id>/teams', methods=['POST'])
+@login_required
+def create_event_team_assignment(event_id):
+    """Create a new team assignment for an event"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        data = request.get_json()
+        
+        if not data.get('team_name') or not data.get('person_id'):
+            return jsonify({'error': 'team_name and person_id are required'}), 400
+        
+        assignment = EventTeamAssignment(
+            event_id=event_id,
+            team_name=data['team_name'],
+            person_id=data['person_id'],
+            role=data.get('role'),
+            notes=data.get('notes')
+        )
+        
+        db.session.add(assignment)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Team assignment created successfully',
+            'team_assignment': assignment.to_dict()
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating team assignment: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create team assignment'}), 500
+
+@app.route('/api/events/<event_id>/teams/<assignment_id>', methods=['PUT'])
+@login_required
+def update_event_team_assignment(event_id, assignment_id):
+    """Update a team assignment"""
+    try:
+        assignment = EventTeamAssignment.query.filter_by(
+            id=assignment_id,
+            event_id=event_id
+        ).first()
+        
+        if not assignment:
+            return jsonify({'error': 'Team assignment not found'}), 404
+        
+        data = request.get_json()
+        
+        if 'team_name' in data:
+            assignment.team_name = data['team_name']
+        if 'person_id' in data:
+            assignment.person_id = data['person_id']
+        if 'role' in data:
+            assignment.role = data['role']
+        if 'notes' in data:
+            assignment.notes = data['notes']
+        
+        assignment.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Team assignment updated successfully',
+            'team_assignment': assignment.to_dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating team assignment: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update team assignment'}), 500
+
+@app.route('/api/events/<event_id>/teams/<assignment_id>', methods=['DELETE'])
+@login_required
+def delete_event_team_assignment(event_id, assignment_id):
+    """Delete a team assignment"""
+    try:
+        assignment = EventTeamAssignment.query.filter_by(
+            id=assignment_id,
+            event_id=event_id
+        ).first()
+        
+        if not assignment:
+            return jsonify({'error': 'Team assignment not found'}), 404
+        
+        db.session.delete(assignment)
+        db.session.commit()
+        
+        return jsonify({'message': 'Team assignment deleted successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error deleting team assignment: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete team assignment'}), 500
+
+# Event Resource Bookings endpoints
+@app.route('/api/events/<event_id>/resources', methods=['GET'])
+@login_required
+def get_event_resources(event_id):
+    """Get all resource bookings for an event"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        bookings = EventResourceBooking.query.filter_by(event_id=event_id).all()
+        return jsonify({
+            'resource_bookings': [r.to_dict() for r in bookings],
+            'count': len(bookings)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching resource bookings: {e}")
+        return jsonify({'error': 'Failed to fetch resource bookings'}), 500
+
+@app.route('/api/events/<event_id>/resources', methods=['POST'])
+@login_required
+def create_event_resource_booking(event_id):
+    """Create a new resource booking for an event"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        data = request.get_json()
+        
+        if not data.get('resource_type') or not data.get('resource_name'):
+            return jsonify({'error': 'resource_type and resource_name are required'}), 400
+        
+        if not data.get('start_datetime') or not data.get('end_datetime'):
+            return jsonify({'error': 'start_datetime and end_datetime are required'}), 400
+        
+        start_dt = datetime.fromisoformat(data['start_datetime'].replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(data['end_datetime'].replace('Z', '+00:00'))
+        
+        booking = EventResourceBooking(
+            event_id=event_id,
+            resource_type=data['resource_type'],
+            resource_name=data['resource_name'],
+            quantity=data.get('quantity', 1),
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            status=data.get('status', 'requested'),
+            notes=data.get('notes')
+        )
+        
+        db.session.add(booking)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Resource booking created successfully',
+            'resource_booking': booking.to_dict()
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating resource booking: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create resource booking'}), 500
+
+@app.route('/api/events/<event_id>/resources/<booking_id>', methods=['PUT'])
+@login_required
+def update_event_resource_booking(event_id, booking_id):
+    """Update a resource booking"""
+    try:
+        booking = EventResourceBooking.query.filter_by(
+            id=booking_id,
+            event_id=event_id
+        ).first()
+        
+        if not booking:
+            return jsonify({'error': 'Resource booking not found'}), 404
+        
+        data = request.get_json()
+        
+        if 'resource_type' in data:
+            booking.resource_type = data['resource_type']
+        if 'resource_name' in data:
+            booking.resource_name = data['resource_name']
+        if 'quantity' in data:
+            booking.quantity = data['quantity']
+        if 'start_datetime' in data:
+            booking.start_datetime = datetime.fromisoformat(data['start_datetime'].replace('Z', '+00:00'))
+        if 'end_datetime' in data:
+            booking.end_datetime = datetime.fromisoformat(data['end_datetime'].replace('Z', '+00:00'))
+        if 'status' in data:
+            booking.status = data['status']
+        if 'notes' in data:
+            booking.notes = data['notes']
+        
+        booking.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Resource booking updated successfully',
+            'resource_booking': booking.to_dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating resource booking: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update resource booking'}), 500
+
+@app.route('/api/events/<event_id>/resources/<booking_id>', methods=['DELETE'])
+@login_required
+def delete_event_resource_booking(event_id, booking_id):
+    """Delete a resource booking"""
+    try:
+        booking = EventResourceBooking.query.filter_by(
+            id=booking_id,
+            event_id=event_id
+        ).first()
+        
+        if not booking:
+            return jsonify({'error': 'Resource booking not found'}), 404
+        
+        db.session.delete(booking)
+        db.session.commit()
+        
+        return jsonify({'message': 'Resource booking deleted successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error deleting resource booking: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete resource booking'}), 500
 
 
 if __name__ == '__main__':
