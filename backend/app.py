@@ -14302,8 +14302,24 @@ def log_attendance_simple():
         # Get or create engagement profile (handle schema mismatches gracefully)
         engagement = None
         try:
-            if hasattr(person, 'engagement_profile') and person.engagement_profile:
-                engagement = person.engagement_profile
+            # Try to get existing engagement profile using raw SQL to avoid ORM issues
+            from sqlalchemy import text
+            engagement_row = db.session.execute(
+                text("SELECT person_id FROM engagement_profiles WHERE person_id = :person_id"),
+                {'person_id': person.id}
+            ).fetchone()
+            
+            if engagement_row:
+                # Engagement exists - load it properly
+                engagement = EngagementProfile.query.get(person.id)
+                if not engagement:
+                    # If ORM fails, create new one
+                    engagement = EngagementProfile(person_id=person.id)
+                    db.session.add(engagement)
+                    db.session.flush()
+                    logger.info(f"Recreated engagement profile for person {person.id}")
+                else:
+                    logger.info(f"Loaded existing engagement profile for person {person.id}")
             else:
                 # Create new engagement profile
                 engagement = EngagementProfile(person_id=person.id)
@@ -14312,14 +14328,15 @@ def log_attendance_simple():
                 logger.info(f"Created new engagement profile for person {person.id}")
         except Exception as e:
             logger.error(f"Error accessing/creating engagement profile: {e}", exc_info=True)
-            # Try to create a new one
+            # Try to create a new one as fallback
             try:
                 engagement = EngagementProfile(person_id=person.id)
                 db.session.add(engagement)
                 db.session.flush()
+                logger.info(f"Created engagement profile as fallback for person {person.id}")
             except Exception as e2:
                 logger.error(f"Failed to create engagement profile: {e2}", exc_info=True)
-                return jsonify({'error': 'Failed to access engagement profile'}), 500
+                return jsonify({'error': f'Failed to access engagement profile: {str(e2)}'}), 500
         
         # Get campus from person or request
         campus = data.get('campus') or person.campus
