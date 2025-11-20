@@ -13377,13 +13377,29 @@ def update_profile():
             person.phone = data['phone'].strip() if data.get('phone') else None
             logger.info(f"  Updating phone: '{old_phone}' -> '{person.phone}'")
         
-        # Force commit
+        # Force commit and flush to ensure data is written to disk
+        db.session.flush()
         db.session.commit()
-        logger.info(f"  Committed changes to database")
+        logger.info(f"  Committed changes to database: {db_path}")
+        
+        # Verify the update was actually saved by querying directly from database
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT full_name, preferred_name, phone FROM persons WHERE id = ?", (person.id,))
+        db_row = cursor.fetchone()
+        conn.close()
+        if db_row:
+            logger.info(f"  Verified in database: full_name='{db_row[0]}', preferred_name='{db_row[1]}', phone='{db_row[2]}'")
+        else:
+            logger.error(f"  ERROR: Person not found in database after commit!")
         
         # Expire and re-query to get absolutely fresh data
         db.session.expire_all()
         person_id = person.id  # Save ID before expire
+        
+        # Close and reopen session to ensure fresh connection
+        db.session.close()
         
         # Re-query using the ID to ensure we get fresh data
         person = Person.query.filter_by(id=person_id, is_active=True).first()
