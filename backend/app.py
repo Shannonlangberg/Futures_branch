@@ -13338,23 +13338,6 @@ def get_person_by_email(email):
         ).first()
         
         if not person:
-            # Debug: Check raw SQL
-            import sqlite3
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, email, full_name, is_active FROM persons WHERE LOWER(email) = LOWER(?) LIMIT 5", (email,))
-            raw_results = cursor.fetchall()
-            conn.close()
-            logger.error(f"RAW SQL CHECK: persons with email '{email}': {raw_results}")
-            
-            # Check all persons
-            all_count = Person.query.filter(Person.is_active == True).count()
-            logger.error(f"Total active persons in database: {all_count}")
-            
-            # Sample of persons
-            sample = Person.query.filter(Person.is_active == True).limit(5).all()
-            logger.error(f"Sample persons: {[(p.id, p.email, p.full_name) for p in sample]}")
-            
             return jsonify({'error': 'Person not found'}), 404
         
         # Get person data (handle errors in to_dict)
