@@ -388,16 +388,7 @@ function App() {
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <Routes>
-                  <Route 
-                    path="/" 
-                    element={
-                      railwayBranch === 'main' ? (
-                        <Navigate to="/dashboard" replace />
-                      ) : (
-                        <Landing />
-                      )
-                    } 
-                  />
+                  <Route path="/" element={<Landing />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/stats" element={<LogStats />} />
                   <Route path="/finance" element={<Finance />} />

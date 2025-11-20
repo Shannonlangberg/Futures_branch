@@ -127,22 +127,6 @@ const MainLayout = ({ children }) => {
 
     // Filter items based on user role, feature flags, and Railway branch
     const filteredItems = allItems.filter(item => {
-      // Only restrict if explicitly on 'main' branch
-      // Default behavior (beta/null/undefined) shows all features
-      if (railwayBranch === 'main') {
-        // Main branch: Only Dashboard and Input (no Home, no other features)
-        if (item.name === 'Home') {
-          return false; // No homepage on main
-        }
-        if (item.name === 'Dashboard' || item.name === 'Input') {
-          // Check role permission for these
-          return item.roles.includes(userRole);
-        }
-        // Hide everything else on main branch
-        return false;
-      }
-      
-      // Beta branch (or default): Show everything based on role permissions
       // Pulse TV is visible to all authenticated users
       if (item.name === 'Pulse TV') {
         return true;
