@@ -9,14 +9,35 @@ from models import db, Person, EngagementProfile, GivingTransaction, GivingQRCod
 from datetime import datetime, timedelta, date, timezone
 import logging
 import os
-import stripe
 import uuid
+import sys
 
 logger = logging.getLogger(__name__)
 
+# Import Stripe - ensure it's properly loaded
+try:
+    import stripe
+    # Verify stripe module is properly loaded
+    if not hasattr(stripe, 'PaymentIntent'):
+        logger.error("Stripe.PaymentIntent not available - Stripe module may not be properly loaded")
+        raise ImportError("Stripe module not properly loaded")
+    logger.info("Stripe module loaded successfully")
+except ImportError as e:
+    logger.error(f"Failed to import stripe: {e}")
+    stripe = None
+except Exception as e:
+    logger.error(f"Error initializing stripe: {e}")
+    stripe = None
+
 # Initialize Stripe
-stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+
+# Set Stripe API key
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+else:
+    logger.warning("STRIPE_SECRET_KEY not found in environment variables")
 
 giving_bp = Blueprint('giving', __name__, url_prefix='/api/giving')
 
@@ -77,9 +98,26 @@ def create_payment_intent():
         print(f"[GIVING API] Request data: {data}")
         logger.error(f"[GIVING API] Creating payment intent with data: {data}")
         
-        if not stripe.api_key:
-            logger.error("Stripe API key not configured")
+        # Check Stripe API key - get fresh from environment
+        stripe_key = os.getenv('STRIPE_SECRET_KEY', '') or STRIPE_SECRET_KEY
+        if not stripe_key:
+            print(f"[GIVING API] ❌ STRIPE_SECRET_KEY not found in environment!")
+            logger.error("Stripe API key not configured - STRIPE_SECRET_KEY environment variable missing")
             return jsonify({'error': 'Stripe not configured'}), 500
+        
+        # Always set Stripe API key fresh (in case it got reset)
+        print(f"[GIVING API] Setting Stripe API key (length: {len(stripe_key)}, starts with: {stripe_key[:7]})")
+        logger.error(f"[GIVING API] Setting Stripe API key")
+        stripe.api_key = stripe_key
+        
+        # Verify it's set
+        if not stripe.api_key:
+            print(f"[GIVING API] ❌ Stripe API key is still None after setting!")
+            logger.error("Stripe API key is None after setting")
+            return jsonify({'error': 'Stripe API key configuration failed'}), 500
+        
+        print(f"[GIVING API] ✅ Stripe API key configured: {stripe.api_key[:10]}...")
+        logger.error(f"[GIVING API] ✅ Stripe API key configured")
         
         amount = data.get('amount')  # Amount in cents
         giving_type = data.get('type', 'tithe')  # 'tithe', 'offering', 'missions', 'event'
@@ -235,9 +273,15 @@ def create_payment_intent():
             logger.error(f"Traceback: {traceback_str}")
             return jsonify({'error': f'Database error: {str(e)}'}), 500
         
+        # Safety check - person must exist at this point
+        if not person:
+            print(f"[GIVING API] ❌ CRITICAL: Person is None after all lookup attempts!")
+            logger.error(f"❌ CRITICAL: Person is None after all lookup attempts!")
+            return jsonify({'error': f'Person not found for email: {email}'}), 404
+        
         # Use person's campus if not provided or if "all_campuses" was sent
         if not campus or campus == 'all_campuses':
-            campus = person.campus or ''
+            campus = person.campus or '' if person else ''
         
         # If person still doesn't have a campus, default to a valid one
         if not campus:
@@ -257,7 +301,21 @@ def create_payment_intent():
         
         # Create Payment Intent
         try:
-            logger.info(f"Creating Stripe payment intent for ${amount/100} {giving_type}")
+            print(f"[GIVING API] Creating Stripe payment intent...")
+            print(f"[GIVING API] Amount: ${amount/100}, Type: {giving_type}, Person: {person.id}")
+            logger.error(f"[GIVING API] Creating Stripe payment intent for ${amount/100} {giving_type}")
+            logger.error(f"[GIVING API] Person ID: {person.id}, Email: {email}, Campus: {campus}")
+            
+            # Workaround: Ensure Stripe is fully initialized
+            # The error suggests stripe.apps is None, which is a library bug
+            # Try accessing it first to trigger proper initialization
+            try:
+                # This might fail, but it will help us see if it's the issue
+                if hasattr(stripe, 'apps') and stripe.apps is not None:
+                    _ = stripe.apps
+            except:
+                pass  # Ignore - we'll try the create anyway
+            
             payment_intent = stripe.PaymentIntent.create(
                 amount=int(amount),
                 currency='aud',  # Australian Dollars

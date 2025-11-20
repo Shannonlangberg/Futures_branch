@@ -31,4 +31,4 @@ bcrypt==4.1.1
 cryptography==41.0.7
 
 # Payments
-stripe==7.8.0
+stripe>=8.0.0,<9.0.0
