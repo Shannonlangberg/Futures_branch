@@ -14280,43 +14280,30 @@ def log_attendance_simple():
         attendance_time = datetime.utcnow()  # Use UTC to match model
         
         try:
-            # Use add_attendance method from EngagementProfile
-            engagement.add_attendance(
-                zones=['sunday_service'],
-                campus=campus,
-                attendance_time=attendance_time
-            )
+            # Manual attendance logging (more reliable than add_attendance which has date issues)
+            attendance_log = engagement._load_json(engagement.attendance_log or '[]')
+            attendance_log.append({
+                'timestamp': attendance_time.isoformat(),
+                'zones': ['sunday_service'],
+                'campus': campus
+            })
+            engagement.attendance_log = engagement._dump_json(attendance_log)
+            
+            # last_seen is a DATE column, not DATETIME - convert properly
+            engagement.last_seen = attendance_time.date()
+            
+            # Try to recalculate heartbeat (might fail, but that's ok - we still log attendance)
+            try:
+                engagement.recalculate_heartbeat()
+            except Exception as hb_error:
+                logger.warning(f"Could not recalculate heartbeat (but attendance logged): {hb_error}")
+            
             db.session.commit()
             logger.info(f"Attendance logged successfully for {person.email}")
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error in add_attendance: {e}", exc_info=True)
-            # Try manual approach if method fails
-            try:
-                # Manual attendance logging as fallback
-                attendance_log = engagement._load_json(engagement.attendance_log or '[]')
-                attendance_log.append({
-                    'timestamp': attendance_time.isoformat(),
-                    'zones': ['sunday_service'],
-                    'campus': campus
-                })
-                engagement.attendance_log = engagement._dump_json(attendance_log)
-                # last_seen is a DATE column, not DATETIME
-                from datetime import date as date_class
-                engagement.last_seen = attendance_time.date() if isinstance(attendance_time, datetime) else date_class.today()
-                
-                # Try to recalculate heartbeat (might fail, but that's ok)
-                try:
-                    engagement.recalculate_heartbeat()
-                except Exception as hb_error:
-                    logger.warning(f"Could not recalculate heartbeat: {hb_error}")
-                
-                db.session.commit()
-                logger.info(f"Attendance logged manually for {person.email}")
-            except Exception as e2:
-                db.session.rollback()
-                logger.error(f"Fallback attendance logging also failed: {e2}", exc_info=True)
-                return jsonify({'error': f'Failed to log attendance: {str(e2)}'}), 500
+            logger.error(f"Error logging attendance: {e}", exc_info=True)
+            return jsonify({'error': f'Failed to log attendance: {str(e)}'}), 500
         
         return jsonify({
             'success': True,
