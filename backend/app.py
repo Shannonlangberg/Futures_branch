@@ -12806,7 +12806,12 @@ def get_persons():
             query = query.filter(Person.campus == campus_filter)
         
         if department_filter and department_filter != 'all':
-            query = query.filter(Person.department == department_filter)
+            # Use case-insensitive matching for department filter
+            # Handle different case formats that might exist in the database (e.g., "kids" vs "Kids")
+            # SQLite uses LOWER() for case-insensitive comparison
+            query = query.filter(
+                db.func.lower(Person.department) == db.func.lower(department_filter)
+            )
         
         if search:
             search_term = f"%{search}%"
@@ -12931,6 +12936,26 @@ def create_person():
         # Note: Multiple people can share the same email (e.g., family members, kids)
         # No uniqueness check performed
         
+        # Normalize department before creating person
+        department_raw = data.get('department', '').strip() if data.get('department') else None
+        department_normalized = None
+        if department_raw:
+            dept_lower = department_raw.lower()
+            if dept_lower == 'kids':
+                department_normalized = 'Kids'
+            elif dept_lower == 'youth':
+                department_normalized = 'Youth'
+            elif dept_lower in ['young adults', 'youngadults', 'young_adults']:
+                department_normalized = 'Young Adults'
+            elif dept_lower == 'families':
+                department_normalized = 'Families'
+            elif dept_lower == 'adults':
+                department_normalized = 'Adults'
+            elif dept_lower == 'seniors':
+                department_normalized = 'Seniors'
+            else:
+                department_normalized = department_raw.title()
+        
         # Create person and engagement profile
         person, engagement = create_person_with_engagement(
             full_name=data['full_name'],
@@ -12938,7 +12963,7 @@ def create_person():
             campus=data['campus'],
             preferred_name=data.get('preferred_name'),
             phone=data.get('phone'),
-            department=data.get('department'),
+            department=department_normalized,
             connect_group=data.get('connect_group'),
             dream_team_roles=data.get('dream_team_roles', []),
             birthday=datetime.strptime(data['birthday'], '%Y-%m-%d').date() if data.get('birthday') else None,
@@ -13400,8 +13425,28 @@ def update_person(person_id):
                 return jsonify({'error': 'Campus is required'}), 400
             person.campus = campus_value
         if 'department' in data:
-            # Normalize department - convert empty string to None
+            # Normalize department - convert empty string to None and standardize case
             dept_value = data['department'].strip() if data.get('department') else None
+            if dept_value:
+                # Normalize department to standard format (Title Case for multi-word, capital for single)
+                dept_value = dept_value.strip()
+                # Handle standard department names
+                dept_lower = dept_value.lower()
+                if dept_lower == 'kids':
+                    dept_value = 'Kids'
+                elif dept_lower == 'youth':
+                    dept_value = 'Youth'
+                elif dept_lower in ['young adults', 'youngadults', 'young_adults']:
+                    dept_value = 'Young Adults'
+                elif dept_lower == 'families':
+                    dept_value = 'Families'
+                elif dept_lower == 'adults':
+                    dept_value = 'Adults'
+                elif dept_lower == 'seniors':
+                    dept_value = 'Seniors'
+                else:
+                    # For other values, use Title Case
+                    dept_value = dept_value.title()
             person.department = dept_value if dept_value else None
         if 'connect_group' in data:
             # Normalize connect_group - convert empty string to None
@@ -13731,8 +13776,27 @@ def import_pco_csv():
                 campus_name = row.get('Campus', '').strip()
                 campus_id = campus_name_to_id.get(campus_name, 'all_campuses')
                 
-                # Get department (if available in CSV)
-                department = row.get('Department', '').strip() or None
+                # Get department (if available in CSV) and normalize
+                department_raw = row.get('Department', '').strip() or None
+                department = None
+                if department_raw:
+                    # Normalize department to standard format (Title Case)
+                    dept_lower = department_raw.lower()
+                    if dept_lower == 'kids':
+                        department = 'Kids'
+                    elif dept_lower == 'youth':
+                        department = 'Youth'
+                    elif dept_lower in ['young adults', 'youngadults', 'young_adults']:
+                        department = 'Young Adults'
+                    elif dept_lower == 'families':
+                        department = 'Families'
+                    elif dept_lower == 'adults':
+                        department = 'Adults'
+                    elif dept_lower == 'seniors':
+                        department = 'Seniors'
+                    else:
+                        # For other values, use Title Case
+                        department = department_raw.title()
                 
                 # Create person
                 person = Person(

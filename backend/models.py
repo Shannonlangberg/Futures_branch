@@ -1752,6 +1752,26 @@ def create_person_with_engagement(
     email_value = email.strip() if email else None
     email_value = email_value if email_value else None
     
+    # Normalize department - standardize case format
+    department_value = None
+    if department:
+        dept_lower = department.strip().lower()
+        if dept_lower == 'kids':
+            department_value = 'Kids'
+        elif dept_lower == 'youth':
+            department_value = 'Youth'
+        elif dept_lower in ['young adults', 'youngadults', 'young_adults']:
+            department_value = 'Young Adults'
+        elif dept_lower == 'families':
+            department_value = 'Families'
+        elif dept_lower == 'adults':
+            department_value = 'Adults'
+        elif dept_lower == 'seniors':
+            department_value = 'Seniors'
+        else:
+            # For other values, use Title Case
+            department_value = department.strip().title()
+    
     # Create person
     person = Person(
         id=person_id,
@@ -1760,7 +1780,7 @@ def create_person_with_engagement(
         campus=campus,
         preferred_name=preferred_name,
         phone=phone,
-        department=department,
+        department=department_value,
         connect_group=connect_group,
         dream_team_roles=json.dumps(dream_team_roles) if dream_team_roles else None,
         birthday=birthday,
