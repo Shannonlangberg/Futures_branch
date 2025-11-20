@@ -4,33 +4,49 @@ import { PlayIcon, InformationCircleIcon } from '@heroicons/react/24/solid';
 
 const SeriesCard = ({ series, isLarge = false }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [previewPosition, setPreviewPosition] = useState('');
+  const [previewStyle, setPreviewStyle] = useState({ top: 0, left: 0, opacity: 0 });
   const cardRef = useRef(null);
   const previewRef = useRef(null);
 
   useEffect(() => {
     if (isHovered && cardRef.current) {
       const cardRect = cardRef.current.getBoundingClientRect();
-      const previewHeight = 320; // Approximate preview height
-      const previewWidth = 320; // Preview width (w-80 = 320px)
-      const viewportHeight = window.innerHeight;
+      const previewHeight = 320;
+      const previewWidth = 320;
       const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
       
       const spaceBelow = viewportHeight - cardRect.bottom;
       const spaceAbove = cardRect.top;
-      const spaceRight = viewportWidth - cardRect.right;
-      const spaceLeft = cardRect.left;
 
-      // Determine vertical position (above or below)
-      let position = '';
-      if (spaceBelow < previewHeight && spaceAbove > previewHeight) {
-        position = 'top';
-      } else {
-        position = 'bottom';
+      // Calculate vertical position
+      const isTop = spaceBelow < previewHeight && spaceAbove > previewHeight;
+      const top = isTop 
+        ? cardRect.top - previewHeight - 8
+        : cardRect.bottom + 8;
+      
+      // Calculate horizontal position - align with card's left edge
+      let left = cardRect.left;
+      
+      // Adjust for screen edges
+      if (cardRect.left + previewWidth > viewportWidth - 16) {
+        // Too far right - right-align to card
+        left = cardRect.right - previewWidth;
+        left = Math.max(16, left);
+      } else if (cardRect.left < 16) {
+        // Too far left - align to screen edge
+        left = 16;
       }
       
-      // We'll handle horizontal positioning in the render, just track vertical
-      setPreviewPosition(position);
+      // Set position immediately to avoid jump
+      setPreviewStyle({
+        top: `${top}px`,
+        left: `${left}px`,
+        opacity: 1
+      });
+    } else {
+      // Fade out smoothly
+      setPreviewStyle(prev => ({ ...prev, opacity: 0 }));
     }
   }, [isHovered]);
 
