@@ -17144,9 +17144,10 @@ def get_events():
             category_info = None
             if event.category:
                 category_info = {
-                    'key': event.category.key,
+                    'id': event.category.id,
                     'name': event.category.name,
-                    'color': event.category.color
+                    'color': event.category.color,
+                    'description': event.category.description
                 }
             
             # Calculate registration count (placeholder for now)
