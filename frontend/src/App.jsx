@@ -15,6 +15,7 @@ import Resources from './pages/Resources';
 import ResourceManager from './pages/ResourceManager';
 import Heartbeat from './pages/Heartbeat';
 import People from './pages/People';
+import Lists from './pages/Lists';
 import PersonHealthReport from './pages/PersonHealthReport';
 import PastoralCareAppointments from './pages/PastoralCareAppointments';
 import BeaconManagement from './pages/BeaconManagement';
@@ -396,6 +397,7 @@ function App() {
                   )}
                   <Route path="/heartbeat" element={<Heartbeat />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/lists" element={<Lists />} />
                   <Route path="/connect-groups" element={<ConnectGroups />} />
                   <Route path="/persons/:personId" element={<PersonHealthReport />} />
                   <Route path="/pastoral-care" element={<PastoralCareAppointments />} />

@@ -12950,6 +12950,140 @@ def create_person():
         return jsonify({'error': 'Failed to create person'}), 500
 
 
+@app.route('/api/persons/export', methods=['GET'])
+@login_required
+def export_persons_csv():
+    """Export filtered persons to CSV"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get query parameters (same as get_persons)
+        campus_filter = request.args.get('campus', None)
+        pulse_filter = request.args.get('pulse_status', None)
+        department_filter = request.args.get('department', None)
+        search = request.args.get('search', '').strip()
+        include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+        
+        # Build query (same logic as get_persons)
+        if include_archived:
+            query = Person.query
+        else:
+            query = Person.query.filter_by(is_active=True)
+        
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(Person.campus == campus_filter)
+        
+        if department_filter and department_filter != 'all':
+            query = query.filter(
+                db.func.lower(Person.department) == db.func.lower(department_filter)
+            )
+        
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Person.full_name.ilike(search_term),
+                    Person.email.ilike(search_term),
+                    Person.preferred_name.ilike(search_term)
+                )
+            )
+        
+        persons = query.order_by(Person.full_name).all()
+        
+        # Build CSV
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            'ID', 'Full Name', 'Preferred Name', 'Email', 'Phone',
+            'Campus', 'Department', 'Connect Group', 'Dream Team Roles',
+            'Birthday', 'Tags', 'Pulse Status', 'Last Seen',
+            'Attendance Frequency', 'Serving Frequency', 'Overall Engagement',
+            'DNA Completed', 'Baptised On', 'Filled Holy Spirit',
+            'RISE Attended', 'First Served On', 'Pastoral Notes',
+            'Is Active', 'Created At', 'Updated At'
+        ])
+        
+        # Write data rows
+        for person in persons:
+            # Get engagement profile data
+            pulse_status = 'red'
+            last_seen = None
+            attendance_frequency = 0.0
+            serving_frequency = 0.0
+            overall_engagement = 0.0
+            
+            if person.engagement_profile:
+                pulse_status = person.engagement_profile.pulse_status or 'red'
+                last_seen = person.engagement_profile.last_seen.isoformat() if person.engagement_profile.last_seen else None
+                attendance_frequency = person.engagement_profile.attendance_frequency or 0.0
+                serving_frequency = person.engagement_profile.serving_frequency or 0.0
+                overall_engagement = person.engagement_profile.overall_engagement or 0.0
+            
+            # Parse JSON fields
+            dream_team_roles = ''
+            tags = ''
+            try:
+                if person.dream_team_roles:
+                    dream_team_roles = ', '.join(json.loads(person.dream_team_roles))
+            except:
+                dream_team_roles = person.dream_team_roles or ''
+            
+            try:
+                if person.tags:
+                    tags = ', '.join(json.loads(person.tags))
+            except:
+                tags = person.tags or ''
+            
+            writer.writerow([
+                person.id,
+                person.full_name or '',
+                person.preferred_name or '',
+                person.email or '',
+                person.phone or '',
+                person.campus or '',
+                person.department or '',
+                person.connect_group or '',
+                dream_team_roles,
+                person.birthday.isoformat() if person.birthday else '',
+                tags,
+                pulse_status,
+                last_seen or '',
+                attendance_frequency,
+                serving_frequency,
+                overall_engagement,
+                person.dna_completed.isoformat() if person.dna_completed else '',
+                person.baptised_on.isoformat() if person.baptised_on else '',
+                person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else '',
+                person.rise_attended.isoformat() if person.rise_attended else '',
+                person.first_served_on.isoformat() if person.first_served_on else '',
+                person.pastoral_notes or '',
+                person.is_active,
+                person.created_at.isoformat() if person.created_at else '',
+                person.updated_at.isoformat() if person.updated_at else ''
+            ])
+        
+        # Create response
+        output.seek(0)
+        response = Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename=people-export-{datetime.now().strftime("%Y%m%d")}.csv'
+            }
+        )
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error exporting persons CSV: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to export CSV'}), 500
+
+
 @app.route('/api/persons/<person_id>', methods=['GET'])
 @login_required
 def get_person_detail(person_id):
@@ -13012,14 +13146,20 @@ def get_person_by_email(email):
                 'department': getattr(person, 'department', None),
             }
         
-        # Add engagement profile if it exists
-        if person.engagement_profile:
-            try:
-                person_data['engagement'] = person.engagement_profile.to_dict()
-            except Exception as e:
-                logger.warning(f"Error serializing engagement profile: {e}")
+        # Add engagement profile if it exists (handle schema mismatch gracefully)
+        try:
+            # Try to access engagement profile, but catch schema errors
+            if hasattr(person, 'engagement_profile') and person.engagement_profile:
+                try:
+                    person_data['engagement'] = person.engagement_profile.to_dict()
+                except Exception as e:
+                    logger.warning(f"Error serializing engagement profile: {e}")
+                    person_data['engagement'] = None
+            else:
                 person_data['engagement'] = None
-        else:
+        except Exception as e:
+            # Schema mismatch - engagement_profiles table structure doesn't match model
+            logger.warning(f"Error accessing engagement profile (schema mismatch): {e}")
             person_data['engagement'] = None
         
         # Add pathway/journey data if available
