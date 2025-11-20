@@ -247,10 +247,9 @@ const People = () => {
     }
 
     try {
-      // CRITICAL: Use email for updates, not ID, to match mobile app behavior
-      // This ensures both apps update the same person record
+      // Use person ID for updates (backend handles both ID and email)
       const url = editingPerson 
-        ? `/api/persons/${editingPerson.email}`  // Use email instead of ID
+        ? `/api/persons/${editingPerson.id}`  // Use ID (backend accepts both ID and email)
         : '/api/persons';
       
       const method = editingPerson ? 'PUT' : 'POST';
