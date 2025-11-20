@@ -236,7 +236,25 @@ export default function App() {
           {isAuthenticated ? (
             <>
               <Stack.Screen name="Main" component={MainTabs} />
-              {/* Events and Prayer accessible within 1 click from Home/other screens */}
+              {/* Screens accessible from navigation (not in tab bar) */}
+              <Stack.Screen 
+                name="Sunday" 
+                component={SundayScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Sunday Service',
+                  headerBackTitleVisible: false,
+                }}
+              />
               <Stack.Screen 
                 name="Events" 
                 component={EventsScreen}

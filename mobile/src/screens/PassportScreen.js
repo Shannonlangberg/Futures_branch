@@ -180,10 +180,10 @@ export default function PassportScreen() {
             </View>
 
             {/* All Steps */}
-            {pathway.pathway?.steps && pathway.pathway.steps.length > 0 && (
+            {pathway.steps && pathway.steps.length > 0 && (
               <View style={styles.stepsSection}>
                 <Text style={styles.stepsTitle}>All Steps:</Text>
-                {pathway.pathway.steps.map((step, index) => {
+                {pathway.steps.map((step, index) => {
                   const isCompleted = step.is_completed;
                   const isCurrent = pathway.current_step_id === step.id && !isCompleted;
                   // Check both milestone_type and step name to identify connect group step
@@ -278,98 +278,21 @@ export default function PassportScreen() {
           </View>
         )}
 
-        {/* Milestones */}
-        {profile && (
+        {/* Empty state if no pathway */}
+        {!pathway && !loading && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Milestones</Text>
-            <View style={styles.milestonesList}>
-              {profile.baptised_on && (
-                <View style={styles.milestoneCard}>
-                  <Text style={styles.milestoneEmoji}>💧</Text>
-                  <View style={styles.milestoneContent}>
-                    <Text style={styles.milestoneTitle}>Baptized</Text>
-                    <Text style={styles.milestoneDate}>
-                      {new Date(profile.baptised_on).toLocaleDateString('en-US', {
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {profile.dna_completed && (
-                <View style={styles.milestoneCard}>
-                  <Text style={styles.milestoneEmoji}>📖</Text>
-                  <View style={styles.milestoneContent}>
-                    <Text style={styles.milestoneTitle}>DNA Completed</Text>
-                    <Text style={styles.milestoneDate}>
-                      {new Date(profile.dna_completed).toLocaleDateString('en-US', {
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {profile.first_served_on && (
-                <View style={styles.milestoneCard}>
-                  <Text style={styles.milestoneEmoji}>🤝</Text>
-                  <View style={styles.milestoneContent}>
-                    <Text style={styles.milestoneTitle}>First Time Serving</Text>
-                    <Text style={styles.milestoneDate}>
-                      {new Date(profile.first_served_on).toLocaleDateString('en-US', {
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                  </View>
-                </View>
-              )}
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateEmoji}>🗺️</Text>
+              <Text style={styles.emptyStateTitle}>No Pathway Data</Text>
+              <Text style={styles.emptyStateText}>
+                Your pathway information will appear here once it's available.
+              </Text>
             </View>
           </View>
         )}
-
-        {/* Achievements */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
-          <View style={styles.achievementsGrid}>
-            {/* Example achievements - in production these would come from backend */}
-            <View style={styles.achievementCard}>
-              <Text style={styles.achievementEmoji}>🔥</Text>
-              <Text style={styles.achievementLabel}>7-Week Streak</Text>
-            </View>
-            <View style={styles.achievementCard}>
-              <Text style={styles.achievementEmoji}>📚</Text>
-              <Text style={styles.achievementLabel}>Foundations</Text>
-            </View>
-            <View style={styles.achievementCard}>
-              <Text style={styles.achievementEmoji}>🤝</Text>
-              <Text style={styles.achievementLabel}>Team Member</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Profile Access */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => navigation.navigate('Profile')}
-          >
-            <LinearGradient
-              colors={[Colors.surface, Colors.surfaceLight]}
-              style={styles.profileButtonGradient}
-            >
-              <Text style={styles.profileButtonEmoji}>👤</Text>
-              <View style={styles.profileButtonContent}>
-                <Text style={styles.profileButtonTitle}>Profile & Settings</Text>
-                <Text style={styles.profileButtonSubtitle}>Manage your account</Text>
-              </View>
-              <Text style={styles.profileButtonArrow}>→</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+        
+        {/* Bottom Spacing */}
+        <View style={{ height: 100 }} />
       </LinearGradient>
 
       {/* Connect Group Assignment Modal */}
@@ -791,6 +714,28 @@ const styles = StyleSheet.create({
   groupCampus: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: Spacing.xl,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+  },
+  emptyStateEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.md,
+  },
+  emptyStateTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  emptyStateText: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 
