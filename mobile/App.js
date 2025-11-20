@@ -23,6 +23,10 @@ import EditProfileScreen from './src/screens/EditProfileScreen';
 import EventsScreen from './src/screens/EventsScreen';
 import PrayerScreen from './src/screens/PrayerScreen';
 import SermonNotesScreen from './src/screens/SermonNotesScreen';
+import TVHomeScreen from './src/screens/TVHomeScreen';
+import TVSeriesScreen from './src/screens/TVSeriesScreen';
+import TVWatchScreen from './src/screens/TVWatchScreen';
+import ExploreScreen from './src/screens/ExploreScreen';
 
 // Services
 import { AuthService } from './src/services/AuthService';
@@ -301,6 +305,51 @@ export default function App() {
                   headerShown: false, // Custom header in component
                 }}
               />
+              <Stack.Screen 
+                name="TVHome" 
+                component={TVHomeScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Pulse TV',
+                  headerBackTitleVisible: false,
+                }}
+              />
+              <Stack.Screen 
+                name="TVSeries" 
+                component={TVSeriesScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerBackTitleVisible: false,
+                }}
+              />
+              <Stack.Screen 
+                name="TVWatch" 
+                component={TVWatchScreen}
+                options={{ 
+                  presentation: 'fullScreenModal',
+                  animation: 'slide_from_bottom',
+                  headerShown: false, // Full screen video
+                  headerBackTitleVisible: false,
+                }}
+              />
               {/* Profile accessible from Journey tab */}
               <Stack.Screen 
                 name="Profile" 
@@ -335,6 +384,24 @@ export default function App() {
                     fontWeight: '600',
                   },
                   headerTitle: 'Edit Profile',
+                  headerBackTitleVisible: false,
+                }}
+              />
+              <Stack.Screen 
+                name="Explore" 
+                component={ExploreScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Explore',
                   headerBackTitleVisible: false,
                 }}
               />

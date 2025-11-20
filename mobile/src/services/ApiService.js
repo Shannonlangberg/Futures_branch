@@ -194,7 +194,9 @@ export const ApiService = {
 
   // Events
   async getEvents(campus) {
-    const response = await api.get(`/api/events?campus=${campus}`);
+    const campusParam = campus || 'all_campuses';
+    const response = await api.get(`/api/events?campus=${campusParam}&upcoming=true`);
+    console.log(`[EVENTS] Fetched events for campus: ${campusParam}`, response.data);
     return response.data;
   },
 
@@ -338,6 +340,46 @@ export const ApiService = {
       console.error('Error logging engagement:', error);
       throw error;
     }
+  },
+
+  // Pulse TV
+  async getTVSeries(category, audience) {
+    let url = '/api/tv/series';
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (audience) params.append('audience', audience);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  async getTVSeriesDetail(seriesId) {
+    const response = await api.get(`/api/tv/series/${seriesId}`);
+    return response.data;
+  },
+
+  async getTVEpisode(episodeId) {
+    const response = await api.get(`/api/tv/episode/${episodeId}`);
+    return response.data;
+  },
+
+  async updateEpisodeProgress(episodeId, position, completed) {
+    const response = await api.post(`/api/tv/episode/${episodeId}/progress`, {
+      position,
+      completed
+    });
+    return response.data;
+  },
+
+  async getMostWatched() {
+    const response = await api.get('/api/tv/most-watched');
+    return response.data;
+  },
+
+  async getContinueWatching() {
+    const response = await api.get('/api/tv/continue-watching');
+    return response.data;
   },
 };
 

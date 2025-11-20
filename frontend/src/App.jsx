@@ -28,6 +28,8 @@ import TV from './pages/TV';
 import TVSeries from './pages/TVSeries';
 import TVWatch from './pages/TVWatch';
 import TVManager from './pages/TVManager';
+import Events from './pages/Events';
+import EventsManager from './pages/EventsManager';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
 
@@ -370,6 +372,8 @@ function App() {
                   <Route path="/tv/series/:id" element={<TVSeries />} />
                   <Route path="/tv/watch/:episodeId" element={<TVWatch />} />
                   <Route path="/tv/manage" element={<TVManager />} />
+                  <Route path="/events" element={<Events />} />
+                  <Route path="/events/manage" element={<EventsManager />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>

@@ -248,6 +248,20 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={styles.actionCard}
+              onPress={() => navigation.navigate('TVHome')}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[Colors.primary, Colors.accent]}
+                style={styles.actionGradient}
+              >
+                <Text style={styles.actionEmoji}>📺</Text>
+                <Text style={styles.actionText}>Pulse TV</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
               onPress={() => navigation.navigate('Prayer')}
               activeOpacity={0.8}
             >
@@ -257,6 +271,20 @@ export default function HomeScreen() {
               >
                 <Text style={styles.actionEmoji}>🙏</Text>
                 <Text style={styles.actionText}>Prayer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Explore')}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#06b6d4', '#0891b2']}
+                style={styles.actionGradient}
+              >
+                <Text style={styles.actionEmoji}>🔍</Text>
+                <Text style={styles.actionText}>Explore</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>

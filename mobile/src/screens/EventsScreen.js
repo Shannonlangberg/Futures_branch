@@ -8,23 +8,40 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  Linking,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Calendar from 'expo-calendar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function EventsScreen({ route, navigation }) {
+export default function EventsScreen({ route }) {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [calendarPermission, setCalendarPermission] = useState(null);
 
   useEffect(() => {
     loadEvents();
+    requestCalendarPermission();
   }, []);
+
+  const requestCalendarPermission = async () => {
+    try {
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      setCalendarPermission(status === 'granted');
+    } catch (error) {
+      console.error('Error requesting calendar permission:', error);
+      setCalendarPermission(false);
+    }
+  };
 
   const loadEvents = async () => {
     try {
@@ -35,9 +52,9 @@ export default function EventsScreen({ route, navigation }) {
 
         const eventsData = await ApiService.getEvents(userObj.campus);
         if (eventsData.events) {
-          // Sort by date
+          // Sort by date - use start_datetime if available, otherwise start_time
           const sorted = eventsData.events.sort(
-            (a, b) => new Date(a.start_time) - new Date(b.start_time)
+            (a, b) => new Date(a.start_datetime || a.start_time) - new Date(b.start_datetime || b.start_time)
           );
           setEvents(sorted);
         }
@@ -74,7 +91,79 @@ export default function EventsScreen({ route, navigation }) {
     }
   };
 
+  const handleAddToCalendar = async (event) => {
+    if (!calendarPermission) {
+      Alert.alert(
+        'Calendar Permission Required',
+        'Please grant calendar access in Settings to add events to your calendar.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
+      return;
+    }
+
+    try {
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      if (calendars.length === 0) {
+        Alert.alert('No Calendars', 'Please create a calendar first in your calendar app.');
+        return;
+      }
+
+      // Use default calendar (first one)
+      const defaultCalendar = calendars.find(cal => cal.allowsModifications) || calendars[0];
+      
+      const startDate = new Date(event.start_datetime || event.start_time);
+      const endDate = event.end_time 
+        ? new Date(event.end_time) 
+        : new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour
+
+      const eventId = await Calendar.createEventAsync(defaultCalendar.id, {
+        title: event.title,
+        startDate: startDate,
+        endDate: endDate,
+        location: event.location || '',
+        notes: event.description || '',
+        timeZone: 'Australia/Adelaide',
+        alarms: [{ relativeOffset: -15, method: Calendar.AlarmMethod.ALERT }], // 15 min before
+      });
+
+      Alert.alert('Success', 'Event added to your calendar!');
+    } catch (error) {
+      console.error('Error adding to calendar:', error);
+      Alert.alert('Error', 'Failed to add event to calendar. Please try again.');
+    }
+  };
+
+  const handlePaidEventRegistration = async (event) => {
+    if (!user) {
+      Alert.alert('Error', 'User not found.');
+      return;
+    }
+
+    // Navigate to payment screen or show payment modal
+    Alert.alert(
+      'Paid Event',
+      `This event costs $${event.price || 0}. Would you like to register?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Register & Pay',
+          onPress: () => {
+            // For now, just show message - payment integration can be added
+            Alert.alert(
+              'Registration',
+              'Payment integration coming soon! Please contact the church office to register.',
+            );
+          },
+        },
+      ]
+    );
+  };
+
   const formatEventDate = (dateString) => {
+    if (!dateString) return { date: '', time: '', weekday: '' };
     const date = new Date(dateString);
     return {
       date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -97,16 +186,19 @@ export default function EventsScreen({ route, navigation }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <LinearGradient
-        colors={[Colors.background, Colors.surface, Colors.background]}
+        colors={['#0f172a', '#1e293b', '#0f172a']}
         style={styles.gradient}
       >
         <View style={[styles.header, { paddingTop: insets.top > 0 ? 0 : Spacing.md }]}>
-          <Text style={styles.headerSubtitle}>Upcoming church events</Text>
+          <Text style={styles.headerTitle}>Upcoming Events</Text>
+          <Text style={styles.headerSubtitle}>Join us for these upcoming events</Text>
         </View>
 
         {events.length > 0 ? (
           events.map((event) => {
-            const dateInfo = formatEventDate(event.start_time);
+            const dateInfo = formatEventDate(event.start_datetime || event.start_time);
+            const requiresPayment = event.requires_payment && event.price > 0;
+            
             return (
               <View key={event.id} style={styles.eventCard}>
                 <View style={styles.eventHeader}>
@@ -115,7 +207,14 @@ export default function EventsScreen({ route, navigation }) {
                     <Text style={styles.eventWeekday}>{dateInfo.weekday}</Text>
                   </View>
                   <View style={styles.eventContent}>
-                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    <View style={styles.eventTitleRow}>
+                      <Text style={styles.eventTitle}>{event.title}</Text>
+                      {requiresPayment && (
+                        <View style={styles.priceBadge}>
+                          <Text style={styles.priceText}>${event.price}</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.eventTime}>🕐 {dateInfo.time}</Text>
                     {event.location && (
                       <Text style={styles.eventLocation}>📍 {event.location}</Text>
@@ -129,31 +228,51 @@ export default function EventsScreen({ route, navigation }) {
                 </View>
 
                 <View style={styles.eventActions}>
+                  {requiresPayment ? (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.registerButton]}
+                      onPress={() => handlePaidEventRegistration(event)}
+                    >
+                      <Text style={styles.actionButtonText}>Register & Pay ${event.price}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.rsvpYes]}
+                        onPress={() => handleRSVP(event.id, 'yes')}
+                      >
+                        <Text style={styles.actionButtonText}>Going</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.rsvpMaybe]}
+                        onPress={() => handleRSVP(event.id, 'maybe')}
+                      >
+                        <Text style={styles.actionButtonText}>Maybe</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  
                   <TouchableOpacity
-                    style={[styles.rsvpButton, styles.rsvpYes]}
-                    onPress={() => handleRSVP(event.id, 'yes')}
+                    style={[styles.actionButton, styles.calendarButton]}
+                    onPress={() => handleAddToCalendar(event)}
                   >
-                    <Text style={styles.rsvpButtonText}>Going ✓</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.rsvpButton, styles.rsvpMaybe]}
-                    onPress={() => handleRSVP(event.id, 'maybe')}
-                  >
-                    <Text style={styles.rsvpButtonText}>Maybe</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.rsvpButton, styles.rsvpNo]}
-                    onPress={() => handleRSVP(event.id, 'no')}
-                  >
-                    <Text style={styles.rsvpButtonText}>Can't Go</Text>
+                    <Text style={styles.actionButtonText}>
+                      {Platform.OS === 'ios' ? '📅 Add to Calendar' : '📅 Add'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
             );
           })
         ) : (
-          <Text style={styles.emptyText}>No upcoming events</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>📅</Text>
+            <Text style={styles.emptyText}>No upcoming events</Text>
+            <Text style={styles.emptySubtext}>Check back soon for new events!</Text>
+          </View>
         )}
+
+        <View style={{ height: 100 }} />
       </LinearGradient>
     </ScrollView>
   );
@@ -162,7 +281,7 @@ export default function EventsScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#0f172a',
   },
   gradient: {
     flex: 1,
@@ -170,7 +289,7 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#0f172a',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -178,17 +297,23 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     marginTop: Spacing.sm,
   },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: Spacing.xs,
+  },
   headerSubtitle: {
     fontSize: FontSizes.md,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   eventCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
     padding: Spacing.md,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   eventHeader: {
     flexDirection: 'row',
@@ -202,66 +327,103 @@ const styles = StyleSheet.create({
   eventDate: {
     fontSize: FontSizes.lg,
     fontWeight: '600',
-    color: Colors.primary,
+    color: '#6366f1',
   },
   eventWeekday: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.5)',
     textTransform: 'uppercase',
   },
   eventContent: {
     flex: 1,
   },
-  eventTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.text,
+  eventTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: Spacing.xs,
+  },
+  eventTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+    color: '#ffffff',
+    flex: 1,
+  },
+  priceBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginLeft: Spacing.xs,
+  },
+  priceText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: '#a5b4fc',
   },
   eventTime: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: Spacing.xs,
   },
   eventLocation: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: Spacing.xs,
   },
   eventDescription: {
     fontSize: FontSizes.sm,
-    color: Colors.textMuted,
+    color: 'rgba(255, 255, 255, 0.5)',
+    lineHeight: 18,
   },
   eventActions: {
     flexDirection: 'row',
     gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
-  rsvpButton: {
+  actionButton: {
     flex: 1,
     padding: Spacing.sm,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
   },
   rsvpYes: {
-    backgroundColor: Colors.success,
+    backgroundColor: 'rgba(16, 185, 129, 0.3)',
   },
   rsvpMaybe: {
-    backgroundColor: Colors.warning,
+    backgroundColor: 'rgba(251, 191, 36, 0.3)',
   },
-  rsvpNo: {
-    backgroundColor: Colors.error,
+  registerButton: {
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    flex: 2,
   },
-  rsvpButtonText: {
-    color: Colors.text,
+  calendarButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    flex: 1,
+  },
+  actionButtonText: {
+    color: '#ffffff',
     fontSize: FontSizes.sm,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  emptyText: {
-    fontSize: FontSizes.md,
-    color: Colors.textMuted,
-    textAlign: 'center',
+  emptyState: {
+    alignItems: 'center',
     padding: Spacing.xxl,
   },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: Spacing.lg,
+  },
+  emptyText: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: Spacing.xs,
+  },
+  emptySubtext: {
+    fontSize: FontSizes.md,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+  },
 });
-
-

@@ -3,17 +3,22 @@ import {
   View,
   Text,
   ScrollView,
+  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PathwayScreen() {
+  const navigation = useNavigation();
   const [pathway, setPathway] = useState(null);
+  const [streaks, setStreaks] = useState([]);
+  const [nextSteps, setNextSteps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -28,8 +33,16 @@ export default function PathwayScreen() {
         const userObj = JSON.parse(userData);
         const profileData = await ApiService.getPersonProfile(userObj.email);
         
-        if (profileData && profileData.profile && profileData.profile.pathway) {
-          setPathway(profileData.profile.pathway);
+        if (profileData && profileData.profile) {
+          if (profileData.profile.pathway) {
+            setPathway(profileData.profile.pathway);
+          }
+          if (profileData.profile.streaks) {
+            setStreaks(profileData.profile.streaks);
+          }
+          if (profileData.profile.next_steps) {
+            setNextSteps(profileData.profile.next_steps);
+          }
         }
       }
     } catch (error) {
@@ -49,6 +62,20 @@ export default function PathwayScreen() {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const handleNextStepAction = (step) => {
+    if (step.action === 'pathway') {
+      // Already on pathway screen
+      return;
+    } else if (step.action === 'groups') {
+      navigation.navigate('Groups');
+    } else if (step.action === 'tv') {
+      navigation.navigate('TVHome');
+    } else if (step.action === 'contact') {
+      // Could open contact form or phone
+      console.log('Contact action:', step);
+    }
   };
 
   if (loading) {
@@ -73,6 +100,57 @@ export default function PathwayScreen() {
           <Text style={styles.headerTitle}>My Pathway</Text>
           <Text style={styles.headerSubtitle}>Your discipleship journey</Text>
         </View>
+
+        {/* Growth Streaks */}
+        {streaks && streaks.length > 0 && (
+          <View style={styles.streaksSection}>
+            <Text style={styles.sectionTitle}>Growth Streaks</Text>
+            <View style={styles.streaksGrid}>
+              {streaks.map((streak, index) => (
+                <View key={index} style={styles.streakCard}>
+                  <LinearGradient
+                    colors={['rgba(99, 102, 241, 0.2)', 'rgba(139, 92, 246, 0.2)']}
+                    style={styles.streakGradient}
+                  >
+                    <Text style={styles.streakEmoji}>{streak.emoji}</Text>
+                    <Text style={styles.streakCount}>{streak.count}</Text>
+                    <Text style={styles.streakLabel}>{streak.label}</Text>
+                    {streak.message && (
+                      <Text style={styles.streakMessage}>{streak.message}</Text>
+                    )}
+                  </LinearGradient>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Next Steps */}
+        {nextSteps && nextSteps.length > 0 && (
+          <View style={styles.nextStepsSection}>
+            <Text style={styles.sectionTitle}>Next Steps</Text>
+            {nextSteps.map((step, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.nextStepCard}
+                onPress={() => handleNextStepAction(step)}
+              >
+                <View style={styles.nextStepContent}>
+                  <View style={styles.nextStepHeader}>
+                    <Text style={styles.nextStepTitle}>{step.title}</Text>
+                    {step.priority === 'high' && (
+                      <View style={styles.priorityBadge}>
+                        <Text style={styles.priorityText}>Recommended</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.nextStepDescription}>{step.description}</Text>
+                </View>
+                <Text style={styles.nextStepArrow}>→</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {pathway && (
           <>
@@ -222,6 +300,108 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: 'rgba(255, 255, 255, 0.6)',
   },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: Spacing.md,
+    marginTop: Spacing.lg,
+  },
+  // Growth Streaks Styles
+  streaksSection: {
+    marginBottom: Spacing.xl,
+  },
+  streaksGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  streakCard: {
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  streakGradient: {
+    flex: 1,
+    padding: Spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderRadius: 16,
+  },
+  streakEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.sm,
+  },
+  streakCount: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: Spacing.xs,
+  },
+  streakLabel: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  streakMessage: {
+    fontSize: FontSizes.xs,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+  },
+  // Next Steps Styles
+  nextStepsSection: {
+    marginBottom: Spacing.xl,
+  },
+  nextStepCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nextStepContent: {
+    flex: 1,
+  },
+  nextStepHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  nextStepTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+    color: '#ffffff',
+    flex: 1,
+  },
+  priorityBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  priorityText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: '#a5b4fc',
+  },
+  nextStepDescription: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 20,
+  },
+  nextStepArrow: {
+    fontSize: 24,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginLeft: Spacing.md,
+  },
+  // Pathway Styles
   progressSection: {
     alignItems: 'center',
     marginBottom: Spacing.xxl,
@@ -414,4 +594,3 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
-

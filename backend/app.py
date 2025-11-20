@@ -13505,6 +13505,158 @@ def get_person_detail(person_id):
         return jsonify({'error': 'Failed to fetch person details'}), 500
 
 
+def calculate_streaks_and_next_steps(person):
+    """Calculate attendance streaks and recommend next steps for a person"""
+    from models import DiscipleshipStep, TVUserEpisodeProgress, TVEpisode, PersonPathwayProgress
+    
+    streaks = []
+    next_steps = []
+    
+    try:
+        # Get attendance log from engagement profile
+        if person.engagement_profile:
+            attendance_log_str = person.engagement_profile.attendance_log or '[]'
+            try:
+                attendance_log = json.loads(attendance_log_str) if isinstance(attendance_log_str, str) else attendance_log_str
+            except:
+                attendance_log = []
+            
+            # Calculate Sunday attendance streak
+            if attendance_log:
+                # Parse dates and find consecutive Sundays
+                from datetime import date, timedelta
+                sundays = []
+                for entry in attendance_log:
+                    if isinstance(entry, dict) and 'date' in entry:
+                        try:
+                            entry_date = date.fromisoformat(entry['date'].split('T')[0]) if 'T' in entry['date'] else date.fromisoformat(entry['date'])
+                            # Check if it's a Sunday (Monday=0, Sunday=6)
+                            if entry_date.weekday() == 6:
+                                sundays.append(entry_date)
+                        except:
+                            continue
+                
+                if sundays:
+                    sundays = sorted(set(sundays), reverse=True)
+                    # Calculate current streak
+                    today = date.today()
+                    last_sunday = today - timedelta(days=(today.weekday() + 1) % 7)
+                    if last_sunday > today:
+                        last_sunday -= timedelta(days=7)
+                    
+                    current_streak = 0
+                    expected_date = last_sunday
+                    for sunday in sundays:
+                        if sunday == expected_date or sunday == expected_date - timedelta(days=7):
+                            current_streak += 1
+                            expected_date = sunday - timedelta(days=7)
+                        elif sunday > expected_date:
+                            # Gap in streak
+                            break
+                    
+                    if current_streak > 0:
+                        streaks.append({
+                            'type': 'sunday_attendance',
+                            'label': 'Sunday Attendance',
+                            'count': current_streak,
+                            'emoji': '⛪',
+                            'message': f'{current_streak} Sunday{"s" if current_streak != 1 else ""} in a row!' if current_streak > 0 else None
+                        })
+    except Exception as e:
+        logger.warning(f"Error calculating attendance streak: {e}")
+        
+        # Check for completed discipleship steps (milestones)
+        completed_steps = []
+        try:
+            completed_steps = DiscipleshipStep.query.filter_by(person_id=person.id).all()
+            if completed_steps:
+                milestones = []
+                if any(s.type == 'baptism' for s in completed_steps):
+                    milestones.append('Baptized')
+                if any(s.type == 'filled_holy_spirit' for s in completed_steps):
+                    milestones.append('Filled with Holy Spirit')
+                if any(s.type == 'dna_completion' for s in completed_steps):
+                    milestones.append('DNA Completed')
+                if any(s.type == 'tv_series_completion' for s in completed_steps):
+                    series_completed = len([s for s in completed_steps if s.type == 'tv_series_completion'])
+                    milestones.append(f'{series_completed} Series Completed')
+                
+                if milestones:
+                    streaks.append({
+                        'type': 'milestones',
+                        'label': 'Milestones',
+                        'count': len(milestones),
+                        'emoji': '🏆',
+                        'message': ', '.join(milestones)
+                    })
+        except Exception as e:
+            logger.warning(f"Error calculating milestones: {e}")
+        
+        # Generate next steps recommendations
+        completed_steps_list = []
+        try:
+            completed_steps_list = DiscipleshipStep.query.filter_by(person_id=person.id).all()
+        except:
+            pass
+        
+        try:
+            # Check if person needs to complete pathway steps
+            pathway_progress = PersonPathwayProgress.query.filter_by(person_id=person.id, is_active=True).first()
+            if pathway_progress and pathway_progress.next_step:
+                next_steps.append({
+                    'type': 'pathway_step',
+                    'title': pathway_progress.next_step.step_name,
+                    'description': f'Complete your next pathway step: {pathway_progress.next_step.step_name}',
+                    'action': 'pathway',
+                    'priority': 'high'
+                })
+            
+            # Check if person hasn't been baptized
+            if not any(s.type == 'baptism' for s in completed_steps_list):
+                next_steps.append({
+                    'type': 'baptism',
+                    'title': 'Get Baptized',
+                    'description': 'Take the next step in your faith journey',
+                    'action': 'contact',
+                    'priority': 'medium'
+                })
+            
+            # Check if person hasn't joined a connect group
+            if not person.connect_group:
+                next_steps.append({
+                    'type': 'connect_group',
+                    'title': 'Join a Connect Group',
+                    'description': 'Connect with others and grow in community',
+                    'action': 'groups',
+                    'priority': 'high'
+                })
+            
+            # Check if person hasn't completed any TV series
+            try:
+                tv_progress = TVUserEpisodeProgress.query.filter_by(person_id=person.id, completed=True).join(TVEpisode).filter(TVEpisode.is_published==True).first()
+                if not tv_progress:
+                    next_steps.append({
+                        'type': 'tv_series',
+                        'title': 'Watch a Discipleship Course',
+                        'description': 'Start your first Pulse TV course',
+                        'action': 'tv',
+                        'priority': 'medium'
+                    })
+            except:
+                pass
+            
+        except Exception as e:
+            logger.warning(f"Error generating next steps: {e}")
+    
+    except Exception as e:
+        logger.error(f"Error in calculate_streaks_and_next_steps: {e}", exc_info=True)
+    
+    return {
+        'streaks': streaks,
+        'next_steps': next_steps[:5]  # Limit to 5 recommendations
+    }
+
+
 @app.route('/api/persons/email/<email>', methods=['GET'])
 def get_person_by_email(email):
     """Get person profile by email - public endpoint for mobile app"""
@@ -13586,6 +13738,16 @@ def get_person_by_email(email):
         except Exception as e:
             logger.warning(f"Error loading assigned pathway: {e}", exc_info=True)
             person_data['pathway'] = None
+        
+        # Add streaks and next steps data
+        try:
+            streaks_data = calculate_streaks_and_next_steps(person)
+            person_data['streaks'] = streaks_data['streaks']
+            person_data['next_steps'] = streaks_data['next_steps']
+        except Exception as e:
+            logger.warning(f"Error calculating streaks: {e}")
+            person_data['streaks'] = []
+            person_data['next_steps'] = []
         
         return jsonify(person_data)
         
@@ -16893,8 +17055,14 @@ def get_events():
         search = request.args.get('search', '')
         public_only = request.args.get('public_only', 'false')
         
+        logger.info(f"[EVENTS] Fetching events - campus: {campus}, upcoming: {upcoming}, status: {status}")
+        
         # Build query
         query = Event.query.filter_by(is_active=True)
+        
+        # Log total active events count
+        total_active = Event.query.filter_by(is_active=True).count()
+        logger.info(f"[EVENTS] Total active events in database: {total_active}")
         
         # Filter by campus
         if campus != 'all_campuses':
@@ -16911,16 +17079,42 @@ def get_events():
         
         # Filter by status
         if status == 'upcoming':
-            query = query.filter(Event.start_time > datetime.utcnow())
+            query = query.filter(
+                db.or_(
+                    Event.start_time > datetime.utcnow(),
+                    Event.start_time.is_(None)
+                )
+            )
         elif status == 'past':
-            query = query.filter(Event.start_time < datetime.utcnow())
+            query = query.filter(
+                db.and_(
+                    Event.start_time.isnot(None),
+                    Event.start_time < datetime.utcnow()
+                )
+            )
         # Note: is_cancelled column doesn't exist in Event model - removed filter
         
         # Filter by upcoming/past
-        if upcoming == 'true':
-            query = query.filter(Event.start_time > datetime.utcnow())
+        # If upcoming='all', show all events (no date filtering)
+        # For upcoming='true', show events in the future OR events without a start_time (always show those)
+        if upcoming == 'all':
+            # Show all events, no date filtering
+            pass
+        elif upcoming == 'true':
+            query = query.filter(
+                db.or_(
+                    Event.start_time > datetime.utcnow(),
+                    Event.start_time.is_(None)
+                )
+            )
         elif upcoming == 'false':
-            query = query.filter(Event.start_time < datetime.utcnow())
+            # For past events, only show events that have a start_time and are in the past
+            query = query.filter(
+                db.and_(
+                    Event.start_time.isnot(None),
+                    Event.start_time < datetime.utcnow()
+                )
+            )
         
         # Note: is_cancelled column doesn't exist in Event model - removed filter
         
@@ -16934,10 +17128,14 @@ def get_events():
                 )
             )
         
-        # Order by start date
-        query = query.order_by(Event.start_time.asc())
+        # Order by start date (NULLs last, then by start_time ascending)
+        query = query.order_by(
+            db.case((Event.start_time.is_(None), 1), else_=0),
+            Event.start_time.asc()
+        )
         
         events = query.all()
+        logger.info(f"[EVENTS] Found {len(events)} events after filtering")
         
         # Convert to JSON
         events_data = []

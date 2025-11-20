@@ -111,6 +111,7 @@ const MainLayout = ({ children }) => {
       { name: 'Connect Groups', href: '/connect-groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff', 'connect_group_leader'] },
       { name: 'Resources', href: '/resources', icon: BookOpenIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'] },
       { name: 'Pulse TV', href: '/tv', icon: PlayIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff', 'finance'] },
+      { name: 'Events', href: '/events', icon: CalendarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'] },
       
       // Hidden items - commented out for now
       // { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'finance'] },
@@ -171,7 +172,8 @@ const MainLayout = ({ children }) => {
         { name: 'Beacon Management', href: '/beacons', icon: SignalIcon, show: true },
         { name: 'Pathway Manager', href: '/pathways', icon: AcademicCapIcon, show: true },
         { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, show: true },
-        { name: 'TV Manager', href: '/tv/manage', icon: PlayIcon, show: true }
+        { name: 'TV Manager', href: '/tv/manage', icon: PlayIcon, show: true },
+        { name: 'Events Manager', href: '/events/manage', icon: CalendarIcon, show: true }
       );
     }
 

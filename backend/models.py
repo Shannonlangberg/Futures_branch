@@ -1107,6 +1107,11 @@ class Event(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Payment fields (nullable for backward compatibility)
+    price = db.Column(db.Numeric(10, 2), nullable=True)  # Price in dollars (e.g., 25.00)
+    requires_payment = db.Column(db.Boolean, default=False)
+    stripe_price_id = db.Column(db.String(200), nullable=True)  # Stripe Price ID for checkout
+    
     # Relationship to category
     category = db.relationship('EventCategory', backref='events')
     
@@ -1123,6 +1128,9 @@ class Event(db.Model):
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'location': self.location,
             'is_active': self.is_active,
+            'price': float(self.price) if self.price else None,
+            'requires_payment': self.requires_payment if self.requires_payment else False,
+            'stripe_price_id': self.stripe_price_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

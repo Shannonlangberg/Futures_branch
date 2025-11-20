@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStripe } from '@stripe/stripe-react-native';
+import * as Linking from 'expo-linking';
 import { Colors, FontSizes, Spacing, STRIPE_PUBLISHABLE_KEY } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,6 +39,12 @@ export default function GivingScreen({ navigation }) {
     loadUser();
     loadGivingHistory();
   }, []);
+
+  const getReturnURL = () => {
+    // Get the deep link URL for the app
+    const url = Linking.createURL('/');
+    return url;
+  };
 
   const loadUser = async () => {
     const userData = await AsyncStorage.getItem('userData');
@@ -103,6 +110,7 @@ export default function GivingScreen({ navigation }) {
         const { error: initError } = await initPaymentSheet({
           merchantDisplayName: 'Futures Church',
           setupIntentClientSecret: setupResult.client_secret,
+          returnURL: getReturnURL(),
           defaultBillingDetails: {
             email: user.email,
           },
@@ -150,6 +158,7 @@ export default function GivingScreen({ navigation }) {
             const { error: confirmError } = await initPaymentSheet({
               merchantDisplayName: 'Futures Church',
               paymentIntentClientSecret: subscriptionResult.client_secret,
+              returnURL: getReturnURL(),
             });
 
             if (!confirmError) {
@@ -203,6 +212,7 @@ export default function GivingScreen({ navigation }) {
         const { error: initError } = await initPaymentSheet({
           merchantDisplayName: 'Futures Church',
           paymentIntentClientSecret: intentResult.client_secret,
+          returnURL: getReturnURL(),
           defaultBillingDetails: {
             email: user.email,
           },
@@ -219,9 +229,16 @@ export default function GivingScreen({ navigation }) {
 
         if (presentError) {
           if (presentError.code !== 'Canceled') {
-            Alert.alert('Error', presentError.message);
+            console.error('Payment sheet error:', presentError);
+            Alert.alert('Error', presentError.message || 'Payment failed. Please try again.');
+          } else {
+            console.log('Payment canceled by user');
           }
         } else {
+          // Payment sheet completed - verify payment intent status
+          console.log('Payment sheet completed successfully');
+          console.log('Payment Intent ID:', intentResult.payment_intent_id);
+          
           // Payment successful
           Alert.alert(
             'Thank You! 🙏',
