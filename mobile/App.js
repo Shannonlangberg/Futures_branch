@@ -22,6 +22,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import EditProfileScreen from './src/screens/EditProfileScreen';
 import EventsScreen from './src/screens/EventsScreen';
 import PrayerScreen from './src/screens/PrayerScreen';
+import SermonNotesScreen from './src/screens/SermonNotesScreen';
 
 // Services
 import { AuthService } from './src/services/AuthService';
@@ -289,6 +290,15 @@ export default function App() {
                   },
                   headerTitle: 'Prayer',
                   headerBackTitleVisible: false,
+                }}
+              />
+              <Stack.Screen 
+                name="SermonNotes" 
+                component={SermonNotesScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: false, // Custom header in component
                 }}
               />
               {/* Profile accessible from Journey tab */}

@@ -7,9 +7,6 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -27,15 +24,9 @@ export default function SundayScreen() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [beaconEnabled, setBeaconEnabled] = useState(false);
   
-  // Sermon Notes
-  const [sermonNotes, setSermonNotes] = useState('');
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [lastSaved, setLastSaved] = useState(null);
-
   useEffect(() => {
     loadData();
     checkBeaconPermission();
-    loadSermonNotes();
   }, []);
 
   const loadData = async () => {
@@ -69,54 +60,6 @@ export default function SundayScreen() {
     }
   };
 
-  const loadSermonNotes = async () => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const savedNotes = await AsyncStorage.getItem(`sermon_notes_${today}`);
-      if (savedNotes) {
-        setSermonNotes(savedNotes);
-      }
-    } catch (error) {
-      console.error('Error loading sermon notes:', error);
-    }
-  };
-
-  const saveSermonNotes = async (text) => {
-    try {
-      setSavingNotes(true);
-      const today = new Date().toISOString().split('T')[0];
-      await AsyncStorage.setItem(`sermon_notes_${today}`, text);
-      setLastSaved(new Date());
-      
-      // Log engagement (sermon notes count as engagement!)
-      if (text.length > 50) {
-        try {
-          // This adds to heartbeat engagement
-          await ApiService.logEngagement(user.email, 'sermon_notes', {
-            date: today,
-            length: text.length
-          });
-        } catch (e) {
-          console.warn('Could not log sermon notes engagement:', e);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving sermon notes:', error);
-    } finally {
-      setSavingNotes(false);
-    }
-  };
-
-  const handleNotesChange = (text) => {
-    setSermonNotes(text);
-    // Auto-save after 2 seconds of no typing
-    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
-    autoSaveTimeout = setTimeout(() => {
-      saveSermonNotes(text);
-    }, 2000);
-  };
-
-  let autoSaveTimeout = null;
 
   const checkBeaconPermission = async () => {
     const result = await BeaconService.requestPermissions();
@@ -134,10 +77,7 @@ export default function SundayScreen() {
     try {
       // Log attendance to heartbeat (this is the "gather" metric!)
       const result = await ApiService.logAttendance(user.email, {
-        campus: campus.id,
-        date: new Date().toISOString().split('T')[0],
-        service_type: 'sunday',
-        zones: ['sunday_service']
+        campus: campus.id
       });
       
       if (result.success || result.message) {
@@ -151,7 +91,7 @@ export default function SundayScreen() {
       }
     } catch (error) {
       console.error('Check-in error:', error);
-      Alert.alert('Error', 'Check-in failed. Please try again.');
+      Alert.alert('Error', error.response?.data?.error || 'Check-in failed. Please try again.');
     } finally {
       setCheckingIn(false);
     }
@@ -183,11 +123,7 @@ export default function SundayScreen() {
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView style={styles.container}>
+    <ScrollView style={styles.container}>
         <LinearGradient
           colors={['#0f172a', '#1e293b', '#0f172a']}
           style={styles.gradient}
@@ -297,44 +233,31 @@ export default function SundayScreen() {
 
           {/* Sermon Notes */}
           <View style={styles.section}>
-            <View style={styles.notesHeader}>
-              <Text style={styles.sectionTitle}>📝 Sermon Notes</Text>
-              {lastSaved && (
-                <Text style={styles.savedText}>
-                  Saved {lastSaved.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                </Text>
-              )}
-            </View>
-            
-            <View style={styles.notesContainer}>
-              <TextInput
-                style={styles.notesInput}
-                placeholder="Take notes during the service..."
-                placeholderTextColor="rgba(255, 255, 255, 0.3)"
-                value={sermonNotes}
-                onChangeText={handleNotesChange}
-                multiline
-                numberOfLines={12}
-                textAlignVertical="top"
-              />
-              
-              {savingNotes && (
-                <View style={styles.savingIndicator}>
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                  <Text style={styles.savingText}>Saving...</Text>
+            <TouchableOpacity
+              style={styles.notesCard}
+              onPress={() => navigation.navigate('SermonNotes')}
+            >
+              <LinearGradient
+                colors={['rgba(99, 102, 241, 0.2)', 'rgba(139, 92, 246, 0.2)']}
+                style={styles.notesCardGradient}
+              >
+                <View style={styles.notesCardContent}>
+                  <Text style={styles.notesCardEmoji}>📝</Text>
+                  <View style={styles.notesCardText}>
+                    <Text style={styles.notesCardTitle}>Sermon Notes</Text>
+                    <Text style={styles.notesCardSubtitle}>
+                      Take notes during service • Auto-saved locally
+                    </Text>
+                  </View>
+                  <Text style={styles.notesCardArrow}>→</Text>
                 </View>
-              )}
-            </View>
-            
-            <Text style={styles.notesHint}>
-              💡 Your notes are saved locally and add to your engagement score!
-            </Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
 
           <View style={{ height: 100 }} />
         </LinearGradient>
       </ScrollView>
-    </KeyboardAvoidingView>
   );
 }
 
@@ -486,45 +409,40 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     flex: 1,
   },
-  notesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
+  notesCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: Spacing.md,
   },
-  savedText: {
-    fontSize: FontSizes.xs,
-    color: '#10b981',
-    fontWeight: '500',
-  },
-  notesContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+  notesCardGradient: {
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    padding: Spacing.md,
-    minHeight: 200,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
   },
-  notesInput: {
-    color: '#ffffff',
-    fontSize: FontSizes.md,
-    lineHeight: 22,
-    minHeight: 180,
-  },
-  savingIndicator: {
+  notesCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.sm,
   },
-  savingText: {
-    marginLeft: Spacing.xs,
-    fontSize: FontSizes.xs,
-    color: 'rgba(255, 255, 255, 0.6)',
+  notesCardEmoji: {
+    fontSize: 32,
+    marginRight: Spacing.md,
   },
-  notesHint: {
-    fontSize: FontSizes.xs,
-    color: 'rgba(255, 255, 255, 0.5)',
-    marginTop: Spacing.sm,
-    fontStyle: 'italic',
+  notesCardText: {
+    flex: 1,
+  },
+  notesCardTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: Spacing.xs,
+  },
+  notesCardSubtitle: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  notesCardArrow: {
+    fontSize: 24,
+    color: Colors.primary,
+    marginLeft: Spacing.sm,
   },
 });

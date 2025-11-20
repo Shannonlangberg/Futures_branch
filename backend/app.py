@@ -1501,13 +1501,16 @@ def get_active_campuses():
         
         for row in cursor.fetchall():
             campus_id = row[0]
+            # Try to get notes/description if it exists in the row
+            description = row[5] if len(row) > 5 else None
             active_campuses.append({
                 'id': campus_id,
                 'name': row[2],  # display_name
                 'full_name': row[1],  # name
                 'region_id': row[3],  # region_id
                 'region_code': row[4],  # region_code (AU, US, etc.)
-                'service_times': service_times_map.get(campus_id, [])
+                'service_times': service_times_map.get(campus_id, []),
+                'description': description or campuses_db.get('campuses', {}).get(campus_id, {}).get('description', None)
             })
         
         conn.close()
@@ -9244,12 +9247,20 @@ def get_campuses_public():
     """Public endpoint for campuses - no authentication required"""
     try:
         active_campuses = get_active_campuses()
+        campuses_db = load_campuses_database()
+        
         return jsonify({
             "campuses": [{
                 'id': c['id'], 
                 'name': c['name'],
+                'full_name': c.get('full_name', c['name']),
                 'region_id': c.get('region_id'),
-                'region_code': c.get('region_code')
+                'region_code': c.get('region_code'),
+                'description': c.get('description') or campuses_db.get('campuses', {}).get(c['id'], {}).get('description'),
+                'location': campuses_db.get('campuses', {}).get(c['id'], {}).get('address'),
+                'parking': campuses_db.get('campuses', {}).get(c['id'], {}).get('parking'),
+                'kids_info': campuses_db.get('campuses', {}).get(c['id'], {}).get('kids_info'),
+                'service_times': c.get('service_times', [])
             } for c in active_campuses],
             "default": "all_campuses"
         })
@@ -14206,6 +14217,67 @@ def import_pco_csv():
         return jsonify({'error': f'Failed to import CSV: {str(e)}'}), 500
 
 
+@app.route('/api/attendance/log', methods=['POST', 'OPTIONS'])
+def log_attendance_simple():
+    """Simple attendance logging for "I'm Here" button (public endpoint for mobile app)"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
+    
+    try:
+        data = request.get_json()
+        
+        # Get email from request
+        email = data.get('email', '').strip()
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        # Find person by email
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Get campus from person or request
+        campus = data.get('campus') or person.campus
+        if not campus:
+            campus = 'all_campuses'
+        
+        # Log attendance (this is the "gather" metric in heartbeat!)
+        attendance_time = datetime.now()
+        engagement.add_attendance(
+            zones=['sunday_service'],
+            campus=campus,
+            attendance_time=attendance_time
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Attendance logged successfully',
+            'person_id': person.id,
+            'campus': campus,
+            'timestamp': attendance_time.isoformat()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging attendance: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to log attendance'}), 500
+
+
 @app.route('/api/engagement/log_attendance', methods=['POST'])
 def log_attendance():
     """Log attendance via beacon detection (public endpoint for mobile app)"""
@@ -14281,6 +14353,73 @@ def log_attendance():
         db.session.rollback()
         logger.error(f"Error logging attendance: {e}")
         return jsonify({'error': 'Failed to log attendance'}), 500
+
+
+@app.route('/api/engagement/log', methods=['POST', 'OPTIONS'])
+def log_engagement():
+    """Log engagement activities like sermon notes (public endpoint for mobile app)"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
+    
+    try:
+        data = request.get_json()
+        
+        email = data.get('email', '').strip()
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        engagement_type = data.get('type', '').strip()
+        if not engagement_type:
+            return jsonify({'error': 'Engagement type is required'}), 400
+        
+        # Find person by email
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get or create engagement profile
+        engagement = person.engagement_profile
+        if not engagement:
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+        
+        # Log different types of engagement
+        if engagement_type == 'sermon_notes':
+            # Add to milestones_log as engagement activity
+            milestones_log = engagement._load_json(engagement.milestones_log or '[]')
+            milestones_log.append({
+                'type': 'sermon_notes',
+                'date': data.get('date', datetime.now().date().isoformat()),
+                'length': data.get('length', 0),
+                'word_count': data.get('word_count', 0),
+                'timestamp': datetime.now().isoformat()
+            })
+            engagement.milestones_log = engagement._dump_json(milestones_log)
+        
+        # Trigger heartbeat recalculation
+        try:
+            engagement.recalculate_heartbeat()
+        except Exception as e:
+            logger.warning(f"Error recalculating heartbeat: {e}")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Engagement logged successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging engagement: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to log engagement'}), 500
 
 
 @app.route('/api/engagement/log_serving', methods=['POST'])
