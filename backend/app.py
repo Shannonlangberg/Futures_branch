@@ -7753,7 +7753,7 @@ def api_login():
             login_user(user, remember=True)
             # Ensure session is saved
             session.modified = True
-            logger.info(f"User {username} logged in successfully, user_id={user.id}, role={user.role}")
+            logger.info(f"✅ User {username} logged in successfully, user_id={user.id}, role={user.role}")
             # Log successful login
             try:
                 log_security_event(user.id, 'login_success', 'User logged in successfully')
@@ -7774,6 +7774,34 @@ def api_login():
                 }
             })
         else:
+            # More detailed logging for failed login
+            logger.warning(f"❌ Login FAILED for: '{username}'")
+            logger.warning(f"   - Email format: {username if '@' in username else 'Not an email'}")
+            logger.warning(f"   - Attempting to find user in database...")
+            
+            # Try to check if user exists (for debugging)
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT id, username, email, active, role
+                    FROM users
+                    WHERE TRIM(LOWER(email)) = ? OR TRIM(LOWER(username)) = ?
+                ''', (username.lower().strip(), username.lower().strip()))
+                debug_user = cursor.fetchone()
+                conn.close()
+                
+                if debug_user:
+                    logger.warning(f"   - User EXISTS in DB: id={debug_user[0]}, username='{debug_user[1]}', email='{debug_user[2]}', active={debug_user[3]}, role={debug_user[4]}")
+                    if not debug_user[3]:
+                        logger.warning(f"   - ❌ User account is INACTIVE!")
+                        return jsonify({"error": "Your account is inactive. Please contact support."}), 401
+                    logger.warning(f"   - ⚠️ Password does not match OR password hash format issue")
+                else:
+                    logger.warning(f"   - ❌ User NOT FOUND in database")
+            except Exception as debug_error:
+                logger.error(f"Error checking user existence: {debug_error}")
+            
             # Log failed login attempt
             try:
                 log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
