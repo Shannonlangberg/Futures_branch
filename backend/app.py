@@ -13489,65 +13489,32 @@ def get_person_by_email(email):
             logger.warning(f"Error accessing engagement profile (schema mismatch): {e}")
             person_data['engagement'] = None
         
-        # Add pathway/journey data if available
-        # Check if person has pathway progress (from engagement or milestones)
+        # Add ACTUAL assigned pathway from database (not hardcoded)
         try:
-            # Pathway data is typically derived from milestones and engagement
-            # Format campus name
-            campus_display = person.campus
-            if '_' in campus_display:
-                campus_display = ' '.join(word.capitalize() for word in campus_display.split('_'))
+            from models import PersonPathwayProgress
+            
+            # Get the person's active pathway progress (assigned by staff)
+            pathway_progress = PersonPathwayProgress.query.filter_by(
+                person_id=person.id,
+                is_active=True
+            ).first()
+            
+            if pathway_progress:
+                # Person has an assigned pathway - return it!
+                try:
+                    pathway_dict = pathway_progress.to_dict()
+                    person_data['pathway'] = pathway_dict
+                    logger.info(f"Found assigned pathway for {person.email}: {pathway_dict.get('pathway_name')}")
+                except Exception as to_dict_error:
+                    logger.error(f"Error converting pathway to dict: {to_dict_error}", exc_info=True)
+                    person_data['pathway'] = None
             else:
-                campus_display = campus_display.title()
-            
-            pathway_data = {
-                'id': f"pathway_{person.id}",
-                'pathway_name': 'Spiritual Journey',
-                'person_id': person.id,
-                'person_name': person.full_name,
-                'campus': campus_display,
-                'milestones': {
-                    'baptised_on': person_data.get('baptised_on'),
-                    'dna_completed': person_data.get('dna_completed'),
-                    'filled_holy_spirit': person_data.get('filled_holy_spirit'),
-                    'rise_attended': person_data.get('rise_attended'),
-                    'first_served_on': person_data.get('first_served_on'),
-                },
-                'connect_group': person_data.get('connect_group'),
-                'steps': [
-                    {'id': 1, 'step_order': 1, 'step_name': 'Baptism', 'milestone_type': 'baptism', 'is_completed': bool(person.baptised_on), 'completed_at': person.baptised_on.isoformat() if person.baptised_on else None},
-                    {'id': 2, 'step_order': 2, 'step_name': 'DNA Course', 'milestone_type': 'dna', 'is_completed': bool(person.dna_completed), 'completed_at': person.dna_completed.isoformat() if person.dna_completed else None},
-                    {'id': 3, 'step_order': 3, 'step_name': 'Filled with Holy Spirit', 'milestone_type': 'holy_spirit', 'is_completed': bool(person.filled_holy_spirit), 'completed_at': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None},
-                    {'id': 4, 'step_order': 4, 'step_name': 'RISE', 'milestone_type': 'rise', 'is_completed': bool(person.rise_attended), 'completed_at': person.rise_attended.isoformat() if person.rise_attended else None},
-                    {'id': 5, 'step_order': 5, 'step_name': 'Join Connect Group', 'milestone_type': 'group_join', 'is_completed': bool(person.connect_group), 'completed_at': None},
-                ],
-                'completed_steps': 0,
-                'total_steps': 5,
-                'progress_percentage': 0,
-                'current_step_id': None,
-            }
-            
-            # Calculate progress
-            completed = sum([
-                1 if person.baptised_on else 0,
-                1 if person.dna_completed else 0,
-                1 if person.filled_holy_spirit else 0,
-                1 if person.rise_attended else 0,
-                1 if person.connect_group else 0,
-            ])
-            
-            pathway_data['completed_steps'] = completed
-            pathway_data['progress_percentage'] = int((completed / 5) * 100)
-            
-            # Find current step (first incomplete step)
-            for step in pathway_data['steps']:
-                if not step['is_completed']:
-                    pathway_data['current_step_id'] = step['id']
-                    break
-            
-            person_data['pathway'] = pathway_data
+                # No pathway assigned - return None (staff needs to assign one)
+                logger.info(f"No pathway assigned to {person.email}")
+                person_data['pathway'] = None
+                
         except Exception as e:
-            logger.warning(f"Error adding pathway data: {e}")
+            logger.warning(f"Error loading assigned pathway: {e}", exc_info=True)
             person_data['pathway'] = None
         
         return jsonify(person_data)
@@ -13677,62 +13644,29 @@ def get_my_pathway():
         if not person:
             return jsonify({'pathway': None, 'error': 'Person not found'}), 404
         
-        # Build pathway data from person milestones
-        # Format campus name
-        campus_display = person.campus
-        if '_' in campus_display:
-            campus_display = ' '.join(word.capitalize() for word in campus_display.split('_'))
-        else:
-            campus_display = campus_display.title()
-        
-        pathway_data = {
-            'id': f"pathway_{person.id}",
-            'pathway_name': 'Spiritual Journey',
-            'person_id': person.id,
-            'person_name': person.full_name,
-            'campus': campus_display,
-            'milestones': {
-                'baptised_on': person.baptised_on.isoformat() if person.baptised_on else None,
-                'dna_completed': person.dna_completed.isoformat() if person.dna_completed else None,
-                'filled_holy_spirit': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None,
-                'rise_attended': person.rise_attended.isoformat() if person.rise_attended else None,
-                'first_served_on': person.first_served_on.isoformat() if person.first_served_on else None,
-            },
-            'connect_group': person.connect_group,
-            'pathway': {
-                'steps': [
-                    {'id': 1, 'step_order': 1, 'step_name': 'Baptism', 'milestone_type': 'baptism', 'is_completed': bool(person.baptised_on), 'completed_at': person.baptised_on.isoformat() if person.baptised_on else None},
-                    {'id': 2, 'step_order': 2, 'step_name': 'DNA Course', 'milestone_type': 'dna', 'is_completed': bool(person.dna_completed), 'completed_at': person.dna_completed.isoformat() if person.dna_completed else None},
-                    {'id': 3, 'step_order': 3, 'step_name': 'Filled with Holy Spirit', 'milestone_type': 'holy_spirit', 'is_completed': bool(person.filled_holy_spirit), 'completed_at': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None},
-                    {'id': 4, 'step_order': 4, 'step_name': 'RISE', 'milestone_type': 'rise', 'is_completed': bool(person.rise_attended), 'completed_at': person.rise_attended.isoformat() if person.rise_attended else None},
-                    {'id': 5, 'step_order': 5, 'step_name': 'Join Connect Group', 'milestone_type': 'group_join', 'is_completed': bool(person.connect_group), 'completed_at': None},
-                ],
-            },
-            'completed_steps': 0,
-            'total_steps': 5,
-            'progress_percentage': 0,
-            'current_step_id': None,
-        }
-        
-        # Calculate progress based on milestones
-        completed = sum([
-            1 if person.baptised_on else 0,
-            1 if person.dna_completed else 0,
-            1 if person.filled_holy_spirit else 0,
-            1 if person.rise_attended else 0,
-            1 if person.connect_group else 0,
-        ])
-        
-        pathway_data['completed_steps'] = completed
-        pathway_data['progress_percentage'] = int((completed / 5) * 100)
-        
-        # Find current step (first incomplete step)
-        for step in pathway_data['pathway']['steps']:
-            if not step['is_completed']:
-                pathway_data['current_step_id'] = step['id']
-                break
-        
-        return jsonify({'pathway': pathway_data})
+        # Get the person's ACTUAL assigned pathway from database (not hardcoded)
+        try:
+            from models import PersonPathwayProgress
+            
+            # Get the person's active pathway progress (assigned by staff)
+            pathway_progress = PersonPathwayProgress.query.filter_by(
+                person_id=person.id,
+                is_active=True
+            ).first()
+            
+            if pathway_progress:
+                # Person has an assigned pathway - return it!
+                pathway_dict = pathway_progress.to_dict()
+                logger.info(f"Found assigned pathway for {person.email}: {pathway_dict.get('pathway_name')}")
+                return jsonify({'pathway': pathway_dict})
+            else:
+                # No pathway assigned - return None (staff needs to assign one)
+                logger.info(f"No pathway assigned to {person.email}")
+                return jsonify({'pathway': None})
+                
+        except Exception as e:
+            logger.error(f"Error loading assigned pathway: {e}", exc_info=True)
+            return jsonify({'pathway': None, 'error': 'Failed to load pathway'}), 500
         
     except Exception as e:
         logger.error(f"Error fetching pathway for email {email}: {e}", exc_info=True)
