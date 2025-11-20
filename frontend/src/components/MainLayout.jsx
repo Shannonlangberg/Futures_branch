@@ -127,18 +127,8 @@ const MainLayout = ({ children }) => {
       // { name: 'Finance Dashboard', href: '/finance', icon: CurrencyDollarIcon, roles: ['admin', 'finance'] },
     ];
 
-    // Filter items based on user role, feature flags, and Railway branch
+    // Filter items based on user role and feature flags
     const filteredItems = allItems.filter(item => {
-      // MAIN BRANCH RESTRICTION: Only show Dashboard and Input
-      if (railwayBranch === 'main') {
-        // Only allow Dashboard and Input on main branch
-        const allowedOnMain = ['Dashboard', 'Input'];
-        if (!allowedOnMain.includes(item.name)) {
-          return false;
-        }
-      }
-      
-      // For all branches: Check role permission
       // Pulse TV is visible to all authenticated users
       if (item.name === 'Pulse TV') {
         return true;
