@@ -934,22 +934,44 @@ def stripe_webhook():
     This is called by Stripe when payment status changes
     """
     try:
-        payload = request.get_data(as_text=True)
-        sig_header = request.headers.get('Stripe-Signature')
+        # Get raw payload as bytes (required for Stripe signature verification)
+        payload = request.get_data()
+        
+        # Try multiple header name variations (case sensitivity, proxy modifications)
+        sig_header = (
+            request.headers.get('Stripe-Signature') or
+            request.headers.get('stripe-signature') or
+            request.headers.get('STRIPE-SIGNATURE') or
+            request.headers.get('HTTP_STRIPE_SIGNATURE') or
+            request.headers.get('X-Stripe-Signature')
+        )
+        
+        logger.info(f"[GIVING_WEBHOOK] Payload length: {len(payload)} bytes")
+        logger.info(f"[GIVING_WEBHOOK] Has signature header: {bool(sig_header)}")
         
         if not STRIPE_WEBHOOK_SECRET:
             logger.warning("Stripe webhook secret not configured")
             return jsonify({'error': 'Webhook secret not configured'}), 500
         
+        if not sig_header:
+            logger.error("[GIVING_WEBHOOK] Missing Stripe-Signature header")
+            logger.error(f"[GIVING_WEBHOOK] Available headers: {list(request.headers.keys())}")
+            return jsonify({'error': 'Missing signature header'}), 400
+        
         try:
+            # Stripe requires raw bytes, not text
             event = stripe.Webhook.construct_event(
                 payload, sig_header, STRIPE_WEBHOOK_SECRET
             )
-        except ValueError:
-            logger.error("Invalid payload in Stripe webhook")
+            logger.info(f"[GIVING_WEBHOOK] ✅ Signature verified. Event type: {event.get('type')}")
+        except ValueError as e:
+            logger.error(f"[GIVING_WEBHOOK] Invalid payload: {e}")
             return jsonify({'error': 'Invalid payload'}), 400
-        except stripe.error.SignatureVerificationError:
-            logger.error("Invalid signature in Stripe webhook")
+        except stripe.error.SignatureVerificationError as e:
+            error_msg = str(e)
+            logger.error(f"[GIVING_WEBHOOK] Invalid signature: {error_msg}")
+            logger.error(f"[GIVING_WEBHOOK] Signature header: {sig_header[:200]}")
+            logger.error(f"[GIVING_WEBHOOK] Payload length: {len(payload)}")
             return jsonify({'error': 'Invalid signature'}), 400
         
         # Handle the event

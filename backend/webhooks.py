@@ -33,30 +33,65 @@ def stripe_webhook():
             'webhook_secret_configured': bool(STRIPE_WEBHOOK_SECRET)
         }), 200
     
-    payload = request.get_data(as_text=True)
-    sig_header = request.headers.get('Stripe-Signature')
+    # Get raw payload as bytes (required for Stripe signature verification)
+    payload = request.get_data()
+    # Also get text version for logging
+    payload_text = payload.decode('utf-8') if payload else ''
+    
+    # Try multiple header name variations (case sensitivity, proxy modifications)
+    sig_header = (
+        request.headers.get('Stripe-Signature') or
+        request.headers.get('stripe-signature') or
+        request.headers.get('STRIPE-SIGNATURE') or
+        request.headers.get('HTTP_STRIPE_SIGNATURE') or
+        request.headers.get('X-Stripe-Signature')
+    )
     
     logger.info(f"[WEBHOOK] ✅ POST request received - processing webhook")
     print(f"[WEBHOOK] ✅ POST request received - processing webhook")
-    print(f"[WEBHOOK] Payload length: {len(payload)}")
+    print(f"[WEBHOOK] Payload length: {len(payload)} bytes")
     print(f"[WEBHOOK] Has signature header: {bool(sig_header)}")
+    if sig_header:
+        # Log first part of signature for debugging (not the full secret)
+        sig_preview = sig_header.split(',')[0][:50] if ',' in sig_header else sig_header[:50]
+        print(f"[WEBHOOK] Signature header preview: {sig_preview}...")
+        logger.info(f"[WEBHOOK] Signature header format: {sig_header[:100] if len(sig_header) > 100 else sig_header}")
+    
+    # Log all headers for debugging
+    logger.debug(f"[WEBHOOK] All headers: {dict(request.headers)}")
     
     if not STRIPE_WEBHOOK_SECRET:
         logger.warning("[WEBHOOK] Stripe webhook secret not configured")
         return jsonify({'error': 'Webhook not configured'}), 500
     
+    if not sig_header:
+        logger.error("[WEBHOOK] Missing Stripe-Signature header")
+        logger.error(f"[WEBHOOK] Available headers: {list(request.headers.keys())}")
+        return jsonify({'error': 'Missing signature header'}), 400
+    
     try:
         # Verify webhook signature for security
+        # Stripe requires raw bytes, not text
         event = stripe.Webhook.construct_event(
             payload, sig_header, STRIPE_WEBHOOK_SECRET
         )
         logger.info(f"[WEBHOOK] ✅ Webhook signature verified. Event type: {event['type']}")
     except ValueError as e:
         logger.error(f"[WEBHOOK] Invalid payload: {e}")
+        logger.error(f"[WEBHOOK] Payload preview: {payload_text[:200] if payload_text else 'Empty'}")
         return jsonify({'error': 'Invalid payload'}), 400
     except stripe.error.SignatureVerificationError as e:
-        logger.error(f"[WEBHOOK] Invalid signature: {e}")
+        error_msg = str(e)
+        logger.error(f"[WEBHOOK] Invalid signature: {error_msg}")
+        # Log more details for debugging
+        logger.error(f"[WEBHOOK] Signature header: {sig_header[:200]}")
+        logger.error(f"[WEBHOOK] Payload length: {len(payload)}")
+        logger.error(f"[WEBHOOK] Webhook secret configured: {bool(STRIPE_WEBHOOK_SECRET)}")
+        logger.error(f"[WEBHOOK] Webhook secret prefix: {STRIPE_WEBHOOK_SECRET[:10]}..." if STRIPE_WEBHOOK_SECRET else "Not set")
         return jsonify({'error': 'Invalid signature'}), 400
+    except Exception as e:
+        logger.error(f"[WEBHOOK] Unexpected error during signature verification: {e}", exc_info=True)
+        return jsonify({'error': 'Signature verification failed'}), 400
     
     # Handle different event types
     event_type = event['type']
