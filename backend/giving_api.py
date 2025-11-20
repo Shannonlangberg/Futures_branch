@@ -348,6 +348,89 @@ def create_payment_intent():
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
+@giving_bp.route('/sync-payment', methods=['POST'])
+def sync_payment():
+    """
+    Manually sync a payment from Stripe (for testing/admin use)
+    Takes a payment_intent_id and creates a transaction record
+    NOTE: This endpoint doesn't require auth for testing purposes
+    """
+    try:
+        
+        data = request.get_json()
+        payment_intent_id = data.get('payment_intent_id')
+        
+        if not payment_intent_id:
+            return jsonify({'error': 'Payment intent ID required'}), 400
+        
+        # Retrieve payment intent from Stripe
+        try:
+            payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error retrieving payment intent: {e}")
+            return jsonify({'error': f'Payment intent not found: {str(e)}'}), 404
+        
+        # Check if payment was successful
+        if payment_intent.status != 'succeeded':
+            return jsonify({'error': f'Payment not successful (status: {payment_intent.status})'}), 400
+        
+        # Check if transaction already exists
+        existing = GivingTransaction.query.filter_by(
+            stripe_payment_intent_id=payment_intent_id
+        ).first()
+        
+        if existing:
+            return jsonify({
+                'message': 'Transaction already exists',
+                'transaction': existing.to_dict()
+            }), 200
+        
+        # Get person from metadata
+        metadata = payment_intent.get('metadata', {})
+        email = metadata.get('person_email')
+        if not email:
+            return jsonify({'error': 'Person email not found in payment metadata'}), 400
+        
+        person = get_person_by_email(email)
+        if not person:
+            return jsonify({'error': f'Person not found for email: {email}'}), 404
+        
+        # Get giving details from metadata
+        giving_type = metadata.get('giving_type', 'tithe')
+        campus = metadata.get('campus', person.campus) or 'paradise'
+        source = metadata.get('source', 'app')
+        qr_code_id = metadata.get('qr_code_id') or None
+        amount = payment_intent.amount / 100  # Convert from cents
+        
+        # Create transaction record
+        transaction = GivingTransaction(
+            person_id=person.id,
+            stripe_payment_intent_id=payment_intent_id,
+            amount=amount,
+            currency=payment_intent.get('currency', 'AUD').upper(),
+            giving_type=giving_type,
+            campus=campus,
+            source=source,
+            qr_code_id=qr_code_id,
+            status='completed',
+            created_at=datetime.fromtimestamp(payment_intent['created'], tz=timezone.utc)
+        )
+        db.session.add(transaction)
+        db.session.commit()
+        
+        logger.info(f"Manually synced payment: ${amount} from {email}")
+        return jsonify({
+            'success': True,
+            'message': 'Payment synced successfully',
+            'transaction': transaction.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error syncing payment: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @giving_bp.route('/confirm-payment', methods=['POST'])
 def confirm_payment():
     """

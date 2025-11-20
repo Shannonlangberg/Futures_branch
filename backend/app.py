@@ -12808,13 +12808,18 @@ def serve_react_app(path):
     if not isinstance(path, str):
         path = str(path)
     
-    # Skip API routes (but allow uploads)
-    if path.startswith('api/') or path.startswith('temp_audio/'):
-        # Allow uploads to be served
-        if path.startswith('uploads/'):
-            pass  # Continue to serve uploads
-        else:
-            return jsonify({"error": "Not found"}), 404
+    # IMPORTANT: Don't intercept API routes - Flask handles blueprint routes first
+    # If an API route matches a blueprint, Flask will use it
+    # If not, Flask will return 404 automatically
+    # This catch-all should ONLY handle non-API routes for React Router
+    
+    # Handle temp_audio and uploads - these are served as static files  
+    if path.startswith('temp_audio/') or path.startswith('uploads/'):
+        pass  # Continue to serve these as static files
+    elif path.startswith('api/'):
+        # API routes should be handled by blueprints, not this catch-all
+        # If we reach here, no blueprint matched, so return 404
+        return jsonify({"error": "API endpoint not found"}), 404
     
     # If path has an extension (like .json, .png, .js, etc), try to serve as static file
     try:
@@ -16953,13 +16958,15 @@ def get_events():
                 'id': event.id,
                 'title': event.title,
                 'description': event.description,
-                'short_description': event.short_description,
+                'short_description': getattr(event, 'short_description', None),
                 'category': category_info,
                 'campus': event.campus,
                 'location': event.location,
                 'virtual_link': getattr(event, 'virtual_link', None),  # May not exist
                 'start_datetime': event.start_time.isoformat() if event.start_time else None,
+                'start_time': event.start_time.isoformat() if event.start_time else None,  # Also include as start_time for compatibility
                 'end_datetime': event.end_time.isoformat() if event.end_time else None,
+                'end_time': event.end_time.isoformat() if event.end_time else None,  # Also include as end_time for compatibility
                 'is_all_day': getattr(event, 'is_all_day', False),  # May not exist
                 'registration_required': False,  # Column doesn't exist
                 'registration_opens': None,  # Column doesn't exist
@@ -16976,6 +16983,9 @@ def get_events():
                 'contact_person': getattr(event, 'contact_person', None),  # May not exist
                 'contact_email': getattr(event, 'contact_email', None),  # May not exist
                 'contact_phone': getattr(event, 'contact_phone', None),  # May not exist
+                'price': float(event.price) if hasattr(event, 'price') and event.price else None,
+                'requires_payment': getattr(event, 'requires_payment', False),
+                'stripe_price_id': getattr(event, 'stripe_price_id', None),
                 'registration_count': registration_count,
                 'can_register': False,  # Registration not supported
                 'is_cancelled': False,  # Column doesn't exist
@@ -17469,6 +17479,17 @@ def create_event():
         if data.get('registration_closes'):
             registration_closes = datetime.fromisoformat(data['registration_closes'].replace('Z', '+00:00'))
         
+        # Handle price fields
+        price = None
+        if data.get('price'):
+            try:
+                price = float(data['price'])
+            except (ValueError, TypeError):
+                price = None
+        
+        requires_payment = data.get('requires_payment', False) if price else False
+        stripe_price_id = data.get('stripe_price_id', None) if requires_payment else None
+        
         new_event = Event(
             title=data['title'],
             description=data.get('description'),
@@ -17477,8 +17498,8 @@ def create_event():
             campus=data.get('campus', 'all_campuses'),
             location=data.get('location'),
             virtual_link=data.get('virtual_link'),
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
+            start_time=start_datetime,  # Use start_time instead of start_datetime
+            end_time=end_datetime,  # Use end_time instead of end_datetime
             is_all_day=data.get('is_all_day', False),
             registration_required=data.get('registration_required', True),
             registration_opens=registration_opens,
@@ -17494,7 +17515,10 @@ def create_event():
             additional_info=data.get('additional_info'),
             contact_person=data.get('contact_person'),
             contact_email=data.get('contact_email'),
-            contact_phone=data.get('contact_phone')
+            contact_phone=data.get('contact_phone'),
+            price=price,
+            requires_payment=requires_payment,
+            stripe_price_id=stripe_price_id
         )
         
         db.session.add(new_event)
@@ -17538,13 +17562,27 @@ def update_event(event_id):
             event.location = data['location']
         if 'virtual_link' in data:
             event.virtual_link = data['virtual_link']
-        if 'start_datetime' in data:
-            event.start_datetime = datetime.fromisoformat(data['start_datetime'].replace('Z', '+00:00'))
-        if 'end_datetime' in data:
-            if data['end_datetime']:
-                event.end_datetime = datetime.fromisoformat(data['end_datetime'].replace('Z', '+00:00'))
+        if 'start_datetime' in data or 'start_time' in data:
+            start_time_value = data.get('start_datetime') or data.get('start_time')
+            event.start_time = datetime.fromisoformat(start_time_value.replace('Z', '+00:00'))
+        if 'end_datetime' in data or 'end_time' in data:
+            end_time_value = data.get('end_datetime') or data.get('end_time')
+            if end_time_value:
+                event.end_time = datetime.fromisoformat(end_time_value.replace('Z', '+00:00'))
             else:
-                event.end_datetime = None
+                event.end_time = None
+        if 'price' in data:
+            if data['price']:
+                try:
+                    event.price = float(data['price'])
+                except (ValueError, TypeError):
+                    event.price = None
+            else:
+                event.price = None
+        if 'requires_payment' in data:
+            event.requires_payment = data['requires_payment']
+        if 'stripe_price_id' in data:
+            event.stripe_price_id = data['stripe_price_id']
         if 'is_all_day' in data:
             event.is_all_day = data['is_all_day']
         if 'registration_required' in data:

@@ -13,17 +13,32 @@ STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
 
 webhooks_bp = Blueprint('webhooks', __name__, url_prefix='/api/webhooks')
 
-@webhooks_bp.route('/stripe', methods=['POST'])
+@webhooks_bp.route('/stripe', methods=['GET', 'POST'])
 def stripe_webhook():
     """
     Handle Stripe webhooks for payments and subscriptions
     This ensures all payments go through our system for security
     """
+    # Allow GET for testing endpoint accessibility
+    if request.method == 'GET':
+        return jsonify({
+            'status': 'ok',
+            'endpoint': '/api/webhooks/stripe',
+            'method': 'POST required for webhooks',
+            'webhook_secret_configured': bool(STRIPE_WEBHOOK_SECRET)
+        }), 200
+    
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
     
+    logger.info(f"[WEBHOOK] Received Stripe webhook request")
+    print(f"[WEBHOOK] Received Stripe webhook request")
+    print(f"[WEBHOOK] Headers: {dict(request.headers)}")
+    print(f"[WEBHOOK] Method: {request.method}")
+    print(f"[WEBHOOK] URL: {request.url}")
+    
     if not STRIPE_WEBHOOK_SECRET:
-        logger.warning("Stripe webhook secret not configured")
+        logger.warning("[WEBHOOK] Stripe webhook secret not configured")
         return jsonify({'error': 'Webhook not configured'}), 500
     
     try:
@@ -31,16 +46,19 @@ def stripe_webhook():
         event = stripe.Webhook.construct_event(
             payload, sig_header, STRIPE_WEBHOOK_SECRET
         )
+        logger.info(f"[WEBHOOK] ✅ Webhook signature verified. Event type: {event['type']}")
     except ValueError as e:
-        logger.error(f"Invalid payload: {e}")
+        logger.error(f"[WEBHOOK] Invalid payload: {e}")
         return jsonify({'error': 'Invalid payload'}), 400
     except stripe.error.SignatureVerificationError as e:
-        logger.error(f"Invalid signature: {e}")
+        logger.error(f"[WEBHOOK] Invalid signature: {e}")
         return jsonify({'error': 'Invalid signature'}), 400
     
     # Handle different event types
     event_type = event['type']
     data = event['data']['object']
+    
+    logger.info(f"[WEBHOOK] Processing event: {event_type}")
     
     try:
         if event_type == 'payment_intent.succeeded':
@@ -61,36 +79,52 @@ def stripe_webhook():
         elif event_type == 'invoice.payment_failed':
             # Payment failed
             handle_payment_failed(data)
+        else:
+            logger.info(f"[WEBHOOK] Unhandled event type: {event_type}")
         
+        logger.info(f"[WEBHOOK] ✅ Successfully processed {event_type}")
         return jsonify({'received': True}), 200
         
     except Exception as e:
-        logger.error(f"Error handling webhook {event_type}: {e}")
+        logger.error(f"[WEBHOOK] ❌ Error handling webhook {event_type}: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
 def handle_payment_success(payment_intent):
     """Handle successful one-time payment"""
     try:
+        payment_intent_id = payment_intent['id']
+        logger.info(f"[WEBHOOK] Processing payment_intent.succeeded: {payment_intent_id}")
+        
         # Check if transaction already exists
         existing = GivingTransaction.query.filter_by(
-            stripe_payment_intent_id=payment_intent['id']
+            stripe_payment_intent_id=payment_intent_id
         ).first()
         
         if existing:
+            logger.info(f"[WEBHOOK] Transaction already exists for {payment_intent_id}")
             return  # Already processed
         
         metadata = payment_intent.get('metadata', {})
         email = metadata.get('person_email')
         if not email:
-            logger.warning(f"No email in payment intent {payment_intent['id']}")
+            logger.warning(f"[WEBHOOK] No email in payment intent {payment_intent_id}")
             return
         
+        logger.info(f"[WEBHOOK] Looking up person with email: {email}")
+        
+        # Case-insensitive person lookup (same as giving_api.py)
         from models import Person
-        person = Person.query.filter_by(email=email, is_active=True).first()
+        person = Person.query.filter(
+            db.func.lower(Person.email) == db.func.lower(email),
+            Person.is_active == True
+        ).first()
+        
         if not person:
-            logger.warning(f"Person not found for email {email}")
+            logger.warning(f"[WEBHOOK] Person not found for email {email}")
             return
+        
+        logger.info(f"[WEBHOOK] Found person: {person.id} - {person.full_name}")
         
         # Create transaction record
         transaction = GivingTransaction(
@@ -122,11 +156,11 @@ def handle_payment_success(payment_intent):
         engagement.recalculate_heartbeat()
         
         db.session.commit()
-        logger.info(f"Payment processed: ${transaction.amount} from {email}")
+        logger.info(f"[WEBHOOK] ✅ Payment processed: ${transaction.amount} from {email} (Transaction ID: {transaction.id})")
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error handling payment success: {e}")
+        logger.error(f"[WEBHOOK] ❌ Error handling payment success: {e}", exc_info=True)
         raise
 
 
@@ -304,5 +338,33 @@ def test_webhook():
         'message': 'Webhook test successful',
         'method': request.method,
         'data': request.get_json() if request.method == 'POST' else None
+    }), 200
+
+@webhooks_bp.route('/check-transactions', methods=['GET'])
+def check_transactions():
+    """Check if transactions exist in database (for debugging)"""
+    try:
+        from models import GivingTransaction
+        count = GivingTransaction.query.count()
+        recent = GivingTransaction.query.order_by(
+            GivingTransaction.created_at.desc()
+        ).limit(5).all()
+        
+        return jsonify({
+            'total_transactions': count,
+            'recent_transactions': [t.to_dict() for t in recent]
+        }), 200
+    except Exception as e:
+        logger.error(f"Error checking transactions: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@webhooks_bp.route('/test-endpoint', methods=['GET'])
+def test_endpoint():
+    """Test if webhook endpoint is reachable"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'Webhook endpoint is reachable',
+        'webhook_secret_configured': bool(STRIPE_WEBHOOK_SECRET),
+        'endpoint': '/api/webhooks/stripe'
     }), 200
 
