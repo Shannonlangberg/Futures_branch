@@ -18,6 +18,8 @@ const Events = () => {
   const [campuses, setCampuses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showEventModal, setShowEventModal] = useState(false);
 
   useEffect(() => {
     fetchCampuses();
@@ -229,8 +231,12 @@ const Events = () => {
                     </p>
                   )}
 
-                  {/* RSVP Button */}
+                  {/* View Details Button */}
                   <button
+                    onClick={() => {
+                      setSelectedEvent(event);
+                      setShowEventModal(true);
+                    }}
                     className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
                   >
                     View Details
@@ -248,6 +254,154 @@ const Events = () => {
           </div>
         )}
       </div>
+
+      {/* Event Details Modal */}
+      {showEventModal && selectedEvent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl">
+            <div className="flex justify-between items-start mb-6">
+              <div className="flex-1">
+                <h2 className="text-3xl font-bold text-white mb-2">
+                  {selectedEvent.title}
+                </h2>
+                {selectedEvent.category && (
+                  <p className="text-slate-400 text-sm mb-4">
+                    {selectedEvent.category.name}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setShowEventModal(false);
+                  setSelectedEvent(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <XMarkIcon className="w-6 h-6 text-white/60" />
+              </button>
+            </div>
+
+            {/* Event Date & Time */}
+            {selectedEvent.start_datetime || selectedEvent.start_time ? (
+              <div className="mb-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="bg-blue-500/20 rounded-xl px-6 py-4 border border-blue-500/30">
+                    <div className="text-blue-400 font-bold text-sm uppercase mb-1">
+                      {formatDate(selectedEvent.start_datetime || selectedEvent.start_time).weekday}
+                    </div>
+                    <div className="text-white text-3xl font-bold">
+                      {formatDate(selectedEvent.start_datetime || selectedEvent.start_time).day}
+                    </div>
+                    <div className="text-slate-400 text-xs uppercase">
+                      {formatDate(selectedEvent.start_datetime || selectedEvent.start_time).month} {formatDate(selectedEvent.start_datetime || selectedEvent.start_time).year}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center text-white mb-2">
+                      <ClockIcon className="h-5 w-5 mr-2 text-blue-400" />
+                      <span className="font-semibold">
+                        {formatDate(selectedEvent.start_datetime || selectedEvent.start_time).time}
+                      </span>
+                      {(selectedEvent.end_datetime || selectedEvent.end_time) && (
+                        <span className="text-slate-400 ml-2">
+                          - {formatDate(selectedEvent.end_datetime || selectedEvent.end_time).time}
+                        </span>
+                      )}
+                    </div>
+                    {selectedEvent.location && (
+                      <div className="flex items-center text-slate-300">
+                        <MapPinIcon className="h-5 w-5 mr-2 text-green-400" />
+                        <span>{selectedEvent.location}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Price */}
+            {selectedEvent.requires_payment && selectedEvent.price && (
+              <div className="mb-6 bg-green-500/20 rounded-xl px-4 py-3 border border-green-500/30 inline-block">
+                <span className="text-green-400 font-semibold text-lg">
+                  ${parseFloat(selectedEvent.price).toFixed(2)}
+                </span>
+              </div>
+            )}
+
+            {/* Campus */}
+            {selectedEvent.campus && selectedEvent.campus !== 'all_campuses' && (
+              <div className="mb-6">
+                <span className="text-xs bg-slate-700/50 rounded px-3 py-2 text-slate-300">
+                  {campuses.find(c => c.id === selectedEvent.campus)?.name || selectedEvent.campus}
+                </span>
+              </div>
+            )}
+
+            {/* Description */}
+            {selectedEvent.description && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Description</h3>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {selectedEvent.description}
+                </p>
+              </div>
+            )}
+
+            {/* Contact Info */}
+            {(selectedEvent.contact_person || selectedEvent.contact_email || selectedEvent.contact_phone) && (
+              <div className="mb-6 pt-6 border-t border-white/10">
+                <h3 className="text-lg font-semibold text-white mb-3">Contact Information</h3>
+                <div className="space-y-2 text-slate-300">
+                  {selectedEvent.contact_person && (
+                    <p><span className="font-semibold">Contact:</span> {selectedEvent.contact_person}</p>
+                  )}
+                  {selectedEvent.contact_email && (
+                    <p><span className="font-semibold">Email:</span> {selectedEvent.contact_email}</p>
+                  )}
+                  {selectedEvent.contact_phone && (
+                    <p><span className="font-semibold">Phone:</span> {selectedEvent.contact_phone}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-6 border-t border-white/10">
+              {selectedEvent.requires_payment && selectedEvent.stripe_price_id && (
+                <button
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
+                  onClick={() => {
+                    // TODO: Implement Stripe checkout
+                    alert('Payment integration coming soon!');
+                  }}
+                >
+                  Register & Pay
+                </button>
+              )}
+              {(!selectedEvent.requires_payment || !selectedEvent.stripe_price_id) && (
+                <button
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
+                  onClick={() => {
+                    // TODO: Implement RSVP
+                    alert('RSVP functionality coming soon!');
+                  }}
+                >
+                  RSVP
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setShowEventModal(false);
+                  setSelectedEvent(null);
+                }}
+                className="px-6 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
