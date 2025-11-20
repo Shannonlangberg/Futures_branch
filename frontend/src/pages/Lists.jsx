@@ -146,6 +146,15 @@ const Lists = () => {
     try {
       setExporting(true);
       
+      // Use filtered people if selections made, otherwise all people
+      const peopleToExport = hasSelections ? filteredPeople : allPeople;
+      
+      if (peopleToExport.length === 0) {
+        alert('No people to export');
+        setExporting(false);
+        return;
+      }
+      
       const csvRows = [];
       
       // Header row with all columns
@@ -178,7 +187,7 @@ const Lists = () => {
       ].join(','));
 
       // Data rows
-      filteredPeople.forEach(person => {
+      peopleToExport.forEach(person => {
         // Parse JSON fields if they exist
         let dreamTeamRoles = '';
         let tags = '';
@@ -284,6 +293,10 @@ const Lists = () => {
 
   const resultCount = filteredPeople.length;
   const hasSelections = selectedCampuses.length > 0 || selectedDepartments.length > 0 || selectedHeartbeat.length > 0;
+  
+  // Allow export if we have people (either filtered or all)
+  const canExport = !loading && !exporting && (hasSelections ? resultCount > 0 : allPeople.length > 0);
+  const exportCount = hasSelections ? resultCount : allPeople.length;
 
   return (
     <div className="space-y-8">
@@ -306,11 +319,11 @@ const Lists = () => {
           )}
           <button
             onClick={exportToCSV}
-            disabled={exporting || resultCount === 0}
+            disabled={!canExport}
             className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
           >
             <ArrowDownTrayIcon className="h-5 w-5" />
-            {exporting ? 'Exporting...' : `EXPORT (${resultCount} people)`}
+            {exporting ? 'Exporting...' : `EXPORT (${exportCount} people)`}
           </button>
         </div>
       </div>
@@ -398,27 +411,22 @@ const Lists = () => {
       </div>
 
       {/* Results Summary */}
-      {hasSelections && (
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-white">Results</h3>
-              <p className="text-sm text-slate-400 mt-1">
-                {loading ? 'Loading...' : `${resultCount} ${resultCount === 1 ? 'person' : 'people'} will be exported`}
-              </p>
-            </div>
-            {loading && (
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-            )}
+      <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Results</h3>
+            <p className="text-sm text-slate-400 mt-1">
+              {loading ? 'Loading...' : hasSelections 
+                ? `${resultCount} ${resultCount === 1 ? 'person' : 'people'} will be exported`
+                : `${allPeople.length} ${allPeople.length === 1 ? 'person' : 'people'} available (select filters to narrow down)`
+              }
+            </p>
           </div>
+          {loading && (
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+          )}
         </div>
-      )}
-
-      {!hasSelections && !loading && (
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6 text-center">
-          <p className="text-slate-400">Select campuses, departments, or heartbeat status to filter and export</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
