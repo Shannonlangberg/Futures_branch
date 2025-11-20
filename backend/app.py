@@ -8339,7 +8339,19 @@ def session_info():
     """Get current session info - public endpoint for mobile app"""
     # Detect Railway branch/environment
     # Priority: 1. Custom APP_ENV variable, 2. Detect from hostname/URL, 3. RAILWAY_BRANCH, 4. RAILWAY_ENVIRONMENT, 5. Service name, 6. Default to 'main'
-    railway_branch = os.getenv('APP_ENV') or os.getenv('RAILWAY_BRANCH') or os.getenv('RAILWAY_ENVIRONMENT', '').lower()
+    app_env = os.getenv('APP_ENV', '').strip().lower()
+    railway_branch_env = os.getenv('RAILWAY_BRANCH', '').strip().lower()
+    railway_env = os.getenv('RAILWAY_ENVIRONMENT', '').strip().lower()
+    
+    # Use APP_ENV first if set and not empty
+    if app_env:
+        railway_branch = app_env
+    elif railway_branch_env:
+        railway_branch = railway_branch_env
+    elif railway_env:
+        railway_branch = railway_env
+    else:
+        railway_branch = None
     
     # If not explicitly set, try to detect from request hostname
     if not railway_branch:
@@ -8348,22 +8360,28 @@ def session_info():
             # Check if URL contains 'branch' or 'beta' (e.g., futuresbranch-production.up.railway.app)
             if 'branch' in hostname or 'beta' in hostname:
                 railway_branch = 'beta'
-        except:
-            pass
+                logger.info(f"[BRANCH_DETECT] Detected 'beta' from hostname: {hostname}")
+        except Exception as e:
+            logger.debug(f"[BRANCH_DETECT] Could not detect from hostname: {e}")
     
     # If still not set, try to detect from Railway service name
     if not railway_branch:
         service_name = os.getenv('RAILWAY_SERVICE_NAME', '').lower()
         if 'beta' in service_name or 'branch' in service_name:
             railway_branch = 'beta'
+            logger.info(f"[BRANCH_DETECT] Detected 'beta' from service name: {service_name}")
         else:
             railway_branch = 'main'  # Default to 'main' for production safety
+            logger.info(f"[BRANCH_DETECT] Defaulting to 'main' (no detection)")
     
     # Normalize branch name
     if railway_branch in ['production', 'prod', 'main']:
         railway_branch = 'main'
     elif railway_branch in ['beta', 'staging', 'dev', 'development']:
         railway_branch = 'beta'
+    
+    # Log the final detected branch for debugging
+    logger.info(f"[BRANCH_DETECT] Final branch: {railway_branch} (APP_ENV={app_env}, hostname={request.host if request else 'N/A'})")
     
     # Allow unauthenticated access for mobile app session check
     if current_user.is_authenticated:
