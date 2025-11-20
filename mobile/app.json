@@ -3,6 +3,7 @@
     "name": "Futures",
     "slug": "futures-app",
     "version": "1.0.0",
+    "scheme": "futures",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {

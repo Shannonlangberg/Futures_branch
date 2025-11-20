@@ -60,21 +60,33 @@ def stripe_webhook():
     # Log all headers for debugging
     logger.debug(f"[WEBHOOK] All headers: {dict(request.headers)}")
     
+    # Log webhook secret status (don't log the actual secret, just check if it exists)
+    print(f"[WEBHOOK] Webhook secret configured: {bool(STRIPE_WEBHOOK_SECRET)}")
+    print(f"[WEBHOOK] Webhook secret length: {len(STRIPE_WEBHOOK_SECRET) if STRIPE_WEBHOOK_SECRET else 0}")
+    logger.info(f"[WEBHOOK] Webhook secret configured: {bool(STRIPE_WEBHOOK_SECRET)}, length: {len(STRIPE_WEBHOOK_SECRET) if STRIPE_WEBHOOK_SECRET else 0}")
+    
     if not STRIPE_WEBHOOK_SECRET:
         logger.warning("[WEBHOOK] Stripe webhook secret not configured")
+        print("[WEBHOOK] ❌ Stripe webhook secret not configured")
         return jsonify({'error': 'Webhook not configured'}), 500
     
     if not sig_header:
         logger.error("[WEBHOOK] Missing Stripe-Signature header")
         logger.error(f"[WEBHOOK] Available headers: {list(request.headers.keys())}")
+        print("[WEBHOOK] ❌ Missing Stripe-Signature header")
         return jsonify({'error': 'Missing signature header'}), 400
+    
+    print(f"[WEBHOOK] About to verify signature with secret length: {len(STRIPE_WEBHOOK_SECRET)}")
+    logger.info(f"[WEBHOOK] About to verify signature with secret length: {len(STRIPE_WEBHOOK_SECRET)}")
     
     try:
         # Verify webhook signature for security
         # Stripe requires raw bytes, not text
+        print("[WEBHOOK] Calling stripe.Webhook.construct_event...")
         event = stripe.Webhook.construct_event(
             payload, sig_header, STRIPE_WEBHOOK_SECRET
         )
+        print(f"[WEBHOOK] ✅ Webhook signature verified. Event type: {event['type']}")
         logger.info(f"[WEBHOOK] ✅ Webhook signature verified. Event type: {event['type']}")
     except ValueError as e:
         logger.error(f"[WEBHOOK] Invalid payload: {e}")

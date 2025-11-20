@@ -174,10 +174,31 @@ export const ApiService = {
     return response.data;
   },
 
-  async joinGroup(email, groupId) {
-    const response = await api.post('/api/connect-groups/join', {
+  // Group chat
+  async getGroupChat(groupId) {
+    const response = await api.get(`/api/connect-groups/${groupId}/chat`);
+    return response.data;
+  },
+
+  async sendGroupMessage(email, groupId, message) {
+    const response = await api.post(`/api/connect-groups/${groupId}/chat`, {
       email,
-      group_id: groupId,
+      message,
+    });
+    return response.data;
+  },
+
+  // Leader portal
+  async getLeaderPortal(groupId, email) {
+    const response = await api.get(`/api/connect-groups/${groupId}/leader-portal?email=${email}`);
+    return response.data;
+  },
+
+  async markLeaderAttendance(groupId, email, meetingDate, attendanceList) {
+    const response = await api.post(`/api/connect-groups/${groupId}/leader-portal/attendance`, {
+      email,
+      meeting_date: meetingDate,
+      attendance: attendanceList,
     });
     return response.data;
   },

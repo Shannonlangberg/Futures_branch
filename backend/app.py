@@ -16239,9 +16239,8 @@ def send_group_message(group_id):
 def get_leader_portal(group_id):
     """Get leader portal data - members, meetings, attendance (for connect leaders)"""
     try:
-        data = request.get_json() if request.is_json else {}
-        email = request.args.get('email') or data.get('email', '').strip()
-        access_code = request.args.get('access_code') or data.get('access_code', '')
+        email = request.args.get('email', '').strip()
+        access_code = request.args.get('access_code', '')
         
         if not email:
             return jsonify({'error': 'Email is required'}), 400

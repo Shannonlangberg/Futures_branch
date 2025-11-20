@@ -30,6 +30,8 @@ const GiveWrapper = () => {
 };
 
 const Give = () => {
+  const stripe = useStripe();
+  const elements = useElements();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -47,6 +49,7 @@ const Give = () => {
   const [nfcReading, setNfcReading] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringInterval, setRecurringInterval] = useState('month'); // 'week', 'month', 'year'
+  const [processing, setProcessing] = useState(false);
 
   // Check if QR code ID is in URL
   useEffect(() => {
@@ -278,7 +281,16 @@ const Give = () => {
   };
 
   const handleOneTimePayment = async (amountInCents) => {
+    if (!stripe || !elements) {
+      setError('Payment system is not ready. Please refresh the page.');
+      setLoading(false);
+      return;
+    }
+
+    setProcessing(true);
+
     try {
+      // Step 1: Create payment intent
       const response = await fetch('/api/giving/create-intent', {
         method: 'POST',
         headers: {
@@ -300,79 +312,178 @@ const Give = () => {
       if (data.error) {
         setError(data.error);
         setLoading(false);
+        setProcessing(false);
         return;
       }
 
-      // For one-time payments, we'll use Stripe Checkout redirect
-      // This is more secure than handling cards directly
-      setError('One-time payment processing will redirect to Stripe Checkout. This feature is being finalized.');
-      setLoading(false);
+      console.log('[Give.jsx] Payment intent created:', data.payment_intent_id);
+
+      // Step 2: Confirm payment with card element
+      const cardElement = elements.getElement(CardElement);
       
-    } catch (error) {
-      console.error('One-time payment error:', error);
-      setError('An error occurred processing your payment.');
-      setLoading(false);
-    }
-  };
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+        data.client_secret,
+        {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              email: email,
+            },
+          },
+        }
+      );
 
-  const handleRecurringPayment = async (amountInCents) => {
-    if (!stripePromise) {
-      setError('Stripe is not configured');
-      setLoading(false);
-      return;
-    }
+      setProcessing(false);
 
-    const stripe = await stripePromise;
-    
-    // Create payment method from card element
-    // Note: For production, you'd use Stripe Elements here
-    // For now, we'll create the subscription which will collect payment method
-    
-    try {
-      const response = await fetch('/api/giving/create-subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: amountInCents,
-          type: givingType,
-          campus: campus,
-          email: email,
-          source: qrCodeId ? (qrCodeId.startsWith('nfc_') ? 'tap_to_give' : 'qr_code') : 'web',
-          qr_code_id: qrCodeId,
-          interval: recurringInterval,
-          payment_method_id: 'pm_card_visa', // Placeholder - in production, get from Stripe Elements
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        setError(data.error);
+      if (stripeError) {
+        console.error('[Give.jsx] Stripe error:', stripeError);
+        setError(stripeError.message || 'Payment failed. Please try again.');
         setLoading(false);
         return;
       }
 
-      if (data.success) {
+      if (paymentIntent.status === 'succeeded') {
+        console.log('[Give.jsx] Payment succeeded:', paymentIntent.id);
         setSuccess(true);
+        setError('');
         setLoading(false);
         
         // Reset form after 3 seconds
         setTimeout(() => {
           setEmail('');
           setAmount('');
-          setIsRecurring(false);
           setSuccess(false);
+          
+          // Clear card element
+          cardElement.clear();
         }, 3000);
       } else {
-        setError('Failed to create subscription. Please try again.');
+        setError('Payment was not completed. Please try again.');
+        setLoading(false);
+      }
+      
+    } catch (error) {
+      console.error('One-time payment error:', error);
+      setError('An error occurred processing your payment. Please try again.');
+      setLoading(false);
+      setProcessing(false);
+    }
+  };
+
+  const handleRecurringPayment = async (amountInCents) => {
+    if (!stripe || !elements) {
+      setError('Payment system is not ready. Please refresh the page.');
+      setLoading(false);
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      // Step 1: Create setup intent to collect payment method
+      const setupIntentResponse = await fetch('/api/giving/create-setup-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+        }),
+      });
+
+      const setupIntentData = await setupIntentResponse.json();
+
+      if (setupIntentData.error) {
+        setError(setupIntentData.error);
+        setLoading(false);
+        setProcessing(false);
+        return;
+      }
+
+      console.log('[Give.jsx] Setup intent created');
+
+      // Step 2: Confirm setup intent with card element
+      const cardElement = elements.getElement(CardElement);
+      
+      const { error: stripeError, setupIntent } = await stripe.confirmCardSetup(
+        setupIntentData.client_secret,
+        {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              email: email,
+            },
+          },
+        }
+      );
+
+      setProcessing(false);
+
+      if (stripeError) {
+        console.error('[Give.jsx] Stripe error:', stripeError);
+        setError(stripeError.message || 'Failed to set up payment method. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (setupIntent.status === 'succeeded') {
+        console.log('[Give.jsx] Setup intent succeeded, payment method:', setupIntent.payment_method);
+
+        // Step 3: Create subscription with the payment method
+        const subscriptionResponse = await fetch('/api/giving/create-subscription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: amountInCents,
+            type: givingType,
+            campus: campus,
+            email: email,
+            source: qrCodeId ? (qrCodeId.startsWith('nfc_') ? 'tap_to_give' : 'qr_code') : 'web',
+            qr_code_id: qrCodeId,
+            interval: recurringInterval,
+            payment_method_id: setupIntent.payment_method,
+          }),
+        });
+
+        const subscriptionData = await subscriptionResponse.json();
+
+        if (subscriptionData.error) {
+          setError(subscriptionData.error);
+          setLoading(false);
+          return;
+        }
+
+        if (subscriptionData.success) {
+          console.log('[Give.jsx] Subscription created successfully');
+          setSuccess(true);
+          setError('');
+          setLoading(false);
+          
+          // Reset form after 3 seconds
+          setTimeout(() => {
+            setEmail('');
+            setAmount('');
+            setIsRecurring(false);
+            setSuccess(false);
+            
+            // Clear card element
+            cardElement.clear();
+          }, 3000);
+        } else {
+          setError('Failed to create subscription. Please try again.');
+          setLoading(false);
+        }
+      } else {
+        setError('Payment method setup was not completed. Please try again.');
         setLoading(false);
       }
     } catch (error) {
       console.error('Recurring payment error:', error);
-      setError('An error occurred processing your subscription.');
+      setError('An error occurred processing your subscription. Please try again.');
       setLoading(false);
+      setProcessing(false);
     }
   };
 
@@ -504,6 +615,37 @@ const Give = () => {
               </select>
             </div>
 
+            {/* Card Element */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Card Details <span className="text-red-400">*</span>
+              </label>
+              <div className="p-4 bg-slate-700/50 border border-slate-600/50 rounded-lg focus-within:ring-2 focus-within:ring-blue-500">
+                <CardElement
+                  options={{
+                    style: {
+                      base: {
+                        fontSize: '16px',
+                        color: '#fff',
+                        '::placeholder': {
+                          color: '#94a3b8',
+                        },
+                        iconColor: '#fff',
+                      },
+                      invalid: {
+                        color: '#ef4444',
+                        iconColor: '#ef4444',
+                      },
+                    },
+                    hidePostalCode: false,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-slate-400 mt-2">
+                Your payment is secure and encrypted
+              </p>
+            </div>
+
             {/* Recurring Payment Toggle */}
             <div className="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
               <label className="flex items-center justify-between cursor-pointer">
@@ -552,14 +694,14 @@ const Give = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || processing || !stripe || !elements}
               className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all ${
-                loading
+                loading || processing || !stripe || !elements
                   ? 'bg-slate-600 cursor-not-allowed'
                   : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transform hover:scale-105'
               }`}
             >
-              {loading ? 'Processing...' : isRecurring ? `Set Up Recurring Gift` : 'Give Now'}
+              {processing ? 'Processing Payment...' : loading ? 'Setting up...' : isRecurring ? `Set Up Recurring Gift` : 'Give Now'}
             </button>
           </form>
 

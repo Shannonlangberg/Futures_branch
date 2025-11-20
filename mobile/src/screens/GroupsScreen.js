@@ -60,24 +60,7 @@ export default function GroupsScreen() {
     loadData();
   };
 
-  const handleJoinGroup = async (groupId) => {
-    if (!user) {
-      Alert.alert('Error', 'User not found.');
-      return;
-    }
-
-    try {
-      const result = await ApiService.joinGroup(user.email, groupId);
-      if (result.success) {
-        Alert.alert('Success', 'You\'ve requested to join this group. The leader will review your request.');
-        loadData();
-      } else {
-        Alert.alert('Error', result.error || 'Failed to join group.');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to join group. Please try again.');
-    }
-  };
+  // Join functionality removed - groups are assigned by leaders only
 
   const handleAttendance = async (groupId, meetingDate, status) => {
     if (!user) {
@@ -160,14 +143,7 @@ export default function GroupsScreen() {
                 onPress={() => {
                   Alert.alert(
                     group.name,
-                    `Leader: ${group.leader_name || 'N/A'}\nTime: ${group.meeting_day} ${group.meeting_time}\nLocation: ${group.location || 'TBA'}`,
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Join Group',
-                        onPress: () => handleJoinGroup(group.id),
-                      },
-                    ]
+                    `Leader: ${group.leader_name || 'N/A'}\nTime: ${group.meeting_day} ${group.meeting_time}\nLocation: ${group.location || 'TBA'}\n\nGroups are assigned by leaders. Contact your campus pastor to join a group.`
                   );
                 }}
               >
@@ -190,39 +166,70 @@ export default function GroupsScreen() {
           )
         ) : (
           myGroups.length > 0 ? (
-            myGroups.map((group) => (
-              <View key={group.id} style={styles.groupCard}>
-                <View style={styles.groupContent}>
-                  <Text style={styles.groupName}>{group.name}</Text>
-                  <Text style={styles.groupDetails}>
-                    {group.meeting_day} {group.meeting_time}
-                  </Text>
-                  {group.location && (
-                    <Text style={styles.groupLocation}>📍 {group.location}</Text>
-                  )}
-                  
-                  {/* Attendance Buttons */}
-                  <View style={styles.attendanceButtons}>
-                    <TouchableOpacity
-                      style={[styles.attendanceButton, styles.attendanceYes]}
-                      onPress={() =>
-                        handleAttendance(group.id, new Date().toISOString().split('T')[0], 'present')
-                      }
-                    >
-                      <Text style={styles.attendanceButtonText}>I'm Coming ✓</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.attendanceButton, styles.attendanceNo]}
-                      onPress={() =>
-                        handleAttendance(group.id, new Date().toISOString().split('T')[0], 'absent')
-                      }
-                    >
-                      <Text style={styles.attendanceButtonText}>Can't Make It</Text>
-                    </TouchableOpacity>
+            myGroups.map((group) => {
+              // Check if user is a leader
+              const isLeader = user && (
+                user.email?.toLowerCase() === group.leader_email?.toLowerCase() ||
+                user.email?.toLowerCase() === group.co_leader_email?.toLowerCase() ||
+                (group.leader_emails && group.leader_emails.includes(user.email?.toLowerCase()))
+              );
+              
+              return (
+                <View key={group.id} style={styles.groupCard}>
+                  <View style={styles.groupContent}>
+                    <View style={styles.groupHeader}>
+                      <View style={styles.groupHeaderLeft}>
+                        <Text style={styles.groupName}>{group.name}</Text>
+                        <Text style={styles.groupDetails}>
+                          {group.meeting_day} {group.meeting_time}
+                        </Text>
+                        {group.location && (
+                          <Text style={styles.groupLocation}>📍 {group.location}</Text>
+                        )}
+                      </View>
+                      {isLeader && (
+                        <TouchableOpacity
+                          style={styles.leaderBadge}
+                          onPress={() => navigation.navigate('GroupLeaderPortal', { group })}
+                        >
+                          <Text style={styles.leaderBadgeText}>👑 Leader</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    
+                    {/* Action Buttons */}
+                    <View style={styles.groupActions}>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => navigation.navigate('GroupChat', { group })}
+                      >
+                        <Text style={styles.actionButtonText}>💬 Chat</Text>
+                      </TouchableOpacity>
+                      
+                      {/* Attendance Buttons */}
+                      <View style={styles.attendanceButtons}>
+                        <TouchableOpacity
+                          style={[styles.attendanceButton, styles.attendanceYes]}
+                          onPress={() =>
+                            handleAttendance(group.id, new Date().toISOString().split('T')[0], 'present')
+                          }
+                        >
+                          <Text style={styles.attendanceButtonText}>I'm Coming ✓</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.attendanceButton, styles.attendanceNo]}
+                          onPress={() =>
+                            handleAttendance(group.id, new Date().toISOString().split('T')[0], 'absent')
+                          }
+                        >
+                          <Text style={styles.attendanceButtonText}>Can't Make It</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           ) : (
             <Text style={styles.emptyText}>You're not in any groups yet</Text>
           )
@@ -397,6 +404,41 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     color: Colors.text,
     marginLeft: Spacing.sm,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.md,
+  },
+  groupHeaderLeft: {
+    flex: 1,
+  },
+  leaderBadge: {
+    backgroundColor: Colors.warning,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  leaderBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  groupActions: {
+    marginTop: Spacing.md,
+  },
+  actionButton: {
+    backgroundColor: Colors.primary,
+    padding: Spacing.sm,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  actionButtonText: {
+    color: Colors.text,
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
   },
 });
 

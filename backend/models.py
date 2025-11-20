@@ -1070,6 +1070,33 @@ class ConnectGroupAttendance(db.Model):
         }
 
 
+class ConnectGroupMessage(db.Model):
+    """Group chat messages for connect groups"""
+    __tablename__ = 'connect_group_messages'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.String(50), db.ForeignKey('connect_groups.id'), nullable=False)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    group = db.relationship('ConnectGroup', backref='messages')
+    person = db.relationship('Person', backref='group_messages')
+    
+    def to_dict(self):
+        """Convert message to dictionary"""
+        return {
+            'id': self.id,
+            'group_id': self.group_id,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'person_email': self.person.email if self.person else None,
+            'message': self.message,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
 class EventCategory(db.Model):
     """Event category model"""
     __tablename__ = 'event_categories'

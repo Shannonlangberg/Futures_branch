@@ -294,3 +294,4 @@ These resources respect region boundaries:
 
 5. **Resource Hierarchy**: Full access (`*`) includes all actions (view, edit, create, delete, manage, etc.)
 
+

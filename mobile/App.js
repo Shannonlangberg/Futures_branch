@@ -27,6 +27,8 @@ import TVHomeScreen from './src/screens/TVHomeScreen';
 import TVSeriesScreen from './src/screens/TVSeriesScreen';
 import TVWatchScreen from './src/screens/TVWatchScreen';
 import ExploreScreen from './src/screens/ExploreScreen';
+import GroupChatScreen from './src/screens/GroupChatScreen';
+import GroupLeaderPortalScreen from './src/screens/GroupLeaderPortalScreen';
 
 // Services
 import { AuthService } from './src/services/AuthService';
@@ -403,6 +405,24 @@ export default function App() {
                   },
                   headerTitle: 'Explore',
                   headerBackTitleVisible: false,
+                }}
+              />
+              <Stack.Screen 
+                name="GroupChat" 
+                component={GroupChatScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen 
+                name="GroupLeaderPortal" 
+                component={GroupLeaderPortalScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  headerShown: false,
                 }}
               />
             </>
