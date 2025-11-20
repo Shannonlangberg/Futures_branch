@@ -698,17 +698,17 @@ const ConnectGroupLeader = () => {
                   {selectedGroup.members.map(member => (
                     <div
                       key={member.id}
-                      className="p-3 bg-slate-700/50 rounded-lg"
+                      className="p-3 md:p-4 bg-slate-700/50 rounded-lg"
                     >
-                      <p className="text-white font-medium">{member.full_name}</p>
+                      <p className="text-white font-medium text-sm md:text-base">{member.full_name}</p>
                       {member.email && (
-                        <p className="text-sm text-slate-400">{member.email}</p>
+                        <p className="text-xs md:text-sm text-slate-400 mt-1 truncate">{member.email}</p>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400">No members yet. Click "Add Member" to get started!</p>
+                <p className="text-sm md:text-base text-slate-400">No members yet. Click "Add Member" to get started!</p>
               )}
             </div>
 
@@ -844,38 +844,42 @@ const ConnectGroupLeader = () => {
                   return (
                     <div
                       key={person.id}
-                      className={`p-4 rounded-lg border-2 transition-colors ${
+                      className={`p-4 rounded-lg border-2 transition-colors touch-manipulation ${
                         personAttendance.present
                           ? 'bg-emerald-500/10 border-emerald-500/50'
                           : 'bg-slate-700/50 border-slate-600/50'
                       }`}
+                      onClick={() => toggleAttendance(person.id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-white font-medium">{person.full_name}</p>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-white font-medium text-base md:text-lg truncate">{person.full_name}</p>
                             {person.is_leader && (
-                              <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-300 rounded">
+                              <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-300 rounded flex-shrink-0">
                                 {person.role}
                               </span>
                             )}
                           </div>
                           {person.email && (
-                            <p className="text-sm text-slate-400">{person.email}</p>
+                            <p className="text-sm text-slate-400 truncate mt-1">{person.email}</p>
                           )}
                         </div>
                         <button
-                          onClick={() => toggleAttendance(person.id)}
-                          className={`ml-4 p-2 rounded-lg transition-colors ${
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAttendance(person.id);
+                          }}
+                          className={`flex-shrink-0 p-3 rounded-lg transition-colors touch-manipulation ${
                             personAttendance.present
                               ? 'bg-emerald-500/20 text-emerald-300'
                               : 'bg-slate-600 text-slate-400'
                           }`}
                         >
                           {personAttendance.present ? (
-                            <CheckCircleIcon className="w-6 h-6" />
+                            <CheckCircleIcon className="w-6 h-6 md:w-7 md:h-7" />
                           ) : (
-                            <XCircleIcon className="w-6 h-6" />
+                            <XCircleIcon className="w-6 h-6 md:w-7 md:h-7" />
                           )}
                         </button>
                       </div>
