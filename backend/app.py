@@ -815,6 +815,25 @@ oauth_state_store = {}  # {state_token: {'user_id': int, 'expires_at': datetime}
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
 if database_url:
     database_url = database_url.strip()  # Remove leading/trailing whitespace
+    
+    # FORCE absolute path for SQLite to ensure same database file is always used
+    # This prevents issues where different endpoints might use different database files
+    if database_url.startswith('sqlite:///') and not os.environ.get('DATABASE_URL'):
+        # Local development - use absolute path
+        relative_path = database_url.replace('sqlite:///', '')
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Check if file exists in instance directory first (where it actually is)
+        instance_path = os.path.join(backend_dir, 'instance', relative_path)
+        if os.path.exists(instance_path):
+            database_url = f'sqlite:///{instance_path}'
+            logger.info(f"Using database file: {instance_path}")
+        else:
+            # Use absolute path in backend directory
+            abs_path = os.path.join(backend_dir, relative_path)
+            database_url = f'sqlite:///{abs_path}'
+            logger.info(f"Using database file: {abs_path}")
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -12726,15 +12745,28 @@ def update_person_demo(person_id):
         
         db.session.commit()
         
+        # Refresh the person object to ensure we have the latest data
+        db.session.refresh(person)
+        
+        # Reload from database to ensure absolute fresh data
+        person = Person.query.filter_by(id=person_id).first()
+        
         # Return updated person data
         person_data = person.to_dict()
         if person.engagement_profile:
             person_data['engagement'] = person.engagement_profile.to_dict()
         
-        return jsonify({
+        response = jsonify({
             'message': 'Person updated successfully',
             'person': person_data
         })
+        
+        # Add cache-control headers to prevent caching
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
         
     except Exception as e:
         db.session.rollback()
@@ -12750,6 +12782,13 @@ def get_persons():
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
+        # FORCE refresh database session to ensure fresh data
+        # Close and reopen session to clear ALL caches
+        db.session.close()
+        db.session.expire_all()
+        
+        logger.info(f"GET /api/persons - Starting fresh query (session closed and reopened)")
+        
         # Get query parameters
         campus_filter = request.args.get('campus', None)
         pulse_filter = request.args.get('pulse_status', None)
@@ -12757,7 +12796,7 @@ def get_persons():
         search = request.args.get('search', '').strip()
         include_archived = request.args.get('include_archived', 'false').lower() == 'true'
         
-        # Build query
+        # Build query - FORCE fresh query from database
         if include_archived:
             query = Person.query
         else:
@@ -12781,9 +12820,22 @@ def get_persons():
         
         persons = query.order_by(Person.full_name).all()
         
+        logger.info(f"GET /api/persons - Found {len(persons)} persons in database")
+        
         # Include engagement profile data
         result = []
         for person in persons:
+            # FORCE refresh person object from database
+            person_id = person.id
+            try:
+                db.session.refresh(person)
+            except:
+                # If refresh fails, re-query from database
+                db.session.expunge(person)
+                person = Person.query.filter_by(id=person_id).first()
+                if not person:
+                    continue
+            
             person_data = person.to_dict()
             
             # Add engagement profile data
@@ -12809,7 +12861,7 @@ def get_persons():
             
             result.append(person_data)
         
-        return jsonify({
+        response = jsonify({
             'persons': result,
             'total': len(result),
             'filters': {
@@ -12819,6 +12871,13 @@ def get_persons():
                 'search': search
             }
         })
+        
+        # Add cache-control headers to prevent caching
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
         
     except Exception as e:
         logger.error(f"Error fetching persons: {e}")
@@ -13044,14 +13103,20 @@ def update_profile():
         if not email:
             return jsonify({'error': 'Email parameter required'}), 400
         
-        # Find person by email (case-insensitive)
+        # FORCE refresh database session
+        db.session.expire_all()
+        
+        # Find person by email (case-insensitive) - FORCE fresh query
         person = Person.query.filter(
             db.func.lower(Person.email) == email.lower(),
             Person.is_active == True
         ).first()
         
         if not person:
+            logger.error(f"Person not found for email: {email}")
             return jsonify({'error': 'Person not found'}), 404
+        
+        logger.info(f"Updating person {person.id} ({person.full_name}) from mobile app")
         
         # Allow users to update their own profile (general info only, not pastoral notes)
         updated_fields = []
@@ -13072,18 +13137,65 @@ def update_profile():
         # Note: email changes would require additional verification, so not allowing for now
         # Note: campus, department, connect_group should be managed by admins in Pulse
         
-        # Commit changes
+        # Commit changes - FORCE immediate write
         db.session.commit()
         
-        # Refresh the person object to ensure we have the latest data
-        db.session.refresh(person)
+        # VERIFY commit by flushing
+        db.session.flush()
+        
+        # FORCE database refresh - expire all cached objects
+        db.session.expire_all()
+        
+        # Get person ID before expunging
+        person_id = person.id
+        
+        # Remove from session cache completely
+        db.session.expunge(person)
+        
+        # Clear session to force fresh query
+        db.session.close()
+        
+        # Re-open session and query fresh from database
+        person = Person.query.filter_by(id=person_id).first()
+        
+        if not person:
+            logger.error(f"ERROR: Person {person_id} not found after update!")
+            return jsonify({'error': 'Failed to reload person after update'}), 500
         
         logger.info(f"Profile updated for {email}: {', '.join(updated_fields)}")
+        logger.info(f"After update - Full Name: '{person.full_name}', Phone: '{person.phone}'")
+        
+        # VERIFY by querying directly from database (use same path as SQLAlchemy)
+        try:
+            import sqlite3
+            # Get the actual database path from SQLAlchemy URI
+            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            db_path = db_uri.replace('sqlite:///', '')
+            # Ensure it's an absolute path (should already be from config above)
+            if not os.path.isabs(db_path):
+                backend_dir = os.path.dirname(os.path.abspath(__file__))
+                # Try instance directory first (where file actually is)
+                instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
+                if os.path.exists(instance_path):
+                    db_path = instance_path
+                else:
+                    db_path = os.path.join(backend_dir, 'futures_link.db')
+            
+            if os.path.exists(db_path):
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name, phone FROM persons WHERE id = ?", (person_id,))
+                db_row = cursor.fetchone()
+                conn.close()
+                if db_row:
+                    logger.info(f"VERIFIED in database: Full Name='{db_row[0]}', Phone='{db_row[1]}'")
+                    if db_row[0] != person.full_name:
+                        logger.error(f"MISMATCH! SQLAlchemy shows '{person.full_name}' but database has '{db_row[0]}'")
+        except Exception as e:
+            logger.warning(f"Could not verify in database: {e}")
         
         # Return updated person data
         try:
-            # Reload from database to ensure fresh data
-            person = Person.query.filter_by(id=person.id).first()
             person_data = person.to_dict()
             # Format campus name
             if person_data.get('campus'):
@@ -13102,11 +13214,18 @@ def update_profile():
                 'email': person.email,
             }
         
-        return jsonify({
+        response = jsonify({
             'success': True,
             'message': 'Profile updated successfully',
             'profile': person_data
         })
+        
+        # Add cache-control headers to prevent caching
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
         
     except Exception as e:
         db.session.rollback()
@@ -13387,10 +13506,17 @@ def update_person(person_id):
         if person.engagement_profile:
             person_data['engagement'] = person.engagement_profile.to_dict()
         
-        return jsonify({
+        response = jsonify({
             'message': 'Person updated successfully',
             'person': person_data
         })
+        
+        # Add cache-control headers to prevent caching
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
         
     except Exception as e:
         db.session.rollback()
@@ -15099,11 +15225,14 @@ def submit_meeting_attendance(meeting_id):
                     elif isinstance(attendance_date, datetime):
                         attendance_date = attendance_date.date()
                     
-                    # CRITICAL FIX: If meeting date is in the future, use today's date instead
-                    today = datetime.utcnow().date()
-                    if attendance_date > today:
-                        logger.warning(f"Meeting date {attendance_date} is in the future. Using today's date {today} for attendance record.")
-                        attendance_date = today
+                    # CRITICAL FIX: If meeting date is in the future, use today's date in local timezone instead
+                    # Use Australia/Adelaide timezone to get the correct local date
+                    from zoneinfo import ZoneInfo
+                    adelaide_tz = ZoneInfo('Australia/Adelaide')
+                    today_local = datetime.now(adelaide_tz).date()
+                    if attendance_date > today_local:
+                        logger.warning(f"Meeting date {attendance_date} is in the future. Using today's date {today_local} for attendance record.")
+                        attendance_date = today_local
                     
                     # Determine status: 'present' or 'absent'
                     attendance_status = 'present' if present else 'absent'
