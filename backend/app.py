@@ -14229,6 +14229,7 @@ def log_attendance_simple():
     
     try:
         data = request.get_json()
+        logger.info(f"POST /api/attendance/log - Data: {data}")
         
         # Get email from request
         email = data.get('email', '').strip()
@@ -14241,28 +14242,54 @@ def log_attendance_simple():
             Person.is_active == True
         ).first()
         if not person:
+            logger.warning(f"Person not found for email: {email}")
             return jsonify({'error': 'Person not found'}), 404
         
-        # Get or create engagement profile
-        engagement = person.engagement_profile
-        if not engagement:
-            engagement = EngagementProfile(person_id=person.id)
-            db.session.add(engagement)
+        logger.info(f"Found person: {person.id} ({person.full_name})")
+        
+        # Get or create engagement profile (handle schema mismatches gracefully)
+        engagement = None
+        try:
+            if hasattr(person, 'engagement_profile') and person.engagement_profile:
+                engagement = person.engagement_profile
+            else:
+                # Create new engagement profile
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                db.session.flush()
+                logger.info(f"Created new engagement profile for person {person.id}")
+        except Exception as e:
+            logger.error(f"Error accessing/creating engagement profile: {e}", exc_info=True)
+            # Try to create a new one
+            try:
+                engagement = EngagementProfile(person_id=person.id)
+                db.session.add(engagement)
+                db.session.flush()
+            except Exception as e2:
+                logger.error(f"Failed to create engagement profile: {e2}", exc_info=True)
+                return jsonify({'error': 'Failed to access engagement profile'}), 500
         
         # Get campus from person or request
         campus = data.get('campus') or person.campus
         if not campus:
             campus = 'all_campuses'
         
+        logger.info(f"Logging attendance for person {person.id} at campus {campus}")
+        
         # Log attendance (this is the "gather" metric in heartbeat!)
         attendance_time = datetime.now()
-        engagement.add_attendance(
-            zones=['sunday_service'],
-            campus=campus,
-            attendance_time=attendance_time
-        )
-        
-        db.session.commit()
+        try:
+            engagement.add_attendance(
+                zones=['sunday_service'],
+                campus=campus,
+                attendance_time=attendance_time
+            )
+            db.session.commit()
+            logger.info(f"Attendance logged successfully for {person.email}")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in add_attendance: {e}", exc_info=True)
+            return jsonify({'error': f'Failed to log attendance: {str(e)}'}), 500
         
         return jsonify({
             'success': True,
@@ -14275,7 +14302,7 @@ def log_attendance_simple():
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error logging attendance: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to log attendance'}), 500
+        return jsonify({'error': f'Failed to log attendance: {str(e)}'}), 500
 
 
 @app.route('/api/engagement/log_attendance', methods=['POST'])
