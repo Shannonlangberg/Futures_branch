@@ -462,18 +462,21 @@ const PersonHealthReport = () => {
     }
   };
 
-  const fetchPersonData = async () => {
+  const fetchPersonData = async (silent = false) => {
       try {
-        setLoading(true);
+        if (!silent) {
+          setLoading(true);
+        }
         setError('');
 
       // Add cache buster to ensure fresh data
-      const cacheBuster = `?t=${Date.now()}`;
+      const cacheBuster = `?t=${Date.now()}&_r=${Math.random().toString(36).substr(2, 9)}`;
       const response = await fetch(`/api/heartbeat/person/${personId}${cacheBuster}`, {
         credentials: 'include',
         headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
         });
 
@@ -513,7 +516,9 @@ const PersonHealthReport = () => {
       console.error('Person heartbeat load error:', err);
       setError(err.message || 'Unable to load person details.');
       } finally {
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
       }
     };
 
