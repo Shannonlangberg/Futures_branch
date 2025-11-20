@@ -106,16 +106,9 @@ export default function PathwayScreen() {
                 
                 return (
                   <View key={step.id || index} style={styles.stepContainer}>
-                    {/* Connecting Line */}
-                    {!isLast && (
-                      <View style={[
-                        styles.connector,
-                        isCompleted ? styles.connectorActive : styles.connectorInactive
-                      ]} />
-                    )}
-                    
-                    {/* Step Circle */}
-                    <View style={styles.stepCircleContainer}>
+                    {/* Left Column: Circle + Connector */}
+                    <View style={styles.stepLeftColumn}>
+                      {/* Step Circle */}
                       {isCompleted ? (
                         <LinearGradient
                           colors={['#10b981', '#059669']}
@@ -135,36 +128,46 @@ export default function PathwayScreen() {
                           <Text style={[styles.stepNumber, styles.stepNumberInactive]}>{step.step_order}</Text>
                         </View>
                       )}
+                      
+                      {/* Connecting Line (below circle) */}
+                      {!isLast && (
+                        <View style={[
+                          styles.connector,
+                          isCompleted ? styles.connectorActive : styles.connectorInactive
+                        ]} />
+                      )}
                     </View>
                     
-                    {/* Step Card */}
-                    <View style={[
-                      styles.stepCard,
-                      isCompleted && styles.stepCardCompleted,
-                      isNext && styles.stepCardNext,
-                    ]}>
-                      {isNext && (
-                        <View style={styles.nextBadge}>
-                          <Text style={styles.nextBadgeText}>NEXT STEP</Text>
-                        </View>
-                      )}
-                      
-                      <Text style={[
-                        styles.stepName,
-                        isCompleted && styles.stepNameCompleted,
-                        isNext && styles.stepNameNext,
+                    {/* Right Column: Step Card */}
+                    <View style={styles.stepRightColumn}>
+                      <View style={[
+                        styles.stepCard,
+                        isCompleted && styles.stepCardCompleted,
+                        isNext && styles.stepCardNext,
                       ]}>
-                        {step.step_name}
-                      </Text>
-                      
-                      {isCompleted && step.completed_at && (
-                        <View style={styles.completedInfo}>
-                          <Text style={styles.completedIcon}>✓</Text>
-                          <Text style={styles.completedDate}>
-                            Completed {formatDate(step.completed_at)}
-                          </Text>
-                        </View>
-                      )}
+                        {isNext && (
+                          <View style={styles.nextBadge}>
+                            <Text style={styles.nextBadgeText}>NEXT STEP</Text>
+                          </View>
+                        )}
+                        
+                        <Text style={[
+                          styles.stepName,
+                          isCompleted && styles.stepNameCompleted,
+                          isNext && styles.stepNameNext,
+                        ]}>
+                          {step.step_name}
+                        </Text>
+                        
+                        {isCompleted && step.completed_at && (
+                          <View style={styles.completedInfo}>
+                            <Text style={styles.completedIcon}>✓</Text>
+                            <Text style={styles.completedDate}>
+                              Completed {formatDate(step.completed_at)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
                 );
@@ -269,26 +272,29 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   stepContainer: {
-    marginBottom: Spacing.xl,
-    position: 'relative',
+    flexDirection: 'row',
+    marginBottom: Spacing.lg,
+  },
+  stepLeftColumn: {
+    alignItems: 'center',
+    width: 60,
+    marginRight: Spacing.md,
+  },
+  stepRightColumn: {
+    flex: 1,
+    paddingTop: 10,
   },
   connector: {
-    position: 'absolute',
-    left: 30,
-    top: 60,
     width: 3,
-    height: 60,
-    zIndex: 0,
+    flex: 1,
+    marginTop: Spacing.xs,
+    minHeight: 40,
   },
   connectorActive: {
     backgroundColor: '#10b981',
   },
   connectorInactive: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  stepCircleContainer: {
-    marginBottom: Spacing.md,
-    zIndex: 10,
   },
   stepCircle: {
     width: 60,
