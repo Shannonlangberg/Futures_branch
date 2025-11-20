@@ -7584,17 +7584,24 @@ def serve_index():
 def api_login():
     """API login endpoint for React frontend and mobile app"""
     try:
+        logger.info(f"Login attempt - Content-Type: {request.content_type}, is_json: {request.is_json}")
+        
         if request.is_json:
             data = request.get_json()
+            logger.info(f"Login data received (JSON): {data}")
             # Accept both 'username' and 'email' for mobile app compatibility
             username = data.get('username', '').strip() or data.get('email', '').strip()
             password = data.get('password', '').strip()
         else:
+            logger.info(f"Login data received (FORM): username={request.form.get('username')}, email={request.form.get('email')}")
             username = request.form.get('username', '').strip() or request.form.get('email', '').strip()
             password = request.form.get('password', '').strip()
         
+        logger.info(f"Parsed login - username/email: '{username}', password: {'***' if password else '(empty)'}")
+        
         if not username or not password:
-            return jsonify({"error": "Please enter both username/email and password."}), 400
+            logger.warning(f"Login failed - missing credentials: username='{username}', password={'present' if password else 'missing'}")
+            return jsonify({"error": "Please enter both username and password."}), 400
         
         user = authenticate_user(username, password)
         if user:
