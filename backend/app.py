@@ -7580,27 +7580,50 @@ def serve_index():
     print("[DEBUG] Serving React app")
     return send_from_directory('static', 'index.html')
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST', 'OPTIONS'])
 def api_login():
     """API login endpoint for React frontend and mobile app"""
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
+    
     try:
-        logger.info(f"Login attempt - Content-Type: {request.content_type}, is_json: {request.is_json}")
+        logger.info(f"=== LOGIN ATTEMPT ===")
+        logger.info(f"Method: {request.method}")
+        logger.info(f"Content-Type: {request.content_type}")
+        logger.info(f"is_json: {request.is_json}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Body (raw): {request.get_data(as_text=True)}")
         
-        if request.is_json:
-            data = request.get_json()
-            logger.info(f"Login data received (JSON): {data}")
+        # Try to get JSON data even if Content-Type is wrong
+        data = None
+        try:
+            data = request.get_json(force=True, silent=True)
+            logger.info(f"JSON data (forced): {data}")
+        except Exception as e:
+            logger.error(f"Failed to parse JSON: {e}")
+        
+        if not data:
+            # Fallback to form data
+            data = request.form.to_dict()
+            logger.info(f"Form data: {data}")
+        
+        if data:
             # Accept both 'username' and 'email' for mobile app compatibility
             username = data.get('username', '').strip() or data.get('email', '').strip()
             password = data.get('password', '').strip()
         else:
-            logger.info(f"Login data received (FORM): username={request.form.get('username')}, email={request.form.get('email')}")
-            username = request.form.get('username', '').strip() or request.form.get('email', '').strip()
-            password = request.form.get('password', '').strip()
+            username = ''
+            password = ''
         
-        logger.info(f"Parsed login - username/email: '{username}', password: {'***' if password else '(empty)'}")
+        logger.info(f"Parsed - username/email: '{username}', password: {'***' if password else '(empty)'}")
         
         if not username or not password:
-            logger.warning(f"Login failed - missing credentials: username='{username}', password={'present' if password else 'missing'}")
+            logger.warning(f"Missing credentials - username='{username}', password={'present' if password else 'missing'}")
             return jsonify({"error": "Please enter both username and password."}), 400
         
         user = authenticate_user(username, password)
