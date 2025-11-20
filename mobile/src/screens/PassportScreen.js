@@ -331,8 +331,31 @@ export default function PathwayScreen() {
                         )}
                         
                         {!isCompleted && (
-                          <View style={styles.tapHint}>
-                            <Text style={styles.tapHintText}>Tap to view details →</Text>
+                          <View style={styles.stepActions}>
+                            <View style={styles.tapHint}>
+                              <Text style={styles.tapHintText}>Tap to view details →</Text>
+                            </View>
+                            {isNext && (
+                              <TouchableOpacity
+                                style={styles.quickCompleteButton}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  handleStepPress(step);
+                                  // Small delay to ensure modal opens before we trigger completion
+                                  setTimeout(() => {
+                                    handleCompleteStep();
+                                  }, 300);
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <LinearGradient
+                                  colors={['#10b981', '#059669']}
+                                  style={styles.quickCompleteGradient}
+                                >
+                                  <Text style={styles.quickCompleteText}>✓ Complete</Text>
+                                </LinearGradient>
+                              </TouchableOpacity>
+                            )}
                           </View>
                         )}
                       </TouchableOpacity>
@@ -812,6 +835,29 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: 'rgba(255, 255, 255, 0.4)',
     fontStyle: 'italic',
+  },
+  stepActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  quickCompleteButton: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  quickCompleteGradient: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  quickCompleteText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   // Modal Styles
   modalOverlay: {
