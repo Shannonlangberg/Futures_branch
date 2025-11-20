@@ -13519,14 +13519,37 @@ def get_my_pathway():
 @app.route('/api/persons/<person_id>', methods=['PUT'])
 @login_required
 def update_person(person_id):
-    """Update person details (admin only)"""
+    """Update person details (admin only) - person_id can be PCO ID or email"""
     try:
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
+        # Log which database we're using
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        db_path = get_db_path()
+        logger.info(f"PUT /api/persons/{person_id} - Using database: {db_uri}")
+        logger.info(f"PUT /api/persons/{person_id} - Database path: {db_path}")
+        
+        # Force fresh query
+        db.session.expire_all()
+        
+        # Try to find person by ID first (PCO ID like pco_33559749)
         person = Person.query.filter_by(id=person_id, is_active=True).first()
+        
+        # If not found and person_id looks like an email, try by email
+        # This ensures both apps can update the same person
+        if not person and '@' in person_id:
+            logger.info(f"  Person not found by ID '{person_id}', trying by email")
+            person = Person.query.filter(
+                db.func.lower(Person.email) == person_id.lower(),
+                Person.is_active == True
+            ).first()
+        
         if not person:
+            logger.error(f"  Person not found by ID '{person_id}' or email")
             return jsonify({'error': 'Person not found'}), 404
+        
+        logger.info(f"  Found person: ID={person.id}, Email={person.email}, Name={person.full_name}")
         
         data = request.get_json()
         if not data:
