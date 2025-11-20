@@ -57,6 +57,15 @@ const People = () => {
     loadCampuses();
     loadPersons();
   }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
+
+  // Refresh data when window regains focus (in case mobile app updated data)
+  useEffect(() => {
+    const handleFocus = () => {
+      loadPersons();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
   
 
   // Check for edit query parameter and open modal
@@ -127,8 +136,17 @@ const People = () => {
         params.append('include_archived', 'true');
       }
 
+      // Add cache-busting timestamp
+      params.append('_t', Date.now().toString());
+      
       const response = await fetch(`/api/persons?${params.toString()}`, {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
       
       if (response.ok) {
@@ -150,10 +168,16 @@ const People = () => {
 
   const handleOpenModal = async (person = null) => {
     if (person) {
-      // Fetch fresh data from server
+      // Fetch fresh data from server with cache-busting
       try {
-        const freshResponse = await fetch(`/api/persons/${person.id}`, {
-          credentials: 'include'
+        const freshResponse = await fetch(`/api/persons/${person.id}?_t=${Date.now()}`, {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
         });
         if (freshResponse.ok) {
           person = await freshResponse.json();

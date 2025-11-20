@@ -78,6 +78,11 @@ class EngagementProfile(db.Model):
     # Note: Database uses person_id as PRIMARY KEY (no separate id column)
     person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), primary_key=True, nullable=False)
     
+    @property
+    def id(self):
+        """Alias for person_id to maintain compatibility with code that expects .id"""
+        return self.person_id
+    
     # Summary pulse
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red
     last_seen = db.Column(db.DateTime)
@@ -450,7 +455,7 @@ class EngagementProfile(db.Model):
             self.recalculate_heartbeat()
         
         return {
-            'id': self.id,
+            'id': self.person_id,  # Use person_id as id (it's the primary key)
             'person_id': self.person_id,
             'pulse_status': self.pulse_status,
             'last_seen': self.last_seen.isoformat() if self.last_seen else None,

@@ -13123,21 +13123,34 @@ def get_person_detail(person_id):
         # Get person data
         person_data = person.to_dict()
         
-        # Add full engagement profile
-        if person.engagement_profile:
-            engagement_data = person.engagement_profile.to_dict()
-            person_data['engagement'] = engagement_data
-        else:
-            # Create engagement profile if it doesn't exist
-            engagement = EngagementProfile(person_id=person.id)
-            db.session.add(engagement)
-            db.session.commit()
-            person_data['engagement'] = engagement.to_dict()
+        # Add full engagement profile (handle schema mismatch gracefully)
+        try:
+            if hasattr(person, 'engagement_profile') and person.engagement_profile:
+                try:
+                    engagement_data = person.engagement_profile.to_dict()
+                    person_data['engagement'] = engagement_data
+                except Exception as e:
+                    logger.warning(f"Error serializing engagement profile for {person_id}: {e}")
+                    person_data['engagement'] = None
+            else:
+                # Create engagement profile if it doesn't exist
+                try:
+                    engagement = EngagementProfile(person_id=person.id)
+                    db.session.add(engagement)
+                    db.session.commit()
+                    person_data['engagement'] = engagement.to_dict()
+                except Exception as e:
+                    logger.warning(f"Error creating engagement profile for {person_id}: {e}")
+                    person_data['engagement'] = None
+        except Exception as e:
+            # Schema mismatch - engagement_profiles table structure doesn't match model
+            logger.warning(f"Error accessing engagement profile (schema mismatch): {e}")
+            person_data['engagement'] = None
         
         return jsonify(person_data)
         
     except Exception as e:
-        logger.error(f"Error fetching person detail: {e}")
+        logger.error(f"Error fetching person detail: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch person details'}), 500
 
 
@@ -13281,7 +13294,11 @@ def update_profile():
         if 'phone' in data:
             person.phone = data['phone'].strip() if data.get('phone') else None
         
+        # Force commit and refresh
         db.session.commit()
+        db.session.flush()
+        db.session.expire_all()
+        db.session.refresh(person)
         
         # Return updated person data
         person_data = person.to_dict()
@@ -13294,11 +13311,16 @@ def update_profile():
             person_data['campus_display'] = campus_name
             person_data['campus'] = campus_name
         
-        return jsonify({
+        response = jsonify({
             'success': True,
             'message': 'Profile updated successfully',
             'profile': person_data
         })
+        # Add cache-busting headers
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
         
     except Exception as e:
         db.session.rollback()
