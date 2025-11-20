@@ -649,7 +649,7 @@ const People = () => {
             <div className="text-3xl font-bold text-yellow-400">{stats.amber}</div>
           </div>
           <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="text-slate-400 text-sm mb-1">Inactive</div>
+            <div className="text-slate-400 text-sm mb-1">Critical</div>
             <div className="text-3xl font-bold text-red-400">{stats.red}</div>
           </div>
         </div>
