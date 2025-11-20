@@ -16,6 +16,16 @@ const TV = () => {
     try {
       setLoading(true);
       
+      // Fetch most watched series (uses actual watch data)
+      const mostWatchedResponse = await fetch('/api/tv/most-watched', {
+        credentials: 'include'
+      });
+      
+      if (mostWatchedResponse.ok) {
+        const mostWatchedData = await mostWatchedResponse.json();
+        setMostWatched(mostWatchedData.series || []);
+      }
+      
       // Fetch all series
       const seriesResponse = await fetch('/api/tv/series', {
         credentials: 'include'
@@ -25,8 +35,6 @@ const TV = () => {
         const seriesData = await seriesResponse.json();
         const allSeries = seriesData.series || [];
         setSeries(allSeries);
-        // Most watched is just the first 6 series (we can add an endpoint later)
-        setMostWatched(allSeries.slice(0, 6));
       }
       
       // Fetch continue watching

@@ -837,6 +837,17 @@ if database_url:
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Helper function to get database file path (consistent across all endpoints)
+def get_db_path():
+    """Get the absolute path to the SQLite database file"""
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    db_path = db_uri.replace('sqlite:///', '').replace('sqlite:////', '')
+    if not os.path.isabs(db_path):
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
+        db_path = instance_path if os.path.exists(instance_path) else os.path.join(backend_dir, 'futures_link.db')
+    return db_path
+
 # Configure direct database connection for new tables (regions, campuses_new)
 # These are in church_voice.db, while SQLAlchemy uses futures_link.db
 CHURCH_VOICE_DB_PATH = os.path.join(os.path.dirname(__file__), 'instance', 'church_voice.db')
@@ -12745,28 +12756,15 @@ def update_person_demo(person_id):
         
         db.session.commit()
         
-        # Refresh the person object to ensure we have the latest data
-        db.session.refresh(person)
-        
-        # Reload from database to ensure absolute fresh data
-        person = Person.query.filter_by(id=person_id).first()
-        
         # Return updated person data
         person_data = person.to_dict()
         if person.engagement_profile:
             person_data['engagement'] = person.engagement_profile.to_dict()
         
-        response = jsonify({
+        return jsonify({
             'message': 'Person updated successfully',
             'person': person_data
         })
-        
-        # Add cache-control headers to prevent caching
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        
-        return response
         
     except Exception as e:
         db.session.rollback()
@@ -12781,13 +12779,6 @@ def get_persons():
     try:
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
-        
-        # FORCE refresh database session to ensure fresh data
-        # Close and reopen session to clear ALL caches
-        db.session.close()
-        db.session.expire_all()
-        
-        logger.info(f"GET /api/persons - Starting fresh query (session closed and reopened)")
         
         # Get query parameters
         campus_filter = request.args.get('campus', None)
@@ -12825,66 +12816,30 @@ def get_persons():
         
         persons = query.order_by(Person.full_name).all()
         
-        logger.info(f"GET /api/persons - Found {len(persons)} persons in database")
-        
-        # Include engagement profile data
+        # Serialize persons with engagement data
         result = []
         for person in persons:
-            # FORCE refresh person object from database
-            person_id = person.id
-            
-            # Log what we're about to return
-            logger.info(f"GET /api/persons - Person: ID={person_id}, Name='{person.full_name}', Email='{person.email}'")
-            
-            try:
-                db.session.refresh(person)
-            except:
-                # If refresh fails, re-query from database
-                db.session.expunge(person)
-                person = Person.query.filter_by(id=person_id).first()
-                if not person:
-                    continue
-            
             person_data = person.to_dict()
             
-            # Log the data being returned
-            logger.info(f"GET /api/persons - Returning: ID={person_data.get('id')}, Name='{person_data.get('full_name')}', Email='{person_data.get('email')}'")
-            
-            # Add engagement profile data - use direct SQL to avoid schema issues
-            try:
-                import sqlite3
-                db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-                db_path = db_uri.replace('sqlite:///', '')
-                if not os.path.isabs(db_path):
-                    backend_dir = os.path.dirname(os.path.abspath(__file__))
-                    instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
-                    db_path = instance_path if os.path.exists(instance_path) else os.path.join(backend_dir, 'futures_link.db')
-                
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, overall_engagement FROM engagement_profiles WHERE person_id = ?",
-                    (person_id,)
-                )
-                row = cursor.fetchone()
-                conn.close()
-                
-                if row:
-                    person_data['pulse_status'] = row[0] or 'red'
-                    person_data['last_seen'] = row[1]
-                    person_data['pulse_reasons'] = ['No engagement data']  # Could query from other sources if needed
-                    person_data['attendance_frequency'] = row[2] or 0.0
-                    person_data['serving_frequency'] = row[3] or 0.0
-                    person_data['overall_engagement'] = row[4] or 0.0
-                else:
+            # Add engagement profile data if available
+            if person.engagement_profile:
+                try:
+                    engagement = person.engagement_profile.to_dict()
+                    person_data['pulse_status'] = engagement.get('pulse_status', 'red')
+                    person_data['last_seen'] = engagement.get('last_seen')
+                    person_data['pulse_reasons'] = engagement.get('pulse_reasons', ['No engagement data'])
+                    person_data['attendance_frequency'] = engagement.get('attendance_frequency', 0.0)
+                    person_data['serving_frequency'] = engagement.get('serving_frequency', 0.0)
+                    person_data['overall_engagement'] = engagement.get('overall_engagement', 0.0)
+                except Exception as e:
+                    logger.warning(f"Error serializing engagement profile: {e}")
                     person_data['pulse_status'] = 'red'
                     person_data['last_seen'] = None
                     person_data['pulse_reasons'] = ['No engagement data']
                     person_data['attendance_frequency'] = 0.0
                     person_data['serving_frequency'] = 0.0
                     person_data['overall_engagement'] = 0.0
-            except Exception as e:
-                logger.warning(f"Error fetching engagement profile for {person_id}: {e}")
+            else:
                 person_data['pulse_status'] = 'red'
                 person_data['last_seen'] = None
                 person_data['pulse_reasons'] = ['No engagement data']
@@ -12898,7 +12853,7 @@ def get_persons():
             
             result.append(person_data)
         
-        response = jsonify({
+        return jsonify({
             'persons': result,
             'total': len(result),
             'filters': {
@@ -12908,13 +12863,6 @@ def get_persons():
                 'search': search
             }
         })
-        
-        # Add cache-control headers to prevent caching
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        
-        return response
         
     except Exception as e:
         logger.error(f"Error fetching persons: {e}")
@@ -13064,42 +13012,14 @@ def get_person_by_email(email):
                 'department': getattr(person, 'department', None),
             }
         
-        # Add engagement profile if it exists (handle gracefully if table structure doesn't match)
-        # Use direct SQL to avoid SQLAlchemy schema mismatch issues
-        try:
-            import sqlite3
-            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-            db_path = db_uri.replace('sqlite:///', '')
-            if not os.path.isabs(db_path):
-                backend_dir = os.path.dirname(os.path.abspath(__file__))
-                instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
-                if os.path.exists(instance_path):
-                    db_path = instance_path
-                else:
-                    db_path = os.path.join(backend_dir, 'futures_link.db')
-            
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, overall_engagement FROM engagement_profiles WHERE person_id = ?",
-                (person.id,)
-            )
-            row = cursor.fetchone()
-            conn.close()
-            
-            if row:
-                person_data['engagement'] = {
-                    'pulse_status': row[0] or 'red',
-                    'last_seen': row[1],
-                    'attendance_frequency': row[2] or 0.0,
-                    'serving_frequency': row[3] or 0.0,
-                    'overall_engagement': row[4] or 0.0,
-                }
-            else:
+        # Add engagement profile if it exists
+        if person.engagement_profile:
+            try:
+                person_data['engagement'] = person.engagement_profile.to_dict()
+            except Exception as e:
+                logger.warning(f"Error serializing engagement profile: {e}")
                 person_data['engagement'] = None
-        except Exception as e:
-            # If engagement_profiles table doesn't exist or has wrong structure, just skip it
-            logger.warning(f"Engagement profile not available for {email}: {e}")
+        else:
             person_data['engagement'] = None
         
         # Add pathway/journey data if available
@@ -13172,7 +13092,7 @@ def get_person_by_email(email):
 
 @app.route('/api/people/profile', methods=['PUT'])
 def update_profile():
-    """Update person profile by email - public endpoint for mobile app (users can edit their own profile)"""
+    """Update person profile by email - public endpoint for mobile app"""
     try:
         data = request.get_json()
         email = data.get('email', '').strip()
@@ -13180,137 +13100,45 @@ def update_profile():
         if not email:
             return jsonify({'error': 'Email parameter required'}), 400
         
-        # FORCE refresh database session
-        db.session.expire_all()
-        
-        # Find person by email (case-insensitive) - FORCE fresh query
-        # IMPORTANT: This finds the EXISTING record (whether PCO ID or UUID)
-        # Mobile app updates the SAME record that web app shows
+        # Find person by email (case-insensitive)
         person = Person.query.filter(
             db.func.lower(Person.email) == email.lower(),
             Person.is_active == True
         ).first()
         
         if not person:
-            logger.error(f"Person not found for email: {email}")
-            logger.error(f"Mobile app cannot create new records - person must exist in Pulse first")
             return jsonify({'error': 'Person not found. Please ensure your profile exists in Pulse.'}), 404
         
-        logger.info(f"Updating person {person.id} ({person.full_name}) from mobile app")
-        logger.info(f"Person ID type: {'PCO' if person.id.startswith('pco_') else 'UUID'}")
-        
-        # Allow users to update their own profile (general info only, not pastoral notes)
-        updated_fields = []
-        
-        # Update allowed fields only
+        # Update allowed fields
         if 'full_name' in data and data['full_name']:
             person.full_name = data['full_name'].strip()
-            updated_fields.append('full_name')
-        
         if 'preferred_name' in data:
             person.preferred_name = data['preferred_name'].strip() if data.get('preferred_name') else None
-            updated_fields.append('preferred_name')
-        
         if 'phone' in data:
             person.phone = data['phone'].strip() if data.get('phone') else None
-            updated_fields.append('phone')
         
-        # Note: email changes would require additional verification, so not allowing for now
-        # Note: campus, department, connect_group should be managed by admins in Pulse
-        
-        # Commit changes - FORCE immediate write
         db.session.commit()
         
-        # VERIFY commit by flushing
-        db.session.flush()
-        
-        # FORCE database refresh - expire all cached objects
-        db.session.expire_all()
-        
-        # Get person ID before expunging
-        person_id = person.id
-        
-        # Remove from session cache completely
-        db.session.expunge(person)
-        
-        # Clear session to force fresh query
-        db.session.close()
-        
-        # Re-open session and query fresh from database
-        person = Person.query.filter_by(id=person_id).first()
-        
-        if not person:
-            logger.error(f"ERROR: Person {person_id} not found after update!")
-            return jsonify({'error': 'Failed to reload person after update'}), 500
-        
-        logger.info(f"Profile updated for {email}: {', '.join(updated_fields)}")
-        logger.info(f"After update - Full Name: '{person.full_name}', Phone: '{person.phone}'")
-        
-        # VERIFY by querying directly from database (use same path as SQLAlchemy)
-        try:
-            import sqlite3
-            # Get the actual database path from SQLAlchemy URI
-            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-            db_path = db_uri.replace('sqlite:///', '')
-            # Ensure it's an absolute path (should already be from config above)
-            if not os.path.isabs(db_path):
-                backend_dir = os.path.dirname(os.path.abspath(__file__))
-                # Try instance directory first (where file actually is)
-                instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
-                if os.path.exists(instance_path):
-                    db_path = instance_path
-                else:
-                    db_path = os.path.join(backend_dir, 'futures_link.db')
-            
-            if os.path.exists(db_path):
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT full_name, phone FROM persons WHERE id = ?", (person_id,))
-                db_row = cursor.fetchone()
-                conn.close()
-                if db_row:
-                    logger.info(f"VERIFIED in database: Full Name='{db_row[0]}', Phone='{db_row[1]}'")
-                    if db_row[0] != person.full_name:
-                        logger.error(f"MISMATCH! SQLAlchemy shows '{person.full_name}' but database has '{db_row[0]}'")
-        except Exception as e:
-            logger.warning(f"Could not verify in database: {e}")
-        
         # Return updated person data
-        try:
-            person_data = person.to_dict()
-            # Format campus name
-            if person_data.get('campus'):
-                campus_name = person_data['campus']
-                if '_' in campus_name:
-                    campus_name = ' '.join(word.capitalize() for word in campus_name.split('_'))
-                else:
-                    campus_name = campus_name.title()
-                person_data['campus_display'] = campus_name
-                person_data['campus'] = campus_name
-        except Exception as e:
-            logger.error(f"Error serializing updated person: {e}")
-            person_data = {
-                'id': person.id,
-                'full_name': person.full_name,
-                'email': person.email,
-            }
+        person_data = person.to_dict()
+        if person_data.get('campus'):
+            campus_name = person_data['campus']
+            if '_' in campus_name:
+                campus_name = ' '.join(word.capitalize() for word in campus_name.split('_'))
+            else:
+                campus_name = campus_name.title()
+            person_data['campus_display'] = campus_name
+            person_data['campus'] = campus_name
         
-        response = jsonify({
+        return jsonify({
             'success': True,
             'message': 'Profile updated successfully',
             'profile': person_data
         })
         
-        # Add cache-control headers to prevent caching
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        
-        return response
-        
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error updating profile for email {email}: {e}", exc_info=True)
+        logger.error(f"Error updating profile: {e}", exc_info=True)
         return jsonify({'error': 'Failed to update profile'}), 500
 
 

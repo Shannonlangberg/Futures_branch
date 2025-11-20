@@ -152,6 +152,150 @@ def update_episode_progress(episode_id):
         return jsonify({'error': str(e)}), 500
 
 
+@tv_bp.route('/most-watched', methods=['GET'])
+@login_required
+def get_most_watched():
+    """
+    Get most watched series/episodes based on actual watch data.
+    
+    Algorithm:
+    1. Count unique viewers who completed episodes
+    2. Weight recent completions more heavily (last 30 days = 2x, 7 days = 3x)
+    3. Count partial watches (watched >50% of episode)
+    4. Sort by total watch score
+    5. Return top 12 series
+    """
+    try:
+        from datetime import datetime, timedelta
+        from sqlalchemy import func
+        
+        now = datetime.utcnow()
+        thirty_days_ago = now - timedelta(days=30)
+        seven_days_ago = now - timedelta(days=7)
+        
+        # Get all completed episodes with their series
+        completed_progress = db.session.query(
+            TVUserEpisodeProgress.episode_id,
+            TVEpisode.series_id,
+            TVUserEpisodeProgress.completed_at,
+            TVUserEpisodeProgress.completed
+        ).join(
+            TVEpisode, TVUserEpisodeProgress.episode_id == TVEpisode.id
+        ).filter(
+            TVEpisode.is_published == True,
+            TVUserEpisodeProgress.completed == True
+        ).all()
+        
+        # Get partial watches (>50% watched)
+        partial_progress = db.session.query(
+            TVUserEpisodeProgress.episode_id,
+            TVEpisode.series_id,
+            TVUserEpisodeProgress.last_position_seconds,
+            TVEpisode.duration_seconds
+        ).join(
+            TVEpisode, TVUserEpisodeProgress.episode_id == TVEpisode.id
+        ).filter(
+            TVEpisode.is_published == True,
+            TVUserEpisodeProgress.completed == False,
+            TVEpisode.duration_seconds > 0
+        ).all()
+        
+        # Calculate watch scores per series
+        series_scores = {}
+        
+        # Process completed episodes
+        for progress in completed_progress:
+            series_id = progress.series_id
+            if not series_id:
+                continue
+                
+            if series_id not in series_scores:
+                series_scores[series_id] = {
+                    'completed_views': 0,
+                    'recent_views': 0,
+                    'very_recent_views': 0,
+                    'partial_views': 0,
+                    'total_score': 0
+                }
+            
+            # Base score: 1 point per completion
+            series_scores[series_id]['completed_views'] += 1
+            
+            # Weight recent views
+            if progress.completed_at:
+                if progress.completed_at >= seven_days_ago:
+                    series_scores[series_id]['very_recent_views'] += 1
+                elif progress.completed_at >= thirty_days_ago:
+                    series_scores[series_id]['recent_views'] += 1
+        
+        # Process partial watches (>50% watched)
+        for progress in partial_progress:
+            series_id = progress.series_id
+            if not series_id:
+                continue
+            
+            if progress.duration_seconds > 0:
+                watch_percentage = (progress.last_position_seconds / progress.duration_seconds) * 100
+                if watch_percentage >= 50:  # Only count if watched at least 50%
+                    if series_id not in series_scores:
+                        series_scores[series_id] = {
+                            'completed_views': 0,
+                            'recent_views': 0,
+                            'very_recent_views': 0,
+                            'partial_views': 0,
+                            'total_score': 0
+                        }
+                    series_scores[series_id]['partial_views'] += 1
+        
+        # Calculate total scores
+        # Formula: completed (1pt) + recent completed (2pt) + very recent (3pt) + partial (0.5pt)
+        for series_id, scores in series_scores.items():
+            total = (
+                (scores['completed_views'] - scores['recent_views'] - scores['very_recent_views']) * 1.0 +  # Base completions
+                scores['recent_views'] * 2.0 +  # Last 30 days (but not last 7)
+                scores['very_recent_views'] * 3.0 +  # Last 7 days
+                scores['partial_views'] * 0.5  # Partial watches (less weight)
+            )
+            scores['total_score'] = total
+        
+        # Get all series and attach scores
+        all_series = TVSeries.query.filter_by(is_published=True).all()
+        series_with_scores = []
+        
+        for series in all_series:
+            score_data = series_scores.get(series.id, {
+                'completed_views': 0,
+                'recent_views': 0,
+                'very_recent_views': 0,
+                'partial_views': 0,
+                'total_score': 0
+            })
+            
+            series_with_scores.append({
+                'series': series.to_dict(),
+                'watch_score': score_data['total_score'],
+                'completed_views': score_data['completed_views'],
+                'recent_views': score_data['recent_views'],
+                'very_recent_views': score_data['very_recent_views'],
+                'partial_views': score_data['partial_views']
+            })
+        
+        # Sort by total score (descending)
+        series_with_scores.sort(key=lambda x: x['watch_score'], reverse=True)
+        
+        # Return top 12
+        top_series = [item['series'] for item in series_with_scores[:12]]
+        
+        return jsonify({
+            'series': top_series,
+            'count': len(top_series)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting most watched: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @tv_bp.route('/person/<person_id>/watched', methods=['GET'])
 @login_required
 def get_person_watched_episodes(person_id):

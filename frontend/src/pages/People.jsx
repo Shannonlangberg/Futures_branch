@@ -63,7 +63,6 @@ const People = () => {
       // Reload persons when window regains focus (user switches back from mobile app)
       loadPersons();
     };
-    window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
@@ -135,19 +134,8 @@ const People = () => {
         params.append('include_archived', 'true');
       }
 
-      // Add cache-busting timestamp to ensure fresh data (ALWAYS unique)
-      params.append('_t', Date.now().toString());
-      params.append('_r', Math.random().toString(36).substring(7)); // Extra random param
-      
       const response = await fetch(`/api/persons?${params.toString()}`, {
-        credentials: 'include',
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'X-Requested-With': 'XMLHttpRequest' // Prevent browser caching
-        }
+        credentials: 'include'
       });
       
       if (response.ok) {
@@ -169,22 +157,16 @@ const People = () => {
 
   const handleOpenModal = async (person = null) => {
     if (person) {
-      // ALWAYS fetch fresh data from server, never use cached person object
+      // Fetch fresh data from server
       try {
-        const freshResponse = await fetch(`/api/persons/${person.id}?${Date.now()}`, {
-          credentials: 'include',
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
+        const freshResponse = await fetch(`/api/persons/${person.id}`, {
+          credentials: 'include'
         });
         if (freshResponse.ok) {
-          const freshData = await freshResponse.json();
-          person = freshData; // Use fresh data from server
+          person = await freshResponse.json();
         }
       } catch (err) {
-        console.error('Error fetching fresh person data:', err);
-        // Continue with existing person data if fetch fails
+        console.error('Error fetching person data:', err);
       }
       
       setEditingPerson(person);
