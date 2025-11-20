@@ -12831,26 +12831,82 @@ def get_persons():
         # Serialize persons with engagement data
         result = []
         for person in persons:
-            person_data = person.to_dict()
+            try:
+                person_data = person.to_dict()
+            except Exception as e:
+                logger.error(f"Error serializing person {person.id}: {e}", exc_info=True)
+                # Skip this person if we can't serialize them
+                continue
             
-            # Add engagement profile data if available
-            if person.engagement_profile:
-                try:
-                    engagement = person.engagement_profile.to_dict(recalculate=False)  # Skip recalculation to avoid errors
-                    person_data['pulse_status'] = engagement.get('pulse_status', 'red')
-                    person_data['last_seen'] = engagement.get('last_seen')
-                    person_data['pulse_reasons'] = engagement.get('pulse_reasons', ['No engagement data'])
-                    person_data['attendance_frequency'] = engagement.get('attendance_frequency', 0.0)
-                    person_data['serving_frequency'] = engagement.get('serving_frequency', 0.0)
-                    person_data['overall_engagement'] = engagement.get('overall_engagement', 0.0)
-                except Exception as e:
-                    logger.error(f"Error serializing engagement profile for {person.id}: {e}", exc_info=True)
-                    person_data['pulse_status'] = 'red'
-                    person_data['last_seen'] = None
-                    person_data['pulse_reasons'] = ['No engagement data']
-                    person_data['attendance_frequency'] = 0.0
-                    person_data['serving_frequency'] = 0.0
-                    person_data['overall_engagement'] = 0.0
+            # Add engagement profile data - use raw SQL to avoid SQLAlchemy schema issues
+            engagement_data = None
+            try:
+                # Use raw SQL query to avoid SQLAlchemy ORM schema mismatch issues
+                from sqlalchemy import text
+                engagement_row = db.session.execute(
+                    text("""
+                        SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, 
+                               overall_engagement, attendance_log, serving_log, milestones_log
+                        FROM engagement_profiles 
+                        WHERE person_id = :person_id
+                    """),
+                    {'person_id': person.id}
+                ).fetchone()
+                
+                if engagement_row:
+                    # Parse the engagement data manually
+                    pulse_status = engagement_row[0] or 'red'
+                    last_seen = engagement_row[1].isoformat() if engagement_row[1] else None
+                    attendance_frequency = float(engagement_row[2] or 0.0)
+                    serving_frequency = float(engagement_row[3] or 0.0)
+                    overall_engagement = float(engagement_row[4] or 0.0)
+                    
+                    # Parse JSON logs
+                    try:
+                        attendance_log = json.loads(engagement_row[5] or '[]')
+                    except:
+                        attendance_log = []
+                    
+                    try:
+                        milestones_log = json.loads(engagement_row[7] or '[]')
+                    except:
+                        milestones_log = []
+                    
+                    # Calculate pulse reasons from the data
+                    pulse_reasons = []
+                    if last_seen:
+                        try:
+                            last_seen_date = datetime.fromisoformat(last_seen).date() if isinstance(last_seen, str) else last_seen
+                            days_ago = (datetime.utcnow().date() - last_seen_date).days
+                            pulse_reasons.append(f"Last seen {days_ago} days ago")
+                        except:
+                            pulse_reasons.append("Last seen recently")
+                    else:
+                        pulse_reasons.append("No attendance recorded")
+                    
+                    pulse_reasons.append(f"Services: {len(attendance_log)} in attendance log")
+                    pulse_reasons.append(f"Overall engagement: {int(overall_engagement)}/100")
+                    
+                    engagement_data = {
+                        'pulse_status': pulse_status,
+                        'last_seen': last_seen,
+                        'pulse_reasons': pulse_reasons,
+                        'attendance_frequency': attendance_frequency,
+                        'serving_frequency': serving_frequency,
+                        'overall_engagement': overall_engagement
+                    }
+            except Exception as e:
+                # If raw SQL fails, just use defaults
+                logger.warning(f"Error fetching engagement profile for {person.id}: {e}")
+                engagement_data = None
+            
+            if engagement_data:
+                person_data['pulse_status'] = engagement_data.get('pulse_status', 'red')
+                person_data['last_seen'] = engagement_data.get('last_seen')
+                person_data['pulse_reasons'] = engagement_data.get('pulse_reasons', ['No engagement data'])
+                person_data['attendance_frequency'] = engagement_data.get('attendance_frequency', 0.0)
+                person_data['serving_frequency'] = engagement_data.get('serving_frequency', 0.0)
+                person_data['overall_engagement'] = engagement_data.get('overall_engagement', 0.0)
             else:
                 person_data['pulse_status'] = 'red'
                 person_data['last_seen'] = None
