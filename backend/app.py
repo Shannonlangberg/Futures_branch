@@ -7584,6 +7584,123 @@ def serve_index():
     print("[DEBUG] Serving React app")
     return send_from_directory('static', 'index.html')
 
+@app.route('/api/register', methods=['POST', 'OPTIONS'])
+def api_register():
+    """Public registration endpoint - creates User account and links to Person record"""
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
+    
+    try:
+        data = request.get_json(force=True, silent=True)
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '').strip()
+        full_name = data.get('full_name', '').strip()
+        campus = data.get('campus', '').strip()
+        
+        if not email or not password or not full_name:
+            return jsonify({"error": "Email, password, and full name are required"}), 400
+        
+        # Check if User account already exists
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', (email,))
+        existing_user = cursor.fetchone()
+        
+        if existing_user:
+            return jsonify({"error": "An account with this email already exists. Please login instead."}), 400
+        
+        # Check if Person record exists (from PCO import)
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email,
+            Person.is_active == True
+        ).first()
+        
+        if person:
+            logger.info(f"[REGISTER] Found existing Person record for {email} (ID: {person.id})")
+            # Use data from existing Person record
+            full_name = person.full_name
+            campus = person.campus
+        else:
+            logger.info(f"[REGISTER] Creating new Person record for {email}")
+            # Create new Person record
+            person = Person(
+                id=f'user_{uuid.uuid4().hex[:12]}',
+                full_name=full_name,
+                email=email,
+                campus=campus or 'all_campuses',
+                is_active=True
+            )
+            db.session.add(person)
+            db.session.flush()
+            
+            # Create engagement profile
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+            db.session.commit()
+        
+        # Create User account
+        user_id = str(uuid.uuid4())
+        password_hash = generate_password_hash(password, method='pbkdf2:sha256')
+        
+        cursor.execute('''
+            INSERT INTO users (id, username, email, password_hash, full_name, role, campus, active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_id,
+            full_name,
+            email,
+            password_hash,
+            full_name,
+            'pastor',  # Default role
+            campus or 'all_campuses',
+            1,
+            datetime.now()
+        ))
+        conn.commit()
+        
+        logger.info(f"[REGISTER] ✅ Created User account for {email} (linked to Person {person.id})")
+        
+        # Auto-login the user
+        user_data = {
+            'id': user_id,
+            'username': full_name,
+            'email': email,
+            'full_name': full_name,
+            'role': 'pastor',
+            'campus': campus or 'all_campuses',
+            'active': True
+        }
+        user = User(user_data)
+        login_user(user, remember=True)
+        session.modified = True
+        
+        return jsonify({
+            "success": True,
+            "authenticated": True,
+            "message": "Account created successfully!",
+            "token": session.get('_id', 'session-token'),
+            "user": {
+                "id": user_id,
+                "email": email,
+                "name": full_name,
+                "role": 'pastor',
+                "campus": campus or 'all_campuses'
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"[REGISTER] Error: {e}", exc_info=True)
+        return jsonify({"error": "Registration failed. Please try again."}), 500
+
+
 @app.route('/api/login', methods=['POST', 'OPTIONS'])
 def api_login():
     """API login endpoint for React frontend and mobile app"""
