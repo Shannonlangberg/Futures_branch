@@ -9,9 +9,9 @@ const SeriesCard = ({ series, isLarge = false }) => {
   const previewRef = useRef(null);
 
   useEffect(() => {
-    if (isHovered && cardRef.current && previewRef.current) {
+    if (isHovered && cardRef.current) {
       const cardRect = cardRef.current.getBoundingClientRect();
-      const previewHeight = 280; // Approximate preview height
+      const previewHeight = 320; // Approximate preview height
       const viewportHeight = window.innerHeight;
       const spaceBelow = viewportHeight - cardRect.bottom;
       const spaceAbove = cardRect.top;
@@ -34,6 +34,7 @@ const SeriesCard = ({ series, isLarge = false }) => {
       className="relative"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      style={{ zIndex: isHovered ? 100 : 'auto' }}
     >
       {/* Original Card */}
       <Link
@@ -72,13 +73,22 @@ const SeriesCard = ({ series, isLarge = false }) => {
       </Link>
 
       {/* Hover Preview - Netflix Style */}
-      {isHovered && (
+      {isHovered && cardRef.current && (
         <div
           ref={previewRef}
-          className={`absolute z-50 ${previewPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-1/2 transform -translate-x-1/2 w-80 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 overflow-hidden animate-fade-in`}
+          className="fixed z-[9999] w-80 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 overflow-hidden pointer-events-auto"
           style={{
+            top: previewPosition === 'top' 
+              ? `${cardRef.current.getBoundingClientRect().top - 320}px`
+              : `${cardRef.current.getBoundingClientRect().bottom + 8}px`,
+            left: `${Math.max(16, Math.min(
+              window.innerWidth - 336,
+              (cardRef.current.getBoundingClientRect().left + cardRef.current.getBoundingClientRect().right) / 2 - 160
+            ))}px`,
             animation: 'fadeIn 0.2s ease-out'
           }}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
           {/* Preview Image */}
           <div className="relative w-full h-44 bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40">

@@ -119,16 +119,16 @@ const TV = () => {
         </div>
       </div>
 
-      <div className="pb-12 relative z-10">
+      <div className="pb-12 relative" style={{ zIndex: 1 }}>
         {/* Most Watched Section */}
         {mostWatched.length > 0 && (
-          <div className="mb-8 mt-6">
+          <div className="mb-12 mt-6">
             <div className="max-w-7xl mx-auto px-6">
               <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
                 <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                 Most Watched
               </h2>
-              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
@@ -149,13 +149,13 @@ const TV = () => {
 
         {/* Continue Watching Section */}
         {continueWatching.length > 0 && (
-          <div className="mb-8">
+          <div className="mb-12">
             <div className="max-w-7xl mx-auto px-6">
               <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
                 <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                 Continue Watching
               </h2>
-              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
                 {continueWatching.slice(0, 8).map((episode) => (
                   <Link
                     key={episode.id}
@@ -209,13 +209,13 @@ const TV = () => {
           if (categorySeries.length === 0) return null;
 
           return (
-            <div key={category} className="mb-8">
+            <div key={category} className="mb-12">
               <div className="max-w-7xl mx-auto px-6">
                 <h2 className="text-2xl font-bold mb-4 text-white capitalize flex items-center gap-2">
                   <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                   {category.replace(/_/g, ' ')}
                 </h2>
-                <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
                   {categorySeries.map((s) => (
                     <SeriesCard key={s.id} series={s} />
                   ))}
@@ -232,13 +232,13 @@ const TV = () => {
         })}
 
         {/* Add a "New This Week" row with placeholders */}
-        <div className="mb-8">
+        <div className="mb-12">
           <div className="max-w-7xl mx-auto px-6">
             <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
               <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
               New This Week
             </h2>
-            <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
               {createPlaceholders(6).map((item) => (
                 <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-pink-900/30 rounded-lg border border-purple-500/30 flex flex-col items-center justify-center">
                   <span className="text-slate-400 text-xs mb-2">📺</span>

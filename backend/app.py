@@ -12818,10 +12818,13 @@ def get_persons():
                 )
             )
         
+        # Force fresh query by expiring session and querying directly
+        db.session.expire_all()
         persons = query.order_by(Person.full_name).all()
         
         # Log what we found
         logger.info(f"GET /api/persons - Query returned {len(persons)} persons")
+        logger.info(f"GET /api/persons - Database URI: {db_uri}")
         for person in persons:
             logger.info(f"  • {person.id}: '{person.full_name}' ({person.email})")
         
@@ -13101,9 +13104,21 @@ def get_person_detail(person_id):
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
+        # Force fresh query
+        db.session.expire_all()
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        logger.info(f"GET /api/persons/{person_id} - Using database: {db_uri}")
+        
         person = Person.query.filter_by(id=person_id, is_active=True).first()
         if not person:
+            logger.warning(f"GET /api/persons/{person_id} - Person not found in database")
+            # Check if person exists but is inactive
+            inactive_person = Person.query.filter_by(id=person_id).first()
+            if inactive_person:
+                logger.warning(f"  Person exists but is inactive (is_active={inactive_person.is_active})")
             return jsonify({'error': 'Person not found'}), 404
+        
+        logger.info(f"GET /api/persons/{person_id} - Found: '{person.full_name}' ({person.email})")
         
         # Get person data
         person_data = person.to_dict()
