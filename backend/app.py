@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ResourceCategory
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ResourceCategory
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -13905,6 +13905,100 @@ def get_my_pathway():
         return jsonify({'pathway': None, 'error': 'Failed to fetch pathway data'}), 500
 
 
+@app.route('/api/pathways/complete-step', methods=['POST'])
+def complete_pathway_step():
+    """Mark a pathway step as complete (public endpoint for mobile app)"""
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        step_id = data.get('step_id')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        if not step_id:
+            return jsonify({'error': 'Step ID is required'}), 400
+        
+        # Find person by email
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get person's active pathway progress
+        from models import PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
+        
+        pathway_progress = PersonPathwayProgress.query.filter_by(
+            person_id=person.id,
+            is_active=True
+        ).first()
+        
+        if not pathway_progress:
+            return jsonify({'error': 'No active pathway found'}), 404
+        
+        # Verify step belongs to this pathway
+        step = PathwayStep.query.filter_by(id=step_id).first()
+        if not step or step.pathway_id != pathway_progress.pathway_id:
+            return jsonify({'error': 'Step not found in your pathway'}), 404
+        
+        # Check if already completed
+        existing_completion = PersonPathwayStepCompletion.query.filter_by(
+            person_pathway_progress_id=pathway_progress.id,
+            pathway_step_id=step_id
+        ).first()
+        
+        if existing_completion:
+            return jsonify({
+                'message': 'Step already completed',
+                'pathway': pathway_progress.to_dict()
+            }), 200
+        
+        # Mark step as complete
+        completion = PersonPathwayStepCompletion(
+            person_pathway_progress_id=pathway_progress.id,
+            pathway_step_id=step_id,
+            completed_by_person_id=person.id,
+            notes=data.get('notes')
+        )
+        db.session.add(completion)
+        
+        # Update current_step_id to next uncompleted step
+        next_step = pathway_progress.get_next_step()
+        if next_step:
+            pathway_progress.current_step_id = next_step.id
+        else:
+            # All steps completed!
+            pathway_progress.completed_at = datetime.utcnow()
+            pathway_progress.current_step_id = None
+        
+        # Update started_at if this is the first step
+        if not pathway_progress.started_at:
+            pathway_progress.started_at = datetime.utcnow()
+        
+        pathway_progress.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        logger.info(f"Step {step_id} marked complete for {email}")
+        
+        # Return updated pathway
+        return jsonify({
+            'message': 'Step completed successfully!',
+            'pathway': pathway_progress.to_dict(),
+            'completed_step': {
+                'id': step.id,
+                'name': step.step_name,
+                'completed_at': completion.completed_at.isoformat()
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error completing pathway step: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to complete step'}), 500
+
+
 @app.route('/api/persons/<person_id>', methods=['PUT'])
 @login_required
 def update_person(person_id):
@@ -17727,18 +17821,43 @@ def create_event():
         requires_payment = data.get('requires_payment', False) if price else False
         stripe_price_id = data.get('stripe_price_id', None) if requires_payment else None
         
-        # Create event with only fields that exist in the model
+        # Parse tags if provided
+        tags_json = None
+        if data.get('tags'):
+            if isinstance(data['tags'], list):
+                tags_json = json.dumps(data['tags'])
+            else:
+                tags_json = data['tags']
+        
+        # Get current user ID if available
+        current_user_id = None
+        if hasattr(current_user, 'id'):
+            current_user_id = current_user.id
+        
+        # Create event with all fields
         new_event = Event(
             title=data['title'],
             description=data.get('description'),
             category_id=data['category_id'],
             campus=data.get('campus', 'all_campuses'),
             location=data.get('location'),
+            location_id=data.get('location_id'),
             start_time=start_datetime,
             end_time=end_datetime,
             price=price,
             requires_payment=requires_payment,
-            stripe_price_id=stripe_price_id
+            stripe_price_id=stripe_price_id,
+            ministry=data.get('ministry'),
+            is_all_day=data.get('is_all_day', False),
+            recurrence_rule=data.get('recurrence_rule'),
+            status=data.get('status', 'draft'),
+            visibility=data.get('visibility', 'public'),
+            capacity=data.get('capacity'),
+            registration_required=data.get('registration_required', False),
+            registration_form_id=data.get('registration_form_id'),
+            tags=tags_json,
+            created_by_user_id=current_user_id,
+            updated_by_user_id=current_user_id
         )
         
         db.session.add(new_event)
@@ -17767,7 +17886,7 @@ def update_event(event_id):
         
         data = request.get_json()
         
-        # Update fields (only fields that exist in the Event model)
+        # Update all fields
         if 'title' in data:
             event.title = data['title']
         if 'description' in data:
@@ -17778,6 +17897,8 @@ def update_event(event_id):
             event.campus = data['campus']
         if 'location' in data:
             event.location = data['location']
+        if 'location_id' in data:
+            event.location_id = data['location_id']
         if 'start_datetime' in data or 'start_time' in data:
             start_time_value = data.get('start_datetime') or data.get('start_time')
             event.start_time = datetime.fromisoformat(start_time_value.replace('Z', '+00:00'))
@@ -17801,6 +17922,31 @@ def update_event(event_id):
             event.stripe_price_id = data['stripe_price_id']
         if 'is_active' in data:
             event.is_active = data['is_active']
+        if 'ministry' in data:
+            event.ministry = data['ministry']
+        if 'is_all_day' in data:
+            event.is_all_day = data['is_all_day']
+        if 'recurrence_rule' in data:
+            event.recurrence_rule = data['recurrence_rule']
+        if 'status' in data:
+            event.status = data['status']
+        if 'visibility' in data:
+            event.visibility = data['visibility']
+        if 'capacity' in data:
+            event.capacity = data['capacity'] if data['capacity'] else None
+        if 'registration_required' in data:
+            event.registration_required = data['registration_required']
+        if 'registration_form_id' in data:
+            event.registration_form_id = data['registration_form_id'] if data['registration_form_id'] else None
+        if 'tags' in data:
+            if isinstance(data['tags'], list):
+                event.tags = json.dumps(data['tags'])
+            else:
+                event.tags = data['tags']
+        
+        # Update updated_by_user_id
+        if hasattr(current_user, 'id'):
+            event.updated_by_user_id = current_user.id
         
         event.updated_at = datetime.utcnow()
         db.session.commit()

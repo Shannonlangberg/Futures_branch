@@ -240,6 +240,16 @@ export const ApiService = {
     return response.data;
   },
 
+  // Pathway
+  async completePathwayStep(email, stepId, notes) {
+    const response = await api.post('/api/pathways/complete-step', {
+      email,
+      step_id: stepId,
+      notes,
+    });
+    return response.data;
+  },
+
   async createSetupIntent(email) {
     const response = await api.post('/api/giving/create-setup-intent', {
       email,

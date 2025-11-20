@@ -7,6 +7,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Alert,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +24,10 @@ export default function PathwayScreen() {
   const [nextSteps, setNextSteps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedStep, setSelectedStep] = useState(null);
+  const [showStepModal, setShowStepModal] = useState(false);
+  const [completingStep, setCompletingStep] = useState(false);
+  const [celebrationAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
     loadData();
@@ -76,6 +83,73 @@ export default function PathwayScreen() {
       // Could open contact form or phone
       console.log('Contact action:', step);
     }
+  };
+
+  const handleStepPress = (step) => {
+    setSelectedStep(step);
+    setShowStepModal(true);
+  };
+
+  const handleCompleteStep = async () => {
+    if (!selectedStep || completingStep) return;
+    
+    Alert.alert(
+      'Complete Step',
+      `Mark "${selectedStep.step_name}" as complete?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          onPress: async () => {
+            try {
+              setCompletingStep(true);
+              const userData = await AsyncStorage.getItem('userData');
+              if (!userData) {
+                Alert.alert('Error', 'Please log in again');
+                return;
+              }
+              
+              const userObj = JSON.parse(userData);
+              const result = await ApiService.completePathwayStep(
+                userObj.email,
+                selectedStep.id
+              );
+              
+              if (result.pathway) {
+                setPathway(result.pathway);
+                // Trigger celebration animation
+                Animated.sequence([
+                  Animated.timing(celebrationAnim, {
+                    toValue: 1,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }),
+                  Animated.delay(1500),
+                  Animated.timing(celebrationAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }),
+                ]).start();
+                
+                setShowStepModal(false);
+                setSelectedStep(null);
+                
+                // Reload data to get updated streaks/next steps
+                setTimeout(() => {
+                  loadData();
+                }, 500);
+              }
+            } catch (error) {
+              console.error('Error completing step:', error);
+              Alert.alert('Error', error.response?.data?.error || 'Failed to complete step');
+            } finally {
+              setCompletingStep(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -218,11 +292,15 @@ export default function PathwayScreen() {
                     
                     {/* Right Column: Step Card */}
                     <View style={styles.stepRightColumn}>
-                      <View style={[
-                        styles.stepCard,
-                        isCompleted && styles.stepCardCompleted,
-                        isNext && styles.stepCardNext,
-                      ]}>
+                      <TouchableOpacity
+                        style={[
+                          styles.stepCard,
+                          isCompleted && styles.stepCardCompleted,
+                          isNext && styles.stepCardNext,
+                        ]}
+                        onPress={() => handleStepPress(step)}
+                        activeOpacity={0.7}
+                      >
                         {isNext && (
                           <View style={styles.nextBadge}>
                             <Text style={styles.nextBadgeText}>NEXT STEP</Text>
@@ -237,6 +315,12 @@ export default function PathwayScreen() {
                           {step.step_name}
                         </Text>
                         
+                        {step.step_description && (
+                          <Text style={styles.stepDescription} numberOfLines={2}>
+                            {step.step_description}
+                          </Text>
+                        )}
+                        
                         {isCompleted && step.completed_at && (
                           <View style={styles.completedInfo}>
                             <Text style={styles.completedIcon}>✓</Text>
@@ -245,7 +329,13 @@ export default function PathwayScreen() {
                             </Text>
                           </View>
                         )}
-                      </View>
+                        
+                        {!isCompleted && (
+                          <View style={styles.tapHint}>
+                            <Text style={styles.tapHintText}>Tap to view details →</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
                 );
@@ -266,6 +356,119 @@ export default function PathwayScreen() {
 
         <View style={{ height: 100 }} />
       </LinearGradient>
+
+      {/* Step Detail Modal */}
+      <Modal
+        visible={showStepModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowStepModal(false);
+          setSelectedStep(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {selectedStep && (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalStepNumber}>
+                    <Text style={styles.modalStepNumberText}>{selectedStep.step_order}</Text>
+                  </View>
+                  <View style={styles.modalHeaderText}>
+                    <Text style={styles.modalTitle}>{selectedStep.step_name}</Text>
+                    {selectedStep.is_completed && selectedStep.completed_at && (
+                      <Text style={styles.modalCompletedDate}>
+                        Completed {formatDate(selectedStep.completed_at)}
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowStepModal(false);
+                      setSelectedStep(null);
+                    }}
+                    style={styles.modalCloseButton}
+                  >
+                    <Text style={styles.modalCloseText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.modalBody}>
+                  {selectedStep.step_description && (
+                    <View style={styles.modalDescription}>
+                      <Text style={styles.modalDescriptionText}>
+                        {selectedStep.step_description}
+                      </Text>
+                    </View>
+                  )}
+
+                  {selectedStep.milestone_type && (
+                    <View style={styles.modalMilestone}>
+                      <Text style={styles.modalMilestoneLabel}>Milestone Type:</Text>
+                      <Text style={styles.modalMilestoneValue}>
+                        {selectedStep.milestone_type.replace('_', ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+
+                  {selectedStep.is_completed ? (
+                    <View style={styles.completedBadge}>
+                      <Text style={styles.completedBadgeText}>✓ Step Completed</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.completeButton, completingStep && styles.completeButtonDisabled]}
+                      onPress={handleCompleteStep}
+                      disabled={completingStep}
+                    >
+                      {completingStep ? (
+                        <ActivityIndicator color="#ffffff" />
+                      ) : (
+                        <LinearGradient
+                          colors={['#10b981', '#059669']}
+                          style={styles.completeButtonGradient}
+                        >
+                          <Text style={styles.completeButtonText}>Mark as Complete</Text>
+                        </LinearGradient>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Celebration Animation */}
+      {celebrationAnim._value > 0 && (
+        <Animated.View
+          style={[
+            styles.celebration,
+            {
+              opacity: celebrationAnim,
+              transform: [
+                {
+                  scale: celebrationAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1.2],
+                  }),
+                },
+              ],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <LinearGradient
+            colors={['#10b981', '#059669']}
+            style={styles.celebrationGradient}
+          >
+            <Text style={styles.celebrationEmoji}>🎉</Text>
+            <Text style={styles.celebrationText}>Step Completed!</Text>
+          </LinearGradient>
+        </Animated.View>
+      )}
     </ScrollView>
   );
 }
@@ -592,5 +795,169 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  stepDescription: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: Spacing.xs,
+    lineHeight: 18,
+  },
+  tapHint: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  tapHintText: {
+    fontSize: FontSizes.xs,
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontStyle: 'italic',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#1e293b',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalStepNumber: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  modalStepNumberText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#a5b4fc',
+  },
+  modalHeaderText: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: Spacing.xs,
+  },
+  modalCompletedDate: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: 'bold',
+  },
+  modalBody: {
+    padding: Spacing.lg,
+  },
+  modalDescription: {
+    marginBottom: Spacing.lg,
+  },
+  modalDescriptionText: {
+    fontSize: FontSizes.md,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 24,
+  },
+  modalMilestone: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    padding: Spacing.md,
+    borderRadius: 12,
+    marginBottom: Spacing.lg,
+  },
+  modalMilestoneLabel: {
+    fontSize: FontSizes.xs,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginBottom: Spacing.xs,
+  },
+  modalMilestoneValue: {
+    fontSize: FontSizes.sm,
+    color: '#a5b4fc',
+    fontWeight: '600',
+  },
+  completedBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    padding: Spacing.md,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  completedBadgeText: {
+    fontSize: FontSizes.md,
+    color: '#10b981',
+    fontWeight: '600',
+  },
+  completeButton: {
+    marginTop: Spacing.md,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  completeButtonDisabled: {
+    opacity: 0.6,
+  },
+  completeButtonGradient: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completeButtonText: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  // Celebration Styles
+  celebration: {
+    position: 'absolute',
+    top: '30%',
+    left: '50%',
+    marginLeft: -100,
+    width: 200,
+    zIndex: 1000,
+  },
+  celebrationGradient: {
+    padding: Spacing.lg,
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  celebrationEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.xs,
+  },
+  celebrationText: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });
