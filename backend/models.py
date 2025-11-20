@@ -86,7 +86,7 @@ class EngagementProfile(db.Model):
     # Summary pulse
     pulse_status = db.Column(db.String(20), default='green')  # green, amber, red
     last_seen = db.Column(db.Date)  # Note: DB uses DATE not DATETIME
-    pulse_last_calculated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    # Note: pulse_last_calculated doesn't exist in actual DB schema - removed to avoid errors
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
@@ -249,6 +249,7 @@ class EngagementProfile(db.Model):
         Enhanced version with all 5 engagement factors and weighted scoring.
         """
         now = datetime.utcnow()
+        now_date = now.date()  # Use date for comparisons with last_seen (DATE column)
         eight_weeks_ago = now - timedelta(days=56)
         
         # 1. ATTENDANCE (30% weight)
