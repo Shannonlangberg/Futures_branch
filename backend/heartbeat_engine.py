@@ -138,6 +138,12 @@ class HeartbeatEngine:
             db.session.add(snapshot)
         
         db.session.commit()
+        
+        # Force refresh to ensure we have the latest data
+        db.session.refresh(snapshot)
+        
+        logger.info(f"✅✅✅ Heartbeat snapshot saved for {person_id}: gather={gather_score}, engagement={engagement_score}, spiritual={spiritual_score}, care={care_score}, total={total_score}, status={status}")
+        
         return snapshot
     
     def _get_campus_id(self, campus_name: str) -> str:
