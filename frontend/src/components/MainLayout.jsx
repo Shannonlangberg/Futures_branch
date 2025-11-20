@@ -55,7 +55,8 @@ const MainLayout = ({ children }) => {
           });
         }
         // Set branch info regardless of auth status
-        setRailwayBranch(data.railway_branch || 'main');
+        // Default to 'beta' (show all) unless explicitly 'main' (restricted)
+        setRailwayBranch(data.railway_branch || 'beta');
       } catch (error) {
         console.error('Error fetching session data:', error);
       }
@@ -126,8 +127,8 @@ const MainLayout = ({ children }) => {
 
     // Filter items based on user role, feature flags, and Railway branch
     const filteredItems = allItems.filter(item => {
-      // If on main branch, only show Dashboard, Input, and Settings
-      // (Settings is handled separately in getSettingsItems)
+      // Only restrict if explicitly on 'main' branch
+      // Default behavior (beta/null/undefined) shows all features
       if (railwayBranch === 'main') {
         // Main branch: Only Dashboard and Input (no Home, no other features)
         if (item.name === 'Home') {
@@ -141,7 +142,7 @@ const MainLayout = ({ children }) => {
         return false;
       }
       
-      // Beta branch: Show everything based on role permissions
+      // Beta branch (or default): Show everything based on role permissions
       // Pulse TV is visible to all authenticated users
       if (item.name === 'Pulse TV') {
         return true;

@@ -94,7 +94,8 @@ function App() {
         setIsAuthenticated(data.authenticated);
         const role = data.role || null;
         setUserRole(role);
-        setRailwayBranch(data.railway_branch || 'main');
+        // Default to 'beta' (show all features) unless explicitly 'main'
+        setRailwayBranch(data.railway_branch || 'beta');
         const allowsDriveAuth = role ? RESOURCE_ALLOWED_ROLES.includes(role) : false;
         const requiresDrive = allowsDriveAuth && Boolean(data.needs_drive_auth);
         setNeedsDriveAuth(requiresDrive);
