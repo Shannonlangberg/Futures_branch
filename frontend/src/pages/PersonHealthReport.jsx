@@ -866,7 +866,7 @@ const PersonHealthReport = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <div className="text-xs text-purple-300 uppercase tracking-wide mb-1">Total Heartbeat Score</div>
-                    <div className="text-4xl font-bold text-white">{Math.round(heartbeat.total_score)}</div>
+                    <div className="text-4xl font-bold text-white">{Math.round(heartbeat?.total_score || 0)}</div>
                     <div className="text-sm text-purple-300 mt-1">out of 100</div>
                   </div>
                   <div className="text-6xl opacity-20">💜</div>
@@ -874,7 +874,7 @@ const PersonHealthReport = () => {
                 <div className="w-full bg-slate-900/50 rounded-full h-4 overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(heartbeat.total_score, 100)}%` }}
+                    style={{ width: `${Math.min(heartbeat?.total_score || 0, 100)}%` }}
                   />
                 </div>
                 <div className="mt-4 text-xs text-purple-300/80">
