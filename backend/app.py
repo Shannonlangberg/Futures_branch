@@ -14300,50 +14300,55 @@ def log_attendance_simple():
         
         logger.info(f"Found person: {person.id} ({person.full_name})")
         
-        # Get or create engagement profile (handle schema mismatches gracefully)
-        engagement = None
+        # Get or create engagement profile using raw SQL to avoid ORM schema mismatches
+        from sqlalchemy import text
+        import json as json_lib
+        from datetime import date as date_class
+        
         try:
-            # Try to get existing engagement profile using raw SQL to avoid ORM issues
-            from sqlalchemy import text
+            # Check if engagement profile exists using raw SQL
             engagement_row = db.session.execute(
-                text("SELECT person_id FROM engagement_profiles WHERE person_id = :person_id"),
+                text("SELECT attendance_log, last_seen FROM engagement_profiles WHERE person_id = :person_id"),
                 {'person_id': person.id}
             ).fetchone()
             
-            if engagement_row:
-                # Engagement exists - load it by person_id (which is the primary key)
+            if not engagement_row:
+                # Create new engagement profile using raw SQL (only columns that exist in DB)
+                logger.info(f"Creating new engagement profile for {person.id}")
                 try:
-                    engagement = EngagementProfile.query.filter_by(person_id=person.id).first()
-                    if engagement:
-                        logger.info(f"Loaded existing engagement profile for person {person.id}")
-                    else:
-                        # If query returns None, create new one
-                        engagement = EngagementProfile(person_id=person.id)
-                        db.session.add(engagement)
-                        db.session.flush()
-                        logger.info(f"Recreated engagement profile for person {person.id}")
-                except Exception as load_error:
-                    logger.warning(f"Error loading engagement via ORM: {load_error}, creating new one")
-                    engagement = EngagementProfile(person_id=person.id)
-                    db.session.add(engagement)
-                    db.session.flush()
+                    today_date = date_class.today()
+                    now_time = datetime.utcnow()
+                    db.session.execute(
+                        text("""
+                            INSERT INTO engagement_profiles 
+                            (person_id, pulse_status, last_seen, updated_at, created_at, 
+                             attendance_log, serving_log, milestones_log, email_engagement, social_engagement,
+                             attendance_frequency, serving_frequency, overall_engagement)
+                            VALUES 
+                            (:person_id, 'green', :today, :now, :now, 
+                             '[]', '[]', '[]', '[]', '[]',
+                             0.0, 0.0, 0.0)
+                        """),
+                        {
+                            'person_id': person.id,
+                            'today': today_date,
+                            'now': now_time
+                        }
+                    )
+                    db.session.commit()
+                    logger.info(f"✅ Created engagement profile for {person.id}")
+                    current_log_str = '[]'
+                except Exception as create_error:
+                    db.session.rollback()
+                    logger.error(f"Error creating engagement profile: {create_error}", exc_info=True)
+                    return jsonify({'error': f'Failed to create engagement profile: {str(create_error)}'}), 500
             else:
-                # Create new engagement profile
-                engagement = EngagementProfile(person_id=person.id)
-                db.session.add(engagement)
-                db.session.flush()
-                logger.info(f"Created new engagement profile for person {person.id}")
+                current_log_str = engagement_row[0] or '[]'
+                logger.info(f"Found existing engagement profile for {person.id}")
+                
         except Exception as e:
-            logger.error(f"Error accessing/creating engagement profile: {e}", exc_info=True)
-            # Try to create a new one as fallback
-            try:
-                engagement = EngagementProfile(person_id=person.id)
-                db.session.add(engagement)
-                db.session.flush()
-                logger.info(f"Created engagement profile as fallback for person {person.id}")
-            except Exception as e2:
-                logger.error(f"Failed to create engagement profile: {e2}", exc_info=True)
-                return jsonify({'error': f'Failed to access engagement profile: {str(e2)}'}), 500
+            logger.error(f"Error checking engagement profile: {e}", exc_info=True)
+            return jsonify({'error': f'Failed to access engagement profile: {str(e)}'}), 500
         
         # Get campus from person or request
         campus = data.get('campus') or person.campus
@@ -14352,30 +14357,18 @@ def log_attendance_simple():
         
         logger.info(f"Logging attendance for person {person.id} at campus {campus}")
         
-        # Log attendance (this is the "gather" metric in heartbeat!)
-        attendance_time = datetime.utcnow()  # Use UTC to match model
+        # Log attendance using raw SQL to avoid ORM schema mismatches
+        attendance_time = datetime.utcnow()
         
         try:
-            # Ensure engagement object is properly loaded and has methods
-            if not hasattr(engagement, '_load_json') or not hasattr(engagement, '_dump_json'):
-                logger.error(f"Engagement profile missing required methods")
-                return jsonify({'error': 'Engagement profile error'}), 500
-            
-            # Manual attendance logging (more reliable than add_attendance which has date issues)
+            # Parse existing attendance log
             try:
-                # Get existing attendance log (handle None safely)
-                current_log = getattr(engagement, 'attendance_log', None)
-                if current_log is None:
-                    current_log = '[]'
-                elif not isinstance(current_log, str):
-                    current_log = '[]'
-                
-                attendance_log = engagement._load_json(current_log)
+                attendance_log = json_lib.loads(current_log_str) if current_log_str else []
                 if not isinstance(attendance_log, list):
                     attendance_log = []
             except Exception as json_error:
-                logger.error(f"Error loading attendance log: {json_error}", exc_info=True)
-                attendance_log = []  # Start fresh if we can't parse
+                logger.warning(f"Error parsing attendance log, starting fresh: {json_error}")
+                attendance_log = []
             
             # Add new attendance record
             attendance_log.append({
@@ -14384,29 +14377,45 @@ def log_attendance_simple():
                 'campus': campus
             })
             
-            # Save back to engagement
-            try:
-                engagement.attendance_log = engagement._dump_json(attendance_log)
-            except Exception as json_error:
-                logger.error(f"Error saving attendance log: {json_error}", exc_info=True)
-                return jsonify({'error': 'Failed to save attendance log'}), 500
+            # Update attendance log and last_seen using raw SQL
+            new_log_str = json_lib.dumps(attendance_log)
+            today_date = attendance_time.date()
             
-            # last_seen is a DATE column, not DATETIME - convert properly
             try:
-                from datetime import date as date_class
-                engagement.last_seen = attendance_time.date() if isinstance(attendance_time, datetime) else date_class.today()
-            except Exception as date_error:
-                logger.warning(f"Could not set last_seen: {date_error}")
-                # Continue anyway - last_seen is optional
-            
-            # Try to recalculate heartbeat (might fail, but that's ok - we still log attendance)
-            try:
-                engagement.recalculate_heartbeat()
-            except Exception as hb_error:
-                logger.warning(f"Could not recalculate heartbeat (but attendance logged): {hb_error}")
-            
-            db.session.commit()
-            logger.info(f"✅ Attendance logged successfully for {person.email}")
+                db.session.execute(
+                    text("""
+                        UPDATE engagement_profiles 
+                        SET attendance_log = :attendance_log,
+                            last_seen = :last_seen,
+                            updated_at = :updated_at
+                        WHERE person_id = :person_id
+                    """),
+                    {
+                        'attendance_log': new_log_str,
+                        'last_seen': today_date,
+                        'updated_at': attendance_time,
+                        'person_id': person.id
+                    }
+                )
+                db.session.commit()
+                logger.info(f"✅ Attendance logged successfully for {person.email} at {campus}")
+                
+                # Try to recalculate heartbeat (non-critical - can fail)
+                try:
+                    engagement = EngagementProfile.query.filter_by(person_id=person.id).first()
+                    if engagement:
+                        engagement.recalculate_heartbeat()
+                        db.session.commit()
+                        logger.info(f"✅ Heartbeat recalculated for {person.id}")
+                except Exception as hb_error:
+                    logger.warning(f"Could not recalculate heartbeat (but attendance logged): {hb_error}")
+                    db.session.rollback()  # Rollback the heartbeat calc, but attendance is already saved
+                
+            except Exception as update_error:
+                db.session.rollback()
+                logger.error(f"Error updating attendance log: {update_error}", exc_info=True)
+                return jsonify({'error': f'Failed to update attendance log: {str(update_error)}'}), 500
+                
         except Exception as e:
             db.session.rollback()
             logger.error(f"❌ Error logging attendance: {e}", exc_info=True)
