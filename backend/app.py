@@ -13831,20 +13831,13 @@ def update_person(person_id):
         if 'phone' in data:
             person.phone = data['phone'].strip() if data.get('phone') else None
         
-        # Save the person ID before any session operations
-        saved_person_id = person.id
-        
         # Commit changes
         db.session.commit()
         logger.info(f"  Committed changes to database")
         
-        # Re-query to get fresh data with a new session
-        db.session.expire_all()
-        person = Person.query.filter_by(id=saved_person_id, is_active=True).first()
-        
-        if not person:
-            logger.error(f"  ERROR: Person not found after commit!")
-            return jsonify({'error': 'Person not found after update'}), 404
+        # Refresh the person object to get updated data
+        db.session.refresh(person)
+        logger.info(f"  Person refreshed: {person.full_name}")
         
         if 'connect_group' in data:
             # Normalize connect_group - convert empty string to None
