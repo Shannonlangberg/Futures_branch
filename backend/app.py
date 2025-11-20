@@ -14332,17 +14332,48 @@ def log_attendance_simple():
         attendance_time = datetime.utcnow()  # Use UTC to match model
         
         try:
+            # Ensure engagement object is properly loaded and has methods
+            if not hasattr(engagement, '_load_json') or not hasattr(engagement, '_dump_json'):
+                logger.error(f"Engagement profile missing required methods")
+                return jsonify({'error': 'Engagement profile error'}), 500
+            
             # Manual attendance logging (more reliable than add_attendance which has date issues)
-            attendance_log = engagement._load_json(engagement.attendance_log or '[]')
+            try:
+                # Get existing attendance log (handle None safely)
+                current_log = getattr(engagement, 'attendance_log', None)
+                if current_log is None:
+                    current_log = '[]'
+                elif not isinstance(current_log, str):
+                    current_log = '[]'
+                
+                attendance_log = engagement._load_json(current_log)
+                if not isinstance(attendance_log, list):
+                    attendance_log = []
+            except Exception as json_error:
+                logger.error(f"Error loading attendance log: {json_error}", exc_info=True)
+                attendance_log = []  # Start fresh if we can't parse
+            
+            # Add new attendance record
             attendance_log.append({
                 'timestamp': attendance_time.isoformat(),
                 'zones': ['sunday_service'],
                 'campus': campus
             })
-            engagement.attendance_log = engagement._dump_json(attendance_log)
+            
+            # Save back to engagement
+            try:
+                engagement.attendance_log = engagement._dump_json(attendance_log)
+            except Exception as json_error:
+                logger.error(f"Error saving attendance log: {json_error}", exc_info=True)
+                return jsonify({'error': 'Failed to save attendance log'}), 500
             
             # last_seen is a DATE column, not DATETIME - convert properly
-            engagement.last_seen = attendance_time.date()
+            try:
+                from datetime import date as date_class
+                engagement.last_seen = attendance_time.date() if isinstance(attendance_time, datetime) else date_class.today()
+            except Exception as date_error:
+                logger.warning(f"Could not set last_seen: {date_error}")
+                # Continue anyway - last_seen is optional
             
             # Try to recalculate heartbeat (might fail, but that's ok - we still log attendance)
             try:
@@ -14351,10 +14382,10 @@ def log_attendance_simple():
                 logger.warning(f"Could not recalculate heartbeat (but attendance logged): {hb_error}")
             
             db.session.commit()
-            logger.info(f"Attendance logged successfully for {person.email}")
+            logger.info(f"✅ Attendance logged successfully for {person.email}")
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error logging attendance: {e}", exc_info=True)
+            logger.error(f"❌ Error logging attendance: {e}", exc_info=True)
             return jsonify({'error': f'Failed to log attendance: {str(e)}'}), 500
         
         return jsonify({
