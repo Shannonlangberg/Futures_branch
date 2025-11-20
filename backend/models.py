@@ -228,8 +228,14 @@ class EngagementProfile(db.Model):
             group_log.append(new_entry)
             logger.info(f"Added new entry: {new_entry}")
         
-        self.group_attendance_log = self._dump_json(group_log)
-        logger.info(f"Group attendance log now has {len(self._load_json(self.group_attendance_log))} entries")
+        # Save to milestones_log
+        all_milestones = self._load_json(self.milestones_log or '[]')
+        # Remove old group attendance entries
+        all_milestones = [m for m in all_milestones if m.get('type') != 'group_attendance']
+        # Add new group attendance entries
+        all_milestones.extend(group_log)
+        self.milestones_log = self._dump_json(all_milestones)
+        logger.info(f"Group attendance log now has {len(group_log)} entries")
         
         # Recalculate heartbeat
         old_engagement = self.overall_engagement
@@ -461,9 +467,15 @@ class EngagementProfile(db.Model):
     
     def to_dict(self, recalculate=True):
         """Convert engagement profile to dictionary"""
-        # Recalculate heartbeat before returning to ensure data is up to date
-        if recalculate:
-            self.recalculate_heartbeat()
+        try:
+            # Recalculate heartbeat before returning to ensure data is up to date
+            if recalculate:
+                self.recalculate_heartbeat()
+        except Exception as e:
+            # If recalculation fails, log but continue
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error recalculating heartbeat for {self.person_id}: {e}")
         
         # Parse milestones_log to extract different types
         milestones_log = self._load_json(self.milestones_log or '[]')
@@ -471,11 +483,22 @@ class EngagementProfile(db.Model):
         giving_log = [m for m in milestones_log if m.get('type') == 'giving']
         group_attendance_log = [m for m in milestones_log if m.get('type') == 'group_attendance']
         
+        # Handle last_seen - it's a DATE in DB, not DATETIME
+        last_seen_str = None
+        if self.last_seen:
+            if isinstance(self.last_seen, datetime):
+                last_seen_str = self.last_seen.isoformat()
+            elif hasattr(self.last_seen, 'isoformat'):
+                last_seen_str = self.last_seen.isoformat()
+            else:
+                # It's a date object, convert to datetime for isoformat
+                last_seen_str = datetime.combine(self.last_seen, datetime.min.time()).isoformat()
+        
         return {
             'id': self.person_id,  # Use person_id as id (it's the primary key)
             'person_id': self.person_id,
             'pulse_status': self.pulse_status,
-            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
+            'last_seen': last_seen_str,
             'attendance_log': self._load_json(self.attendance_log or '[]'),
             'interaction_log': [],  # Not stored in DB
             'bible_log': bible_log,

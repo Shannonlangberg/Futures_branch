@@ -12836,7 +12836,7 @@ def get_persons():
             # Add engagement profile data if available
             if person.engagement_profile:
                 try:
-                    engagement = person.engagement_profile.to_dict()
+                    engagement = person.engagement_profile.to_dict(recalculate=False)  # Skip recalculation to avoid errors
                     person_data['pulse_status'] = engagement.get('pulse_status', 'red')
                     person_data['last_seen'] = engagement.get('last_seen')
                     person_data['pulse_reasons'] = engagement.get('pulse_reasons', ['No engagement data'])
@@ -12844,7 +12844,7 @@ def get_persons():
                     person_data['serving_frequency'] = engagement.get('serving_frequency', 0.0)
                     person_data['overall_engagement'] = engagement.get('overall_engagement', 0.0)
                 except Exception as e:
-                    logger.warning(f"Error serializing engagement profile: {e}")
+                    logger.error(f"Error serializing engagement profile for {person.id}: {e}", exc_info=True)
                     person_data['pulse_status'] = 'red'
                     person_data['last_seen'] = None
                     person_data['pulse_reasons'] = ['No engagement data']
