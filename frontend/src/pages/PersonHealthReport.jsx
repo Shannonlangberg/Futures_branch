@@ -45,7 +45,9 @@ const StatusBadge = ({ status, score }) => {
 
 // Score card component
 const ScoreCard = ({ label, value, weight, color, maxValue = 100, onClick }) => {
-  const percentage = Math.min((value / maxValue) * 100, 100);
+  // Ensure value is a number (handle null/undefined)
+  const numValue = typeof value === 'number' ? value : (parseFloat(value) || 0);
+  const percentage = Math.min((numValue / maxValue) * 100, 100);
   const colorClasses = {
     blue: 'bg-blue-500',
     purple: 'bg-purple-500',
@@ -65,7 +67,7 @@ const ScoreCard = ({ label, value, weight, color, maxValue = 100, onClick }) => 
       <div className="flex items-center justify-between mb-3">
           <div>
           <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">{label}</div>
-          <div className="text-3xl font-bold text-white">{Math.round(value)}</div>
+          <div className="text-3xl font-bold text-white">{Math.round(numValue)}</div>
           </div>
         <div className="text-right">
           <div className="text-xs text-slate-500">Weight</div>
@@ -739,7 +741,7 @@ const PersonHealthReport = () => {
             <div className="flex flex-col items-end gap-3">
               {hasHeartbeat ? (
                 <>
-                  <StatusBadge status={heartbeat.status} score={heartbeat.total_score} />
+                  <StatusBadge status={heartbeat?.status || 'watch'} score={heartbeat?.total_score || 0} />
                   <div className="flex flex-col gap-2">
                     <div className="flex gap-2">
                       <button
@@ -819,7 +821,7 @@ const PersonHealthReport = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <ScoreCard
                   label="Gather"
-                  value={heartbeat.gather_score}
+                  value={heartbeat?.gather_score ?? 0}
                   weight="35%"
                   color="blue"
                   onClick={() => {
@@ -829,7 +831,7 @@ const PersonHealthReport = () => {
                 />
                 <ScoreCard
                   label="Engagement"
-                  value={heartbeat.engagement_score}
+                  value={heartbeat?.engagement_score ?? 0}
                   weight="25%"
                   color="purple"
                   onClick={() => {
@@ -839,7 +841,7 @@ const PersonHealthReport = () => {
                 />
                 <ScoreCard
                   label="Spiritual"
-                  value={heartbeat.spiritual_score}
+                  value={heartbeat?.spiritual_score ?? 0}
                   weight="25%"
                   color="indigo"
                   onClick={() => {
@@ -849,7 +851,7 @@ const PersonHealthReport = () => {
                 />
                 <ScoreCard
                   label="Care"
-                  value={heartbeat.care_score}
+                  value={heartbeat?.care_score ?? 0}
                   weight="15%"
                   color="pink"
                   onClick={() => {
