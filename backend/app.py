@@ -8302,6 +8302,24 @@ def debug_claude():
 @app.route('/api/session')
 def session_info():
     """Get current session info - public endpoint for mobile app"""
+    # Detect Railway branch/environment
+    # Priority: 1. Custom APP_ENV variable, 2. RAILWAY_BRANCH, 3. RAILWAY_ENVIRONMENT, 4. Detect from service name, 5. Default to 'main'
+    railway_branch = os.getenv('APP_ENV') or os.getenv('RAILWAY_BRANCH') or os.getenv('RAILWAY_ENVIRONMENT', '').lower()
+    
+    # If still not set, try to detect from Railway service name
+    if not railway_branch:
+        service_name = os.getenv('RAILWAY_SERVICE_NAME', '').lower()
+        if 'beta' in service_name or 'branch' in service_name:
+            railway_branch = 'beta'
+        else:
+            railway_branch = 'main'  # Default to 'main' for production safety
+    
+    # Normalize branch name
+    if railway_branch in ['production', 'prod', 'main']:
+        railway_branch = 'main'
+    elif railway_branch in ['beta', 'staging', 'dev', 'development']:
+        railway_branch = 'beta'
+    
     # Allow unauthenticated access for mobile app session check
     if current_user.is_authenticated:
         # Check if user needs Google Drive auth (admin users only)
@@ -8337,6 +8355,7 @@ def session_info():
             "drive_status": drive_status,  # Debug info
             "user_id": current_user.id,  # Debug info
             "session_keys": list(session.keys()),  # Debug info
+            "railway_branch": railway_branch,  # Branch/environment info
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     else:
@@ -8347,6 +8366,7 @@ def session_info():
             "campus": None,
             "full_name": None,
             "needs_drive_auth": False,
+            "railway_branch": railway_branch,  # Branch/environment info
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
