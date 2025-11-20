@@ -478,38 +478,76 @@ class EngagementProfile(db.Model):
             logger.warning(f"Error recalculating heartbeat for {self.person_id}: {e}")
         
         # Parse milestones_log to extract different types
-        milestones_log = self._load_json(self.milestones_log or '[]')
-        bible_log = [m for m in milestones_log if m.get('type') == 'bible_reading']
-        giving_log = [m for m in milestones_log if m.get('type') == 'giving']
-        group_attendance_log = [m for m in milestones_log if m.get('type') == 'group_attendance']
+        try:
+            milestones_log = self._load_json(self.milestones_log or '[]')
+            bible_log = [m for m in milestones_log if m.get('type') == 'bible_reading']
+            giving_log = [m for m in milestones_log if m.get('type') == 'giving']
+            group_attendance_log = [m for m in milestones_log if m.get('type') == 'group_attendance']
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error parsing milestones_log for {self.person_id}: {e}")
+            bible_log = []
+            giving_log = []
+            group_attendance_log = []
         
         # Handle last_seen - it's a DATE in DB, not DATETIME
         last_seen_str = None
-        if self.last_seen:
-            if isinstance(self.last_seen, datetime):
-                last_seen_str = self.last_seen.isoformat()
-            elif hasattr(self.last_seen, 'isoformat'):
-                last_seen_str = self.last_seen.isoformat()
-            else:
-                # It's a date object, convert to datetime for isoformat
-                last_seen_str = datetime.combine(self.last_seen, datetime.min.time()).isoformat()
+        try:
+            if self.last_seen:
+                if isinstance(self.last_seen, datetime):
+                    last_seen_str = self.last_seen.isoformat()
+                elif hasattr(self.last_seen, 'isoformat'):
+                    last_seen_str = self.last_seen.isoformat()
+                else:
+                    # It's a date object, convert to datetime for isoformat
+                    last_seen_str = datetime.combine(self.last_seen, datetime.min.time()).isoformat()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error formatting last_seen for {self.person_id}: {e}")
+        
+        # Get pulse reasons safely
+        try:
+            pulse_reasons = self.get_pulse_reasons()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error getting pulse reasons for {self.person_id}: {e}")
+            pulse_reasons = ['Error loading engagement data']
+        
+        try:
+            attendance_log = self._load_json(self.attendance_log or '[]')
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error parsing attendance_log for {self.person_id}: {e}")
+            attendance_log = []
+        
+        try:
+            serving_log = self._load_json(self.serving_log or '[]')
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error parsing serving_log for {self.person_id}: {e}")
+            serving_log = []
         
         return {
             'id': self.person_id,  # Use person_id as id (it's the primary key)
             'person_id': self.person_id,
-            'pulse_status': self.pulse_status,
+            'pulse_status': getattr(self, 'pulse_status', 'red'),
             'last_seen': last_seen_str,
-            'attendance_log': self._load_json(self.attendance_log or '[]'),
+            'attendance_log': attendance_log,
             'interaction_log': [],  # Not stored in DB
             'bible_log': bible_log,
             'giving_log': giving_log,
-            'serving_log': self._load_json(self.serving_log or '[]'),
+            'serving_log': serving_log,
             'group_attendance_log': group_attendance_log,
-            'attendance_frequency': self.attendance_frequency,
-            'serving_frequency': self.serving_frequency,
-            'overall_engagement': self.overall_engagement,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'pulse_reasons': self.get_pulse_reasons()
+            'attendance_frequency': getattr(self, 'attendance_frequency', 0.0),
+            'serving_frequency': getattr(self, 'serving_frequency', 0.0),
+            'overall_engagement': getattr(self, 'overall_engagement', 0.0),
+            'updated_at': self.updated_at.isoformat() if hasattr(self, 'updated_at') and self.updated_at else None,
+            'pulse_reasons': pulse_reasons
         }
 
 

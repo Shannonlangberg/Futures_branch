@@ -12877,8 +12877,10 @@ def get_persons():
         })
         
     except Exception as e:
-        logger.error(f"Error fetching persons: {e}")
-        return jsonify({'error': 'Failed to fetch persons'}), 500
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"Error fetching persons: {e}\n{error_traceback}")
+        return jsonify({'error': f'Failed to fetch persons: {str(e)}'}), 500
 
 
 @app.route('/api/persons', methods=['POST'])
