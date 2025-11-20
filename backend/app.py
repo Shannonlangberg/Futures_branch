@@ -14310,16 +14310,22 @@ def log_attendance_simple():
             ).fetchone()
             
             if engagement_row:
-                # Engagement exists - load it properly
-                engagement = EngagementProfile.query.get(person.id)
-                if not engagement:
-                    # If ORM fails, create new one
+                # Engagement exists - load it by person_id (which is the primary key)
+                try:
+                    engagement = EngagementProfile.query.filter_by(person_id=person.id).first()
+                    if engagement:
+                        logger.info(f"Loaded existing engagement profile for person {person.id}")
+                    else:
+                        # If query returns None, create new one
+                        engagement = EngagementProfile(person_id=person.id)
+                        db.session.add(engagement)
+                        db.session.flush()
+                        logger.info(f"Recreated engagement profile for person {person.id}")
+                except Exception as load_error:
+                    logger.warning(f"Error loading engagement via ORM: {load_error}, creating new one")
                     engagement = EngagementProfile(person_id=person.id)
                     db.session.add(engagement)
                     db.session.flush()
-                    logger.info(f"Recreated engagement profile for person {person.id}")
-                else:
-                    logger.info(f"Loaded existing engagement profile for person {person.id}")
             else:
                 # Create new engagement profile
                 engagement = EngagementProfile(person_id=person.id)
