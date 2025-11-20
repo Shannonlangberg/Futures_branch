@@ -83,12 +83,12 @@ function MainTabs() {
         }}
       />
       <Tab.Screen 
-        name="Sunday" 
-        component={SundayScreen}
+        name="Pathway" 
+        component={PassportScreen}
         options={{
-          tabBarLabel: 'Sunday',
+          tabBarLabel: 'Pathway',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>⛪</Text>
+            <Text style={{ fontSize: 24 }}>🗺️</Text>
           ),
         }}
       />
@@ -113,12 +113,12 @@ function MainTabs() {
         }}
       />
       <Tab.Screen 
-        name="Journey" 
-        component={PassportScreen}
+        name="Settings" 
+        component={ProfileScreen}
         options={{
-          tabBarLabel: 'Journey',
+          tabBarLabel: 'Settings',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>🎫</Text>
+            <Text style={{ fontSize: 24 }}>⚙️</Text>
           ),
         }}
       />

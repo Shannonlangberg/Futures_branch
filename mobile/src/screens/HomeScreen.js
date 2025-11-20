@@ -115,10 +115,10 @@ export default function HomeScreen() {
           </LinearGradient>
         </View>
 
-        {/* Your Journey Card */}
+        {/* Your Pathway Card */}
         <TouchableOpacity
           style={styles.journeySection}
-          onPress={() => navigation.navigate('Journey')}
+          onPress={() => navigation.navigate('Pathway')}
           activeOpacity={0.8}
         >
           <LinearGradient
@@ -126,7 +126,7 @@ export default function HomeScreen() {
             style={styles.journeyCard}
           >
             <View style={styles.journeyHeader}>
-              <Text style={styles.journeyTitle}>Your Journey 🎫</Text>
+              <Text style={styles.journeyTitle}>Your Pathway 🗺️</Text>
               <Text style={styles.journeyArrow}>→</Text>
             </View>
             <Text style={styles.journeySubtitle}>Track your spiritual growth</Text>
