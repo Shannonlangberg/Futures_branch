@@ -22,8 +22,40 @@ giving_bp = Blueprint('giving', __name__, url_prefix='/api/giving')
 
 
 def get_person_by_email(email):
-    """Get person by email"""
-    return Person.query.filter_by(email=email, is_active=True).first()
+    """Get person by email - try multiple methods like other endpoints"""
+    if not email:
+        return None
+    
+    email = email.strip()
+    
+    # Method 1: Direct match (like beacon API uses)
+    person = Person.query.filter_by(email=email, is_active=True).first()
+    if person:
+        return person
+    
+    # Method 2: Case-insensitive with func.lower
+    try:
+        person = Person.query.filter(
+            db.func.lower(Person.email) == db.func.lower(email),
+            Person.is_active == True
+        ).first()
+        if person:
+            return person
+    except:
+        pass
+    
+    # Method 3: Try with trimmed/cleaned email
+    email_clean = email.strip().lower()
+    try:
+        # Query all active persons and check manually
+        persons = Person.query.filter_by(is_active=True).all()
+        for p in persons:
+            if p.email and p.email.strip().lower() == email_clean:
+                return p
+    except:
+        pass
+    
+    return None
 
 
 @giving_bp.route('/create-intent', methods=['POST'])
@@ -32,9 +64,18 @@ def create_payment_intent():
     Create a Stripe Payment Intent for giving
     Public endpoint - uses email to identify person
     """
+    # Log immediately to verify endpoint is being hit
+    print(f"[GIVING API] ===== CREATE PAYMENT INTENT CALLED =====")
+    print(f"[GIVING API] Method: {request.method}")
+    print(f"[GIVING API] URL: {request.url}")
+    print(f"[GIVING API] Headers: {dict(request.headers)}")
+    logger.error(f"[GIVING API] ===== CREATE PAYMENT INTENT CALLED =====")  # Use error level so it shows in logs
+    logger.error(f"[GIVING API] Request received at /api/giving/create-intent")
+    
     try:
         data = request.get_json()
-        logger.info(f"Creating payment intent with data: {data}")
+        print(f"[GIVING API] Request data: {data}")
+        logger.error(f"[GIVING API] Creating payment intent with data: {data}")
         
         if not stripe.api_key:
             logger.error("Stripe API key not configured")
@@ -43,8 +84,11 @@ def create_payment_intent():
         amount = data.get('amount')  # Amount in cents
         giving_type = data.get('type', 'tithe')  # 'tithe', 'offering', 'missions', 'event'
         campus = data.get('campus', '')
-        email = data.get('email')
+        email = data.get('email', '').strip()  # Get and trim email
         source = data.get('source', 'app')  # 'app', 'qr_code', 'web', 'tap_to_give'
+        
+        # Normalize email for lookup (lowercase, but keep original for storage)
+        email_lower = email.lower() if email else ''
         qr_code_id = data.get('qr_code_id', None)  # QR code identifier if from QR
         service_date = data.get('service_date', None)  # Service date if from QR
         
@@ -56,21 +100,149 @@ def create_payment_intent():
             logger.warning("Email not provided in request")
             return jsonify({'error': 'Email required'}), 400
         
-        logger.info(f"Looking up person with email: {email}")
-        # Verify person exists
+        print(f"[GIVING API] Looking up person with email: '{email}'")
+        logger.error(f"[GIVING API] Looking up person with email: '{email}'")
+        
+        # Try multiple lookup methods to match how other endpoints work
+        person = None
+        
+        # Method 1: Direct query like beacon API
         try:
-            person = get_person_by_email(email)
-            if not person:
-                logger.warning(f"Person not found for email: {email}")
-                return jsonify({'error': f'Person not found for email: {email}'}), 404
-            logger.info(f"Found person: {person.id} - {person.full_name}")
+            person = Person.query.filter_by(email=email, is_active=True).first()
+            if person:
+                print(f"[GIVING API] Found via direct query: {person.id}")
+                logger.error(f"[GIVING API] Found via direct query: {person.id}")
         except Exception as e:
+            print(f"[GIVING API] Direct query failed: {e}")
+            logger.error(f"[GIVING API] Direct query failed: {e}")
+        
+        # Method 2: Use helper function
+        if not person:
+            try:
+                person = get_person_by_email(email)
+                if person:
+                    print(f"[GIVING API] Found via helper function: {person.id}")
+                    logger.error(f"[GIVING API] Found via helper function: {person.id}")
+            except Exception as e:
+                print(f"[GIVING API] Helper function failed: {e}")
+                logger.error(f"[GIVING API] Helper function failed: {e}")
+        
+        # Method 3: Try case-insensitive manual search
+        if not person:
+            try:
+                email_lower = email.strip().lower()
+                all_persons = Person.query.filter_by(is_active=True).all()
+                for p in all_persons:
+                    if p.email and p.email.strip().lower() == email_lower:
+                        person = p
+                        print(f"[GIVING API] Found via manual search: {person.id} (email in DB: '{p.email}')")
+                        logger.error(f"[GIVING API] Found via manual search: {person.id} (email in DB: '{p.email}')")
+                        break
+            except Exception as e:
+                print(f"[GIVING API] Manual search failed: {e}")
+                logger.error(f"[GIVING API] Manual search failed: {e}")
+        
+        # Verify person exists, create if missing
+        try:
+            
+            if not person:
+                # Person doesn't exist - create it immediately
+                print("=" * 80)
+                print(f"[GIVING API] PERSON NOT FOUND - CREATING NOW")
+                print(f"[GIVING API] Email: {email}")
+                print("=" * 80)
+                logger.error("=" * 80)
+                logger.error(f"[GIVING API] PERSON NOT FOUND - CREATING NOW")
+                logger.error(f"[GIVING API] Email: {email}")
+                logger.error("=" * 80)
+                
+                try:
+                    # Generate unique ID
+                    person_id = f"user_{uuid.uuid4().hex[:12]}"
+                    name_from_email = email.split('@')[0].replace('.', ' ').title()
+                    person_campus = campus or 'paradise'
+                    
+                    print(f"[GIVING API] Creating Person: id={person_id}, name={name_from_email}, campus={person_campus}")
+                    logger.error(f"[GIVING API] Creating Person: id={person_id}, name={name_from_email}, campus={person_campus}")
+                    
+                    # Create Person - minimal fields only
+                    person = Person(
+                        id=person_id,
+                        full_name=name_from_email,
+                        email=email,
+                        campus=person_campus,
+                        is_active=True
+                    )
+                    
+                    print(f"[GIVING API] Person object created, adding to session")
+                    logger.error(f"[GIVING API] Person object created, adding to session")
+                    db.session.add(person)
+                    
+                    print(f"[GIVING API] Flushing to get ID...")
+                    logger.error(f"[GIVING API] Flushing to get ID...")
+                    db.session.flush()
+                    
+                    print(f"[GIVING API] Person ID after flush: {person.id}")
+                    logger.error(f"[GIVING API] Person ID after flush: {person.id}")
+                    
+                    # Skip engagement profile - schema issues
+                    print(f"[GIVING API] Skipping engagement profile (schema issues)")
+                    logger.error(f"[GIVING API] Skipping engagement profile (schema issues)")
+                    
+                    print(f"[GIVING API] Committing transaction...")
+                    logger.error(f"[GIVING API] Committing transaction...")
+                    db.session.commit()
+                    
+                    print(f"[GIVING API] ✅ COMMIT SUCCESS!")
+                    logger.error(f"[GIVING API] ✅ COMMIT SUCCESS!")
+                    
+                    # Re-query to verify
+                    verify = Person.query.filter_by(id=person.id).first()
+                    if verify:
+                        print(f"[GIVING API] ✅ VERIFIED: Person {person.id} exists!")
+                        logger.error(f"[GIVING API] ✅ VERIFIED: Person {person.id} exists!")
+                        person = verify  # Use the verified person
+                    else:
+                        print(f"[GIVING API] ❌ VERIFICATION FAILED!")
+                        logger.error(f"[GIVING API] ❌ VERIFICATION FAILED!")
+                        raise Exception("Person not found after commit")
+                        
+                except Exception as create_error:
+                    print(f"[GIVING API] ❌❌❌ CREATION FAILED: {create_error}")
+                    logger.error(f"❌❌❌ CREATION FAILED: {create_error}", exc_info=True)
+                    import traceback
+                    tb = traceback.format_exc()
+                    print(f"[GIVING API] Traceback:\n{tb}")
+                    logger.error(f"Traceback:\n{tb}")
+                    db.session.rollback()
+                    return jsonify({'error': f'Failed to create person: {str(create_error)}'}), 500
+            
+            # Final check
+            if not person:
+                print(f"[GIVING API] ❌ FINAL CHECK FAILED - Person is None!")
+                logger.error(f"❌ FINAL CHECK FAILED - Person is None!")
+                return jsonify({'error': f'Person not found for email: {email}'}), 404
+            
+            print(f"[GIVING API] ✅ Person ready: {person.id} - {person.full_name}")
+            logger.error(f"[GIVING API] ✅ Person ready: {person.id} - {person.full_name}")
+                
+        except Exception as e:
+            print(f"[GIVING API] ❌ Exception in person lookup: {e}")
             logger.error(f"Error looking up person: {e}", exc_info=True)
+            import traceback
+            traceback_str = traceback.format_exc()
+            print(f"[GIVING API] Traceback: {traceback_str}")
+            logger.error(f"Traceback: {traceback_str}")
             return jsonify({'error': f'Database error: {str(e)}'}), 500
         
-        # Use person's campus if not provided
-        if not campus:
+        # Use person's campus if not provided or if "all_campuses" was sent
+        if not campus or campus == 'all_campuses':
             campus = person.campus or ''
+        
+        # If person still doesn't have a campus, default to a valid one
+        if not campus:
+            campus = 'paradise'  # Default campus
+            logger.warning(f"Person {person.id} has no campus, defaulting to 'paradise'")
         
         # If from QR code, update scan count
         if qr_code_id and source in ['qr_code', 'tap_to_give']:

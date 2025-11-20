@@ -191,8 +191,12 @@ export default function GivingScreen({ navigation }) {
           user.email
         );
 
+        console.log('Payment intent result:', intentResult);
+
         if (!intentResult.client_secret) {
-          throw new Error('Failed to create payment intent');
+          const errorMsg = intentResult.error || 'Failed to create payment intent';
+          console.error('Payment intent error:', errorMsg);
+          throw new Error(errorMsg);
         }
 
         // Initialize payment sheet

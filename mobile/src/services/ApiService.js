@@ -216,6 +216,12 @@ export const ApiService = {
       email, // Required by backend
       source: 'app',
     });
+    
+    // Check if response has an error
+    if (response.status >= 400) {
+      throw new Error(response.data?.error || `Server error: ${response.status}`);
+    }
+    
     return response.data;
   },
 
