@@ -5,7 +5,8 @@ import {
 } from '@heroicons/react/24/outline';
 
 const Lists = () => {
-  const [people, setPeople] = useState([]);
+  const [allPeople, setAllPeople] = useState([]);
+  const [filteredPeople, setFilteredPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [campuses, setCampuses] = useState([]);
   
@@ -16,7 +17,6 @@ const Lists = () => {
   
   // Export state
   const [exporting, setExporting] = useState(false);
-  const [resultCount, setResultCount] = useState(0);
 
   const departments = [
     { id: 'Kids', label: 'Kids' },
@@ -35,11 +35,13 @@ const Lists = () => {
 
   useEffect(() => {
     loadCampuses();
+    loadAllPeople();
   }, []);
 
+  // Filter people whenever selections change
   useEffect(() => {
-    loadPersons();
-  }, [selectedCampuses, selectedDepartments, selectedHeartbeat]);
+    filterPeople();
+  }, [allPeople, selectedCampuses, selectedDepartments, selectedHeartbeat]);
 
   const loadCampuses = async () => {
     try {
@@ -55,107 +57,56 @@ const Lists = () => {
     }
   };
 
-  const loadPersons = async () => {
+  const loadAllPeople = async () => {
     try {
       setLoading(true);
-      // Build query - we'll get all people and filter client-side for now
-      // Or we could make multiple API calls and combine
-      const allPeople = [];
+      const response = await fetch('/api/persons?include_archived=true', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
       
-      // If campuses selected, query each one
-      if (selectedCampuses.length > 0) {
-        for (const campusId of selectedCampuses) {
-          const params = new URLSearchParams();
-          params.append('campus', campusId);
-          
-          // Add department filters if any selected
-          if (selectedDepartments.length > 0) {
-            // We'll need to handle multiple departments - query each
-            for (const dept of selectedDepartments) {
-              const deptParams = new URLSearchParams(params);
-              deptParams.append('department', dept);
-              
-              const response = await fetch(`/api/persons?${deptParams.toString()}`, {
-                credentials: 'include',
-                cache: 'no-store'
-              });
-              
-              if (response.ok) {
-                const data = await response.json();
-                // Merge results, avoiding duplicates
-                const newPeople = (data.people || []).filter(p => 
-                  !allPeople.find(existing => existing.id === p.id)
-                );
-                allPeople.push(...newPeople);
-              }
-            }
-          } else {
-            // No department filter, just get all from this campus
-            const response = await fetch(`/api/persons?${params.toString()}`, {
-              credentials: 'include',
-              cache: 'no-store'
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              const newPeople = (data.people || []).filter(p => 
-                !allPeople.find(existing => existing.id === p.id)
-              );
-              allPeople.push(...newPeople);
-            }
-          }
-        }
+      if (response.ok) {
+        const data = await response.json();
+        setAllPeople(data.people || []);
       } else {
-        // No campuses selected, get all people
-        const params = new URLSearchParams();
-        if (selectedDepartments.length > 0) {
-          // Still need to filter by department
-          for (const dept of selectedDepartments) {
-            const deptParams = new URLSearchParams();
-            deptParams.append('department', dept);
-            
-            const response = await fetch(`/api/persons?${deptParams.toString()}`, {
-              credentials: 'include',
-              cache: 'no-store'
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              const newPeople = (data.people || []).filter(p => 
-                !allPeople.find(existing => existing.id === p.id)
-              );
-              allPeople.push(...newPeople);
-            }
-          }
-        } else {
-          // Get all people
-          const response = await fetch(`/api/persons?${params.toString()}`, {
-            credentials: 'include',
-            cache: 'no-store'
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            allPeople.push(...(data.people || []));
-          }
-        }
+        console.error('Failed to load people');
+        setAllPeople([]);
       }
-      
-      // Filter by heartbeat status if selected
-      let filtered = allPeople;
-      if (selectedHeartbeat.length > 0) {
-        filtered = allPeople.filter(p => 
-          selectedHeartbeat.includes(p.pulse_status || 'red')
-        );
-      }
-      
-      setPeople(filtered);
-      setResultCount(filtered.length);
       setLoading(false);
     } catch (err) {
       console.error('Error loading people:', err);
+      setAllPeople([]);
       setLoading(false);
     }
+  };
+
+  const filterPeople = () => {
+    let filtered = [...allPeople];
+
+    // Filter by campus
+    if (selectedCampuses.length > 0) {
+      filtered = filtered.filter(person => 
+        selectedCampuses.includes(person.campus)
+      );
+    }
+
+    // Filter by department
+    if (selectedDepartments.length > 0) {
+      filtered = filtered.filter(person => {
+        const personDept = person.department || '';
+        return selectedDepartments.includes(personDept);
+      });
+    }
+
+    // Filter by heartbeat status
+    if (selectedHeartbeat.length > 0) {
+      filtered = filtered.filter(person => {
+        const pulseStatus = person.pulse_status || 'red';
+        return selectedHeartbeat.includes(pulseStatus);
+      });
+    }
+
+    setFilteredPeople(filtered);
   };
 
   const toggleCampus = (campusId) => {
@@ -182,76 +133,112 @@ const Lists = () => {
     );
   };
 
+  const escapeCSV = (value) => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const exportToCSV = async () => {
     try {
       setExporting(true);
       
-      // Build export parameters for multiple selections
-      // We'll export each combination and combine, or modify backend to accept arrays
-      const params = new URLSearchParams();
-      
-      // For now, export what we have loaded
-      // In a better implementation, we'd pass arrays to the backend
-      if (selectedCampuses.length === 1) {
-        params.append('campus', selectedCampuses[0]);
-      }
-      if (selectedDepartments.length === 1) {
-        params.append('department', selectedDepartments[0]);
-      }
-      if (selectedHeartbeat.length === 1) {
-        params.append('pulse_status', selectedHeartbeat[0]);
-      }
-      
-      // If multiple selections, we'll need to handle differently
-      // For now, let's create a CSV from the current filtered results
       const csvRows = [];
       
-      // Header
+      // Header row with all columns
       csvRows.push([
-        'ID', 'Full Name', 'Preferred Name', 'Email', 'Phone',
-        'Campus', 'Department', 'Connect Group', 'Dream Team Roles',
-        'Birthday', 'Tags', 'Pulse Status', 'Last Seen',
-        'Attendance Frequency', 'Serving Frequency', 'Overall Engagement',
-        'DNA Completed', 'Baptised On', 'Filled Holy Spirit',
-        'RISE Attended', 'First Served On', 'Pastoral Notes',
-        'Is Active', 'Created At', 'Updated At'
+        'Name',
+        'Preferred Name',
+        'Email',
+        'Phone',
+        'Campus',
+        'Department',
+        'Connect Group',
+        'Dream Team Roles',
+        'Birthday',
+        'Tags',
+        'Pulse Status',
+        'Last Seen',
+        'Attendance Frequency',
+        'Serving Frequency',
+        'Overall Engagement',
+        'DNA Completed',
+        'Baptised On',
+        'Filled Holy Spirit',
+        'RISE Attended',
+        'First Served On',
+        'Pastoral Notes',
+        'Is Active',
+        'ID',
+        'Created At',
+        'Updated At'
       ].join(','));
-      
+
       // Data rows
-      people.forEach(person => {
-        const dreamTeamRoles = Array.isArray(person.dream_team_roles) 
-          ? person.dream_team_roles.join(', ') 
-          : (person.dream_team_roles || '');
-        const tags = Array.isArray(person.tags) 
-          ? person.tags.join(', ') 
-          : (person.tags || '');
+      filteredPeople.forEach(person => {
+        // Parse JSON fields if they exist
+        let dreamTeamRoles = '';
+        let tags = '';
         
+        try {
+          if (person.dream_team_roles) {
+            const roles = typeof person.dream_team_roles === 'string' 
+              ? JSON.parse(person.dream_team_roles) 
+              : person.dream_team_roles;
+            dreamTeamRoles = Array.isArray(roles) ? roles.join(', ') : roles;
+          }
+        } catch (e) {
+          dreamTeamRoles = person.dream_team_roles || '';
+        }
+
+        try {
+          if (person.tags) {
+            const tagList = typeof person.tags === 'string' 
+              ? JSON.parse(person.tags) 
+              : person.tags;
+            tags = Array.isArray(tagList) ? tagList.join(', ') : tagList;
+          }
+        } catch (e) {
+          tags = person.tags || '';
+        }
+
+        // Format dates
+        const formatDate = (date) => {
+          if (!date) return '';
+          if (typeof date === 'string') return date.split('T')[0];
+          if (date.toISOString) return date.toISOString().split('T')[0];
+          return date;
+        };
+
         csvRows.push([
-          person.id || '',
-          `"${(person.full_name || '').replace(/"/g, '""')}"`,
-          `"${(person.preferred_name || '').replace(/"/g, '""')}"`,
-          person.email || '',
-          person.phone || '',
-          person.campus || '',
-          person.department || '',
-          person.connect_group || '',
-          `"${dreamTeamRoles.replace(/"/g, '""')}"`,
-          person.birthday || '',
-          `"${tags.replace(/"/g, '""')}"`,
-          person.pulse_status || 'red',
-          person.last_seen || '',
-          person.attendance_frequency || 0,
-          person.serving_frequency || 0,
-          person.overall_engagement || 0,
-          person.dna_completed || '',
-          person.baptised_on || '',
-          person.filled_holy_spirit || '',
-          person.rise_attended || '',
-          person.first_served_on || '',
-          `"${(person.pastoral_notes || '').replace(/"/g, '""')}"`,
-          person.is_active ? 'Yes' : 'No',
-          person.created_at || '',
-          person.updated_at || ''
+          escapeCSV(person.full_name || ''),
+          escapeCSV(person.preferred_name || ''),
+          escapeCSV(person.email || ''),
+          escapeCSV(person.phone || ''),
+          escapeCSV(person.campus || ''),
+          escapeCSV(person.department || ''),
+          escapeCSV(person.connect_group || ''),
+          escapeCSV(dreamTeamRoles),
+          escapeCSV(formatDate(person.birthday)),
+          escapeCSV(tags),
+          escapeCSV(person.pulse_status || 'red'),
+          escapeCSV(formatDate(person.last_seen)),
+          escapeCSV(person.attendance_frequency || 0),
+          escapeCSV(person.serving_frequency || 0),
+          escapeCSV(person.overall_engagement || 0),
+          escapeCSV(formatDate(person.dna_completed)),
+          escapeCSV(formatDate(person.baptised_on)),
+          escapeCSV(formatDate(person.filled_holy_spirit)),
+          escapeCSV(formatDate(person.rise_attended)),
+          escapeCSV(formatDate(person.first_served_on)),
+          escapeCSV(person.pastoral_notes || ''),
+          escapeCSV(person.is_active ? 'Yes' : 'No'),
+          escapeCSV(person.id || ''),
+          escapeCSV(formatDate(person.created_at)),
+          escapeCSV(formatDate(person.updated_at))
         ].join(','));
       });
       
@@ -264,14 +251,14 @@ const Lists = () => {
       
       // Generate filename
       const filenameParts = ['people-export'];
-      if (selectedCampuses.length > 0) {
+      if (selectedCampuses.length > 0 && selectedCampuses.length < campuses.length) {
         filenameParts.push(`${selectedCampuses.length}-campuses`);
       }
-      if (selectedDepartments.length > 0) {
+      if (selectedDepartments.length > 0 && selectedDepartments.length < departments.length) {
         filenameParts.push(`${selectedDepartments.length}-departments`);
       }
-      if (selectedHeartbeat.length > 0) {
-        filenameParts.push(selectedHeartbeat.join('-'));
+      if (selectedHeartbeat.length > 0 && selectedHeartbeat.length < heartbeatOptions.length) {
+        filenameParts.push(`${selectedHeartbeat.length}-statuses`);
       }
       const filename = `${filenameParts.join('-')}-${new Date().toISOString().split('T')[0]}.csv`;
       
@@ -295,6 +282,9 @@ const Lists = () => {
     setSelectedHeartbeat([]);
   };
 
+  const resultCount = filteredPeople.length;
+  const hasSelections = selectedCampuses.length > 0 || selectedDepartments.length > 0 || selectedHeartbeat.length > 0;
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -306,7 +296,7 @@ const Lists = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          {(selectedCampuses.length > 0 || selectedDepartments.length > 0 || selectedHeartbeat.length > 0) && (
+          {hasSelections && (
             <button
               onClick={clearAll}
               className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
@@ -408,19 +398,25 @@ const Lists = () => {
       </div>
 
       {/* Results Summary */}
-      {(selectedCampuses.length > 0 || selectedDepartments.length > 0 || selectedHeartbeat.length > 0) && (
+      {hasSelections && (
         <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-white">Results</h3>
               <p className="text-sm text-slate-400 mt-1">
-                {resultCount} {resultCount === 1 ? 'person' : 'people'} will be exported
+                {loading ? 'Loading...' : `${resultCount} ${resultCount === 1 ? 'person' : 'people'} will be exported`}
               </p>
             </div>
             {loading && (
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
             )}
           </div>
+        </div>
+      )}
+
+      {!hasSelections && !loading && (
+        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6 text-center">
+          <p className="text-slate-400">Select campuses, departments, or heartbeat status to filter and export</p>
         </div>
       )}
     </div>
