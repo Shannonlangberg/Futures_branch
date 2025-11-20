@@ -13507,7 +13507,7 @@ def get_person_detail(person_id):
 
 def calculate_streaks_and_next_steps(person):
     """Calculate attendance streaks and recommend next steps for a person"""
-    from models import DiscipleshipStep, TVUserEpisodeProgress, TVEpisode, PersonPathwayProgress
+    from models import DiscipleshipStep, TVUserEpisodeProgress, TVEpisode
     
     streaks = []
     next_steps = []
@@ -13713,8 +13713,6 @@ def get_person_by_email(email):
         
         # Add ACTUAL assigned pathway from database (not hardcoded)
         try:
-            from models import PersonPathwayProgress
-            
             # Get the person's active pathway progress (assigned by staff)
             pathway_progress = PersonPathwayProgress.query.filter_by(
                 person_id=person.id,
@@ -13878,8 +13876,6 @@ def get_my_pathway():
         
         # Get the person's ACTUAL assigned pathway from database (not hardcoded)
         try:
-            from models import PersonPathwayProgress
-            
             # Get the person's active pathway progress (assigned by staff)
             pathway_progress = PersonPathwayProgress.query.filter_by(
                 person_id=person.id,
@@ -14107,8 +14103,6 @@ def update_person(person_id):
             # Always check (regardless of old value) to ensure step is completed if person has a group
             if connect_group_value:  # Person has a connect group assigned
                 try:
-                    from models import PersonPathwayProgress, PathwayStep, PersonPathwayStepCompletion
-                    
                     # Find active pathway progress for this person
                     active_progress = PersonPathwayProgress.query.filter_by(
                         person_id=person_id,
