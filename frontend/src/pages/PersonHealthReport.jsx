@@ -180,6 +180,8 @@ const PersonHealthReport = () => {
 
   // Auto-refresh heartbeat data every 30 seconds and on window focus
   useEffect(() => {
+    if (!personId) return;
+    
     // Refresh on window focus (user switches back to tab)
     const handleFocus = () => {
       console.log('Window focused - refreshing heartbeat data');
@@ -197,7 +199,7 @@ const PersonHealthReport = () => {
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
-  }, [personId]);
+  }, [personId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh heartbeat data every 30 seconds and on window focus
   useEffect(() => {
