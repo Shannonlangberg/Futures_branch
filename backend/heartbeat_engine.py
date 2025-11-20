@@ -208,16 +208,24 @@ class HeartbeatEngine:
                     attendance_log = json_lib.loads(attendance_log_str) if attendance_log_str else []
                     
                     # Convert attendance_log entries to mock AttendanceEvent objects
+                    logger.info(f"📋 Processing {len(attendance_log)} attendance_log entries for {person_id}")
+                    
                     for entry in attendance_log:
                         if isinstance(entry, dict) and 'timestamp' in entry:
                             try:
                                 entry_time = datetime.fromisoformat(entry['timestamp'].replace('Z', '+00:00'))
                                 entry_date = entry_time.date()
                                 
-                                # Only include entries within date range
-                                if start_date <= entry_date <= end_date:
+                                logger.info(f"  Entry: date={entry_date}, zones={entry.get('zones', [])}, campus={entry.get('campus', 'unknown')}")
+                                
+                                # Only include entries within date range (or today if outside range - allow today)
+                                today = date.today()
+                                in_range = start_date <= entry_date <= end_date
+                                is_today = entry_date == today
+                                
+                                if in_range or is_today:  # Always include today's check-ins
                                     # Check if this is a Sunday (day of week 6 = Sunday)
-                                    if entry_date.weekday() == 6:  # Sunday
+                                    if entry_date.weekday() == 6 or is_today:  # Sunday OR today (for immediate check-ins)
                                         # Try to find matching service by date
                                         matching_service = None
                                         if entry_date in service_dates:
