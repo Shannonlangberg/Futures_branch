@@ -8338,8 +8338,18 @@ def debug_claude():
 def session_info():
     """Get current session info - public endpoint for mobile app"""
     # Detect Railway branch/environment
-    # Priority: 1. Custom APP_ENV variable, 2. RAILWAY_BRANCH, 3. RAILWAY_ENVIRONMENT, 4. Detect from service name, 5. Default to 'main'
+    # Priority: 1. Custom APP_ENV variable, 2. Detect from hostname/URL, 3. RAILWAY_BRANCH, 4. RAILWAY_ENVIRONMENT, 5. Service name, 6. Default to 'main'
     railway_branch = os.getenv('APP_ENV') or os.getenv('RAILWAY_BRANCH') or os.getenv('RAILWAY_ENVIRONMENT', '').lower()
+    
+    # If not explicitly set, try to detect from request hostname
+    if not railway_branch:
+        try:
+            hostname = request.host.lower() if request else ''
+            # Check if URL contains 'branch' or 'beta' (e.g., futuresbranch-production.up.railway.app)
+            if 'branch' in hostname or 'beta' in hostname:
+                railway_branch = 'beta'
+        except:
+            pass
     
     # If still not set, try to detect from Railway service name
     if not railway_branch:
