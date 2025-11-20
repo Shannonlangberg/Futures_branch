@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, make_response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -813,27 +813,49 @@ oauth_state_store = {}  # {state_token: {'user_id': int, 'expires_at': datetime}
 
 # Configure SQLAlchemy database
 # Strip whitespace from DATABASE_URL to handle Railway environment variable issues
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///futures_link.db')
-if database_url:
-    database_url = database_url.strip()  # Remove leading/trailing whitespace
+database_url = os.environ.get('DATABASE_URL', '').strip()
+
+# If no DATABASE_URL is set (or it's SQLite), check for persistent volume paths (Railway volumes)
+volume_found = False
+if not database_url or database_url.startswith('sqlite:///'):
+    # Check common Railway volume mount paths
+    volume_paths = [
+        '/data',  # Common Railway volume path (RECOMMENDED)
+        '/app/backend/instance',  # Alternative Railway volume path
+        '/app/data',  # Another common path
+    ]
     
-    # FORCE absolute path for SQLite to ensure same database file is always used
-    # This prevents issues where different endpoints might use different database files
-    if database_url.startswith('sqlite:///') and not os.environ.get('DATABASE_URL'):
-        # Local development - use absolute path
-        relative_path = database_url.replace('sqlite:///', '')
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
+    for volume_path in volume_paths:
+        if os.path.exists(volume_path) and os.path.isdir(volume_path):
+            db_file = os.path.join(volume_path, 'futures_link.db')
+            database_url = f'sqlite:///{db_file}'
+            logger.info(f"✅ Using persistent volume database: {db_file}")
+            volume_found = True
+            break
+    
+    # If no volume found, use default path (WILL NOT PERSIST between deployments)
+    if not volume_found:
+        if not database_url:
+            database_url = 'sqlite:///futures_link.db'
         
-        # Check if file exists in instance directory first (where it actually is)
-        instance_path = os.path.join(backend_dir, 'instance', relative_path)
-        if os.path.exists(instance_path):
-            database_url = f'sqlite:///{instance_path}'
-            logger.info(f"Using database file: {instance_path}")
-        else:
-            # Use absolute path in backend directory
-            abs_path = os.path.join(backend_dir, relative_path)
-            database_url = f'sqlite:///{abs_path}'
-            logger.info(f"Using database file: {abs_path}")
+        # Local development - use absolute path
+        if database_url.startswith('sqlite:///'):
+            relative_path = database_url.replace('sqlite:///', '')
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Check if file exists in instance directory first (where it actually is)
+            instance_path = os.path.join(backend_dir, 'instance', relative_path)
+            if os.path.exists(instance_path):
+                database_url = f'sqlite:///{instance_path}'
+                logger.info(f"Using database file: {instance_path}")
+            else:
+                # Use absolute path in backend directory
+                abs_path = os.path.join(backend_dir, relative_path)
+                database_url = f'sqlite:///{abs_path}'
+                logger.info(f"Using database file: {abs_path}")
+        
+        if not volume_found:
+            logger.warning("⚠️  No persistent volume detected! Database will be lost on deployment. Add a Railway volume at /data to persist data.")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -16130,6 +16152,239 @@ def get_group_meeting(meeting_id):
     except Exception as e:
         logger.error(f"Error fetching meeting: {e}")
         return jsonify({'error': 'Failed to fetch meeting'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/chat', methods=['GET'])
+def get_group_chat(group_id):
+    """Get chat messages for a connect group"""
+    try:
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        # Get messages ordered by creation date
+        messages = ConnectGroupMessage.query.filter_by(
+            group_id=group_id
+        ).order_by(ConnectGroupMessage.created_at.desc()).limit(100).all()
+        
+        return jsonify({
+            'messages': [msg.to_dict() for msg in reversed(messages)],  # Reverse to show oldest first
+            'total': len(messages)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching group chat: {e}")
+        return jsonify({'error': 'Failed to fetch chat messages'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/chat', methods=['POST'])
+def send_group_message(group_id):
+    """Send a message to group chat"""
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        message = data.get('message', '').strip()
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        if not message:
+            return jsonify({'error': 'Message cannot be empty'}), 400
+        
+        # Find person by email
+        person = Person.query.filter(
+            db.func.lower(Person.email) == email.lower(),
+            Person.is_active == True
+        ).first()
+        
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Verify person is a member of the group
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        # Check if person is a member or leader
+        is_member = person.connect_group == group_id
+        is_leader = person.id == group.leader_id or person.id == group.co_leader_id
+        all_leader_emails = group.get_leader_emails()
+        is_leader_by_email = person.email and person.email.lower() in all_leader_emails
+        
+        if not (is_member or is_leader or is_leader_by_email):
+            return jsonify({'error': 'You must be a member of this group to send messages'}), 403
+        
+        # Create message
+        chat_message = ConnectGroupMessage(
+            group_id=group_id,
+            person_id=person.id,
+            message=message
+        )
+        db.session.add(chat_message)
+        db.session.commit()
+        
+        logger.info(f"Group chat message sent: {person.email} -> {group_id}")
+        
+        return jsonify({
+            'message': 'Message sent successfully',
+            'chat_message': chat_message.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error sending group message: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to send message'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/leader-portal', methods=['GET'])
+def get_leader_portal(group_id):
+    """Get leader portal data - members, meetings, attendance (for connect leaders)"""
+    try:
+        data = request.get_json() if request.is_json else {}
+        email = request.args.get('email') or data.get('email', '').strip()
+        access_code = request.args.get('access_code') or data.get('access_code', '')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        # Verify leader access
+        all_leader_emails = group.get_leader_emails()
+        if email.lower() not in all_leader_emails:
+            return jsonify({'error': 'You are not a leader of this group'}), 403
+        
+        # Verify access code if set
+        if group.leader_access_code and access_code != group.leader_access_code:
+            return jsonify({'error': 'Invalid access code'}), 403
+        
+        # Get all members
+        members = group.get_members()
+        members_data = [m.to_dict() for m in members]
+        
+        # Get recent meetings (last 10)
+        recent_meetings = ConnectGroupMeeting.query.filter_by(
+            group_id=group_id
+        ).order_by(ConnectGroupMeeting.meeting_date.desc()).limit(10).all()
+        
+        meetings_data = []
+        for meeting in recent_meetings:
+            meeting_dict = meeting.to_dict()
+            # Get attendance for this meeting
+            attendance = ConnectGroupAttendance.query.filter_by(meeting_id=meeting.id).all()
+            meeting_dict['attendance'] = [att.to_dict() for att in attendance]
+            meetings_data.append(meeting_dict)
+        
+        return jsonify({
+            'group': group.to_dict(),
+            'members': members_data,
+            'member_count': len(members_data),
+            'recent_meetings': meetings_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching leader portal: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch leader portal data'}), 500
+
+
+@app.route('/api/connect-groups/<group_id>/leader-portal/attendance', methods=['POST'])
+def mark_leader_attendance(group_id):
+    """Mark attendance for a meeting (leader only)"""
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        access_code = data.get('access_code', '')
+        meeting_date = data.get('meeting_date')  # ISO date string
+        attendance_list = data.get('attendance', [])  # [{person_id, present, notes?}]
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        if not meeting_date:
+            return jsonify({'error': 'Meeting date is required'}), 400
+        if not attendance_list:
+            return jsonify({'error': 'Attendance data is required'}), 400
+        
+        group = ConnectGroup.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        # Verify leader access
+        all_leader_emails = group.get_leader_emails()
+        if email.lower() not in all_leader_emails:
+            return jsonify({'error': 'You are not a leader of this group'}), 403
+        
+        # Verify access code if set
+        if group.leader_access_code and access_code != group.leader_access_code:
+            return jsonify({'error': 'Invalid access code'}), 403
+        
+        # Parse meeting date
+        from datetime import datetime
+        meeting_date_obj = datetime.fromisoformat(meeting_date.replace('Z', '+00:00')).date()
+        
+        # Find or create meeting
+        meeting = ConnectGroupMeeting.query.filter_by(
+            group_id=group_id,
+            meeting_date=meeting_date_obj
+        ).first()
+        
+        if not meeting:
+            meeting = ConnectGroupMeeting(
+                group_id=group_id,
+                meeting_date=meeting_date_obj,
+                notes=data.get('notes')
+            )
+            db.session.add(meeting)
+            db.session.flush()
+        
+        # Update attendance records
+        for att_data in attendance_list:
+            person_id = att_data.get('person_id')
+            present = att_data.get('present', False)
+            
+            if not person_id:
+                continue
+            
+            # Find or create attendance record
+            attendance = ConnectGroupAttendance.query.filter_by(
+                meeting_id=meeting.id,
+                person_id=person_id
+            ).first()
+            
+            if attendance:
+                attendance.present = present
+                attendance.notes = att_data.get('notes')
+            else:
+                attendance = ConnectGroupAttendance(
+                    meeting_id=meeting.id,
+                    person_id=person_id,
+                    present=present,
+                    notes=att_data.get('notes')
+                )
+                db.session.add(attendance)
+            
+            # Update engagement profile
+            person = Person.query.filter_by(id=person_id, is_active=True).first()
+            if person and person.engagement_profile:
+                person.engagement_profile.add_group_attendance(
+                    group_id=group_id,
+                    attendance_date=meeting_date_obj,
+                    present=present
+                )
+        
+        db.session.commit()
+        
+        logger.info(f"Attendance marked for group {group_id} on {meeting_date_obj} by {email}")
+        
+        return jsonify({
+            'message': 'Attendance marked successfully',
+            'meeting': meeting.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error marking attendance: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to mark attendance'}), 500
 
 
 @app.route('/api/connect-groups/meetings/<meeting_id>/attendance', methods=['POST'])
