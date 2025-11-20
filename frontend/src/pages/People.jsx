@@ -301,7 +301,7 @@ const People = () => {
     const labels = {
       'green': 'Active',
       'amber': 'At Risk',
-      'red': 'Inactive'
+      'red': 'Critical'
     };
     return labels[status] || 'Unknown';
   };
@@ -481,6 +481,13 @@ const People = () => {
     amber: activePersons.filter(p => p.pulse_status === 'amber').length,
     red: activePersons.filter(p => p.pulse_status === 'red').length
   };
+  
+  // Pulse status labels
+  const pulseLabels = {
+    'green': 'Active',
+    'amber': 'At Risk',
+    'red': 'Critical'
+  };
 
   if (loading && persons.length === 0) {
     return (
@@ -588,7 +595,7 @@ const People = () => {
                 <option value="all">All Statuses</option>
                 <option value="green">Active</option>
                 <option value="amber">At Risk</option>
-                <option value="red">Inactive</option>
+                <option value="red">Critical</option>
               </select>
             </div>
 
