@@ -1,36 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import {
-  MagnifyingGlassIcon,
   ArrowDownTrayIcon,
-  FunnelIcon,
-  XMarkIcon
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 
 const Lists = () => {
   const [people, setPeople] = useState([]);
-  const [filteredPeople, setFilteredPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [campuses, setCampuses] = useState([]);
   
-  // Filters
-  const [campusFilter, setCampusFilter] = useState('all_campuses');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [pulseFilter, setPulseFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  // Multiple selections - arrays for multi-select
+  const [selectedCampuses, setSelectedCampuses] = useState([]);
+  const [selectedDepartments, setSelectedDepartments] = useState([]);
+  const [selectedHeartbeat, setSelectedHeartbeat] = useState([]);
   
   // Export state
   const [exporting, setExporting] = useState(false);
-  const [showFilters, setShowFilters] = useState(true);
+  const [resultCount, setResultCount] = useState(0);
+
+  const departments = [
+    { id: 'Kids', label: 'Kids' },
+    { id: 'Youth', label: 'Youth' },
+    { id: 'Young Adults', label: 'Young Adults' },
+    { id: 'Families', label: 'Families' },
+    { id: 'Adults', label: 'Adults' },
+    { id: 'Seniors', label: 'Seniors' }
+  ];
+
+  const heartbeatOptions = [
+    { id: 'green', label: 'Active', color: 'bg-green-500' },
+    { id: 'amber', label: 'At Risk', color: 'bg-amber-500' },
+    { id: 'red', label: 'Inactive', color: 'bg-red-500' }
+  ];
 
   useEffect(() => {
     loadCampuses();
-    loadPersons();
   }, []);
 
   useEffect(() => {
     loadPersons();
-  }, [campusFilter, departmentFilter, pulseFilter, searchTerm, includeArchived]);
+  }, [selectedCampuses, selectedDepartments, selectedHeartbeat]);
 
   const loadCampuses = async () => {
     try {
@@ -49,33 +58,99 @@ const Lists = () => {
   const loadPersons = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (campusFilter && campusFilter !== 'all_campuses') {
-        params.append('campus', campusFilter);
-      }
-      if (departmentFilter && departmentFilter !== 'all') {
-        params.append('department', departmentFilter);
-      }
-      if (pulseFilter && pulseFilter !== 'all') {
-        params.append('pulse_status', pulseFilter);
-      }
-      if (searchTerm) {
-        params.append('search', searchTerm);
-      }
-      if (includeArchived) {
-        params.append('include_archived', 'true');
-      }
-
-      const response = await fetch(`/api/persons?${params.toString()}`, {
-        credentials: 'include',
-        cache: 'no-store'
-      });
+      // Build query - we'll get all people and filter client-side for now
+      // Or we could make multiple API calls and combine
+      const allPeople = [];
       
-      if (response.ok) {
-        const data = await response.json();
-        setPeople(data.people || []);
-        setFilteredPeople(data.people || []);
+      // If campuses selected, query each one
+      if (selectedCampuses.length > 0) {
+        for (const campusId of selectedCampuses) {
+          const params = new URLSearchParams();
+          params.append('campus', campusId);
+          
+          // Add department filters if any selected
+          if (selectedDepartments.length > 0) {
+            // We'll need to handle multiple departments - query each
+            for (const dept of selectedDepartments) {
+              const deptParams = new URLSearchParams(params);
+              deptParams.append('department', dept);
+              
+              const response = await fetch(`/api/persons?${deptParams.toString()}`, {
+                credentials: 'include',
+                cache: 'no-store'
+              });
+              
+              if (response.ok) {
+                const data = await response.json();
+                // Merge results, avoiding duplicates
+                const newPeople = (data.people || []).filter(p => 
+                  !allPeople.find(existing => existing.id === p.id)
+                );
+                allPeople.push(...newPeople);
+              }
+            }
+          } else {
+            // No department filter, just get all from this campus
+            const response = await fetch(`/api/persons?${params.toString()}`, {
+              credentials: 'include',
+              cache: 'no-store'
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              const newPeople = (data.people || []).filter(p => 
+                !allPeople.find(existing => existing.id === p.id)
+              );
+              allPeople.push(...newPeople);
+            }
+          }
+        }
+      } else {
+        // No campuses selected, get all people
+        const params = new URLSearchParams();
+        if (selectedDepartments.length > 0) {
+          // Still need to filter by department
+          for (const dept of selectedDepartments) {
+            const deptParams = new URLSearchParams();
+            deptParams.append('department', dept);
+            
+            const response = await fetch(`/api/persons?${deptParams.toString()}`, {
+              credentials: 'include',
+              cache: 'no-store'
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              const newPeople = (data.people || []).filter(p => 
+                !allPeople.find(existing => existing.id === p.id)
+              );
+              allPeople.push(...newPeople);
+            }
+          }
+        } else {
+          // Get all people
+          const response = await fetch(`/api/persons?${params.toString()}`, {
+            credentials: 'include',
+            cache: 'no-store'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            allPeople.push(...(data.people || []));
+          }
+        }
       }
+      
+      // Filter by heartbeat status if selected
+      let filtered = allPeople;
+      if (selectedHeartbeat.length > 0) {
+        filtered = allPeople.filter(p => 
+          selectedHeartbeat.includes(p.pulse_status || 'red')
+        );
+      }
+      
+      setPeople(filtered);
+      setResultCount(filtered.length);
       setLoading(false);
     } catch (err) {
       console.error('Error loading people:', err);
@@ -83,60 +158,129 @@ const Lists = () => {
     }
   };
 
+  const toggleCampus = (campusId) => {
+    setSelectedCampuses(prev => 
+      prev.includes(campusId) 
+        ? prev.filter(id => id !== campusId)
+        : [...prev, campusId]
+    );
+  };
+
+  const toggleDepartment = (deptId) => {
+    setSelectedDepartments(prev => 
+      prev.includes(deptId) 
+        ? prev.filter(id => id !== deptId)
+        : [...prev, deptId]
+    );
+  };
+
+  const toggleHeartbeat = (statusId) => {
+    setSelectedHeartbeat(prev => 
+      prev.includes(statusId) 
+        ? prev.filter(id => id !== statusId)
+        : [...prev, statusId]
+    );
+  };
+
   const exportToCSV = async () => {
     try {
       setExporting(true);
       
-      // Build export parameters
+      // Build export parameters for multiple selections
+      // We'll export each combination and combine, or modify backend to accept arrays
       const params = new URLSearchParams();
-      if (campusFilter && campusFilter !== 'all_campuses') {
-        params.append('campus', campusFilter);
+      
+      // For now, export what we have loaded
+      // In a better implementation, we'd pass arrays to the backend
+      if (selectedCampuses.length === 1) {
+        params.append('campus', selectedCampuses[0]);
       }
-      if (departmentFilter && departmentFilter !== 'all') {
-        params.append('department', departmentFilter);
+      if (selectedDepartments.length === 1) {
+        params.append('department', selectedDepartments[0]);
       }
-      if (pulseFilter && pulseFilter !== 'all') {
-        params.append('pulse_status', pulseFilter);
+      if (selectedHeartbeat.length === 1) {
+        params.append('pulse_status', selectedHeartbeat[0]);
       }
-      if (searchTerm) {
-        params.append('search', searchTerm);
-      }
-      if (includeArchived) {
-        params.append('include_archived', 'true');
-      }
-      params.append('format', 'csv');
-
-      const response = await fetch(`/api/persons/export?${params.toString()}`, {
-        credentials: 'include'
+      
+      // If multiple selections, we'll need to handle differently
+      // For now, let's create a CSV from the current filtered results
+      const csvRows = [];
+      
+      // Header
+      csvRows.push([
+        'ID', 'Full Name', 'Preferred Name', 'Email', 'Phone',
+        'Campus', 'Department', 'Connect Group', 'Dream Team Roles',
+        'Birthday', 'Tags', 'Pulse Status', 'Last Seen',
+        'Attendance Frequency', 'Serving Frequency', 'Overall Engagement',
+        'DNA Completed', 'Baptised On', 'Filled Holy Spirit',
+        'RISE Attended', 'First Served On', 'Pastoral Notes',
+        'Is Active', 'Created At', 'Updated At'
+      ].join(','));
+      
+      // Data rows
+      people.forEach(person => {
+        const dreamTeamRoles = Array.isArray(person.dream_team_roles) 
+          ? person.dream_team_roles.join(', ') 
+          : (person.dream_team_roles || '');
+        const tags = Array.isArray(person.tags) 
+          ? person.tags.join(', ') 
+          : (person.tags || '');
+        
+        csvRows.push([
+          person.id || '',
+          `"${(person.full_name || '').replace(/"/g, '""')}"`,
+          `"${(person.preferred_name || '').replace(/"/g, '""')}"`,
+          person.email || '',
+          person.phone || '',
+          person.campus || '',
+          person.department || '',
+          person.connect_group || '',
+          `"${dreamTeamRoles.replace(/"/g, '""')}"`,
+          person.birthday || '',
+          `"${tags.replace(/"/g, '""')}"`,
+          person.pulse_status || 'red',
+          person.last_seen || '',
+          person.attendance_frequency || 0,
+          person.serving_frequency || 0,
+          person.overall_engagement || 0,
+          person.dna_completed || '',
+          person.baptised_on || '',
+          person.filled_holy_spirit || '',
+          person.rise_attended || '',
+          person.first_served_on || '',
+          `"${(person.pastoral_notes || '').replace(/"/g, '""')}"`,
+          person.is_active ? 'Yes' : 'No',
+          person.created_at || '',
+          person.updated_at || ''
+        ].join(','));
       });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        
-        // Generate filename with filters
-        const filenameParts = ['people-export'];
-        if (campusFilter && campusFilter !== 'all_campuses') {
-          filenameParts.push(campusFilter);
-        }
-        if (departmentFilter && departmentFilter !== 'all') {
-          filenameParts.push(departmentFilter.toLowerCase().replace(' ', '-'));
-        }
-        if (pulseFilter && pulseFilter !== 'all') {
-          filenameParts.push(pulseFilter);
-        }
-        const filename = `${filenameParts.join('-')}-${new Date().toISOString().split('T')[0]}.csv`;
-        
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        alert('Failed to export CSV. Please try again.');
+      
+      // Create blob and download
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Generate filename
+      const filenameParts = ['people-export'];
+      if (selectedCampuses.length > 0) {
+        filenameParts.push(`${selectedCampuses.length}-campuses`);
       }
+      if (selectedDepartments.length > 0) {
+        filenameParts.push(`${selectedDepartments.length}-departments`);
+      }
+      if (selectedHeartbeat.length > 0) {
+        filenameParts.push(selectedHeartbeat.join('-'));
+      }
+      const filename = `${filenameParts.join('-')}-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
       setExporting(false);
     } catch (err) {
       console.error('Error exporting CSV:', err);
@@ -145,253 +289,136 @@ const Lists = () => {
     }
   };
 
-  const clearFilters = () => {
-    setCampusFilter('all_campuses');
-    setDepartmentFilter('all');
-    setPulseFilter('all');
-    setSearchTerm('');
-    setIncludeArchived(false);
-  };
-
-  const getResultCount = () => {
-    return filteredPeople.length;
-  };
-
-  const getFilterSummary = () => {
-    const parts = [];
-    if (campusFilter && campusFilter !== 'all_campuses') {
-      const campus = campuses.find(c => c.id === campusFilter);
-      parts.push(campus ? campus.name : campusFilter);
-    }
-    if (departmentFilter && departmentFilter !== 'all') {
-      parts.push(departmentFilter);
-    }
-    if (pulseFilter && pulseFilter !== 'all') {
-      parts.push(pulseFilter.charAt(0).toUpperCase() + pulseFilter.slice(1));
-    }
-    return parts.length > 0 ? parts.join(' • ') : 'All People';
+  const clearAll = () => {
+    setSelectedCampuses([]);
+    setSelectedDepartments([]);
+    setSelectedHeartbeat([]);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Lists</h1>
+          <h1 className="text-4xl font-bold text-white">LISTS</h1>
           <p className="text-slate-400 mt-1">
-            Create and export filtered lists of people from your database
+            Select campuses, departments, and heartbeat status, then export to CSV
           </p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition flex items-center gap-2"
-          >
-            <FunnelIcon className="h-5 w-5" />
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </button>
-          <button
-            onClick={exportToCSV}
-            disabled={exporting || filteredPeople.length === 0}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ArrowDownTrayIcon className="h-5 w-5" />
-            {exporting ? 'Exporting...' : `Export CSV (${getResultCount()})`}
-          </button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      {showFilters && (
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Filters</h2>
+          {(selectedCampuses.length > 0 || selectedDepartments.length > 0 || selectedHeartbeat.length > 0) && (
             <button
-              onClick={clearFilters}
-              className="text-sm text-slate-400 hover:text-white flex items-center gap-1"
+              onClick={clearAll}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
             >
-              <XMarkIcon className="h-4 w-4" />
               Clear All
             </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Search
-              </label>
-              <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search by name or email..."
-                  className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Campus Filter */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Campus
-              </label>
-              <select
-                value={campusFilter}
-                onChange={(e) => setCampusFilter(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="all_campuses">All Campuses</option>
-                {campuses.map(campus => (
-                  <option key={campus.id} value={campus.id}>
-                    {campus.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Department Filter */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Department
-              </label>
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="all">All Departments</option>
-                <option value="Kids">Kids</option>
-                <option value="Youth">Youth</option>
-                <option value="Young Adults">Young Adults</option>
-                <option value="Families">Families</option>
-                <option value="Adults">Adults</option>
-                <option value="Seniors">Seniors</option>
-              </select>
-            </div>
-
-            {/* Pulse Status Filter */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Pulse Status
-              </label>
-              <select
-                value={pulseFilter}
-                onChange={(e) => setPulseFilter(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="all">All Statuses</option>
-                <option value="green">Active</option>
-                <option value="amber">At Risk</option>
-                <option value="red">Inactive</option>
-              </select>
-            </div>
-
-            {/* Include Archived */}
-            <div className="flex items-center pt-6">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeArchived}
-                  onChange={(e) => setIncludeArchived(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-800"
-                />
-                <span className="ml-2 text-sm text-slate-300">Include Archived</span>
-              </label>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Results Summary */}
-      <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-white">
-              {getFilterSummary()}
-            </h3>
-            <p className="text-sm text-slate-400 mt-1">
-              {getResultCount()} {getResultCount() === 1 ? 'person' : 'people'} found
-            </p>
-          </div>
+          )}
+          <button
+            onClick={exportToCSV}
+            disabled={exporting || resultCount === 0}
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5" />
+            {exporting ? 'Exporting...' : `EXPORT (${resultCount} people)`}
+          </button>
         </div>
       </div>
 
-      {/* Results Table */}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-          <p className="text-slate-400 mt-4">Loading people...</p>
+      {/* CAMPUS Section */}
+      <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">CAMPUS</h2>
+        <div className="flex flex-wrap gap-3">
+          {campuses.map(campus => {
+            const isSelected = selectedCampuses.includes(campus.id);
+            return (
+              <button
+                key={campus.id}
+                onClick={() => toggleCampus(campus.id)}
+                className={`
+                  px-6 py-3 rounded-lg font-medium transition-all duration-200
+                  flex items-center gap-2
+                  ${isSelected
+                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 border-2 border-blue-400'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600 border-2 border-transparent'
+                  }
+                `}
+              >
+                {isSelected && <CheckCircleIcon className="h-5 w-5" />}
+                {campus.name}
+              </button>
+            );
+          })}
         </div>
-      ) : filteredPeople.length === 0 ? (
-        <div className="text-center py-12 bg-slate-900/60 border border-slate-700/60 rounded-2xl">
-          <p className="text-slate-400">No people found matching your filters.</p>
-          <button
-            onClick={clearFilters}
-            className="mt-4 text-blue-400 hover:text-blue-300"
-          >
-            Clear filters
-          </button>
+      </div>
+
+      {/* DEPARTMENT Section */}
+      <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">DEPARTMENT</h2>
+        <div className="flex flex-wrap gap-3">
+          {departments.map(dept => {
+            const isSelected = selectedDepartments.includes(dept.id);
+            return (
+              <button
+                key={dept.id}
+                onClick={() => toggleDepartment(dept.id)}
+                className={`
+                  px-6 py-3 rounded-lg font-medium transition-all duration-200
+                  flex items-center gap-2
+                  ${isSelected
+                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 border-2 border-blue-400'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600 border-2 border-transparent'
+                  }
+                `}
+              >
+                {isSelected && <CheckCircleIcon className="h-5 w-5" />}
+                {dept.label}
+              </button>
+            );
+          })}
         </div>
-      ) : (
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-800/60">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Campus</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Connect Group</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Pulse Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700/50">
-                {filteredPeople.slice(0, 100).map((person) => (
-                  <tr key={person.id} className="hover:bg-slate-800/30">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-white">{person.full_name}</div>
-                      {person.preferred_name && (
-                        <div className="text-sm text-slate-400">{person.preferred_name}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {person.email || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {person.phone || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {person.campus ? person.campus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {person.department || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {person.connect_group || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        person.pulse_status === 'green' ? 'bg-green-500/20 text-green-200' :
-                        person.pulse_status === 'amber' ? 'bg-amber-500/20 text-amber-200' :
-                        'bg-red-500/20 text-red-200'
-                      }`}>
-                        {person.pulse_status === 'green' ? 'Active' :
-                         person.pulse_status === 'amber' ? 'At Risk' : 'Inactive'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {filteredPeople.length > 100 && (
-              <div className="px-6 py-4 bg-slate-800/60 text-sm text-slate-400 text-center">
-                Showing first 100 of {filteredPeople.length} results. Export CSV to see all.
-              </div>
+      </div>
+
+      {/* HEARTBEAT Section */}
+      <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">HEARTBEAT</h2>
+        <div className="flex flex-wrap gap-3">
+          {heartbeatOptions.map(option => {
+            const isSelected = selectedHeartbeat.includes(option.id);
+            return (
+              <button
+                key={option.id}
+                onClick={() => toggleHeartbeat(option.id)}
+                className={`
+                  px-6 py-3 rounded-lg font-medium transition-all duration-200
+                  flex items-center gap-2
+                  ${isSelected
+                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 border-2 border-blue-400'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600 border-2 border-transparent'
+                  }
+                `}
+              >
+                {isSelected && <CheckCircleIcon className="h-5 w-5" />}
+                <span className={`w-3 h-3 rounded-full ${option.color}`}></span>
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Results Summary */}
+      {(selectedCampuses.length > 0 || selectedDepartments.length > 0 || selectedHeartbeat.length > 0) && (
+        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Results</h3>
+              <p className="text-sm text-slate-400 mt-1">
+                {resultCount} {resultCount === 1 ? 'person' : 'people'} will be exported
+              </p>
+            </div>
+            {loading && (
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
             )}
           </div>
         </div>
@@ -401,4 +428,3 @@ const Lists = () => {
 };
 
 export default Lists;
-
