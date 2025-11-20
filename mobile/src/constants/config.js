@@ -10,7 +10,7 @@ export const API_BASE_URL = 'https://futuresbranch-production.up.railway.app';
 //   ? 'http://192.168.15.167:5002'  // Your local IP for physical device testing (port 5002, not 5000 - AirPlay uses 5000)
 //   : 'https://futures-pulse-production.up.railway.app';
 
-export const STRIPE_PUBLISHABLE_KEY = 'pk_test_your_stripe_publishable_key'; // Replace with your actual Stripe key
+export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SVOKK0vXFTJ3CthXuf8CT9f4lAzUzx5rdI2ESqAfwokEl3PWcSJM9O1XYGmVOi8k8Lypt9qVI9Hcjv0VjKcLHKR00Z3TRKeU4';
 
 // App Configuration
 export const APP_NAME = 'Futures';
