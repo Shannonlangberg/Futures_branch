@@ -50,7 +50,8 @@ const Lists = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setCampuses(data.campuses || []);
+        const campusList = (data.campuses || []).filter(c => c.id !== 'all_campuses');
+        setCampuses(campusList);
       }
     } catch (err) {
       console.error('Error loading campuses:', err);
@@ -67,9 +68,11 @@ const Lists = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setAllPeople(data.people || []);
+        const people = data.people || [];
+        console.log('Loaded people:', people.length);
+        setAllPeople(people);
       } else {
-        console.error('Failed to load people');
+        console.error('Failed to load people:', response.status);
         setAllPeople([]);
       }
       setLoading(false);
@@ -82,20 +85,32 @@ const Lists = () => {
 
   const filterPeople = () => {
     let filtered = [...allPeople];
+    console.log('Filtering from', filtered.length, 'people');
+    console.log('Selected campuses:', selectedCampuses);
+    console.log('Selected departments:', selectedDepartments);
+    console.log('Selected heartbeat:', selectedHeartbeat);
 
     // Filter by campus
     if (selectedCampuses.length > 0) {
-      filtered = filtered.filter(person => 
-        selectedCampuses.includes(person.campus)
-      );
+      filtered = filtered.filter(person => {
+        const personCampus = person.campus;
+        const matches = selectedCampuses.includes(personCampus);
+        if (!matches && personCampus) {
+          console.log('Person', person.full_name, 'campus', personCampus, 'not in', selectedCampuses);
+        }
+        return matches;
+      });
+      console.log('After campus filter:', filtered.length);
     }
 
     // Filter by department
     if (selectedDepartments.length > 0) {
       filtered = filtered.filter(person => {
-        const personDept = person.department || '';
-        return selectedDepartments.includes(personDept);
+        const personDept = (person.department || '').trim();
+        const matches = selectedDepartments.includes(personDept);
+        return matches;
       });
+      console.log('After department filter:', filtered.length);
     }
 
     // Filter by heartbeat status
@@ -104,33 +119,41 @@ const Lists = () => {
         const pulseStatus = person.pulse_status || 'red';
         return selectedHeartbeat.includes(pulseStatus);
       });
+      console.log('After heartbeat filter:', filtered.length);
     }
 
+    console.log('Final filtered count:', filtered.length);
     setFilteredPeople(filtered);
   };
 
   const toggleCampus = (campusId) => {
-    setSelectedCampuses(prev => 
-      prev.includes(campusId) 
+    setSelectedCampuses(prev => {
+      const updated = prev.includes(campusId) 
         ? prev.filter(id => id !== campusId)
-        : [...prev, campusId]
-    );
+        : [...prev, campusId];
+      console.log('Campuses now:', updated);
+      return updated;
+    });
   };
 
   const toggleDepartment = (deptId) => {
-    setSelectedDepartments(prev => 
-      prev.includes(deptId) 
+    setSelectedDepartments(prev => {
+      const updated = prev.includes(deptId) 
         ? prev.filter(id => id !== deptId)
-        : [...prev, deptId]
-    );
+        : [...prev, deptId];
+      console.log('Departments now:', updated);
+      return updated;
+    });
   };
 
   const toggleHeartbeat = (statusId) => {
-    setSelectedHeartbeat(prev => 
-      prev.includes(statusId) 
+    setSelectedHeartbeat(prev => {
+      const updated = prev.includes(statusId) 
         ? prev.filter(id => id !== statusId)
-        : [...prev, statusId]
-    );
+        : [...prev, statusId];
+      console.log('Heartbeat now:', updated);
+      return updated;
+    });
   };
 
   const escapeCSV = (value) => {
@@ -144,13 +167,16 @@ const Lists = () => {
 
   const exportToCSV = async () => {
     try {
+      console.log('Export clicked');
       setExporting(true);
       
       // Use filtered people if selections made, otherwise all people
       const peopleToExport = hasSelections ? filteredPeople : allPeople;
+      console.log('Exporting', peopleToExport.length, 'people');
+      console.log('Has selections:', hasSelections);
       
       if (peopleToExport.length === 0) {
-        alert('No people to export');
+        alert('No people to export. Please check your filters or wait for data to load.');
         setExporting(false);
         return;
       }
@@ -277,10 +303,11 @@ const Lists = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
+      console.log('Export completed');
       setExporting(false);
     } catch (err) {
       console.error('Error exporting CSV:', err);
-      alert('Error exporting CSV. Please try again.');
+      alert('Error exporting CSV: ' + err.message);
       setExporting(false);
     }
   };
@@ -421,6 +448,9 @@ const Lists = () => {
                 : `${allPeople.length} ${allPeople.length === 1 ? 'person' : 'people'} available (select filters to narrow down)`
               }
             </p>
+            {!loading && allPeople.length === 0 && (
+              <p className="text-sm text-red-400 mt-2">No people found. Check if data is loading.</p>
+            )}
           </div>
           {loading && (
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
