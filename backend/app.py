@@ -16477,7 +16477,7 @@ def get_events():
             )
         
         # Order by start date
-        query = query.order_by(Event.start_datetime.asc())
+        query = query.order_by(Event.start_time.asc())
         
         events = query.all()
         
@@ -16524,8 +16524,8 @@ def get_events():
                 'contact_email': event.contact_email,
                 'contact_phone': event.contact_phone,
                 'registration_count': registration_count,
-                'can_register': event.registration_required and not event.is_cancelled,
-                'is_cancelled': event.is_cancelled,
+                'can_register': False,  # Registration columns don't exist
+                'is_cancelled': False,  # Column doesn't exist
                 'created_at': event.created_at.isoformat(),
                 'updated_at': event.updated_at.isoformat()
             })
