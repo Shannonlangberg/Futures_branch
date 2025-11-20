@@ -13133,7 +13133,7 @@ def get_persons():
                 engagement_row = db.session.execute(
                     text("""
                         SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, 
-                               overall_engagement, attendance_log, serving_log, email_engagement, social_engagement
+                               overall_engagement, attendance_log, serving_log
                         FROM engagement_profiles 
                         WHERE person_id = :person_id
                     """),
@@ -14003,7 +14003,7 @@ def update_person(person_id):
             engagement_row = db.session.execute(
                 text("""
                     SELECT pulse_status, last_seen, attendance_frequency, serving_frequency, 
-                           overall_engagement, attendance_log, serving_log, email_engagement, social_engagement
+                           overall_engagement, attendance_log, serving_log
                     FROM engagement_profiles 
                     WHERE person_id = :person_id
                 """),
@@ -14323,11 +14323,11 @@ def log_attendance_simple():
                         text("""
                             INSERT INTO engagement_profiles 
                             (person_id, pulse_status, last_seen, updated_at, 
-                             attendance_log, serving_log, email_engagement, social_engagement,
+                             attendance_log, serving_log,
                              attendance_frequency, serving_frequency, overall_engagement)
                             VALUES 
                             (:person_id, 'green', :today, :now, 
-                             '[]', '[]', '[]', '[]',
+                             '[]', '[]',
                              0.0, 0.0, 0.0)
                         """),
                         {

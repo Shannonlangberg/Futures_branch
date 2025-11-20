@@ -93,11 +93,10 @@ class EngagementProfile(db.Model):
     # Raw logs (JSON columns as per actual DB schema)
     attendance_log = db.Column(db.Text, nullable=False, default='[]')  # JSON array
     serving_log = db.Column(db.Text, nullable=False, default='[]')     # JSON array
-    email_engagement = db.Column(db.Text, default='[]')                # JSON array
-    social_engagement = db.Column(db.Text, default='[]')               # JSON array
+    # Note: email_engagement and social_engagement columns removed - not in actual database schema
     
-    # Note: The actual DB has: attendance_log, serving_log, email_engagement, social_engagement
-    # milestones_log and created_at do NOT exist - use serving_log as fallback
+    # Note: The actual DB only has: attendance_log, serving_log
+    # milestones_log, created_at, email_engagement, social_engagement do NOT exist
     
     @property
     def milestones_log(self):
@@ -108,6 +107,26 @@ class EngagementProfile(db.Model):
     def milestones_log(self, value):
         """Setter for milestones - store in serving_log"""
         self.serving_log = value
+    
+    @property
+    def email_engagement(self):
+        """Property to access email_engagement - return empty array since column doesn't exist"""
+        return '[]'
+    
+    @email_engagement.setter
+    def email_engagement(self, value):
+        """Setter for email_engagement - no-op since column doesn't exist"""
+        pass
+    
+    @property
+    def social_engagement(self):
+        """Property to access social_engagement - return empty array since column doesn't exist"""
+        return '[]'
+    
+    @social_engagement.setter
+    def social_engagement(self, value):
+        """Setter for social_engagement - no-op since column doesn't exist"""
+        pass
     
     # Derived metrics (simple v1)
     attendance_frequency = db.Column(db.Float, default=0.0)
