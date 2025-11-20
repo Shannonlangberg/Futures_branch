@@ -17644,12 +17644,50 @@ def get_resource_category_files(category_id):
 def get_event_categories():
     """Get all event categories"""
     try:
-        categories = EventCategory.query.filter_by(is_active=True).order_by(EventCategory.display_order.asc()).all()
+        # Try to filter by is_active and order by display_order if they exist
+        try:
+            categories = EventCategory.query.filter_by(is_active=True).order_by(EventCategory.display_order.asc()).all()
+        except:
+            # Fallback if is_active or display_order don't exist
+            categories = EventCategory.query.order_by(EventCategory.name.asc()).all()
         categories_data = [category.to_dict() for category in categories]
         return jsonify({'categories': categories_data})
     except Exception as e:
         logger.error(f"Error fetching event categories: {e}")
         return jsonify({'error': 'Failed to fetch event categories'}), 500
+
+@app.route('/api/events/categories', methods=['POST'])
+@admin_required
+def create_event_category():
+    """Create a new event category (admin only)"""
+    try:
+        data = request.get_json()
+        
+        if not data.get('name'):
+            return jsonify({'error': 'Category name is required'}), 400
+        
+        # Check if category already exists
+        existing = EventCategory.query.filter_by(name=data['name']).first()
+        if existing:
+            return jsonify({'error': 'Category with this name already exists'}), 400
+        
+        # Create new category
+        category = EventCategory(
+            name=data['name'],
+            description=data.get('description'),
+            color=data.get('color', '#6366f1')  # Default purple color
+        )
+        
+        db.session.add(category)
+        db.session.commit()
+        
+        logger.info(f"Created event category: {category.name} (ID: {category.id})")
+        return jsonify({'category': category.to_dict()}), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating event category: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create category'}), 500
 
 @app.route('/api/events', methods=['POST'])
 @admin_required

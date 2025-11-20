@@ -19,6 +19,8 @@ const EventsManager = () => {
   const [editingEvent, setEditingEvent] = useState(null);
   const [campusFilter, setCampusFilter] = useState('all_campuses');
   const [statusFilter, setStatusFilter] = useState('all'); // all, upcoming, past
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -71,6 +73,49 @@ const EventsManager = () => {
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+    }
+  };
+
+  const handleCreateCategory = async (e) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/events/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          description: '',
+          color: '#6366f1'
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Add new category to list
+        setCategories([...categories, data.category]);
+        // Set the new category as selected
+        setFormData(prev => ({
+          ...prev,
+          category_id: data.category.id
+        }));
+        // Close modal and reset
+        setShowCategoryModal(false);
+        setNewCategoryName('');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Error creating category:', error);
+      alert('Failed to create category');
     }
   };
 
@@ -430,20 +475,31 @@ const EventsManager = () => {
                   <label className="block text-sm font-medium text-white/80 mb-2">
                     Category *
                   </label>
-                  <select
-                    name="category_id"
-                    value={formData.category_id}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="">Select category</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id} className="bg-slate-800">
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      name="category_id"
+                      value={formData.category_id}
+                      onChange={handleInputChange}
+                      required
+                      className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="">Select category</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id} className="bg-slate-800">
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryModal(true)}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2"
+                      title="Add new category"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Add
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -658,6 +714,62 @@ const EventsManager = () => {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
+                  className="px-6 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Create New Category</h2>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setNewCategoryName('');
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <XMarkIcon className="w-6 h-6 text-white/60" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCategory} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Category Name *
+                </label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  required
+                  autoFocus
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="e.g., Conference, Workshop, Social"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all"
+                >
+                  Create Category
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCategoryModal(false);
+                    setNewCategoryName('');
+                  }}
                   className="px-6 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
                 >
                   Cancel
