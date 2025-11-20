@@ -299,9 +299,21 @@ class EngagementProfile(db.Model):
                     latest_activity = latest_group
         
         if latest_activity:
-            self.last_seen = latest_activity
+            # last_seen is a DATE column, so store only the date part
+            if isinstance(latest_activity, datetime):
+                self.last_seen = latest_activity.date()
+            else:
+                self.last_seen = latest_activity
         
-        days_since_last_seen = (now - self.last_seen).days if self.last_seen else None
+        # Calculate days since last seen - convert to date if needed
+        if self.last_seen:
+            if isinstance(self.last_seen, datetime):
+                last_seen_date = self.last_seen.date()
+            else:
+                last_seen_date = self.last_seen
+            days_since_last_seen = (now.date() - last_seen_date).days
+        else:
+            days_since_last_seen = None
         
         # 2. BIBLE READING (25% weight)
         # Target: Daily reading = 56 days in 8 weeks
@@ -414,7 +426,12 @@ class EngagementProfile(db.Model):
         if not self.last_seen:
             reasons.append("No attendance recorded")
         else:
-            days_since_last_seen = (now - self.last_seen).days
+            # Convert last_seen (DATE) to date for comparison with now.date()
+            if isinstance(self.last_seen, datetime):
+                last_seen_date = self.last_seen.date()
+            else:
+                last_seen_date = self.last_seen
+            days_since_last_seen = (now.date() - last_seen_date).days
             if days_since_last_seen <= 14:
                 reasons.append(f"Attended {days_since_last_seen} days ago")
             elif days_since_last_seen <= 28:

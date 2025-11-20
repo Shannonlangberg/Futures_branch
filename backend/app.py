@@ -13344,25 +13344,38 @@ def update_profile():
         if not person:
             return jsonify({'error': 'Person not found. Please ensure your profile exists in Pulse.'}), 404
         
+        # Log what we're updating
+        logger.info(f"Updating profile for {email} - Before: full_name='{person.full_name}', preferred_name='{person.preferred_name}', phone='{person.phone}'")
+        
         # Update allowed fields
         if 'full_name' in data and data['full_name']:
+            old_name = person.full_name
             person.full_name = data['full_name'].strip()
+            logger.info(f"  Updating full_name: '{old_name}' -> '{person.full_name}'")
         if 'preferred_name' in data:
+            old_pref = person.preferred_name
             person.preferred_name = data['preferred_name'].strip() if data.get('preferred_name') else None
+            logger.info(f"  Updating preferred_name: '{old_pref}' -> '{person.preferred_name}'")
         if 'phone' in data:
+            old_phone = person.phone
             person.phone = data['phone'].strip() if data.get('phone') else None
+            logger.info(f"  Updating phone: '{old_phone}' -> '{person.phone}'")
         
-        # Force commit and refresh
+        # Force commit
         db.session.commit()
-        db.session.flush()
-        db.session.expire_all()
+        logger.info(f"  Committed changes to database")
         
-        # Re-query to get absolutely fresh data
-        person = Person.query.filter(
-            db.func.lower(Person.email) == email.lower(),
-            Person.is_active == True
-        ).first()
-        db.session.refresh(person)
+        # Expire and re-query to get absolutely fresh data
+        db.session.expire_all()
+        person_id = person.id  # Save ID before expire
+        
+        # Re-query using the ID to ensure we get fresh data
+        person = Person.query.filter_by(id=person_id, is_active=True).first()
+        if person:
+            db.session.refresh(person)
+            logger.info(f"  After re-query: full_name='{person.full_name}', preferred_name='{person.preferred_name}', phone='{person.phone}'")
+        else:
+            logger.error(f"  ERROR: Person not found after re-query with id={person_id}")
         
         # Return updated person data
         person_data = person.to_dict()
