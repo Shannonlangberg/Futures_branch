@@ -168,9 +168,10 @@ const People = () => {
 
   const handleOpenModal = async (person = null) => {
     if (person) {
-      // Fetch fresh data from server with cache-busting
+      // CRITICAL: Fetch by EMAIL not ID to ensure we get the same record as mobile app
+      // Mobile app updates by email, so we must also fetch by email to see those changes
       try {
-        const freshResponse = await fetch(`/api/persons/${person.id}?_t=${Date.now()}`, {
+        const freshResponse = await fetch(`/api/persons/email/${person.email}?_t=${Date.now()}&_r=${Math.random().toString(36).substr(2, 9)}`, {
           credentials: 'include',
           cache: 'no-store',
           headers: {
@@ -180,10 +181,13 @@ const People = () => {
           }
         });
         if (freshResponse.ok) {
-          person = await freshResponse.json();
+          const freshData = await freshResponse.json();
+          console.log('Fresh person data from /api/persons/email:', freshData);
+          // /api/persons/email returns person directly, not nested
+          person = freshData;
         }
       } catch (err) {
-        console.error('Error fetching person data:', err);
+        console.error('Error fetching person data by email:', err);
       }
       
       setEditingPerson(person);
@@ -243,11 +247,14 @@ const People = () => {
     }
 
     try {
+      // CRITICAL: Use email for updates, not ID, to match mobile app behavior
+      // This ensures both apps update the same person record
       const url = editingPerson 
-        ? `/api/persons/${editingPerson.id}`
+        ? `/api/persons/${editingPerson.email}`  // Use email instead of ID
         : '/api/persons';
       
       const method = editingPerson ? 'PUT' : 'POST';
+      console.log(`${method} ${url}`, formData);
       
       const payload = {
         ...formData,
