@@ -207,29 +207,11 @@ const Resources = () => {
         throw new Error('Missing Google authentication URL.');
       }
 
-      // Detect mobile devices
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
-                      (window.innerWidth <= 768 && window.innerHeight <= 1024);
-      
-      if (isMobile) {
-        // On mobile, use full-page redirect instead of popup
-        sessionStorage.setItem('google_oauth_in_progress', 'true');
-        window.location.href = authUrl;
-        return; // Don't set error - we're navigating away
-      }
-
-      // On desktop, use popup
-      const authWindow = window.open(
-        authUrl,
-        'googleDriveAuth',
-        'width=520,height=680,noopener,noreferrer'
-      );
-
-      if (!authWindow) {
-        throw new Error('Popup blocked. Please allow popups for this site and try again.');
-      }
-
-      authWindow.focus();
+      // Always use full-page redirect (no popup)
+      sessionStorage.setItem('google_oauth_in_progress', 'true');
+      sessionStorage.setItem('google_oauth_redirect', '/resources');
+      window.location.href = authUrl;
+      return; // Don't set error - we're navigating away
     } catch (error) {
       setFilesError(error.message || 'Unable to begin Google authentication.');
     } finally {
@@ -247,23 +229,22 @@ const Resources = () => {
     }
   }, [selectedCategoryId, fetchFiles]);
 
+  // Handle OAuth redirect - check for success flag in URL or sessionStorage
   useEffect(() => {
-    const handleMessage = (event) => {
-      if (event.origin !== window.location.origin) {
-        return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthSuccess = urlParams.get('oauth_success');
+    const oauthSuccessStorage = sessionStorage.getItem('google_oauth_success');
+    
+    if (oauthSuccess || oauthSuccessStorage) {
+      // Clean up
+      sessionStorage.removeItem('google_oauth_success');
+      window.history.replaceState({}, '', '/resources');
+      
+      setAuthRequired(false);
+      if (selectedCategoryId) {
+        fetchFiles(selectedCategoryId);
       }
-      if (event.data && event.data.type === 'googleAuthSuccess') {
-        setAuthRequired(false);
-        if (selectedCategoryId) {
-          fetchFiles(selectedCategoryId);
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
+    }
   }, [selectedCategoryId, fetchFiles]);
 
   const renderCategoryCards = () => {

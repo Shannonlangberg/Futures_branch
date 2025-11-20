@@ -48,7 +48,7 @@ const DriveAuthModal = ({ onConnect, connecting, error }) => {
         </div>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white/70 text-sm">
-          You&apos;ll see a Google popup in a new window. If nothing happens, allow popups for <span className="text-white font-semibold">futures-pulse-production.up.railway.app</span> and try again.
+          You will be redirected to Google to authorize access. Once you approve, you&apos;ll be returned to the app automatically.
         </div>
 
         {error && (
@@ -66,7 +66,7 @@ const DriveAuthModal = ({ onConnect, connecting, error }) => {
           `}
         >
           <span className="text-xl">🔗</span>
-          {connecting ? 'Opening Google...' : 'Connect with Google'}
+          {connecting ? 'Redirecting to Google...' : 'Connect with Google'}
         </button>
       </div>
     </div>
@@ -181,29 +181,25 @@ function App() {
   }, [checkAuthStatus]);
   
   useEffect(() => {
-    // Listen for OAuth success messages (from popup or redirect)
-    const handleMessage = (event) => {
-      // Accept messages from same origin
-      if (event.origin !== window.location.origin) {
-        return;
-      }
-      
-      if (event.data && event.data.type === 'googleAuthSuccess') {
-        // OAuth completed successfully - close modal and refresh page
-        setNeedsDriveAuth(false);
-        setShowDriveModal(false);
-        setDriveError('');
-        setDriveConnecting(false);
-        
-        // Refresh the page to ensure all components see the updated auth state
-        setTimeout(() => {
-          window.location.reload();
-        }, 300);
-      }
-    };
+    // Check for OAuth success from redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthSuccess = urlParams.get('oauth_success');
+    const oauthSuccessStorage = sessionStorage.getItem('google_oauth_success');
     
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    if (oauthSuccess || oauthSuccessStorage) {
+      // Clean up
+      sessionStorage.removeItem('google_oauth_success');
+      window.history.replaceState({}, '', window.location.pathname);
+      
+      // OAuth completed successfully - close modal and refresh auth status
+      setNeedsDriveAuth(false);
+      setShowDriveModal(false);
+      setDriveError('');
+      setDriveConnecting(false);
+      
+      // Refresh auth status to pick up the new Google Drive auth
+      checkAuthStatus();
+    }
   }, [checkAuthStatus]);
 
   const handleLogin = () => {
@@ -259,58 +255,13 @@ function App() {
         return;
       }
 
-      // Detect mobile devices
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
-                      (window.innerWidth <= 768 && window.innerHeight <= 1024);
-      
-      if (isMobile) {
-        // On mobile, use full-page redirect instead of popup
-        // Store that we're doing OAuth so we can check on return
-        sessionStorage.setItem('google_oauth_in_progress', 'true');
-        window.location.href = authUrl;
-        return; // Don't set connecting to false - we're navigating away
-      }
-
-      // On desktop, use popup
-      const authWindow = window.open(
-        authUrl,
-        'googleDriveAuth',
-        'width=520,height=680,noopener,noreferrer'
-      );
-
-      if (!authWindow) {
-        setDriveError('Popup blocked. Please allow popups for this site and try again.');
-        setDriveConnecting(false);
-        return;
-      }
-
-      authWindow.focus();
-
-      // Poll for window closure or success message
-      const checkWindow = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkWindow);
-          setDriveConnecting(false);
-
-          // After the popup is closed, close modal and refresh page
-          setNeedsDriveAuth(false);
-          setShowDriveModal(false);
-          setDriveError('');
-          
-          // Refresh the page to ensure all components see the updated auth state
-          setTimeout(() => {
-            window.location.reload();
-          }, 500);
-        }
-      }, 500);
-
-      // Cleanup interval after 5 minutes
-      setTimeout(() => {
-        clearInterval(checkWindow);
-        if (!authWindow.closed) {
-          setDriveConnecting(false);
-        }
-      }, 300000);
+      // Always use full-page redirect (no popup)
+      // Store redirect URL and OAuth in progress flag
+      const currentPath = window.location.pathname;
+      sessionStorage.setItem('google_oauth_in_progress', 'true');
+      sessionStorage.setItem('google_oauth_redirect', currentPath || '/dashboard');
+      window.location.href = authUrl;
+      return; // Don't set connecting to false - we're navigating away
     } catch (error) {
       setDriveError(error.message || 'Unable to begin Google authentication.');
       setDriveConnecting(false);

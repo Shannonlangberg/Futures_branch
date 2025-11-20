@@ -83,54 +83,11 @@ const Login = ({ onLogin }) => {
         return;
       }
 
-      // Detect mobile devices
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
-                      (window.innerWidth <= 768 && window.innerHeight <= 1024);
-      
-      if (isMobile) {
-        // On mobile, use full-page redirect instead of popup
-        sessionStorage.setItem('google_oauth_in_progress', 'true');
-        window.location.href = authUrl;
-        return; // Don't set connecting to false - we're navigating away
-      }
-
-      // On desktop, use popup
-      const authWindow = window.open(
-        authUrl,
-        'googleDriveAuth',
-        'width=520,height=680,noopener,noreferrer'
-      );
-
-      if (!authWindow) {
-        setDriveError('Popup blocked. Please allow popups for this site and try again.');
-        setIsDriveConnecting(false);
-        return;
-      }
-
-      authWindow.focus();
-
-      // AGGRESSIVE APPROACH: Watch for popup to close AND check session
-      // The popup will send messages, but if that fails, we redirect when popup closes
-      const checkWindow = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkWindow);
-          console.log('[Login] ✅ Popup closed, redirecting to homepage...');
-          setIsDriveConnecting(false);
-          setIsDriveAuthRequired(false);
-          
-          // Immediately redirect - session should be saved by now
-          if (onLogin) {
-            onLogin();
-          }
-          // No delay - just redirect immediately
-          window.location.href = '/';
-        }
-      }, 200); // Check more frequently (every 200ms instead of 500ms)
-
-      // Safety timeout to clear interval
-      setTimeout(() => {
-        clearInterval(checkWindow);
-      }, 5 * 60 * 1000);
+      // Always use full-page redirect (no popup)
+      sessionStorage.setItem('google_oauth_in_progress', 'true');
+      sessionStorage.setItem('google_oauth_redirect', '/dashboard');
+      window.location.href = authUrl;
+      return; // Don't set connecting to false - we're navigating away
     } catch (err) {
       console.error('Google auth error during login:', err);
       setDriveError('Unable to complete Google authentication. Please try again.');
@@ -139,58 +96,27 @@ const Login = ({ onLogin }) => {
     }
   };
 
-  // If the popup posts a success message, redirect to dashboard
+  // Handle OAuth redirect - check for success flag in URL or sessionStorage
   useEffect(() => {
-    const handleMessage = (event) => {
-      // Accept messages from same origin or wildcard (for popup)
-      // Also accept from Railway domain variations
-      const allowedOrigins = [
-        window.location.origin,
-        'https://futuresbranch-production.up.railway.app',
-        'https://futures-pulse-production.up.railway.app',
-        'https://futures.pulse.com',
-        '*' // Allow wildcard for popup messages
-      ];
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthSuccess = urlParams.get('oauth_success');
+    const oauthSuccessStorage = sessionStorage.getItem('google_oauth_success');
+    
+    if (oauthSuccess || oauthSuccessStorage) {
+      // Clean up
+      sessionStorage.removeItem('google_oauth_success');
+      window.history.replaceState({}, '', '/login');
       
-      // Check if origin is allowed (wildcard always allowed)
-      // Also allow any origin that matches our current origin (for Railway subdomains)
-      const currentOrigin = window.location.origin;
-      const isOriginAllowed = 
-        event.origin === '*' || 
-        event.origin === currentOrigin ||
-        event.origin.startsWith(currentOrigin) ||
-        allowedOrigins.some(origin => 
-          origin === '*' || 
-          event.origin === origin || 
-          event.origin.startsWith(origin) ||
-          origin.startsWith(event.origin)
-        );
+      setIsDriveConnecting(false);
+      setDriveError('');
+      setIsDriveAuthRequired(false);
       
-      if (!isOriginAllowed) {
-        console.log('[Login] Message from disallowed origin:', event.origin, 'current origin:', currentOrigin);
-        return;
+      if (onLogin) {
+        onLogin();
       }
-      
-      console.log('[Login] Message from allowed origin:', event.origin);
-      
-      // Handle redirect message from popup
-      if (event.data && (event.data.type === 'redirect' || event.data.type === 'googleAuthSuccess')) {
-        const redirectUrl = event.data.url || event.data.redirect || '/';
-        console.log('[Login] ✅ Received redirect message, going to:', redirectUrl);
-        setIsDriveConnecting(false);
-        setDriveError('');
-        setIsDriveAuthRequired(false);
-        if (onLogin) {
-          onLogin();
-        }
-        // Immediate redirect - no delay
-        window.location.href = redirectUrl;
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [onLogin]);
+      navigate('/dashboard');
+    }
+  }, [navigate, onLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -372,7 +298,7 @@ const Login = ({ onLogin }) => {
                   Connecting Google Drive for your admin account…
                 </p>
                 <p className="text-blue-300/80 text-xs">
-                  A Google popup should appear. Once you approve access, the page will refresh automatically.
+                  You will be redirected to Google to authorize access. Once you approve, you'll be returned to the app.
                 </p>
               </div>
             )}

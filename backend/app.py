@@ -17322,7 +17322,8 @@ def google_oauth_callback():
         else:
             logger.info(f"Google Drive OAuth successful for user {user_id}, tokens stored in session")
         
-        # Return success page that handles both popup and redirect scenarios
+        # Get redirect URL from sessionStorage (set by frontend) or default to dashboard
+        # Return success page that redirects back to the app
         return '''
         <!DOCTYPE html>
         <html>
@@ -17354,42 +17355,51 @@ def google_oauth_callback():
                     font-size: 64px;
                     margin-bottom: 20px;
                 }
+                .spinner {
+                    border: 3px solid rgba(255, 255, 255, 0.3);
+                    border-top: 3px solid white;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 1s linear infinite;
+                    margin: 20px auto;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="checkmark">✓</div>
                 <h1>Google Drive Connected!</h1>
-                <p>You can close this window or return to the app.</p>
+                <p>Redirecting you back to the app...</p>
+                <div class="spinner"></div>
             </div>
             <script>
-                // Immediately try to notify parent/opener
+                // Get redirect URL from sessionStorage or default to dashboard
+                let redirectUrl = '/dashboard';
                 try {
-                    if (window.opener) {
-                        // Desktop popup scenario
-                        window.opener.postMessage({ type: 'googleAuthSuccess' }, '*');
-                        setTimeout(() => window.close(), 500);
-                    } else if (window.parent && window.parent !== window) {
-                        // Iframe scenario
-                        window.parent.postMessage({ type: 'googleAuthSuccess' }, '*');
+                    const storedRedirect = sessionStorage.getItem('google_oauth_redirect');
+                    if (storedRedirect) {
+                        redirectUrl = storedRedirect;
+                        sessionStorage.removeItem('google_oauth_redirect');
                     }
                 } catch (e) {
-                    console.log('Could not post message:', e);
+                    console.log('Could not read sessionStorage:', e);
                 }
                 
-                // For mobile redirects, always redirect back to app immediately
-                // This ensures we get back to the app even if postMessage fails
-                if (!window.opener) {
-                    // Store success in sessionStorage for the app to detect
-                    try {
-                        sessionStorage.setItem('google_oauth_success', 'true');
-                    } catch (e) {
-                        console.log('Could not set sessionStorage:', e);
-                    }
-                    
-                    // Redirect immediately with a flag to force auth refresh
-                    window.location.href = '/?oauth_success=true';
+                // Store success flag for the app to detect
+                try {
+                    sessionStorage.setItem('google_oauth_success', 'true');
+                } catch (e) {
+                    console.log('Could not set sessionStorage:', e);
                 }
+                
+                // Redirect back to the app with success flag
+                const separator = redirectUrl.includes('?') ? '&' : '?';
+                window.location.href = redirectUrl + separator + 'oauth_success=true';
             </script>
         </body>
         </html>
