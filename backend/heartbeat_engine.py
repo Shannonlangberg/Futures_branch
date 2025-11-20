@@ -176,11 +176,63 @@ class HeartbeatEngine:
         ).all()
         service_ids = [s.id for s in sunday_services]
         
-        # Attendance events
+        # Attendance events from AttendanceEvent table
         attendance_events = AttendanceEvent.query.filter(
             AttendanceEvent.person_id == person_id,
             AttendanceEvent.service_id.in_(service_ids) if service_ids else False
         ).all()
+        
+        # Also get attendance from engagement_profiles.attendance_log (mobile app logs here)
+        # Create mock AttendanceEvent objects from attendance_log entries
+        from models import EngagementProfile, Person
+        person = Person.query.get(person_id)
+        if person:
+            try:
+                # Try to get engagement profile via ORM first
+                engagement = EngagementProfile.query.filter_by(person_id=person_id).first()
+                if engagement:
+                    import json as json_lib
+                    attendance_log_str = engagement.attendance_log or '[]'
+                    attendance_log = json_lib.loads(attendance_log_str) if attendance_log_str else []
+                    
+                    # Convert attendance_log entries to mock AttendanceEvent objects
+                    for entry in attendance_log:
+                        if isinstance(entry, dict) and 'timestamp' in entry:
+                            try:
+                                entry_time = datetime.fromisoformat(entry['timestamp'].replace('Z', '+00:00'))
+                                entry_date = entry_time.date()
+                                
+                                # Only include entries within date range
+                                if start_date <= entry_date <= end_date:
+                                    # Create a mock AttendanceEvent-like object
+                                    class MockAttendanceEvent:
+                                        def __init__(self, person_id, created_at, service_id=None, zones=None, campus=None):
+                                            self.person_id = person_id
+                                            self.created_at = created_at
+                                            self.service_id = service_id
+                                            self.zones = zones or ['sunday_service']
+                                            self.campus = campus
+                                    
+                                    # Try to find matching service
+                                    matching_service = None
+                                    for service in sunday_services:
+                                        if service.starts_at.date() == entry_date:
+                                            matching_service = service
+                                            break
+                                    
+                                    mock_event = MockAttendanceEvent(
+                                        person_id=person_id,
+                                        created_at=entry_time,
+                                        service_id=matching_service.id if matching_service else None,
+                                        zones=entry.get('zones', ['sunday_service']),
+                                        campus=entry.get('campus', person.campus)
+                                    )
+                                    attendance_events.append(mock_event)
+                                    logger.info(f"Added attendance from engagement_log for {person_id} on {entry_date}")
+                            except Exception as e:
+                                logger.warning(f"Error parsing attendance_log entry for {person_id}: {e}")
+            except Exception as e:
+                logger.warning(f"Error reading attendance_log from engagement profile for {person_id}: {e}")
         
         # Connect group attendance
         # Query ALL records first to debug
