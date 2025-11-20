@@ -23,7 +23,10 @@ const TV = () => {
       
       if (seriesResponse.ok) {
         const seriesData = await seriesResponse.json();
-        setSeries(seriesData.series || []);
+        const allSeries = seriesData.series || [];
+        setSeries(allSeries);
+        // Most watched is just the first 6 series (we can add an endpoint later)
+        setMostWatched(allSeries.slice(0, 6));
       }
       
       // Fetch continue watching
@@ -34,12 +37,6 @@ const TV = () => {
       if (continueResponse.ok) {
         const continueData = await continueResponse.json();
         setContinueWatching(continueData.episodes || []);
-      }
-      
-      // For now, most watched is just the first 6 series (we can add an endpoint later)
-      if (seriesResponse.ok) {
-        const seriesData = await seriesResponse.json();
-        setMostWatched((seriesData.series || []).slice(0, 6));
       }
       
       setLoading(false);
@@ -69,7 +66,7 @@ const TV = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         <div className="text-white text-xl">Loading Pulse TV...</div>
       </div>
     );
@@ -77,48 +74,58 @@ const TV = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         <div className="text-red-400 text-xl">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-pulse delay-500"></div>
+      </div>
+
       {/* Top Navigation Bar - Netflix Style */}
-      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/10">
+      <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Left Side - Pulse TV Logo */}
             <Link to="/tv" className="flex items-center gap-3">
-              <div className="text-3xl font-bold bg-gradient-to-r from-purple-500 via-blue-500 to-pink-500 bg-clip-text text-transparent">
+              <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-pink-400 bg-clip-text text-transparent drop-shadow-lg">
                 Pulse TV
               </div>
             </Link>
 
             {/* Right Side - Navigation (can add later) */}
-            <div className="flex items-center gap-4 text-sm text-gray-300">
-              <span>Home</span>
-              <span>Series</span>
-              <span>Movies</span>
+            <div className="flex items-center gap-6 text-sm">
+              <span className="text-gray-300 hover:text-purple-400 transition-colors cursor-pointer">Home</span>
+              <span className="text-gray-300 hover:text-blue-400 transition-colors cursor-pointer">Series</span>
+              <span className="text-gray-300 hover:text-pink-400 transition-colors cursor-pointer">Categories</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="pb-12">
+      <div className="pb-12 relative z-10">
         {/* Most Watched Section */}
         {mostWatched.length > 0 && (
           <div className="mb-8 mt-6">
             <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-xl font-semibold mb-4 text-white">Most Watched</h2>
+              <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
+                <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+                Most Watched
+              </h2>
               <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
                     return (
-                      <div key={item.id} className="flex-shrink-0 w-64 h-40 bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-lg border border-slate-700/50 flex items-center justify-center">
-                        <span className="text-slate-600 text-sm">Coming Soon</span>
+                      <div key={item.id} className="flex-shrink-0 w-64 h-40 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
+                        <span className="text-slate-400 text-sm">Coming Soon</span>
                       </div>
                     );
                   }
@@ -159,7 +166,10 @@ const TV = () => {
         {continueWatching.length > 0 && (
           <div className="mb-8">
             <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-xl font-semibold mb-4 text-white">Continue Watching</h2>
+              <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
+                <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+                Continue Watching
+              </h2>
               <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {continueWatching.slice(0, 8).map((episode) => (
                   <Link
@@ -199,8 +209,8 @@ const TV = () => {
                 ))}
                 {/* Add placeholders */}
                 {createPlaceholders(2).map((item) => (
-                  <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-lg border border-slate-700/50 flex items-center justify-center">
-                    <span className="text-slate-600 text-xs">Coming Soon</span>
+                  <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
+                    <span className="text-slate-400 text-xs">Coming Soon</span>
                   </div>
                 ))}
               </div>
@@ -216,7 +226,8 @@ const TV = () => {
           return (
             <div key={category} className="mb-8">
               <div className="max-w-7xl mx-auto px-6">
-                <h2 className="text-xl font-semibold mb-4 text-white capitalize">
+                <h2 className="text-2xl font-bold mb-4 text-white capitalize flex items-center gap-2">
+                  <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                   {category.replace(/_/g, ' ')}
                 </h2>
                 <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -257,8 +268,8 @@ const TV = () => {
                   ))}
                   {/* Add placeholders to show more content is coming */}
                   {createPlaceholders(Math.min(3, 6 - categorySeries.length)).map((item) => (
-                    <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-lg border border-slate-700/50 flex items-center justify-center">
-                      <span className="text-slate-600 text-xs">Coming Soon</span>
+                    <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
+                      <span className="text-slate-400 text-xs">Coming Soon</span>
                     </div>
                   ))}
                 </div>
@@ -270,12 +281,15 @@ const TV = () => {
         {/* Add a "New This Week" row with placeholders */}
         <div className="mb-8">
           <div className="max-w-7xl mx-auto px-6">
-            <h2 className="text-xl font-semibold mb-4 text-white">New This Week</h2>
+            <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
+              <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+              New This Week
+            </h2>
             <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {createPlaceholders(6).map((item) => (
-                <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-pink-900/20 rounded-lg border border-purple-700/30 flex flex-col items-center justify-center">
-                  <span className="text-slate-500 text-xs mb-2">📺</span>
-                  <span className="text-slate-600 text-xs">Coming Soon</span>
+                <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-pink-900/30 rounded-lg border border-purple-500/30 flex flex-col items-center justify-center">
+                  <span className="text-slate-400 text-xs mb-2">📺</span>
+                  <span className="text-slate-400 text-xs">Coming Soon</span>
                 </div>
               ))}
             </div>

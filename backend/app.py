@@ -12832,6 +12832,10 @@ def get_persons():
         for person in persons:
             # FORCE refresh person object from database
             person_id = person.id
+            
+            # Log what we're about to return
+            logger.info(f"GET /api/persons - Person: ID={person_id}, Name='{person.full_name}', Email='{person.email}'")
+            
             try:
                 db.session.refresh(person)
             except:
@@ -12842,6 +12846,9 @@ def get_persons():
                     continue
             
             person_data = person.to_dict()
+            
+            # Log the data being returned
+            logger.info(f"GET /api/persons - Returning: ID={person_data.get('id')}, Name='{person_data.get('full_name')}', Email='{person_data.get('email')}'")
             
             # Add engagement profile data - use direct SQL to avoid schema issues
             try:
@@ -13177,6 +13184,8 @@ def update_profile():
         db.session.expire_all()
         
         # Find person by email (case-insensitive) - FORCE fresh query
+        # IMPORTANT: This finds the EXISTING record (whether PCO ID or UUID)
+        # Mobile app updates the SAME record that web app shows
         person = Person.query.filter(
             db.func.lower(Person.email) == email.lower(),
             Person.is_active == True
@@ -13184,9 +13193,11 @@ def update_profile():
         
         if not person:
             logger.error(f"Person not found for email: {email}")
-            return jsonify({'error': 'Person not found'}), 404
+            logger.error(f"Mobile app cannot create new records - person must exist in Pulse first")
+            return jsonify({'error': 'Person not found. Please ensure your profile exists in Pulse.'}), 404
         
         logger.info(f"Updating person {person.id} ({person.full_name}) from mobile app")
+        logger.info(f"Person ID type: {'PCO' if person.id.startswith('pco_') else 'UUID'}")
         
         # Allow users to update their own profile (general info only, not pastoral notes)
         updated_fields = []

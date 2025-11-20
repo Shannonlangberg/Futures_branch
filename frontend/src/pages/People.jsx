@@ -56,6 +56,16 @@ const People = () => {
     loadCampuses();
     loadPersons();
   }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
+  
+  // Force reload on window focus to catch updates from mobile app
+  useEffect(() => {
+    const handleFocus = () => {
+      // Reload persons when window regains focus (user switches back from mobile app)
+      loadPersons();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   // Check for edit query parameter and open modal
   useEffect(() => {
@@ -125,8 +135,9 @@ const People = () => {
         params.append('include_archived', 'true');
       }
 
-      // Add cache-busting timestamp to ensure fresh data
+      // Add cache-busting timestamp to ensure fresh data (ALWAYS unique)
       params.append('_t', Date.now().toString());
+      params.append('_r', Math.random().toString(36).substring(7)); // Extra random param
       
       const response = await fetch(`/api/persons?${params.toString()}`, {
         credentials: 'include',
@@ -134,7 +145,8 @@ const People = () => {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
-          'Expires': '0'
+          'Expires': '0',
+          'X-Requested-With': 'XMLHttpRequest' // Prevent browser caching
         }
       });
       
