@@ -99,10 +99,10 @@ export default function PathwayScreen() {
 
             {/* Journey Path */}
             <View style={styles.journeyPath}>
-              {pathway.steps && pathway.steps.map((step, index) => {
+              {pathway.pathway && pathway.pathway.steps && pathway.pathway.steps.map((step, index) => {
                 const isCompleted = step.is_completed;
                 const isNext = pathway.current_step_id === step.id && !isCompleted;
-                const isLast = index === pathway.steps.length - 1;
+                const isLast = index === pathway.pathway.steps.length - 1;
                 
                 return (
                   <View key={step.id || index} style={styles.stepContainer}>
