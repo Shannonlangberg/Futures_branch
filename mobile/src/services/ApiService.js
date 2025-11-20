@@ -83,7 +83,15 @@ export const ApiService = {
   // Auth
   async login(email, password) {
     console.log('📤 Sending login request to:', `${API_BASE_URL}/api/login`);
-    const response = await api.post('/api/login', { email, password });
+    console.log('📤 Login data:', { email: email, password: '***' });
+    const response = await api.post('/api/login', { 
+      email: email.trim(), 
+      password: password.trim() 
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
     console.log('📥 Login response received:', response.status, response.data);
     return response.data;
   },
