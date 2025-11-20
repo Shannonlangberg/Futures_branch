@@ -427,6 +427,7 @@ const SeriesModal = ({ series, categories, audiences, onClose, onSave }) => {
   });
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [thumbnailPreview, setThumbnailPreview] = useState('');
 
   useEffect(() => {
@@ -592,16 +593,91 @@ const SeriesModal = ({ series, categories, audiences, onClose, onSave }) => {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Thumbnail URL
+                Thumbnail
               </label>
+              
+              {/* Upload Button */}
+              <div className="mb-3">
+                <label className="flex items-center justify-center w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg cursor-pointer transition-colors">
+                  {uploadingImage ? (
+                    <>
+                      <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload Image
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      
+                      // Validate file size (5MB)
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('File too large. Maximum size is 5MB');
+                        return;
+                      }
+                      
+                      // Validate file type
+                      const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+                      if (!validTypes.includes(file.type)) {
+                        alert('Invalid file type. Use PNG, JPG, GIF, or WEBP');
+                        return;
+                      }
+                      
+                      // Upload file
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      
+                      try {
+                        setUploadingImage(true);
+                        const response = await fetch('/api/tv/upload-thumbnail', {
+                          method: 'POST',
+                          credentials: 'include',
+                          body: formData
+                        });
+                        
+                        if (response.ok) {
+                          const data = await response.json();
+                          setFormData({ ...formData, thumbnail_url: data.url });
+                          setThumbnailPreview(data.url);
+                        } else {
+                          const error = await response.json();
+                          alert(error.error || 'Failed to upload image');
+                        }
+                      } catch (err) {
+                        console.error('Error uploading image:', err);
+                        alert('Failed to upload image');
+                      } finally {
+                        setUploadingImage(false);
+                        e.target.value = ''; // Reset input
+                      }
+                    }}
+                  />
+                </label>
+                <p className="text-xs text-slate-500 mt-2 text-center">Or enter a URL below</p>
+              </div>
+              
+              {/* URL Input */}
               <input
                 type="url"
                 value={formData.thumbnail_url}
-                onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, thumbnail_url: e.target.value });
+                  setThumbnailPreview(e.target.value);
+                }}
                 className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
-                placeholder="https://..."
+                placeholder="https://... or upload image above"
               />
-              <p className="text-xs text-slate-500 mt-1">Enter a direct image URL (JPG, PNG, etc.)</p>
+              <p className="text-xs text-slate-500 mt-1">Enter a direct image URL or upload an image (JPG, PNG, GIF, WEBP - Max 5MB)</p>
             </div>
 
             <div>
@@ -728,6 +804,7 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
     custom_step_name: ''
   });
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [youtubeError, setYoutubeError] = useState('');
   

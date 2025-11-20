@@ -4,8 +4,10 @@ Pulse TV API
 Endpoints for managing TV series, episodes, and tracking user progress.
 Integrates with Heartbeat system for discipleship scoring.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 from models import (
     db, TVSeries, TVEpisode, TVTag, TVUserEpisodeProgress, 
     TVEpisodeDiscipleshipLink, Person, DiscipleshipStep,
@@ -15,10 +17,25 @@ from sqlalchemy import func, text
 from datetime import datetime, date
 from heartbeat_engine import HeartbeatEngine
 import logging
+import os
+import uuid
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
 tv_bp = Blueprint('tv', __name__, url_prefix='/api/tv')
+
+# Image upload configuration
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'tv')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+# Ensure upload directory exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # ============================================================================
@@ -294,6 +311,82 @@ def get_most_watched():
     except Exception as e:
         logger.error(f"Error getting most watched: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@tv_bp.route('/upload-thumbnail', methods=['POST'])
+@login_required
+def upload_thumbnail():
+    """Upload a thumbnail image for series/episode"""
+    try:
+        if not _has_tv_admin_permission():
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'File type not allowed. Use PNG, JPG, JPEG, GIF, or WEBP'}), 400
+        
+        # Check file size
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        
+        if file_size > MAX_FILE_SIZE:
+            return jsonify({'error': f'File too large. Maximum size is {MAX_FILE_SIZE // 1024 // 1024}MB'}), 400
+        
+        # Generate unique filename
+        file_ext = file.filename.rsplit('.', 1)[1].lower()
+        unique_filename = f"{uuid.uuid4().hex}.{file_ext}"
+        filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+        
+        # Save file
+        file.save(filepath)
+        
+        # Optional: Resize/optimize image (keep it reasonable size)
+        try:
+            with Image.open(filepath) as img:
+                # Convert to RGB if necessary (handles RGBA, P, etc.)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Resize if larger than 1920x1080 (keep aspect ratio)
+                max_size = (1920, 1080)
+                if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                    img.save(filepath, 'JPEG', quality=85, optimize=True)
+        except Exception as e:
+            logger.warning(f"Failed to optimize image: {e}")
+            # Continue anyway - file is saved
+        
+        # Return URL for the uploaded file
+        file_url = f"/uploads/tv/{unique_filename}"
+        
+        return jsonify({
+            'url': file_url,
+            'filename': unique_filename,
+            'message': 'Image uploaded successfully'
+        }), 200
+        
+    except RequestEntityTooLarge:
+        return jsonify({'error': f'File too large. Maximum size is {MAX_FILE_SIZE // 1024 // 1024}MB'}), 400
+    except Exception as e:
+        logger.error(f"Error uploading thumbnail: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@tv_bp.route('/uploads/tv/<filename>')
+def serve_tv_thumbnail(filename):
+    """Serve uploaded TV thumbnails"""
+    try:
+        return send_from_directory(UPLOAD_FOLDER, filename)
+    except Exception as e:
+        logger.error(f"Error serving thumbnail: {e}")
+        return jsonify({'error': 'File not found'}), 404
 
 
 @tv_bp.route('/person/<person_id>/watched', methods=['GET'])
