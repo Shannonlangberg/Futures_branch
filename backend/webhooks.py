@@ -372,3 +372,20 @@ def test_endpoint():
         'endpoint': '/api/webhooks/stripe'
     }), 200
 
+@webhooks_bp.route('/diagnostics', methods=['GET'])
+def webhook_diagnostics():
+    """Diagnostic information about webhook configuration"""
+    import stripe as stripe_lib
+    
+    diagnostics = {
+        'endpoint_url': 'https://futuresbranch-production.up.railway.app/api/webhooks/stripe',
+        'webhook_secret_configured': bool(STRIPE_WEBHOOK_SECRET),
+        'webhook_secret_prefix': STRIPE_WEBHOOK_SECRET[:10] + '...' if STRIPE_WEBHOOK_SECRET else 'Not set',
+        'stripe_api_key_configured': bool(stripe_lib.api_key if hasattr(stripe_lib, 'api_key') else False),
+        'stripe_api_key_mode': 'test' if (stripe_lib.api_key and stripe_lib.api_key.startswith('sk_test_')) else ('live' if (stripe_lib.api_key and stripe_lib.api_key.startswith('sk_live_')) else 'unknown'),
+        'recent_transactions_count': GivingTransaction.query.count(),
+        'recent_transactions': [t.to_dict() for t in GivingTransaction.query.order_by(GivingTransaction.created_at.desc()).limit(3).all()]
+    }
+    
+    return jsonify(diagnostics), 200
+
