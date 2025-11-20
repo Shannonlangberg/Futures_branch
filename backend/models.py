@@ -1423,6 +1423,55 @@ class GivingQRCode(db.Model):
         }
 
 
+class GivingSubscription(db.Model):
+    """Recurring giving subscriptions via Stripe"""
+    __tablename__ = 'giving_subscriptions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    stripe_subscription_id = db.Column(db.String(200), unique=True, nullable=False)
+    stripe_customer_id = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Float, nullable=False)  # Amount in dollars per period
+    currency = db.Column(db.String(10), default='AUD')
+    giving_type = db.Column(db.String(50), nullable=False)  # 'tithe', 'offering', 'missions', 'event'
+    campus = db.Column(db.String(100), nullable=False)
+    source = db.Column(db.String(50), nullable=False)  # 'app', 'qr_code', 'web', 'tap_to_give'
+    qr_code_id = db.Column(db.String(100), nullable=True)
+    interval = db.Column(db.String(20), nullable=False)  # 'week', 'month', 'year'
+    status = db.Column(db.String(50), default='active')  # 'active', 'canceled', 'past_due', 'unpaid'
+    current_period_start = db.Column(db.DateTime, nullable=True)
+    current_period_end = db.Column(db.DateTime, nullable=True)
+    cancel_at_period_end = db.Column(db.Boolean, default=False)
+    canceled_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    person = db.relationship('Person', backref='giving_subscriptions')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'person_name': self.person.full_name if self.person else None,
+            'stripe_subscription_id': self.stripe_subscription_id,
+            'stripe_customer_id': self.stripe_customer_id,
+            'amount': self.amount,
+            'currency': self.currency,
+            'giving_type': self.giving_type,
+            'campus': self.campus,
+            'source': self.source,
+            'qr_code_id': self.qr_code_id,
+            'interval': self.interval,
+            'status': self.status,
+            'current_period_start': self.current_period_start.isoformat() if self.current_period_start else None,
+            'current_period_end': self.current_period_end.isoformat() if self.current_period_end else None,
+            'cancel_at_period_end': self.cancel_at_period_end,
+            'canceled_at': self.canceled_at.isoformat() if self.canceled_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class DiscipleshipStep(db.Model):
     """Discipleship milestone tracking"""
     __tablename__ = 'heartbeat_discipleship_steps'

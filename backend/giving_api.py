@@ -5,7 +5,7 @@ Endpoints for handling giving/tithe/donations with Stripe payments.
 """
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from models import db, Person, EngagementProfile, GivingTransaction, GivingQRCode
+from models import db, Person, EngagementProfile, GivingTransaction, GivingQRCode, GivingSubscription
 from datetime import datetime, timedelta, date
 import logging
 import os
@@ -201,6 +201,238 @@ def confirm_payment():
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error confirming payment: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@giving_bp.route('/create-subscription', methods=['POST'])
+def create_subscription():
+    """
+    Create a Stripe Subscription for recurring giving
+    Public endpoint - uses email to identify person
+    """
+    try:
+        data = request.get_json()
+        
+        if not stripe.api_key:
+            return jsonify({'error': 'Stripe not configured'}), 500
+        
+        amount = data.get('amount')  # Amount in cents
+        giving_type = data.get('type', 'tithe')
+        campus = data.get('campus', '')
+        email = data.get('email')
+        source = data.get('source', 'app')
+        qr_code_id = data.get('qr_code_id', None)
+        interval = data.get('interval', 'month')  # 'week', 'month', 'year'
+        payment_method_id = data.get('payment_method_id')  # From Stripe Elements
+        
+        if not amount or amount <= 0:
+            return jsonify({'error': 'Invalid amount'}), 400
+        
+        if not email:
+            return jsonify({'error': 'Email required'}), 400
+        
+        if not payment_method_id:
+            return jsonify({'error': 'Payment method required'}), 400
+        
+        if interval not in ['week', 'month', 'year']:
+            return jsonify({'error': 'Invalid interval. Must be week, month, or year'}), 400
+        
+        # Verify person exists
+        person = get_person_by_email(email)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Use person's campus if not provided
+        if not campus:
+            campus = person.campus
+        
+        # If from QR code, update scan count
+        if qr_code_id and source in ['qr_code', 'tap_to_give']:
+            qr_code = GivingQRCode.query.filter_by(qr_code_id=qr_code_id, is_active=True).first()
+            if qr_code:
+                qr_code.scan_count += 1
+                qr_code.last_scan_at = datetime.utcnow()
+                db.session.commit()
+        
+        try:
+            # Create or retrieve Stripe Customer
+            stripe_customer = None
+            existing_subscription = GivingSubscription.query.filter_by(
+                person_id=person.id,
+                status='active'
+            ).first()
+            
+            if existing_subscription:
+                # Use existing customer
+                try:
+                    stripe_customer = stripe.Customer.retrieve(existing_subscription.stripe_customer_id)
+                except:
+                    pass
+            
+            if not stripe_customer:
+                # Create new customer
+                stripe_customer = stripe.Customer.create(
+                    email=email,
+                    name=person.full_name,
+                    metadata={
+                        'person_id': person.id,
+                        'campus': campus,
+                    }
+                )
+            
+            # Attach payment method to customer
+            stripe.PaymentMethod.attach(
+                payment_method_id,
+                customer=stripe_customer.id,
+            )
+            
+            # Set as default payment method
+            stripe.Customer.modify(
+                stripe_customer.id,
+                invoice_settings={
+                    'default_payment_method': payment_method_id,
+                },
+            )
+            
+            # Create Stripe Price
+            price = stripe.Price.create(
+                unit_amount=int(amount),
+                currency='aud',
+                recurring={
+                    'interval': interval,
+                },
+                metadata={
+                    'person_id': person.id,
+                    'giving_type': giving_type,
+                    'campus': campus,
+                }
+            )
+            
+            # Create Subscription
+            subscription = stripe.Subscription.create(
+                customer=stripe_customer.id,
+                items=[{'price': price.id}],
+                metadata={
+                    'person_id': person.id,
+                    'person_email': email,
+                    'giving_type': giving_type,
+                    'campus': campus,
+                    'source': source,
+                    'qr_code_id': qr_code_id or '',
+                },
+            )
+            
+            # Save subscription to database
+            db_subscription = GivingSubscription(
+                person_id=person.id,
+                stripe_subscription_id=subscription.id,
+                stripe_customer_id=stripe_customer.id,
+                amount=amount / 100,  # Convert from cents to dollars
+                giving_type=giving_type,
+                campus=campus,
+                source=source,
+                qr_code_id=qr_code_id,
+                interval=interval,
+                status=subscription.status,
+                current_period_start=datetime.fromtimestamp(subscription.current_period_start, tz=timezone.utc),
+                current_period_end=datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc),
+            )
+            db.session.add(db_subscription)
+            db.session.commit()
+            
+            logger.info(f"Subscription created: ${amount/100} {interval}ly from {email} ({giving_type})")
+            
+            return jsonify({
+                'success': True,
+                'subscription_id': subscription.id,
+                'client_secret': subscription.latest_invoice.payment_intent.client_secret if subscription.latest_invoice else None,
+                'status': subscription.status,
+            }), 200
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating subscription: {e}")
+            return jsonify({'error': str(e)}), 500
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating subscription: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@giving_bp.route('/subscriptions', methods=['GET'])
+def get_subscriptions():
+    """
+    Get subscriptions for a person
+    Public endpoint - uses email to identify person
+    """
+    try:
+        email = request.args.get('email')
+        if not email:
+            return jsonify({'error': 'Email required'}), 400
+        
+        person = get_person_by_email(email)
+        if not person:
+            return jsonify({'subscriptions': []}), 200
+        
+        subscriptions = GivingSubscription.query.filter_by(
+            person_id=person.id
+        ).order_by(GivingSubscription.created_at.desc()).all()
+        
+        return jsonify({
+            'subscriptions': [sub.to_dict() for sub in subscriptions]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting subscriptions: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@giving_bp.route('/subscriptions/<subscription_id>/cancel', methods=['POST'])
+def cancel_subscription(subscription_id):
+    """
+    Cancel a subscription
+    Public endpoint - uses email to verify ownership
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email required'}), 400
+        
+        person = get_person_by_email(email)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        subscription = GivingSubscription.query.filter_by(
+            id=subscription_id,
+            person_id=person.id
+        ).first()
+        
+        if not subscription:
+            return jsonify({'error': 'Subscription not found'}), 404
+        
+        # Cancel in Stripe
+        try:
+            stripe_sub = stripe.Subscription.modify(
+                subscription.stripe_subscription_id,
+                cancel_at_period_end=True
+            )
+            subscription.cancel_at_period_end = True
+            subscription.status = stripe_sub.status
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Subscription will cancel at end of current period'
+            }), 200
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error canceling subscription: {e}")
+            return jsonify({'error': str(e)}), 500
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error canceling subscription: {e}")
         return jsonify({'error': str(e)}), 500
 
 

@@ -12525,9 +12525,13 @@ def serve_react_app(path):
     if not isinstance(path, str):
         path = str(path)
     
-    # Skip API routes
+    # Skip API routes (but allow uploads)
     if path.startswith('api/') or path.startswith('temp_audio/'):
-        return jsonify({"error": "Not found"}), 404
+        # Allow uploads to be served
+        if path.startswith('uploads/'):
+            pass  # Continue to serve uploads
+        else:
+            return jsonify({"error": "Not found"}), 404
     
     # If path has an extension (like .json, .png, .js, etc), try to serve as static file
     try:
