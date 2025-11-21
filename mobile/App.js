@@ -33,6 +33,8 @@ import GroupLeaderPortalScreen from './src/screens/GroupLeaderPortalScreen';
 // Services
 import { AuthService } from './src/services/AuthService';
 import { NotificationService } from './src/services/NotificationService';
+import ApiService from './src/services/ApiService';
+import { Platform } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -152,6 +154,28 @@ export default function App() {
     checkAuth();
     setupNotifications();
   }, []);
+
+  // NEW: Log app open for engagement tracking (+1 point)
+  useEffect(() => {
+    const logAppOpen = async () => {
+      if (user && user.email) {
+        try {
+          const platform = Platform.OS; // 'ios' or 'android'
+          const appVersion = Constants?.expoConfig?.version || '1.0.0';
+          
+          await ApiService.logAppOpen(user.email, platform, appVersion);
+          console.log('✅ App open logged for engagement tracking');
+        } catch (error) {
+          // Fail silently - don't break the app if tracking fails
+          console.log('App open tracking failed (non-critical):', error.message);
+        }
+      }
+    };
+    
+    if (isAuthenticated && user) {
+      logAppOpen();
+    }
+  }, [isAuthenticated, user]); // Fire when authentication state changes
 
   const checkAuth = async () => {
     try {
