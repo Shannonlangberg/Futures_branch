@@ -234,26 +234,6 @@ export default function GroupsScreen() {
             <Text style={styles.emptyText}>You're not in any groups yet</Text>
           )
         )}
-
-        {/* Quick Access to Events */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.eventsButton}
-            onPress={() => navigation.navigate('Events')}
-          >
-            <LinearGradient
-              colors={[Colors.accent, Colors.primary]}
-              style={styles.eventsButtonGradient}
-            >
-              <Text style={styles.eventsButtonEmoji}>📅</Text>
-              <View style={styles.eventsButtonContent}>
-                <Text style={styles.eventsButtonTitle}>Upcoming Events</Text>
-                <Text style={styles.eventsButtonSubtitle}>RSVP for church events</Text>
-              </View>
-              <Text style={styles.eventsButtonArrow}>→</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
       </LinearGradient>
     </ScrollView>
   );
