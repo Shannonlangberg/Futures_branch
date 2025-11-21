@@ -17188,6 +17188,13 @@ def get_passport_data(person_email):
 from prayer_api import prayer_bp
 app.register_blueprint(prayer_bp)
 
+# Prayer submission page route
+@app.route('/prayer/link/<link_id>')
+def prayer_submission_page(link_id):
+    """Serve the public prayer/praise submission page"""
+    from flask import send_from_directory
+    return send_from_directory('static', 'prayer-submit.html')
+
 # SERVING MODULE ROUTES
 from serving_api import serving_bp
 app.register_blueprint(serving_bp)
@@ -17708,7 +17715,9 @@ def get_events():
         # Filter by ministry
         ministry = request.args.get('ministry', '')
         if ministry:
-            query = query.filter(Event.ministry == ministry)
+            # Filter by ministry (only if column exists)
+            if hasattr(Event, 'ministry'):
+                query = query.filter(Event.ministry == ministry)
         
         # Filter by tags (tags stored as JSON array in TEXT field)
         tag = request.args.get('tag', '')

@@ -1221,8 +1221,9 @@ class Event(db.Model):
     stripe_price_id = db.Column(db.String(200), nullable=True)  # Stripe Price ID for checkout
     
     # Enhanced event fields
-    ministry = db.Column(db.String(100))  # e.g. Kids, Youth, Sunday Services, Prayer, Courses
-    # Note: The following columns don't exist in the database - commented out to prevent errors
+    # Note: The following columns don't exist in the database yet - commented out to prevent errors
+    # Uncomment these after migration 028_enhanced_events_module.sql runs successfully
+    # ministry = db.Column(db.String(100))  # e.g. Kids, Youth, Sunday Services, Prayer, Courses
     # is_all_day = db.Column(db.Boolean, default=False)
     # recurrence_rule = db.Column(db.Text)  # iCal-style RRULE or JSON recurrence object
     # status = db.Column(db.String(20), default='draft')  # draft, published, cancelled, completed
@@ -1270,7 +1271,7 @@ class Event(db.Model):
             'price': float(self.price) if self.price else None,
             'requires_payment': self.requires_payment if self.requires_payment else False,
             'stripe_price_id': self.stripe_price_id,
-            'ministry': self.ministry if hasattr(self, 'ministry') else None,
+            # 'ministry': self.ministry if hasattr(self, 'ministry') else None,  # Commented out until migration runs
             # Note: Removed fields that don't exist in database
             # 'is_all_day': self.is_all_day,
             # 'recurrence_rule': self.recurrence_rule,
@@ -1711,6 +1712,48 @@ class GivingQRCode(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'qr_url': f"/give/qr/{self.qr_code_id}"  # URL for the QR code
+        }
+
+
+class PrayerLink(db.Model):
+    """Prayer & Praise submission links for QR/NFC tap points, social media, etc."""
+    __tablename__ = 'prayer_links'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    link_id = db.Column(db.String(100), unique=True, nullable=False)  # Unique identifier for link
+    link_type = db.Column(db.String(20), nullable=False, default='both')  # 'prayer', 'praise', 'both'
+    campus = db.Column(db.String(100), nullable=True)  # Optional campus filter
+    department = db.Column(db.String(100), nullable=True)  # Optional department filter (Kids, Youth, Adults, etc.)
+    location = db.Column(db.String(200), nullable=True)  # e.g., "Main Entrance", "Youth Room", "Social Media"
+    description = db.Column(db.String(500), nullable=True)  # Admin notes about this link
+    code_type = db.Column(db.String(20), default='qr')  # 'qr', 'nfc', 'link'
+    is_active = db.Column(db.Boolean, default=True)
+    scan_count = db.Column(db.Integer, default=0)  # Track how many times accessed
+    submission_count = db.Column(db.Integer, default=0)  # Track successful submissions
+    last_scan_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.String(100), nullable=True)  # User who created this link
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'link_id': self.link_id,
+            'link_type': self.link_type,
+            'campus': self.campus,
+            'department': self.department,
+            'location': self.location,
+            'description': self.description,
+            'code_type': self.code_type,
+            'is_active': self.is_active,
+            'scan_count': self.scan_count,
+            'submission_count': self.submission_count,
+            'last_scan_at': self.last_scan_at.isoformat() if self.last_scan_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'created_by': self.created_by,
+            'url': f"/prayer/link/{self.link_id}",  # Public submission URL
+            'full_url': f"https://pulse.futuresbranch.org/prayer/link/{self.link_id}"  # Full URL for QR generation
         }
 
 
