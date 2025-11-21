@@ -1513,13 +1513,20 @@ def authenticate_user(username_or_email, password):
                 FROM users
                 WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
             ''', (normalized_input, normalized_input))
-        except Exception:
-            # Fallback if custom_permissions column doesn't exist yet
-            cursor.execute('''
-                SELECT id, username, password_hash, full_name, email, role, campus, active
-                FROM users
-                WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
-            ''', (normalized_input, normalized_input))
+        except Exception as col_error:
+            # Check if error is due to missing column
+            error_msg = str(col_error).lower()
+            if 'no such column' in error_msg or 'custom_permissions' in error_msg:
+                logger.info("custom_permissions column doesn't exist yet, using fallback query")
+                cursor.execute('''
+                    SELECT id, username, password_hash, full_name, email, role, campus, active
+                    FROM users
+                    WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
+                ''', (normalized_input, normalized_input))
+            else:
+                # Re-raise if it's a different error
+                logger.error(f"Database error in authenticate_user: {col_error}")
+                raise
         
         row = cursor.fetchone()
         
