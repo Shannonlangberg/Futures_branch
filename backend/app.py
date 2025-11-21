@@ -18338,31 +18338,51 @@ def create_event():
         if hasattr(current_user, 'id'):
             current_user_id = current_user.id
         
-        # Create event with all fields
-        new_event = Event(
-            title=data['title'],
-            description=data.get('description'),
-            category_id=data['category_id'],
-            campus=data.get('campus', 'all_campuses'),
-            location=data.get('location'),
-            location_id=data.get('location_id'),
-            start_time=start_datetime,
-            end_time=end_datetime,
-            price=price,
-            requires_payment=requires_payment,
-            stripe_price_id=stripe_price_id,
-            ministry=data.get('ministry'),
-            is_all_day=data.get('is_all_day', False),
-            recurrence_rule=data.get('recurrence_rule'),
-            status=data.get('status', 'draft'),
-            visibility=data.get('visibility', 'public'),
-            capacity=data.get('capacity'),
-            registration_required=data.get('registration_required', False),
-            registration_form_id=data.get('registration_form_id'),
-            tags=tags_json,
-            created_by_user_id=current_user_id,
-            updated_by_user_id=current_user_id
-        )
+        # Create event - only set fields that exist in the model
+        # Check which fields exist using hasattr to avoid errors
+        event_kwargs = {
+            'title': data['title'],
+            'description': data.get('description'),
+            'category_id': data['category_id'],
+            'campus': data.get('campus', 'all_campuses'),
+            'location': data.get('location'),
+            'start_time': start_datetime,
+            'end_time': end_datetime,
+            'price': price,
+            'requires_payment': requires_payment,
+            'stripe_price_id': stripe_price_id,
+        }
+        
+        # Only add fields that exist in the model (check using hasattr on a sample Event)
+        # Create a temporary event to check which attributes exist
+        temp_event = Event.__new__(Event)
+        
+        # Add optional fields only if they exist in the model
+        if hasattr(Event, 'ministry'):
+            event_kwargs['ministry'] = data.get('ministry')
+        if hasattr(Event, 'is_all_day'):
+            event_kwargs['is_all_day'] = data.get('is_all_day', False)
+        if hasattr(Event, 'recurrence_rule'):
+            event_kwargs['recurrence_rule'] = data.get('recurrence_rule')
+        if hasattr(Event, 'status'):
+            event_kwargs['status'] = data.get('status', 'draft')
+        if hasattr(Event, 'visibility'):
+            event_kwargs['visibility'] = data.get('visibility', 'public')
+        if hasattr(Event, 'capacity'):
+            event_kwargs['capacity'] = data.get('capacity')
+        if hasattr(Event, 'registration_required'):
+            event_kwargs['registration_required'] = data.get('registration_required', False)
+        if hasattr(Event, 'registration_form_id'):
+            event_kwargs['registration_form_id'] = data.get('registration_form_id')
+        if hasattr(Event, 'tags'):
+            event_kwargs['tags'] = tags_json
+        if hasattr(Event, 'created_by_user_id'):
+            event_kwargs['created_by_user_id'] = current_user_id
+        if hasattr(Event, 'updated_by_user_id'):
+            event_kwargs['updated_by_user_id'] = current_user_id
+        # Note: location_id is not in the model, so we skip it
+        
+        new_event = Event(**event_kwargs)
         
         db.session.add(new_event)
         try:
