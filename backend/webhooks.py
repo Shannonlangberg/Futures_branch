@@ -1,7 +1,7 @@
 # webhooks.py
 from flask import Blueprint, jsonify, request
-from models import db, Person, EngagementProfile, GivingTransaction, GivingSubscription
-from datetime import datetime, timezone
+from models import db, Person, EngagementProfile, GivingTransaction, GivingSubscription, GivingSummary
+from datetime import datetime, timezone, timedelta
 import logging
 import os
 import stripe
@@ -141,6 +141,92 @@ def stripe_webhook():
         return jsonify({'error': str(e)}), 500
 
 
+def update_giving_summary(person_id, transaction_date):
+    """
+    Update or create GivingSummary for a person based on recent transactions.
+    This is what the heartbeat engine uses to calculate giving score.
+    """
+    try:
+        # Define a rolling 12-week period ending today
+        period_end = datetime.now(timezone.utc).date()
+        period_start = period_end - timedelta(weeks=12)
+        
+        # Get all completed transactions in this period
+        recent_transactions = GivingTransaction.query.filter(
+            GivingTransaction.person_id == person_id,
+            GivingTransaction.created_at >= datetime.combine(period_start, datetime.min.time()),
+            GivingTransaction.status == 'completed'
+        ).all()
+        
+        transaction_count = len(recent_transactions)
+        
+        # Calculate frequency based on transaction count
+        if transaction_count >= 10:
+            frequency = 'weekly'
+        elif transaction_count >= 3:
+            frequency = 'monthly'
+        elif transaction_count >= 1:
+            frequency = 'occasional'
+        else:
+            frequency = 'none'
+        
+        # Calculate pattern_score (consistency)
+        # Look at how evenly distributed the gifts are
+        if transaction_count > 1:
+            # Calculate average days between gifts
+            dates = sorted([t.created_at.date() for t in recent_transactions])
+            intervals = [(dates[i+1] - dates[i]).days for i in range(len(dates)-1)]
+            avg_interval = sum(intervals) / len(intervals) if intervals else 0
+            
+            # Lower variance = higher consistency
+            # If gifts are roughly weekly (7 days), monthly (30 days), etc.
+            if avg_interval > 0:
+                variance = sum((i - avg_interval) ** 2 for i in intervals) / len(intervals)
+                std_dev = variance ** 0.5
+                # Pattern score: lower std_dev relative to avg = more consistent
+                pattern_score = max(0.0, min(1.0, 1.0 - (std_dev / (avg_interval + 1))))
+            else:
+                pattern_score = 1.0
+        else:
+            pattern_score = 0.0 if transaction_count == 0 else 0.5
+        
+        # Get last gift date
+        last_gift_at = max([t.created_at.date() for t in recent_transactions]) if recent_transactions else None
+        
+        # Check if summary exists for this period
+        existing_summary = GivingSummary.query.filter(
+            GivingSummary.person_id == person_id,
+            GivingSummary.period_start == period_start,
+            GivingSummary.period_end == period_end
+        ).first()
+        
+        if existing_summary:
+            # Update existing
+            existing_summary.frequency = frequency
+            existing_summary.pattern_score = pattern_score
+            existing_summary.last_gift_at = last_gift_at
+            existing_summary.updated_at = datetime.now(timezone.utc)
+            logger.info(f"[WEBHOOK] Updated GivingSummary for {person_id}: {frequency}, pattern={pattern_score:.2f}")
+        else:
+            # Create new
+            new_summary = GivingSummary(
+                person_id=person_id,
+                period_start=period_start,
+                period_end=period_end,
+                frequency=frequency,
+                pattern_score=pattern_score,
+                last_gift_at=last_gift_at
+            )
+            db.session.add(new_summary)
+            logger.info(f"[WEBHOOK] Created GivingSummary for {person_id}: {frequency}, pattern={pattern_score:.2f}")
+        
+        # Don't commit here - let the caller commit
+        
+    except Exception as e:
+        logger.error(f"[WEBHOOK] ❌ Error updating giving summary: {e}", exc_info=True)
+        # Don't raise - this is a secondary operation
+
+
 def handle_payment_success(payment_intent):
     """Handle successful one-time payment"""
     try:
@@ -206,6 +292,9 @@ def handle_payment_success(payment_intent):
         )
         engagement.recalculate_heartbeat()
         
+        # Update GivingSummary (used by heartbeat engine for giving score)
+        update_giving_summary(person.id, datetime.now(timezone.utc).date())
+        
         db.session.commit()
         logger.info(f"[WEBHOOK] ✅ Payment processed: ${transaction.amount} from {email} (Transaction ID: {transaction.id})")
         
@@ -269,6 +358,9 @@ def handle_subscription_payment(invoice):
                 campus=transaction.campus
             )
             engagement.recalculate_heartbeat()
+            
+            # Update GivingSummary (used by heartbeat engine for giving score)
+            update_giving_summary(person.id, datetime.now(timezone.utc).date())
         
         db.session.commit()
         logger.info(f"Subscription payment processed: ${invoice['amount_paid']/100} for subscription {subscription_id}")
