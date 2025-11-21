@@ -352,39 +352,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: Spacing.xxl,
   },
-  eventsButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginTop: Spacing.md,
-  },
-  eventsButtonGradient: {
-    padding: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  eventsButtonEmoji: {
-    fontSize: 32,
-    marginRight: Spacing.md,
-  },
-  eventsButtonContent: {
-    flex: 1,
-  },
-  eventsButtonTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  eventsButtonSubtitle: {
-    fontSize: FontSizes.sm,
-    color: Colors.text,
-    opacity: 0.9,
-  },
-  eventsButtonArrow: {
-    fontSize: FontSizes.lg,
-    color: Colors.text,
-    marginLeft: Spacing.sm,
-  },
   groupHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
