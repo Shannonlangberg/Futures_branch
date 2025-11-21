@@ -1,6 +1,6 @@
 # webhooks.py
 from flask import Blueprint, jsonify, request
-from models import db, Person, EngagementProfile, GivingTransaction, GivingSubscription, GivingSummary
+from models import db, Person, EngagementProfile, GivingTransaction, GivingSubscription, GivingSummary, Event, EventRegistration
 from datetime import datetime, timezone, timedelta
 import logging
 import os
@@ -233,6 +233,15 @@ def handle_payment_success(payment_intent):
         payment_intent_id = payment_intent['id']
         logger.info(f"[WEBHOOK] Processing payment_intent.succeeded: {payment_intent_id}")
         
+        metadata = payment_intent.get('metadata', {})
+        payment_type = metadata.get('type', 'giving')
+        
+        # Check if this is an event registration payment
+        if payment_type == 'event_registration':
+            handle_event_registration_payment(payment_intent)
+            return
+        
+        # Otherwise, handle as giving/tithe payment
         # Check if transaction already exists
         existing = GivingTransaction.query.filter_by(
             stripe_payment_intent_id=payment_intent_id
@@ -242,8 +251,7 @@ def handle_payment_success(payment_intent):
             logger.info(f"[WEBHOOK] Transaction already exists for {payment_intent_id}")
             return  # Already processed
         
-        metadata = payment_intent.get('metadata', {})
-        email = metadata.get('person_email')
+        email = metadata.get('person_email') or metadata.get('email')
         if not email:
             logger.warning(f"[WEBHOOK] No email in payment intent {payment_intent_id}")
             return
@@ -301,6 +309,79 @@ def handle_payment_success(payment_intent):
     except Exception as e:
         db.session.rollback()
         logger.error(f"[WEBHOOK] ❌ Error handling payment success: {e}", exc_info=True)
+        raise
+
+
+def handle_event_registration_payment(payment_intent):
+    """Handle successful event registration payment"""
+    try:
+        payment_intent_id = payment_intent['id']
+        metadata = payment_intent.get('metadata', {})
+        event_id = metadata.get('event_id')
+        email = metadata.get('email', '').strip()
+        guest_count = int(metadata.get('guest_count', 0))
+        
+        logger.info(f"[WEBHOOK] Processing event registration payment: {payment_intent_id} for event {event_id}")
+        
+        if not event_id or not email:
+            logger.warning(f"[WEBHOOK] Missing event_id or email in payment intent {payment_intent_id}")
+            return
+        
+        # Find person
+        person = Person.query.filter(
+            db.func.lower(Person.email) == db.func.lower(email),
+            Person.is_active == True
+        ).first()
+        
+        if not person:
+            logger.warning(f"[WEBHOOK] Person not found for email {email}")
+            return
+        
+        # Find or create registration
+        registration = EventRegistration.query.filter_by(
+            event_id=event_id,
+            person_id=person.id
+        ).first()
+        
+        if not registration:
+            # Create registration if it doesn't exist
+            event = Event.query.get(event_id)
+            if not event:
+                logger.warning(f"[WEBHOOK] Event {event_id} not found")
+                return
+            
+            # Check capacity
+            status = 'registered'
+            if hasattr(event, 'capacity') and event.capacity:
+                current_registrations = EventRegistration.query.filter_by(
+                    event_id=event_id,
+                    status='registered'
+                ).count()
+                if current_registrations >= event.capacity:
+                    status = 'waitlisted'
+            
+            registration = EventRegistration(
+                event_id=event_id,
+                person_id=person.id,
+                email=email,
+                name=person.full_name,
+                phone=person.phone,
+                status=status,
+                guest_count=guest_count,
+                notes=f'[Payment Intent: {payment_intent_id}]'
+            )
+            db.session.add(registration)
+        else:
+            # Update existing registration
+            registration.status = 'registered'  # Ensure it's registered after payment
+            registration.notes = (registration.notes or '') + f'\n[Payment Intent: {payment_intent_id}]'
+        
+        db.session.commit()
+        logger.info(f"[WEBHOOK] ✅ Event registration payment processed: {payment_intent_id} for event {event_id}")
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[WEBHOOK] ❌ Error handling event registration payment: {e}", exc_info=True)
         raise
 
 

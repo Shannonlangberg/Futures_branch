@@ -18836,109 +18836,190 @@ def get_event_registrations(event_id):
         logger.error(f"Error fetching registrations: {e}")
         return jsonify({'error': 'Failed to fetch registrations'}), 500
 
-@app.route('/api/events/<event_id>/registrations', methods=['POST'])
-def create_event_registration(event_id):
-    """Create a new registration for an event (works with or without login)"""
+@app.route('/api/events/<event_id>/register', methods=['POST'])
+def register_for_event(event_id):
+    """Register for an event with optional payment"""
     try:
         event = Event.query.get(event_id)
         if not event:
             return jsonify({'error': 'Event not found'}), 404
         
         data = request.get_json()
+        email = data.get('email', '').strip()
+        name = data.get('name', '')
+        phone = data.get('phone', '')
+        guest_count = data.get('guest_count', 0)
+        notes = data.get('notes', '')
+        payment_intent_id = data.get('payment_intent_id')  # If payment already completed
         
-        # Get person_id from current user if logged in, otherwise from data
-        person_id = None
-        try:
-            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
-                # Try to find person by user email
-                user_email = getattr(current_user, 'email', None)
-                if user_email:
-                    person = Person.query.filter_by(email=user_email, is_active=True).first()
-                    if person:
-                        person_id = person.id
-        except:
-            pass  # current_user not available, continue with data
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
         
-        # If no person_id from user, try to get from data or email lookup
-        if not person_id:
-            person_id = data.get('person_id')
-            if not person_id and data.get('email'):
-                # Try to find person by email
-                person = Person.query.filter_by(email=data.get('email'), is_active=True).first()
-                if person:
-                    person_id = person.id
+        # Find or create person
+        person = Person.query.filter_by(email=email, is_active=True).first()
+        if not person:
+            # Create person if doesn't exist
+            person_id = f"user_{uuid.uuid4().hex[:12]}"
+            person = Person(
+                id=person_id,
+                email=email,
+                full_name=name or email.split('@')[0].replace('.', ' ').title(),
+                phone=phone,
+                campus=event.campus if event.campus != 'all_campuses' else 'Paradise',
+                is_active=True
+            )
+            db.session.add(person)
+            db.session.commit()
+        else:
+            person_id = person.id
         
         # Check if already registered
-        existing_registration = None
-        if person_id:
-            existing_registration = EventRegistration.query.filter_by(
-                event_id=event_id,
-                person_id=person_id
-            ).first()
-        elif data.get('email'):
-            existing_registration = EventRegistration.query.filter_by(
-                event_id=event_id,
-                email=data.get('email')
-            ).first()
+        existing_registration = EventRegistration.query.filter_by(
+            event_id=event_id,
+            person_id=person_id
+        ).first()
         
         if existing_registration:
-            # Update existing registration
-            if 'status' in data:
-                existing_registration.status = data['status']
-            if 'guest_count' in data:
-                existing_registration.guest_count = data.get('guest_count', 0)
-            if 'notes' in data:
-                existing_registration.notes = data.get('notes')
-            existing_registration.updated_at = datetime.utcnow()
-            db.session.commit()
-            
             return jsonify({
-                'message': 'Registration updated successfully',
+                'message': 'Already registered for this event',
                 'registration': existing_registration.to_dict()
             })
         
-        # Check capacity if set
-        status = data.get('status', 'registered')
+        # Check capacity
+        status = 'registered'
         if hasattr(event, 'capacity') and event.capacity:
             current_registrations = EventRegistration.query.filter_by(
                 event_id=event_id,
                 status='registered'
             ).count()
             if current_registrations >= event.capacity:
-                # Add to waitlist
                 status = 'waitlisted'
         
+        # Create registration
         registration = EventRegistration(
             event_id=event_id,
             person_id=person_id,
-            email=data.get('email'),
-            name=data.get('name'),
-            phone=data.get('phone'),
+            email=email,
+            name=name or person.full_name,
+            phone=phone or person.phone,
             status=status,
-            guest_count=data.get('guest_count', 0),
-            notes=data.get('notes')
+            guest_count=guest_count,
+            notes=notes
         )
+        
+        # If payment was completed, mark it
+        if payment_intent_id:
+            registration.notes = (registration.notes or '') + f'\n[Payment Intent: {payment_intent_id}]'
         
         db.session.add(registration)
         db.session.commit()
         
         return jsonify({
-            'message': 'Registration created successfully',
-            'registration': registration.to_dict()
+            'message': 'Registration successful',
+            'registration': registration.to_dict(),
+            'event': event.to_dict()
         }), 201
         
     except Exception as e:
-        logger.error(f"Error creating registration: {e}", exc_info=True)
+        logger.error(f"Error registering for event: {e}", exc_info=True)
         db.session.rollback()
-        return jsonify({'error': f'Failed to create registration: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to register: {str(e)}'}), 500
+
+@app.route('/api/events/<event_id>/create-payment-intent', methods=['POST'])
+def create_event_payment_intent(event_id):
+    """Create Stripe Payment Intent for event registration"""
+    try:
+        import stripe
+        
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        # Check if event requires payment
+        requires_payment = getattr(event, 'requires_payment', False)
+        price = getattr(event, 'price', None)
+        
+        if not requires_payment or not price:
+            return jsonify({'error': 'This event does not require payment'}), 400
+        
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        guest_count = data.get('guest_count', 0)
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        # Calculate total amount (price per person * (1 + guest_count))
+        total_amount = float(price) * (1 + guest_count)
+        amount_cents = int(total_amount * 100)  # Convert to cents
+        
+        # Get Stripe API key
+        stripe_key = os.getenv('STRIPE_SECRET_KEY', '')
+        if not stripe_key:
+            return jsonify({'error': 'Payment processing not configured'}), 500
+        
+        stripe.api_key = stripe_key
+        
+        # Find or create person
+        person = Person.query.filter_by(email=email, is_active=True).first()
+        customer_email = email
+        customer_name = person.full_name if person else email.split('@')[0].replace('.', ' ').title()
+        
+        # Create payment intent
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency='aud',
+            description=f'Event Registration: {event.title}',
+            metadata={
+                'event_id': str(event_id),
+                'event_title': event.title,
+                'email': email,
+                'guest_count': str(guest_count),
+                'type': 'event_registration'
+            },
+            receipt_email=email,
+            statement_descriptor=f'Event: {event.title[:22]}'  # Max 22 chars
+        )
+        
+        return jsonify({
+            'client_secret': payment_intent.client_secret,
+            'payment_intent_id': payment_intent.id,
+            'amount': total_amount,
+            'amount_cents': amount_cents,
+            'currency': 'aud',
+            'event': {
+                'id': event.id,
+                'title': event.title,
+                'price': float(price)
+            }
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating payment intent: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to create payment intent: {str(e)}'}), 500
+
+@app.route('/api/events/<event_id>/registrations', methods=['POST'])
+def create_event_registration(event_id):
+    """Create a new registration for an event (works with or without login) - Legacy endpoint"""
+    # Redirect to new register endpoint
+    return register_for_event(event_id)
 
 @app.route('/api/events/<event_id>/rsvp', methods=['POST'])
 def rsvp_to_event(event_id):
-    """Simple RSVP endpoint for mobile app (Going/Maybe/Not Going)"""
+    """Simple RSVP endpoint for mobile app (Going/Maybe/Not Going) - For free events"""
     try:
         event = Event.query.get(event_id)
         if not event:
             return jsonify({'error': 'Event not found'}), 404
+        
+        # Check if event requires payment
+        requires_payment = getattr(event, 'requires_payment', False)
+        if requires_payment:
+            return jsonify({
+                'error': 'This event requires payment. Please use /api/events/<event_id>/register endpoint.',
+                'requires_payment': True,
+                'price': float(getattr(event, 'price', 0))
+            }), 400
         
         data = request.get_json()
         rsvp_status = data.get('status', 'going')  # going, maybe, not_going
@@ -18953,9 +19034,12 @@ def rsvp_to_event(event_id):
         
         # Get person_id from email or person_id in data
         person_id = data.get('person_id')
-        email = data.get('email')
+        email = data.get('email', '').strip()
         
-        if not person_id and email:
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        if not person_id:
             person = Person.query.filter_by(email=email, is_active=True).first()
             if person:
                 person_id = person.id
@@ -18992,13 +19076,41 @@ def rsvp_to_event(event_id):
         if rsvp_status == 'not_going':
             return jsonify({'message': 'RSVP cancelled', 'rsvp_status': 'not_going'})
         
+        # Find or create person
+        if not person_id:
+            person = Person.query.filter_by(email=email, is_active=True).first()
+            if not person:
+                person_id = f"user_{uuid.uuid4().hex[:12]}"
+                person = Person(
+                    id=person_id,
+                    email=email,
+                    full_name=data.get('name') or email.split('@')[0].replace('.', ' ').title(),
+                    phone=data.get('phone', ''),
+                    campus=event.campus if event.campus != 'all_campuses' else 'Paradise',
+                    is_active=True
+                )
+                db.session.add(person)
+                db.session.commit()
+            else:
+                person_id = person.id
+        
+        # Check capacity
+        status = registration_status
+        if hasattr(event, 'capacity') and event.capacity:
+            current_registrations = EventRegistration.query.filter_by(
+                event_id=event_id,
+                status='registered'
+            ).count()
+            if current_registrations >= event.capacity:
+                status = 'waitlisted'
+        
         registration = EventRegistration(
             event_id=event_id,
             person_id=person_id,
             email=email,
-            name=data.get('name'),
-            phone=data.get('phone'),
-            status=registration_status,
+            name=data.get('name') or (person.full_name if person else ''),
+            phone=data.get('phone') or (person.phone if person else ''),
+            status=status,
             guest_count=data.get('guest_count', 0),
             notes=data.get('notes')
         )
