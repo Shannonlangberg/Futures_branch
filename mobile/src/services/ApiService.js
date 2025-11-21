@@ -416,5 +416,55 @@ export const ApiService = {
     const response = await api.get('/api/tv/continue-watching');
     return response.data;
   },
+
+  // ============================================================================
+  // NEW HEARTBEAT DATA SOURCES
+  // ============================================================================
+
+  /**
+   * Log app open for engagement tracking (+1 point)
+   */
+  async logAppOpen(email, platform = 'unknown', appVersion = '1.0.0') {
+    try {
+      const response = await api.post('/api/engagement/log-app-open', {
+        email,
+        platform,
+        app_version: appVersion
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error logging app open:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Submit a prayer request or praise (+5 points)
+   */
+  async submitPrayer(data) {
+    const response = await api.post('/api/engagement/submit-prayer', {
+      email: data.email,
+      type: data.type, // 'prayer' or 'praise'
+      content: data.content,
+      category: data.category,
+      is_anonymous: data.is_anonymous || false,
+      is_urgent: data.is_urgent || false,
+      campus: data.campus,
+      source: 'app',
+      is_public: data.is_public !== false // Default true
+    });
+    return response.data;
+  },
+
+  /**
+   * Mark event as attended (+10 engagement points)
+   */
+  async markEventAttended(email, eventId) {
+    const response = await api.post('/api/engagement/mark-event-attended', {
+      email,
+      event_id: eventId
+    });
+    return response.data;
+  },
 };
 

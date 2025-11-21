@@ -9,7 +9,8 @@ from flask import Blueprint, jsonify, request
 from models import (
     db, Person, Campus, HeartbeatSnapshot, AttendanceEvent, Service,
     HeartbeatConnectGroup, ConnectAttendance, ServingAssignment,
-    GivingSummary, GivingTransaction, DiscipleshipStep, CareCase, CareTouchpoint
+    GivingSummary, GivingTransaction, DiscipleshipStep, CareCase, CareTouchpoint,
+    AppSession, TVUserEpisodeProgress, PrayerSubmission
 )
 from heartbeat_engine import HeartbeatEngine
 from datetime import datetime, date, timedelta
@@ -444,6 +445,27 @@ def get_person_heartbeat(person_id):
         
         logger.info(f"DEBUG: Found {len(recent_giving)} giving transactions for person {person_id} in last 12 weeks")
         
+        # NEW: App opens (engagement tracking)
+        recent_app_opens = AppSession.query.filter(
+            AppSession.person_id == person_id,
+            AppSession.session_start >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+        ).order_by(AppSession.session_start.desc()).limit(20).all()
+        
+        # NEW: TV episode completions (spiritual growth)
+        recent_tv = TVUserEpisodeProgress.query.filter(
+            TVUserEpisodeProgress.person_id == person_id,
+            TVUserEpisodeProgress.completed == True,
+            TVUserEpisodeProgress.completed_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+        ).order_by(TVUserEpisodeProgress.completed_at.desc()).limit(20).all()
+        
+        # NEW: Prayer submissions (care/spiritual)
+        recent_prayers = PrayerSubmission.query.filter(
+            PrayerSubmission.person_id == person_id,
+            PrayerSubmission.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+        ).order_by(PrayerSubmission.created_at.desc()).limit(20).all()
+        
+        logger.info(f"📊 NEW DATA: app_opens={len(recent_app_opens)}, tv_completions={len(recent_tv)}, prayers={len(recent_prayers)}")
+        
         # Log what we're returning
         heartbeat_dict = snapshot.to_dict() if snapshot else None
         logger.info(f"📤 Returning heartbeat data for {person_id}: gather_score={heartbeat_dict.get('gather_score') if heartbeat_dict else 'None'}, total_score={heartbeat_dict.get('total_score') if heartbeat_dict else 'None'}, attendance_count={len(recent_attendance)}, giving_count={len(recent_giving)}")
@@ -462,7 +484,10 @@ def get_person_heartbeat(person_id):
                 'serving': [s.to_dict() for s in recent_serving],
                 'giving': [g.to_dict() for g in recent_giving],
                 'discipleship_steps': all_discipleship_steps,
-                'open_care_cases': [c.to_dict() for c in open_cases]
+                'open_care_cases': [c.to_dict() for c in open_cases],
+                'app_opens': [a.to_dict() for a in recent_app_opens],
+                'tv_completions': [t.to_dict() for t in recent_tv],
+                'prayer_submissions': [p.to_dict() for p in recent_prayers]
             }
         }), 200
         

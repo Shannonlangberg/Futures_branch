@@ -158,10 +158,14 @@ const RoleManager = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setCampuses(data.campuses || []);
+        const campusesList = data.campuses || [];
+        setCampuses(campusesList);
+        console.log('[RoleManager] Loaded campuses:', campusesList.length, campusesList);
+      } else {
+        console.error('[RoleManager] Failed to load campuses:', response.status, response.statusText);
       }
     } catch (err) {
-      console.error('Error loading campuses:', err);
+      console.error('[RoleManager] Error loading campuses:', err);
     }
   };
 
@@ -571,23 +575,24 @@ const RoleManager = () => {
                           <div className="flex flex-col">
                             <div className="text-white font-medium">{user.full_name || user.username}</div>
                             <div className="text-slate-400 text-sm">{user.username}</div>
-                            <div className="text-slate-500 text-xs mt-1 flex items-center gap-2">
-                              <span className="inline-flex px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                                {user.role}
-                              </span>
-                              <button
-                                onClick={() => toggleCampusSelection(user.id)}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 transition-colors"
-                                title="Manage campus access"
-                              >
-                                <MapPinIcon className="w-3 h-3" />
-                                {expandedUsers[user.id] ? (
-                                  <ChevronUpIcon className="w-3 h-3" />
-                                ) : (
-                                  <ChevronDownIcon className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
+                          <div className="text-slate-500 text-xs mt-1 flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                              {user.role}
+                            </span>
+                            <button
+                              onClick={() => toggleCampusSelection(user.id)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/50 hover:bg-purple-500/30 hover:border-purple-400/70 transition-colors shadow-sm"
+                              title="Manage campus access - Click to select which campuses this user can view"
+                            >
+                              <MapPinIcon className="w-3.5 h-3.5" />
+                              <span className="text-[10px]">Campuses</span>
+                              {expandedUsers[user.id] ? (
+                                <ChevronUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ChevronDownIcon className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
                           </div>
                         </td>
                         {allFeatures.map((feature) => {

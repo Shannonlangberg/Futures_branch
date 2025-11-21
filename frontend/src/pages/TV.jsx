@@ -8,6 +8,7 @@ const TV = () => {
   const [mostWatched, setMostWatched] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -64,6 +65,21 @@ const TV = () => {
   allCategories.forEach(cat => {
     seriesByCategory[cat] = series.filter(s => s.category === cat);
   });
+  
+  // Filter series if category is selected
+  const filteredSeries = selectedCategory 
+    ? series.filter(s => s.category === selectedCategory)
+    : series;
+  
+  // Filter categories for display
+  const filteredSeriesByCategory = {};
+  if (selectedCategory) {
+    filteredSeriesByCategory[selectedCategory] = seriesByCategory[selectedCategory] || [];
+  } else {
+    Object.assign(filteredSeriesByCategory, seriesByCategory);
+  }
+  
+  const displayCategories = selectedCategory ? [selectedCategory] : allCategories;
 
   // Create placeholder cards for demo
   const createPlaceholders = (count) => {
@@ -101,34 +117,71 @@ const TV = () => {
       {/* Top Navigation Bar - Netflix Style */}
       <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            {/* Left Side - Pulse TV Logo */}
-            <Link to="/tv" className="flex items-center gap-3">
-              <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-pink-400 bg-clip-text text-transparent drop-shadow-lg">
-                Pulse TV
-              </div>
-            </Link>
+          <div className="flex flex-col gap-4">
+            {/* Top Row - Logo and Actions */}
+            <div className="flex items-center justify-between">
+              {/* Left Side - Pulse TV Logo */}
+              <Link to="/tv" onClick={() => setSelectedCategory(null)} className="flex items-center gap-3">
+                <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-pink-400 bg-clip-text text-transparent drop-shadow-lg">
+                  Pulse TV
+                </div>
+              </Link>
 
-            {/* Right Side - Navigation (can add later) */}
-            <div className="flex items-center gap-6 text-sm">
-              <span className="text-gray-300 hover:text-purple-400 transition-colors cursor-pointer">Home</span>
-              <span className="text-gray-300 hover:text-blue-400 transition-colors cursor-pointer">Series</span>
-              <span className="text-gray-300 hover:text-pink-400 transition-colors cursor-pointer">Categories</span>
+              {/* Right Side - Actions */}
+              <div className="flex items-center gap-4 text-sm">
+                {selectedCategory && (
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className="px-4 py-2 bg-slate-700/50 hover:bg-slate-700 text-white rounded-lg transition-colors text-xs"
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
             </div>
+            
+            {/* Category Navigation - Scrollable */}
+            {allCategories.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                    selectedCategory === null
+                      ? 'bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 text-white shadow-lg scale-105'
+                      : 'bg-slate-700/50 text-gray-300 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  All
+                </button>
+                {allCategories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`flex-shrink-0 px-4 py-2 rounded-lg font-medium transition-all text-sm capitalize ${
+                      selectedCategory === category
+                        ? 'bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 text-white shadow-lg scale-105'
+                        : 'bg-slate-700/50 text-gray-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {category.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="pb-12 relative" style={{ zIndex: 1 }}>
+      <div className="pb-16 relative" style={{ zIndex: 1 }}>
         {/* Most Watched Section */}
-        {mostWatched.length > 0 && (
-          <div className="mb-12 mt-6">
+        {mostWatched.length > 0 && !selectedCategory && (
+          <div className="mb-16 mt-8">
             <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
-                <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+              <h2 className="text-3xl font-bold mb-6 text-white flex items-center gap-3">
+                <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                 Most Watched
               </h2>
-              <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+              <div className="flex gap-5 overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
@@ -148,14 +201,14 @@ const TV = () => {
         )}
 
         {/* Continue Watching Section */}
-        {continueWatching.length > 0 && (
-          <div className="mb-12">
+        {continueWatching.length > 0 && !selectedCategory && (
+          <div className="mb-16">
             <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
-                <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+              <h2 className="text-3xl font-bold mb-6 text-white flex items-center gap-3">
+                <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                 Continue Watching
               </h2>
-              <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+              <div className="flex gap-5 overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
                 {continueWatching.slice(0, 8).map((episode) => (
                   <Link
                     key={episode.id}
@@ -204,23 +257,23 @@ const TV = () => {
         )}
 
         {/* Category Rows - Horizontal Scrolling */}
-        {allCategories.map((category) => {
-          const categorySeries = seriesByCategory[category] || [];
+        {displayCategories.map((category) => {
+          const categorySeries = filteredSeriesByCategory[category] || [];
           if (categorySeries.length === 0) return null;
 
           return (
-            <div key={category} className="mb-12">
+            <div key={category} className="mb-16">
               <div className="max-w-7xl mx-auto px-6">
-                <h2 className="text-2xl font-bold mb-4 text-white capitalize flex items-center gap-2">
-                  <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+                <h2 className="text-3xl font-bold mb-6 text-white capitalize flex items-center gap-3">
+                  <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                   {category.replace(/_/g, ' ')}
                 </h2>
-                <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+                <div className="flex gap-5 overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
                   {categorySeries.map((s) => (
                     <SeriesCard key={s.id} series={s} />
                   ))}
                   {/* Add placeholders to show more content is coming */}
-                  {createPlaceholders(Math.min(3, 6 - categorySeries.length)).map((item) => (
+                  {!selectedCategory && createPlaceholders(Math.min(3, 6 - categorySeries.length)).map((item) => (
                     <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
                       <span className="text-slate-400 text-xs">Coming Soon</span>
                     </div>
@@ -232,27 +285,41 @@ const TV = () => {
         })}
 
         {/* Add a "New This Week" row with placeholders */}
-        <div className="mb-12">
-          <div className="max-w-7xl mx-auto px-6">
-            <h2 className="text-2xl font-bold mb-4 text-white flex items-center gap-2">
-              <span className="w-1 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
-              New This Week
-            </h2>
-            <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-              {createPlaceholders(6).map((item) => (
-                <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-pink-900/30 rounded-lg border border-purple-500/30 flex flex-col items-center justify-center">
-                  <span className="text-slate-400 text-xs mb-2">📺</span>
-                  <span className="text-slate-400 text-xs">Coming Soon</span>
-                </div>
-              ))}
+        {!selectedCategory && (
+          <div className="mb-16">
+            <div className="max-w-7xl mx-auto px-6">
+              <h2 className="text-3xl font-bold mb-6 text-white flex items-center gap-3">
+                <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+                New This Week
+              </h2>
+              <div className="flex gap-5 overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+                {createPlaceholders(6).map((item) => (
+                  <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-pink-900/30 rounded-lg border border-purple-500/30 flex flex-col items-center justify-center">
+                    <span className="text-slate-400 text-xs mb-2">📺</span>
+                    <span className="text-slate-400 text-xs">Coming Soon</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Empty State */}
-        {series.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-gray-400 text-lg">No series available yet</p>
+        {filteredSeries.length === 0 && !loading && (
+          <div className="text-center py-20 mt-12">
+            {selectedCategory ? (
+              <>
+                <p className="text-gray-400 text-xl mb-2">No series found in this category</p>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className="mt-4 px-6 py-2 bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  View All Categories
+                </button>
+              </>
+            ) : (
+              <p className="text-gray-400 text-xl">No series available yet</p>
+            )}
           </div>
         )}
       </div>
@@ -260,6 +327,14 @@ const TV = () => {
       <style>{`
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        /* Smooth scroll behavior */
+        html {
+          scroll-behavior: smooth;
         }
       `}</style>
     </div>
