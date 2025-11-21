@@ -128,8 +128,9 @@ export default function GroupLeaderPortalScreen() {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
+            activeOpacity={0.7}
           >
-            <Text style={styles.backButtonText}>←</Text>
+            <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Leader Portal</Text>
@@ -283,12 +284,19 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: Spacing.md,
-    padding: Spacing.xs,
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minWidth: 80,
+    alignItems: 'center',
   },
   backButtonText: {
-    fontSize: 24,
+    fontSize: FontSizes.md,
     color: Colors.text,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   headerContent: {
     flex: 1,

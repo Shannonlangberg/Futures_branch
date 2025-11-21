@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/config';
@@ -413,7 +413,20 @@ export default function App() {
                 options={{ 
                   presentation: 'card',
                   animation: 'slide_from_right',
-                  headerShown: false,
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerBackTitleVisible: false,
+                  headerLeft: ({ onPress }) => (
+                    <TouchableOpacity onPress={onPress} style={{ marginLeft: 16, padding: 8 }}>
+                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>← Back</Text>
+                    </TouchableOpacity>
+                  ),
                 }}
               />
               <Stack.Screen 
@@ -422,7 +435,20 @@ export default function App() {
                 options={{ 
                   presentation: 'card',
                   animation: 'slide_from_right',
-                  headerShown: false,
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerBackTitleVisible: false,
+                  headerLeft: ({ onPress }) => (
+                    <TouchableOpacity onPress={onPress} style={{ marginLeft: 16, padding: 8 }}>
+                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>← Back</Text>
+                    </TouchableOpacity>
+                  ),
                 }}
               />
             </>
