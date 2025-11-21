@@ -18575,9 +18575,8 @@ def get_event_registrations(event_id):
         return jsonify({'error': 'Failed to fetch registrations'}), 500
 
 @app.route('/api/events/<event_id>/registrations', methods=['POST'])
-@login_required
 def create_event_registration(event_id):
-    """Create a new registration for an event"""
+    """Create a new registration for an event (works with or without login)"""
     try:
         event = Event.query.get(event_id)
         if not event:
@@ -18585,8 +18584,60 @@ def create_event_registration(event_id):
         
         data = request.get_json()
         
+        # Get person_id from current user if logged in, otherwise from data
+        person_id = None
+        try:
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+                # Try to find person by user email
+                user_email = getattr(current_user, 'email', None)
+                if user_email:
+                    person = Person.query.filter_by(email=user_email, is_active=True).first()
+                    if person:
+                        person_id = person.id
+        except:
+            pass  # current_user not available, continue with data
+        
+        # If no person_id from user, try to get from data or email lookup
+        if not person_id:
+            person_id = data.get('person_id')
+            if not person_id and data.get('email'):
+                # Try to find person by email
+                person = Person.query.filter_by(email=data.get('email'), is_active=True).first()
+                if person:
+                    person_id = person.id
+        
+        # Check if already registered
+        existing_registration = None
+        if person_id:
+            existing_registration = EventRegistration.query.filter_by(
+                event_id=event_id,
+                person_id=person_id
+            ).first()
+        elif data.get('email'):
+            existing_registration = EventRegistration.query.filter_by(
+                event_id=event_id,
+                email=data.get('email')
+            ).first()
+        
+        if existing_registration:
+            # Update existing registration
+            if 'status' in data:
+                existing_registration.status = data['status']
+            if 'guest_count' in data:
+                existing_registration.guest_count = data.get('guest_count', 0)
+            if 'notes' in data:
+                existing_registration.notes = data.get('notes')
+            existing_registration.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'Registration updated successfully',
+                'registration': existing_registration.to_dict()
+            })
+        
         # Check capacity if set
-        if event.capacity:
+        status = data.get('status', 'registered')
+        if hasattr(event, 'capacity') and event.capacity:
             current_registrations = EventRegistration.query.filter_by(
                 event_id=event_id,
                 status='registered'
@@ -18594,14 +18645,10 @@ def create_event_registration(event_id):
             if current_registrations >= event.capacity:
                 # Add to waitlist
                 status = 'waitlisted'
-            else:
-                status = 'registered'
-        else:
-            status = data.get('status', 'registered')
         
         registration = EventRegistration(
             event_id=event_id,
-            person_id=data.get('person_id'),
+            person_id=person_id,
             email=data.get('email'),
             name=data.get('name'),
             phone=data.get('phone'),
@@ -18619,9 +18666,200 @@ def create_event_registration(event_id):
         }), 201
         
     except Exception as e:
-        logger.error(f"Error creating registration: {e}")
+        logger.error(f"Error creating registration: {e}", exc_info=True)
         db.session.rollback()
-        return jsonify({'error': 'Failed to create registration'}), 500
+        return jsonify({'error': f'Failed to create registration: {str(e)}'}), 500
+
+@app.route('/api/events/<event_id>/rsvp', methods=['POST'])
+def rsvp_to_event(event_id):
+    """Simple RSVP endpoint for mobile app (Going/Maybe/Not Going)"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        data = request.get_json()
+        rsvp_status = data.get('status', 'going')  # going, maybe, not_going
+        
+        # Map RSVP status to registration status
+        status_map = {
+            'going': 'registered',
+            'maybe': 'registered',  # Could create a 'maybe' status if needed
+            'not_going': 'cancelled'
+        }
+        registration_status = status_map.get(rsvp_status, 'registered')
+        
+        # Get person_id from email or person_id in data
+        person_id = data.get('person_id')
+        email = data.get('email')
+        
+        if not person_id and email:
+            person = Person.query.filter_by(email=email, is_active=True).first()
+            if person:
+                person_id = person.id
+        
+        # Check if already registered
+        existing_registration = None
+        if person_id:
+            existing_registration = EventRegistration.query.filter_by(
+                event_id=event_id,
+                person_id=person_id
+            ).first()
+        elif email:
+            existing_registration = EventRegistration.query.filter_by(
+                event_id=event_id,
+                email=email
+            ).first()
+        
+        if existing_registration:
+            # Update existing registration
+            if rsvp_status == 'not_going':
+                existing_registration.status = 'cancelled'
+            else:
+                existing_registration.status = registration_status
+            existing_registration.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'RSVP updated successfully',
+                'registration': existing_registration.to_dict(),
+                'rsvp_status': rsvp_status
+            })
+        
+        # Create new registration
+        if rsvp_status == 'not_going':
+            return jsonify({'message': 'RSVP cancelled', 'rsvp_status': 'not_going'})
+        
+        registration = EventRegistration(
+            event_id=event_id,
+            person_id=person_id,
+            email=email,
+            name=data.get('name'),
+            phone=data.get('phone'),
+            status=registration_status,
+            guest_count=data.get('guest_count', 0),
+            notes=data.get('notes')
+        )
+        
+        db.session.add(registration)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'RSVP successful',
+            'registration': registration.to_dict(),
+            'rsvp_status': rsvp_status
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error processing RSVP: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': f'Failed to process RSVP: {str(e)}'}), 500
+
+@app.route('/api/users/<user_email>/events', methods=['GET'])
+def get_user_events(user_email):
+    """Get all events a user is registered for (upcoming events)"""
+    try:
+        # Find person by email
+        person = Person.query.filter_by(email=user_email, is_active=True).first()
+        if not person:
+            return jsonify({
+                'events': [],
+                'message': 'User not found or no registrations'
+            })
+        
+        # Get all registrations for this person
+        registrations = EventRegistration.query.filter_by(
+            person_id=person.id,
+            status='registered'  # Only show active registrations
+        ).all()
+        
+        # Get events for these registrations
+        event_ids = [r.event_id for r in registrations]
+        events = Event.query.filter(
+            Event.id.in_(event_ids),
+            Event.is_active == True,
+            Event.start_time >= datetime.utcnow()  # Only upcoming events
+        ).order_by(Event.start_time.asc()).all()
+        
+        events_data = []
+        for event in events:
+            event_dict = event.to_dict()
+            # Find registration for this event
+            registration = next((r for r in registrations if r.event_id == event.id), None)
+            if registration:
+                event_dict['registration'] = registration.to_dict()
+                event_dict['rsvp_status'] = 'going' if registration.status == 'registered' else registration.status
+            events_data.append(event_dict)
+        
+        return jsonify({
+            'events': events_data,
+            'count': len(events_data),
+            'user_email': user_email,
+            'person_name': person.full_name
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching user events: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to fetch user events: {str(e)}'}), 500
+
+@app.route('/api/events/registrations/all', methods=['GET'])
+@login_required
+def get_all_event_registrations():
+    """Get all registrations across all events (admin view)"""
+    try:
+        # Check if user has admin permissions
+        if not hasattr(current_user, 'has_permission') or not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get query parameters
+        event_id = request.args.get('event_id')
+        status = request.args.get('status')
+        campus = request.args.get('campus')
+        
+        query = EventRegistration.query
+        
+        # Filter by event if specified
+        if event_id:
+            query = query.filter_by(event_id=event_id)
+        
+        # Filter by status if specified
+        if status:
+            query = query.filter_by(status=status)
+        
+        # Filter by campus if specified
+        if campus:
+            query = query.join(Event).filter(Event.campus == campus)
+        
+        registrations = query.order_by(EventRegistration.created_at.desc()).all()
+        
+        # Build response with event details
+        registrations_data = []
+        for reg in registrations:
+            reg_dict = reg.to_dict()
+            event = Event.query.get(reg.event_id)
+            if event:
+                reg_dict['event'] = {
+                    'id': event.id,
+                    'title': event.title,
+                    'start_time': event.start_time.isoformat() if event.start_time else None,
+                    'campus': event.campus,
+                    'location': event.location
+                }
+            registrations_data.append(reg_dict)
+        
+        return jsonify({
+            'registrations': registrations_data,
+            'count': len(registrations_data),
+            'filters': {
+                'event_id': event_id,
+                'status': status,
+                'campus': campus
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching all registrations: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to fetch registrations: {str(e)}'}), 500
 
 @app.route('/api/events/<event_id>/registrations/<registration_id>', methods=['PUT'])
 @login_required
@@ -18727,6 +18965,197 @@ def export_event_registrations(event_id):
     except Exception as e:
         logger.error(f"Error exporting registrations: {e}")
         return jsonify({'error': 'Failed to export registrations'}), 500
+
+@app.route('/api/events/<event_id>/rsvp', methods=['POST'])
+def rsvp_to_event(event_id):
+    """Simple RSVP endpoint for mobile app (Going/Maybe/Not Going)"""
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+        
+        data = request.get_json()
+        rsvp_status = data.get('status', 'going')  # going, maybe, not_going
+        
+        # Map RSVP status to registration status
+        status_map = {
+            'going': 'registered',
+            'maybe': 'registered',  # Could create a 'maybe' status if needed
+            'not_going': 'cancelled'
+        }
+        registration_status = status_map.get(rsvp_status, 'registered')
+        
+        # Get person_id from email or person_id in data
+        person_id = data.get('person_id')
+        email = data.get('email')
+        
+        if not person_id and email:
+            person = Person.query.filter_by(email=email, is_active=True).first()
+            if person:
+                person_id = person.id
+        
+        # Check if already registered
+        existing_registration = None
+        if person_id:
+            existing_registration = EventRegistration.query.filter_by(
+                event_id=event_id,
+                person_id=person_id
+            ).first()
+        elif email:
+            existing_registration = EventRegistration.query.filter_by(
+                event_id=event_id,
+                email=email
+            ).first()
+        
+        if existing_registration:
+            # Update existing registration
+            if rsvp_status == 'not_going':
+                existing_registration.status = 'cancelled'
+            else:
+                existing_registration.status = registration_status
+            existing_registration.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'RSVP updated successfully',
+                'registration': existing_registration.to_dict(),
+                'rsvp_status': rsvp_status
+            })
+        
+        # Create new registration
+        if rsvp_status == 'not_going':
+            return jsonify({'message': 'RSVP cancelled', 'rsvp_status': 'not_going'})
+        
+        registration = EventRegistration(
+            event_id=event_id,
+            person_id=person_id,
+            email=email,
+            name=data.get('name'),
+            phone=data.get('phone'),
+            status=registration_status,
+            guest_count=data.get('guest_count', 0),
+            notes=data.get('notes')
+        )
+        
+        db.session.add(registration)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'RSVP successful',
+            'registration': registration.to_dict(),
+            'rsvp_status': rsvp_status
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error processing RSVP: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': f'Failed to process RSVP: {str(e)}'}), 500
+
+@app.route('/api/users/<user_email>/events', methods=['GET'])
+def get_user_events(user_email):
+    """Get all events a user is registered for (upcoming events)"""
+    try:
+        # Find person by email
+        person = Person.query.filter_by(email=user_email, is_active=True).first()
+        if not person:
+            return jsonify({
+                'events': [],
+                'message': 'User not found or no registrations'
+            })
+        
+        # Get all registrations for this person
+        registrations = EventRegistration.query.filter_by(
+            person_id=person.id,
+            status='registered'  # Only show active registrations
+        ).all()
+        
+        # Get events for these registrations
+        event_ids = [r.event_id for r in registrations]
+        events = Event.query.filter(
+            Event.id.in_(event_ids),
+            Event.is_active == True,
+            Event.start_time >= datetime.utcnow()  # Only upcoming events
+        ).order_by(Event.start_time.asc()).all()
+        
+        events_data = []
+        for event in events:
+            event_dict = event.to_dict()
+            # Find registration for this event
+            registration = next((r for r in registrations if r.event_id == event.id), None)
+            if registration:
+                event_dict['registration'] = registration.to_dict()
+                event_dict['rsvp_status'] = 'going' if registration.status == 'registered' else registration.status
+            events_data.append(event_dict)
+        
+        return jsonify({
+            'events': events_data,
+            'count': len(events_data),
+            'user_email': user_email,
+            'person_name': person.full_name
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching user events: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to fetch user events: {str(e)}'}), 500
+
+@app.route('/api/events/registrations/all', methods=['GET'])
+@login_required
+def get_all_event_registrations():
+    """Get all registrations across all events (admin view)"""
+    try:
+        # Check if user has admin permissions
+        if not hasattr(current_user, 'has_permission') or not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get query parameters
+        event_id = request.args.get('event_id')
+        status = request.args.get('status')
+        campus = request.args.get('campus')
+        
+        query = EventRegistration.query
+        
+        # Filter by event if specified
+        if event_id:
+            query = query.filter_by(event_id=event_id)
+        
+        # Filter by status if specified
+        if status:
+            query = query.filter_by(status=status)
+        
+        # Filter by campus if specified
+        if campus:
+            query = query.join(Event).filter(Event.campus == campus)
+        
+        registrations = query.order_by(EventRegistration.created_at.desc()).all()
+        
+        # Build response with event details
+        registrations_data = []
+        for reg in registrations:
+            reg_dict = reg.to_dict()
+            event = Event.query.get(reg.event_id)
+            if event:
+                reg_dict['event'] = {
+                    'id': event.id,
+                    'title': event.title,
+                    'start_time': event.start_time.isoformat() if event.start_time else None,
+                    'campus': event.campus,
+                    'location': event.location
+                }
+            registrations_data.append(reg_dict)
+        
+        return jsonify({
+            'registrations': registrations_data,
+            'count': len(registrations_data),
+            'filters': {
+                'event_id': event_id,
+                'status': status,
+                'campus': campus
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching all registrations: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to fetch registrations: {str(e)}'}), 500
 
 # Event Team Assignments endpoints
 @app.route('/api/events/<event_id>/teams', methods=['GET'])
