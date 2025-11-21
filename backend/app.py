@@ -18434,8 +18434,10 @@ def update_event(event_id):
             event.campus = data['campus']
         if 'location' in data:
             event.location = data['location']
-        if 'location_id' in data:
-            event.location_id = data['location_id']
+        # Note: location_id doesn't exist in model, skip it
+        # if 'location_id' in data and hasattr(Event, 'location_id'):
+        #     event.location_id = data['location_id']
+        
         if 'start_datetime' in data or 'start_time' in data:
             start_time_value = data.get('start_datetime') or data.get('start_time')
             event.start_time = datetime.fromisoformat(start_time_value.replace('Z', '+00:00'))
@@ -18459,30 +18461,30 @@ def update_event(event_id):
             event.stripe_price_id = data['stripe_price_id']
         if 'is_active' in data:
             event.is_active = data['is_active']
-        if 'ministry' in data:
+        if 'ministry' in data and hasattr(Event, 'ministry'):
             event.ministry = data['ministry']
-        if 'is_all_day' in data:
+        if 'is_all_day' in data and hasattr(Event, 'is_all_day'):
             event.is_all_day = data['is_all_day']
-        if 'recurrence_rule' in data:
+        if 'recurrence_rule' in data and hasattr(Event, 'recurrence_rule'):
             event.recurrence_rule = data['recurrence_rule']
-        if 'status' in data:
+        if 'status' in data and hasattr(Event, 'status'):
             event.status = data['status']
-        if 'visibility' in data:
+        if 'visibility' in data and hasattr(Event, 'visibility'):
             event.visibility = data['visibility']
-        if 'capacity' in data:
+        if 'capacity' in data and hasattr(Event, 'capacity'):
             event.capacity = data['capacity'] if data['capacity'] else None
-        if 'registration_required' in data:
+        if 'registration_required' in data and hasattr(Event, 'registration_required'):
             event.registration_required = data['registration_required']
-        if 'registration_form_id' in data:
+        if 'registration_form_id' in data and hasattr(Event, 'registration_form_id'):
             event.registration_form_id = data['registration_form_id'] if data['registration_form_id'] else None
-        if 'tags' in data:
+        if 'tags' in data and hasattr(Event, 'tags'):
             if isinstance(data['tags'], list):
                 event.tags = json.dumps(data['tags'])
             else:
                 event.tags = data['tags']
         
-        # Update updated_by_user_id
-        if hasattr(current_user, 'id'):
+        # Update updated_by_user_id only if column exists
+        if hasattr(current_user, 'id') and hasattr(Event, 'updated_by_user_id'):
             event.updated_by_user_id = current_user.id
         
         event.updated_at = datetime.utcnow()
