@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request
 from models import (
     db, Person, Campus, HeartbeatSnapshot, AttendanceEvent, Service,
     HeartbeatConnectGroup, ConnectAttendance, ServingAssignment,
-    GivingSummary, DiscipleshipStep, CareCase, CareTouchpoint
+    GivingSummary, GivingTransaction, DiscipleshipStep, CareCase, CareTouchpoint
 )
 from heartbeat_engine import HeartbeatEngine
 from datetime import datetime, date, timedelta
@@ -467,8 +467,11 @@ def get_person_heartbeat(person_id):
         }), 200
         
     except Exception as e:
-        logger.error(f"Error getting person heartbeat: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error getting person heartbeat: {e}", exc_info=True)
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Full traceback: {error_details}")
+        return jsonify({'error': str(e), 'details': 'Check server logs for more information'}), 500
 
 
 @heartbeat_bp.route('/recalculate/<campus_id>', methods=['POST'])
