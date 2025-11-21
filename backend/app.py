@@ -16292,9 +16292,20 @@ def get_leader_portal(group_id):
         if email.lower() not in all_leader_emails:
             return jsonify({'error': 'You are not a leader of this group'}), 403
         
-        # Verify access code if set
-        if group.leader_access_code and access_code != group.leader_access_code:
-            return jsonify({'error': 'Invalid access code'}), 403
+        # For mobile app users (logged in), skip access code requirement
+        # Access code is only required for web portal direct access (not logged in)
+        is_logged_in_user = False
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                # User is logged into the system (mobile app)
+                is_logged_in_user = True
+        except:
+            pass
+        
+        # Only require access code if not logged in AND access code is set
+        if not is_logged_in_user and group.leader_access_code:
+            if not access_code or access_code != group.leader_access_code:
+                return jsonify({'error': 'Invalid access code'}), 403
         
         # Get all members (handles both ID and name matching)
         members = group.get_members()
@@ -16375,9 +16386,20 @@ def mark_leader_attendance(group_id):
         if email.lower() not in all_leader_emails:
             return jsonify({'error': 'You are not a leader of this group'}), 403
         
-        # Verify access code if set
-        if group.leader_access_code and access_code != group.leader_access_code:
-            return jsonify({'error': 'Invalid access code'}), 403
+        # For mobile app users (logged in), skip access code requirement
+        # Access code is only required for web portal direct access (not logged in)
+        is_logged_in_user = False
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                # User is logged into the system (mobile app)
+                is_logged_in_user = True
+        except:
+            pass
+        
+        # Only require access code if not logged in AND access code is set
+        if not is_logged_in_user and group.leader_access_code:
+            if not access_code or access_code != group.leader_access_code:
+                return jsonify({'error': 'Invalid access code'}), 403
         
         # Parse meeting date
         from datetime import datetime
