@@ -1130,7 +1130,7 @@ def load_users_database():
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active
+            SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
             FROM users
             WHERE active = 1
         ''')
@@ -1138,6 +1138,13 @@ def load_users_database():
         users = {}
         for row in cursor.fetchall():
             username = row[1]
+            import json
+            custom_perms = row[8] if len(row) > 8 else None
+            try:
+                custom_permissions = json.loads(custom_perms) if custom_perms else None
+            except:
+                custom_permissions = None
+            
             users[username] = {
                 'id': row[0],
                 'username': row[1],
@@ -1146,7 +1153,8 @@ def load_users_database():
                 'email': row[4] or '',
                 'role': row[5],
                 'campus': row[6] or '',
-                'active': bool(row[7])
+                'active': bool(row[7]),
+                'custom_permissions': custom_permissions
             }
         
         conn.close()
@@ -11539,6 +11547,137 @@ def delete_user_api(user_id):
         logger.error(f"Delete user API error: {e}", exc_info=True)
         return jsonify({"error": "Failed to delete user"}), 500
 
+@app.route('/api/users/permissions', methods=['GET'])
+@login_required
+def get_all_users_permissions():
+    """Get all users with their permissions (admin and leadership only)"""
+    try:
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, full_name, email, role, campus, active, custom_permissions
+            FROM users
+            WHERE active = 1
+            ORDER BY full_name, username
+        ''')
+        
+        users_list = []
+        import json
+        for row in cursor.fetchall():
+            custom_perms = row[7] if len(row) > 7 else None
+            try:
+                custom_permissions = json.loads(custom_perms) if custom_perms else None
+            except:
+                custom_permissions = None
+            
+            users_list.append({
+                'id': row[0],
+                'username': row[1],
+                'full_name': row[2] or row[1],
+                'email': row[3] or '',
+                'role': row[4],
+                'campus': row[5] or 'all_campuses',
+                'active': bool(row[6]),
+                'custom_permissions': custom_permissions
+            })
+        
+        conn.close()
+        return jsonify({'users': users_list, 'success': True})
+    except Exception as e:
+        logger.error(f"Error fetching users permissions: {e}")
+        return jsonify({'error': 'Failed to fetch users permissions'}), 500
+
+@app.route('/api/users/<user_id>/permissions', methods=['GET'])
+@login_required
+def get_user_permissions(user_id):
+    """Get specific user's permissions"""
+    try:
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, full_name, role, custom_permissions
+            FROM users
+            WHERE id = ? AND active = 1
+        ''', (user_id,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return jsonify({'error': 'User not found'}), 404
+        
+        import json
+        custom_perms = row[4] if len(row) > 4 else None
+        try:
+            custom_permissions = json.loads(custom_perms) if custom_perms else None
+        except:
+            custom_permissions = None
+        
+        return jsonify({
+            'user_id': row[0],
+            'username': row[1],
+            'full_name': row[2] or row[1],
+            'role': row[3],
+            'custom_permissions': custom_permissions,
+            'success': True
+        })
+    except Exception as e:
+        logger.error(f"Error fetching user permissions: {e}")
+        return jsonify({'error': 'Failed to fetch user permissions'}), 500
+
+@app.route('/api/users/<user_id>/permissions', methods=['POST'])
+@login_required
+def update_user_permissions(user_id):
+    """Update user's custom permissions"""
+    try:
+        if current_user.role not in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        data = request.get_json()
+        permissions = data.get('permissions', {})
+        
+        # Validate permissions structure
+        if not isinstance(permissions, dict):
+            return jsonify({'error': 'Invalid permissions format'}), 400
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Check if user exists
+        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Update custom permissions
+        import json
+        permissions_json = json.dumps(permissions) if permissions else None
+        
+        cursor.execute('''
+            UPDATE users 
+            SET custom_permissions = ?
+            WHERE id = ?
+        ''', (permissions_json, user_id))
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Updated permissions for user ID: {user_id}")
+        return jsonify({
+            'success': True,
+            'message': 'Permissions updated successfully',
+            'permissions': permissions
+        })
+    except Exception as e:
+        logger.error(f"Error updating user permissions: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to update permissions'}), 500
+
 # PROFILE MANAGEMENT ROUTES
 @app.route('/api/profile/change-password', methods=['POST'])
 @login_required
@@ -17266,7 +17405,8 @@ def get_users():
                 'campus': user_data.get('campus'),
                 'active': user_data.get('active', True),
                 'last_login': user_data.get('last_login'),
-                'created_date': user_data.get('created_date')
+                'created_date': user_data.get('created_date'),
+                'custom_permissions': user_data.get('custom_permissions')
             }
             users_list.append(user_info)
         
@@ -18754,53 +18894,6 @@ def rsvp_to_event(event_id):
         logger.error(f"Error processing RSVP: {e}", exc_info=True)
         db.session.rollback()
         return jsonify({'error': f'Failed to process RSVP: {str(e)}'}), 500
-
-@app.route('/api/users/<user_email>/events', methods=['GET'])
-def get_user_events(user_email):
-    """Get all events a user is registered for (upcoming events)"""
-    try:
-        # Find person by email
-        person = Person.query.filter_by(email=user_email, is_active=True).first()
-        if not person:
-            return jsonify({
-                'events': [],
-                'message': 'User not found or no registrations'
-            })
-        
-        # Get all registrations for this person
-        registrations = EventRegistration.query.filter_by(
-            person_id=person.id,
-            status='registered'  # Only show active registrations
-        ).all()
-        
-        # Get events for these registrations
-        event_ids = [r.event_id for r in registrations]
-        events = Event.query.filter(
-            Event.id.in_(event_ids),
-            Event.is_active == True,
-            Event.start_time >= datetime.utcnow()  # Only upcoming events
-        ).order_by(Event.start_time.asc()).all()
-        
-        events_data = []
-        for event in events:
-            event_dict = event.to_dict()
-            # Find registration for this event
-            registration = next((r for r in registrations if r.event_id == event.id), None)
-            if registration:
-                event_dict['registration'] = registration.to_dict()
-                event_dict['rsvp_status'] = 'going' if registration.status == 'registered' else registration.status
-            events_data.append(event_dict)
-        
-        return jsonify({
-            'events': events_data,
-            'count': len(events_data),
-            'user_email': user_email,
-            'person_name': person.full_name
-        })
-        
-    except Exception as e:
-        logger.error(f"Error fetching user events: {e}", exc_info=True)
-        return jsonify({'error': f'Failed to fetch user events: {str(e)}'}), 500
 
 @app.route('/api/events/registrations/all', methods=['GET'])
 @login_required
