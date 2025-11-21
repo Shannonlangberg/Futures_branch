@@ -16527,42 +16527,40 @@ def mark_leader_attendance(group_id):
                     # Also create ConnectAttendance record for heartbeat engine
                     # The heartbeat engine reads from ConnectAttendance table, not ConnectGroupAttendance
                     try:
-                        from models import ConnectAttendance, HeartbeatConnectGroup
+                        from models import ConnectAttendance, HeartbeatConnectGroup, HeartbeatCampus
                         
                         # Find or create corresponding HeartbeatConnectGroup
-                        # Try to find by matching the group name or ID
                         heartbeat_group = None
-                        # First, try to find by ID if we can map it
-                        # Check if ConnectGroup has a corresponding HeartbeatConnectGroup
-                        # For now, try to find by name match with person's campus
                         person_campus = person.campus if person else None
-                        if person_campus:
-                            # Try to find heartbeat group by name and campus
-                            heartbeat_group = HeartbeatConnectGroup.query.filter_by(
-                                name=group.name,
-                                campus_id=person_campus,
-                                is_active=True
-                            ).first()
                         
-                        # If not found, create a new HeartbeatConnectGroup
-                        if not heartbeat_group:
-                            # We need a campus_id - map campus name to heartbeat campus
-                            from models import HeartbeatCampus
+                        if person_campus:
+                            # Try to find heartbeat campus by name
                             heartbeat_campus = HeartbeatCampus.query.filter_by(
                                 name=person_campus
-                            ).first() if person_campus else None
+                            ).first()
                             
                             if heartbeat_campus:
-                                heartbeat_group = HeartbeatConnectGroup(
-                                    campus_id=heartbeat_campus.id,
+                                # Try to find existing heartbeat group by name and campus
+                                heartbeat_group = HeartbeatConnectGroup.query.filter_by(
                                     name=group.name,
-                                    leader_person_id=group.leader_email,  # Might need to find person by email
-                                    type='home',  # Default
+                                    campus_id=heartbeat_campus.id,
                                     is_active=True
-                                )
-                                db.session.add(heartbeat_group)
-                                db.session.flush()
-                                logger.info(f"Created new HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
+                                ).first()
+                                
+                                # If not found, try to get leader person_id from group leader email
+                                if not heartbeat_group and group.leader_email:
+                                    leader_person = Person.query.filter_by(email=group.leader_email.lower()).first()
+                                    if leader_person:
+                                        heartbeat_group = HeartbeatConnectGroup(
+                                            campus_id=heartbeat_campus.id,
+                                            name=group.name,
+                                            leader_person_id=leader_person.id,
+                                            type='home',  # Default
+                                            is_active=True
+                                        )
+                                        db.session.add(heartbeat_group)
+                                        db.session.flush()
+                                        logger.info(f"Created new HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
                         
                         # Now create ConnectAttendance record if heartbeat_group exists
                         if heartbeat_group:
@@ -16586,7 +16584,7 @@ def mark_leader_attendance(group_id):
                                     status='present' if present else 'absent'
                                 )
                                 db.session.add(heartbeat_attendance)
-                                logger.info(f"Created ConnectAttendance for person {person_id}, group {heartbeat_group.id}, date {meeting_date_obj}")
+                                logger.info(f"Created ConnectAttendance for person {person_id}, group {heartbeat_group.id}, date {meeting_date_obj} - this will be visible to heartbeat engine")
                         else:
                             logger.warning(f"Could not find or create HeartbeatConnectGroup for {group.name}, skipping ConnectAttendance creation")
                     except Exception as e:
