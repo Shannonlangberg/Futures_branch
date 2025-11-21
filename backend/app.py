@@ -16288,8 +16288,12 @@ def get_leader_portal(group_id):
             meeting_dict['attendance'] = [att.to_dict() for att in attendance]
             meetings_data.append(meeting_dict)
         
+        # Also include members in the group dict (for compatibility with web portal)
+        group_dict = group.to_dict()
+        group_dict['members'] = members_data
+        
         response_data = {
-            'group': group.to_dict(),
+            'group': group_dict,
             'members': members_data,
             'member_count': len(members_data),
             'recent_meetings': meetings_data
@@ -16299,6 +16303,8 @@ def get_leader_portal(group_id):
         logger.info(f"Leader portal response for {group_id}: {len(members_data)} members, {len(meetings_data)} meetings")
         if len(members_data) == 0:
             logger.warning(f"No members found for group '{group.name}' (ID: {group_id}). Group leader emails: {all_leader_emails}")
+            # Log what get_members() actually found
+            logger.warning(f"get_members() returned: {[m.id for m in group.get_members()]}")
         
         return jsonify(response_data)
         
