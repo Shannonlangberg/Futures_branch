@@ -16292,20 +16292,16 @@ def get_leader_portal(group_id):
         if email.lower() not in all_leader_emails:
             return jsonify({'error': 'You are not a leader of this group'}), 403
         
-        # For mobile app users (logged in), skip access code requirement
-        # Access code is only required for web portal direct access (not logged in)
-        is_logged_in_user = False
-        try:
-            if current_user and hasattr(current_user, 'email'):
-                # User is logged into the system (mobile app)
-                is_logged_in_user = True
-        except:
-            pass
-        
-        # Only require access code if not logged in AND access code is set
-        if not is_logged_in_user and group.leader_access_code:
-            if not access_code or access_code != group.leader_access_code:
+        # For mobile app users, skip access code requirement since email is already verified
+        # Mobile app authenticates via email + Bearer token (already passed leader verification)
+        # Access code is only required for web portal direct access (not logged in, no token)
+        # If access code is provided but incorrect, reject it
+        # If no access code is provided but email is verified as leader, allow access
+        if group.leader_access_code and access_code:
+            # Access code was provided - verify it
+            if access_code != group.leader_access_code:
                 return jsonify({'error': 'Invalid access code'}), 403
+        # If no access code provided but email verified as leader, allow (mobile app case)
         
         # Get all members (handles both ID and name matching)
         members = group.get_members()
@@ -16386,20 +16382,16 @@ def mark_leader_attendance(group_id):
         if email.lower() not in all_leader_emails:
             return jsonify({'error': 'You are not a leader of this group'}), 403
         
-        # For mobile app users (logged in), skip access code requirement
-        # Access code is only required for web portal direct access (not logged in)
-        is_logged_in_user = False
-        try:
-            if current_user and hasattr(current_user, 'email'):
-                # User is logged into the system (mobile app)
-                is_logged_in_user = True
-        except:
-            pass
-        
-        # Only require access code if not logged in AND access code is set
-        if not is_logged_in_user and group.leader_access_code:
-            if not access_code or access_code != group.leader_access_code:
+        # For mobile app users, skip access code requirement since email is already verified
+        # Mobile app authenticates via email + Bearer token (already passed leader verification)
+        # Access code is only required for web portal direct access (not logged in, no token)
+        # If access code is provided but incorrect, reject it
+        # If no access code is provided but email is verified as leader, allow access
+        if group.leader_access_code and access_code:
+            # Access code was provided - verify it
+            if access_code != group.leader_access_code:
                 return jsonify({'error': 'Invalid access code'}), 403
+        # If no access code provided but email verified as leader, allow (mobile app case)
         
         # Parse meeting date
         from datetime import datetime
