@@ -958,18 +958,33 @@ class ConnectGroup(db.Model):
     co_leader = db.relationship('Person', foreign_keys=[co_leader_id], backref='co_led_groups')
     
     def get_members(self):
-        """Get all active members of this group (matches by ID or name)"""
+        """Get all active members of this group (matches by ID or name), including leaders"""
         from sqlalchemy import text
         import logging
         logger = logging.getLogger(__name__)
         
         all_members = []
         
-        # First try by ID (exact match)
+        # ALWAYS include the leader(s) first
+        if self.leader_id:
+            leader = Person.query.filter_by(id=self.leader_id, is_active=True).first()
+            if leader:
+                all_members.append(leader)
+                logger.info(f"Added leader {leader.full_name} to group {self.id} members")
+        
+        if self.co_leader_id:
+            co_leader = Person.query.filter_by(id=self.co_leader_id, is_active=True).first()
+            if co_leader and co_leader not in all_members:
+                all_members.append(co_leader)
+                logger.info(f"Added co-leader {co_leader.full_name} to group {self.id} members")
+        
+        # Then try by ID (exact match)
         members_by_id = Person.query.filter_by(connect_group=self.id, is_active=True).all()
         if members_by_id:
             logger.info(f"Found {len(members_by_id)} members by ID for group {self.id}")
-            all_members.extend(members_by_id)
+            for m in members_by_id:
+                if m not in all_members:
+                    all_members.append(m)
         
         # If no members found by ID, try by name (Pulse stores names like "Mums Group (Courtney Langberg)")
         group_name = self.name.strip()
