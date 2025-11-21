@@ -643,7 +643,7 @@ const Give = () => {
                         iconColor: '#ef4444',
                       },
                     },
-                    hidePostalCode: false,
+                    hidePostalCode: true, // Hide postal code for Australian users
                   }}
                 />
               </div>
