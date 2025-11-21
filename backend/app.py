@@ -16393,9 +16393,19 @@ def mark_leader_attendance(group_id):
                 return jsonify({'error': 'Invalid access code'}), 403
         # If no access code provided but email verified as leader, allow (mobile app case)
         
-        # Parse meeting date
+        # Parse meeting date - handle various formats
         from datetime import datetime
-        meeting_date_obj = datetime.fromisoformat(meeting_date.replace('Z', '+00:00')).date()
+        try:
+            # Try ISO format first (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+            if 'T' in meeting_date or '+' in meeting_date or 'Z' in meeting_date:
+                # Has time component
+                meeting_date_obj = datetime.fromisoformat(meeting_date.replace('Z', '+00:00')).date()
+            else:
+                # Just date (YYYY-MM-DD)
+                meeting_date_obj = datetime.strptime(meeting_date, '%Y-%m-%d').date()
+        except (ValueError, AttributeError) as e:
+            logger.error(f"Error parsing meeting date '{meeting_date}': {e}")
+            return jsonify({'error': f'Invalid date format: {meeting_date}. Expected YYYY-MM-DD'}), 400
         
         # Find or create meeting
         meeting = ConnectGroupMeeting.query.filter_by(
@@ -16440,12 +16450,26 @@ def mark_leader_attendance(group_id):
             
             # Update engagement profile
             person = Person.query.filter_by(id=person_id, is_active=True).first()
-            if person and person.engagement_profile:
-                person.engagement_profile.add_group_attendance(
-                    group_id=group_id,
-                    attendance_date=meeting_date_obj,
-                    present=present
-                )
+            if person:
+                # Ensure engagement profile exists
+                if not person.engagement_profile:
+                    from models import create_person_with_engagement
+                    # Create engagement profile if it doesn't exist
+                    engagement = EngagementProfile(person_id=person_id)
+                    db.session.add(engagement)
+                    db.session.flush()
+                    person.engagement_profile = engagement
+                
+                try:
+                    person.engagement_profile.add_group_attendance(
+                        group_id=group_id,
+                        attendance_date=meeting_date_obj,
+                        present=present
+                    )
+                except Exception as e:
+                    logger.error(f"Error adding group attendance for person {person_id}: {e}", exc_info=True)
+                    # Don't fail the whole request if engagement profile update fails
+                    pass
         
         db.session.commit()
         
