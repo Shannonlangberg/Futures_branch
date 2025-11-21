@@ -16,7 +16,7 @@ from models import (
     ConnectAttendance, Team, ServingAssignment, GivingSummary,
     DiscipleshipStep, CareCase, CareTouchpoint, HeartbeatSnapshot,
     PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep,
-    EngagementProfile
+    EngagementProfile, AppSession, PrayerSubmission, TVUserEpisodeProgress
 )
 import json
 import logging
@@ -350,12 +350,37 @@ class HeartbeatEngine:
             CareTouchpoint.care_case_id.in_(care_case_ids) if care_case_ids else False
         ).all() if care_case_ids else []
         
+        # NEW: App opens (engagement tracking)
+        app_opens = AppSession.query.filter(
+            AppSession.person_id == person_id,
+            AppSession.session_start >= start_datetime,
+            AppSession.session_start <= end_datetime
+        ).all()
+        
+        # NEW: TV episode completions (spiritual growth)
+        tv_completions = TVUserEpisodeProgress.query.filter(
+            TVUserEpisodeProgress.person_id == person_id,
+            TVUserEpisodeProgress.completed == True,
+            TVUserEpisodeProgress.completed_at >= start_datetime,
+            TVUserEpisodeProgress.completed_at <= end_datetime
+        ).all()
+        
+        # NEW: Prayer submissions (care/spiritual)
+        prayer_submissions = PrayerSubmission.query.filter(
+            PrayerSubmission.person_id == person_id,
+            PrayerSubmission.created_at >= start_datetime,
+            PrayerSubmission.created_at <= end_datetime
+        ).all()
+        
         # Log summary of loaded data
         logger.info(f"📊 Loaded data for {person_id}: "
                    f"attendance_events={len(attendance_events)} "
                    f"(from table: {len([e for e in attendance_events if hasattr(e, 'service_id') and e.service_id])}, "
                    f"from mobile: {len([e for e in attendance_events if hasattr(e, 'service_id') and not e.service_id])}), "
-                   f"sunday_services={len(sunday_services)}")
+                   f"sunday_services={len(sunday_services)}, "
+                   f"app_opens={len(app_opens)}, "
+                   f"tv_completions={len(tv_completions)}, "
+                   f"prayer_submissions={len(prayer_submissions)}")
         
         return {
             'attendance_events': attendance_events,
@@ -367,7 +392,10 @@ class HeartbeatEngine:
             'discipleship_steps': discipleship_steps,
             'pathway_step_completions': pathway_step_completions,
             'care_cases': care_cases,
-            'care_touchpoints': care_touchpoints
+            'care_touchpoints': care_touchpoints,
+            'app_opens': app_opens,
+            'tv_completions': tv_completions,
+            'prayer_submissions': prayer_submissions
         }
     
     def _calculate_gather_score(
@@ -533,7 +561,7 @@ class HeartbeatEngine:
         
         scores.append(('serving', serving_score))
         
-        # 3. Giving (30% of engagement)
+        # 3. Giving (25% of engagement - rebalanced)
         giving_summaries = data['giving_summaries']
         
         if giving_summaries:
@@ -542,22 +570,34 @@ class HeartbeatEngine:
             
             # Map frequency to score
             frequency_scores = {
-                'weekly': 30.0,
-                'monthly': 20.0,
-                'occasional': 10.0,
+                'weekly': 25.0,
+                'monthly': 17.0,
+                'occasional': 8.0,
                 'none': 0.0
             }
             giving_score = frequency_scores.get(latest_summary.frequency, 0.0)
             
             # Boost with pattern_score
-            giving_score += latest_summary.pattern_score * 10.0
-            giving_score = min(30.0, giving_score)
+            giving_score += latest_summary.pattern_score * 8.0
+            giving_score = min(25.0, giving_score)
         else:
             giving_score = 0.0
         
         scores.append(('giving', giving_score))
         
+        # 4. App Opens (5% of engagement) - NEW
+        app_opens = data.get('app_opens', [])
+        if app_opens:
+            # 1 point per app open, max 5 points
+            app_open_score = min(len(app_opens), 5.0)
+        else:
+            app_open_score = 0.0
+        
+        scores.append(('app_opens', app_open_score))
+        logger.info(f"App opens: {len(app_opens)} opens = {app_open_score} points")
+        
         # Total engagement score
+        # New weights: Connect (40%), Serving (30%), Giving (25%), App Opens (5%)
         total_engagement = sum(score for _, score in scores)
         return round(total_engagement, 2)
     
@@ -637,21 +677,28 @@ class HeartbeatEngine:
             if milestone_type not in ['salvation', 'baptism', 'holy_spirit', 'next_steps']:
                 other_milestones.append(step)
         
-        # Count TV episode completions (recent ones boost more)
-        tv_episode_completions = [
+        # Count TV episode completions from legacy DiscipleshipStep
+        tv_episode_completions_legacy = [
             s for s in discipleship_steps
             if s.type == 'tv_episode_completion' and s.date >= start_date
         ]
-        tv_series_completions = [
+        tv_series_completions_legacy = [
             s for s in discipleship_steps
             if s.type == 'tv_series_completion' and s.date >= start_date
         ]
         
-        # TV episode completions: 5 points per episode (max 20 points)
-        tv_episode_score = min(len(tv_episode_completions) * 5.0, 20.0)
+        # NEW: Count TV completions from TVUserEpisodeProgress
+        tv_completions = data.get('tv_completions', [])
+        total_tv_episodes = len(tv_episode_completions_legacy) + len(tv_completions)
         
-        # TV series completions: 10 points per series (max 20 points)
-        tv_series_score = min(len(tv_series_completions) * 10.0, 20.0)
+        # TV episode completions: 5 points per episode (max 20 points)
+        tv_episode_score = min(total_tv_episodes * 5.0, 20.0)
+        
+        # TV series completions: 10 points per series (max 20 points)  
+        tv_series_score = min(len(tv_series_completions_legacy) * 10.0, 20.0)
+        
+        logger.info(f"TV Score: {total_tv_episodes} episodes ({tv_episode_score} pts), "
+                   f"{len(tv_series_completions_legacy)} series ({tv_series_score} pts)")
         
         # Other milestones: 2 points each (max 10 points)
         other_milestone_score = min(len(other_milestones) * 2.0, 10.0)
@@ -702,7 +749,15 @@ class HeartbeatEngine:
             # Add 5 points per recent touchpoint, max +20
             bonus = min(len(recent_touchpoints) * 5.0, 20.0)
             score += bonus
-            logger.debug(f"  Recent touchpoints: {len(recent_touchpoints)}, bonus={bonus}, final_score={score}")
+            logger.debug(f"  Recent touchpoints: {len(recent_touchpoints)}, bonus={bonus}, score={score}")
+        
+        # NEW: Bonus for prayer submissions (shows spiritual engagement/need awareness)
+        prayer_submissions = data.get('prayer_submissions', [])
+        if prayer_submissions:
+            # Add 3 points per prayer submission, max +15
+            prayer_bonus = min(len(prayer_submissions) * 3.0, 15.0)
+            score += prayer_bonus
+            logger.info(f"Prayer submissions: {len(prayer_submissions)} submissions = +{prayer_bonus} points")
         
         final_score = round(max(0.0, min(score, 100.0)), 2)
         
