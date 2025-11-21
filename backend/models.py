@@ -1206,7 +1206,7 @@ class Event(db.Model):
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime)
     location = db.Column(db.String(200))
-    location_id = db.Column(db.Integer, nullable=True)  # Optional reference to saved location
+    # Note: location_id column removed - doesn't exist in database
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -1262,7 +1262,7 @@ class Event(db.Model):
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'end_datetime': self.end_time.isoformat() if self.end_time else None,  # Alias for compatibility
             'location': self.location,
-            'location_id': self.location_id,
+            # 'location_id': self.location_id,  # Column doesn't exist
             'is_active': self.is_active,
             'price': float(self.price) if self.price else None,
             'requires_payment': self.requires_payment if self.requires_payment else False,
