@@ -3,18 +3,24 @@
 -- Description: Adds comprehensive event management features including registrations, teams, resources, recurrence, status, visibility
 
 -- Add new columns to events table
-ALTER TABLE events ADD COLUMN IF NOT EXISTS ministry TEXT;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS is_all_day BOOLEAN DEFAULT 0;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS recurrence_rule TEXT;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'draft';
-ALTER TABLE events ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'public';
-ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_required BOOLEAN DEFAULT 0;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_form_id INTEGER;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by_user_id INTEGER;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS location_id INTEGER;
+-- Note: SQLite doesn't support IF NOT EXISTS in ALTER TABLE
+-- The migration runner will catch "duplicate column" errors and continue
+-- This is safe to run multiple times - existing columns will be skipped
+
+-- Try to add each column (will fail if column already exists, but migration runner handles it)
+-- Execute these one at a time so failures don't stop the whole migration
+ALTER TABLE events ADD COLUMN ministry TEXT;
+ALTER TABLE events ADD COLUMN is_all_day BOOLEAN DEFAULT 0;
+ALTER TABLE events ADD COLUMN recurrence_rule TEXT;
+ALTER TABLE events ADD COLUMN status TEXT DEFAULT 'draft';
+ALTER TABLE events ADD COLUMN visibility TEXT DEFAULT 'public';
+ALTER TABLE events ADD COLUMN capacity INTEGER;
+ALTER TABLE events ADD COLUMN registration_required BOOLEAN DEFAULT 0;
+ALTER TABLE events ADD COLUMN registration_form_id INTEGER;
+ALTER TABLE events ADD COLUMN tags TEXT;
+ALTER TABLE events ADD COLUMN created_by_user_id INTEGER;
+ALTER TABLE events ADD COLUMN updated_by_user_id INTEGER;
+ALTER TABLE events ADD COLUMN location_id INTEGER;
 
 -- Update existing events to have default values
 UPDATE events SET status = 'published' WHERE status IS NULL AND is_active = 1;

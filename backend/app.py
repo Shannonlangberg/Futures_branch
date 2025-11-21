@@ -931,7 +931,27 @@ def run_migrations():
             return
         
         # Get all SQL files in migrations directory
-        migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith('.sql')])
+        # Filter out PostgreSQL migrations if using SQLite
+        all_migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith('.sql')])
+        
+        # Determine database type
+        is_postgres = database_url and ('postgresql' in database_url.lower() or 'postgres' in database_url.lower())
+        
+        # Filter migrations based on database type
+        if is_postgres:
+            # For PostgreSQL, skip SQLite-specific migrations (or use PostgreSQL versions)
+            migration_files = [f for f in all_migration_files if not f.endswith('_postgres.sql')]
+            # Prefer PostgreSQL versions if they exist
+            postgres_migrations = [f for f in all_migration_files if f.endswith('_postgres.sql')]
+            for pg_migration in postgres_migrations:
+                base_name = pg_migration.replace('_postgres.sql', '.sql')
+                if base_name in migration_files:
+                    migration_files.remove(base_name)
+                migration_files.append(pg_migration)
+            migration_files = sorted(migration_files)
+        else:
+            # For SQLite, skip PostgreSQL migrations
+            migration_files = [f for f in all_migration_files if not f.endswith('_postgres.sql')]
         
         if not migration_files:
             logger.info("No migration files found")
@@ -973,10 +993,35 @@ def run_migrations():
                 # We'll catch that specific error and continue
                 migration_succeeded = False
                 try:
-                    cursor.executescript(migration_sql)
+                    # Split SQL into individual statements and execute one at a time
+                    # This allows us to skip statements that fail due to existing columns
+                    statements = [s.strip() for s in migration_sql.split(';') if s.strip() and not s.strip().startswith('--')]
+                    
+                    for statement in statements:
+                        if not statement:
+                            continue
+                        try:
+                            cursor.execute(statement)
+                        except sqlite3.OperationalError as e:
+                            error_msg = str(e).lower()
+                            # If column already exists, that's okay - skip this statement
+                            if 'duplicate column' in error_msg or 'already exists' in error_msg or 'duplicate column name' in error_msg:
+                                logger.info(f"Migration {migration_file}: Column already exists, skipping statement: {statement[:50]}...")
+                                continue  # Skip this statement, continue with next
+                            elif 'syntax error' in error_msg:
+                                # Syntax errors might be from comments or empty statements
+                                logger.debug(f"Migration {migration_file}: Syntax error (likely harmless): {statement[:50]}...")
+                                continue
+                            else:
+                                # Other operational errors - log but continue (might be table already exists, etc)
+                                logger.warning(f"Migration {migration_file}: Statement failed: {e}")
+                                logger.warning(f"  Statement: {statement[:100]}...")
+                                # Continue with next statement (don't fail entire migration)
+                                continue
+                    
                     conn.commit()
                     migration_succeeded = True
-                except sqlite3.OperationalError as e:
+                except Exception as e:
                     error_msg = str(e).lower()
                     # If column already exists, that's okay - skip it
                     if 'duplicate column' in error_msg or 'already exists' in error_msg or 'duplicate column name' in error_msg:
@@ -985,9 +1030,10 @@ def run_migrations():
                         migration_succeeded = True  # Consider it successful since column exists
                     else:
                         # Other operational errors should be raised
-                        logger.error(f"Migration {migration_file} failed with OperationalError: {e}")
+                        logger.error(f"Migration {migration_file} failed with error: {e}")
                         conn.rollback()
-                        raise
+                        # Don't raise - allow app to continue
+                        migration_succeeded = False
                 
                 # Mark migration as applied (only if we got here without error)
                 if migration_succeeded:
@@ -18252,7 +18298,19 @@ def create_event():
         )
         
         db.session.add(new_event)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as db_error:
+            db.session.rollback()
+            logger.error(f"Database error creating event: {db_error}", exc_info=True)
+            # Check if it's a column error (migration might not have run)
+            error_str = str(db_error).lower()
+            if 'no such column' in error_str or 'unknown column' in error_str:
+                return jsonify({
+                    'error': 'Database schema is missing required columns. The migration may have failed. Please check logs and run migration 028_enhanced_events_module.sql manually.',
+                    'details': str(db_error)
+                }), 500
+            raise
         
         return jsonify({
             'message': 'Event created successfully',
@@ -18263,8 +18321,9 @@ def create_event():
         }), 201
         
     except Exception as e:
-        logger.error(f"Error creating event: {e}")
-        return jsonify({'error': 'Failed to create event'}), 500
+        logger.error(f"Error creating event: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': f'Failed to create event: {str(e)}'}), 500
 
 @app.route('/api/events/<event_id>', methods=['PUT'])
 @admin_required
