@@ -1566,7 +1566,16 @@ const PersonHealthReport = () => {
                       details: `Status: ${s.status || 'active'}`,
                       color: 'purple'
                     }));
-                    categoryEvents = [...connectEvents, ...servingEvents].sort((a, b) => {
+                    const givingEvents = (recent_activity?.giving || []).map(g => ({
+                      ...g,
+                      type: 'giving',
+                      icon: '💰',
+                      title: `Gave: $${g.amount?.toFixed(2) || '0.00'}`,
+                      date: g.created_at,
+                      details: `${g.giving_type || 'Tithe'} - ${g.source || 'Web'}`,
+                      color: 'purple'
+                    }));
+                    categoryEvents = [...connectEvents, ...servingEvents, ...givingEvents].sort((a, b) => {
                       const dateA = new Date(a.date || a.created_at || 0);
                       const dateB = new Date(b.date || b.created_at || 0);
                       return dateB - dateA;

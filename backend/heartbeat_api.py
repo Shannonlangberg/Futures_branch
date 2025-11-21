@@ -435,9 +435,18 @@ def get_person_heartbeat(person_id):
             CareCase.status.in_(['open', 'in_progress'])
         ).all()
         
+        # Recent giving transactions
+        recent_giving = GivingTransaction.query.filter(
+            GivingTransaction.person_id == person_id,
+            GivingTransaction.status == 'completed',
+            GivingTransaction.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+        ).order_by(GivingTransaction.created_at.desc()).limit(20).all()
+        
+        logger.info(f"DEBUG: Found {len(recent_giving)} giving transactions for person {person_id} in last 12 weeks")
+        
         # Log what we're returning
         heartbeat_dict = snapshot.to_dict() if snapshot else None
-        logger.info(f"📤 Returning heartbeat data for {person_id}: gather_score={heartbeat_dict.get('gather_score') if heartbeat_dict else 'None'}, total_score={heartbeat_dict.get('total_score') if heartbeat_dict else 'None'}, attendance_count={len(recent_attendance)}")
+        logger.info(f"📤 Returning heartbeat data for {person_id}: gather_score={heartbeat_dict.get('gather_score') if heartbeat_dict else 'None'}, total_score={heartbeat_dict.get('total_score') if heartbeat_dict else 'None'}, attendance_count={len(recent_attendance)}, giving_count={len(recent_giving)}")
         
         return jsonify({
             'person_id': person_id,
@@ -451,6 +460,7 @@ def get_person_heartbeat(person_id):
                     for c in recent_connect
                 ],
                 'serving': [s.to_dict() for s in recent_serving],
+                'giving': [g.to_dict() for g in recent_giving],
                 'discipleship_steps': all_discipleship_steps,
                 'open_care_cases': [c.to_dict() for c in open_cases]
             }
