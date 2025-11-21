@@ -265,11 +265,15 @@ class EngagementProfile(db.Model):
         self.milestones_log = self._dump_json(all_milestones)
         logger.info(f"Group attendance log now has {len(group_log)} entries")
         
-        # Recalculate heartbeat
-        old_engagement = self.overall_engagement
-        old_pulse = self.pulse_status
-        self.recalculate_heartbeat()
-        logger.info(f"Heartbeat recalculated - engagement: {old_engagement} -> {self.overall_engagement}, pulse: {old_pulse} -> {self.pulse_status}")
+        # Recalculate heartbeat (wrap in try/catch to prevent failures)
+        try:
+            old_engagement = self.overall_engagement
+            old_pulse = self.pulse_status
+            self.recalculate_heartbeat()
+            logger.info(f"Heartbeat recalculated - engagement: {old_engagement} -> {self.overall_engagement}, pulse: {old_pulse} -> {self.pulse_status}")
+        except Exception as e:
+            logger.error(f"Error recalculating heartbeat for person {self.person_id}: {e}", exc_info=True)
+            # Don't fail the attendance update if heartbeat recalculation fails
     
     def recalculate_heartbeat(self):
         """
