@@ -1129,34 +1129,21 @@ def load_users_database():
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
-        # Try to select with custom_permissions, fallback if column doesn't exist
-        try:
-            cursor.execute('''
-                SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
-                FROM users
-                WHERE active = 1
-            ''')
-        except Exception:
-            # Fallback if custom_permissions column doesn't exist yet
-            cursor.execute('''
-                SELECT id, username, password_hash, full_name, email, role, campus, active
-                FROM users
-                WHERE active = 1
-            ''')
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
+            FROM users
+            WHERE active = 1
+        ''')
         
         users = {}
         for row in cursor.fetchall():
             username = row[1]
             import json
-            custom_permissions = {}
-            if len(row) > 8:
-                try:
-                    custom_perms = row[8]
-                    if custom_perms:
-                        custom_permissions = json.loads(custom_perms) if isinstance(custom_perms, str) else custom_perms
-                except:
-                    custom_permissions = {}
+            custom_perms = row[8] if len(row) > 8 else None
+            try:
+                custom_permissions = json.loads(custom_perms) if custom_perms else None
+            except:
+                custom_permissions = None
             
             users[username] = {
                 'id': row[0],
@@ -17911,8 +17898,9 @@ def get_events():
                 query = query.join(EventCategory).filter(EventCategory.name.ilike(f'%{category}%'))
         
         # Filter by status (now supports: draft, published, cancelled, completed)
+        # Note: status column may not exist yet if migration hasn't run
         if status != 'all':
-            if status in ['draft', 'published', 'cancelled', 'completed']:
+            if hasattr(Event, 'status') and status in ['draft', 'published', 'cancelled', 'completed']:
                 query = query.filter(Event.status == status)
             elif status == 'upcoming':
                 query = query.filter(
@@ -17961,8 +17949,9 @@ def get_events():
                 query = query.filter(Event.ministry == ministry)
         
         # Filter by tags (tags stored as JSON array in TEXT field)
+        # Note: tags column may not exist yet if migration hasn't run
         tag = request.args.get('tag', '')
-        if tag:
+        if tag and hasattr(Event, 'tags'):
             # Search for tag in JSON array
             query = query.filter(Event.tags.contains(tag))
         
