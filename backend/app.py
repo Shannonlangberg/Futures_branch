@@ -11601,21 +11601,35 @@ def get_all_users_permissions():
         
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, username, full_name, email, role, campus, active, custom_permissions
-            FROM users
-            WHERE active = 1
-            ORDER BY full_name, username
-        ''')
+        
+        # Try to select with custom_permissions, fallback if column doesn't exist
+        try:
+            cursor.execute('''
+                SELECT id, username, full_name, email, role, campus, active, custom_permissions
+                FROM users
+                WHERE active = 1
+                ORDER BY full_name, username
+            ''')
+        except Exception:
+            # Fallback if custom_permissions column doesn't exist yet
+            cursor.execute('''
+                SELECT id, username, full_name, email, role, campus, active
+                FROM users
+                WHERE active = 1
+                ORDER BY full_name, username
+            ''')
         
         users_list = []
         import json
         for row in cursor.fetchall():
-            custom_perms = row[7] if len(row) > 7 else None
-            try:
-                custom_permissions = json.loads(custom_perms) if custom_perms else None
-            except:
-                custom_permissions = None
+            custom_permissions = {}
+            if len(row) > 7:
+                try:
+                    custom_perms = row[7]
+                    if custom_perms:
+                        custom_permissions = json.loads(custom_perms) if isinstance(custom_perms, str) else custom_perms
+                except:
+                    custom_permissions = {}
             
             users_list.append({
                 'id': row[0],
@@ -11644,11 +11658,21 @@ def get_user_permissions(user_id):
         
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, username, full_name, role, custom_permissions
-            FROM users
-            WHERE id = ? AND active = 1
-        ''', (user_id,))
+        
+        # Try to select with custom_permissions, fallback if column doesn't exist
+        try:
+            cursor.execute('''
+                SELECT id, username, full_name, role, custom_permissions
+                FROM users
+                WHERE id = ? AND active = 1
+            ''', (user_id,))
+        except Exception:
+            # Fallback if custom_permissions column doesn't exist yet
+            cursor.execute('''
+                SELECT id, username, full_name, role
+                FROM users
+                WHERE id = ? AND active = 1
+            ''', (user_id,))
         
         row = cursor.fetchone()
         conn.close()
@@ -11657,11 +11681,14 @@ def get_user_permissions(user_id):
             return jsonify({'error': 'User not found'}), 404
         
         import json
-        custom_perms = row[4] if len(row) > 4 else None
-        try:
-            custom_permissions = json.loads(custom_perms) if custom_perms else None
-        except:
-            custom_permissions = None
+        custom_permissions = {}
+        if len(row) > 4:
+            try:
+                custom_perms = row[4]
+                if custom_perms:
+                    custom_permissions = json.loads(custom_perms) if isinstance(custom_perms, str) else custom_perms
+            except:
+                custom_permissions = {}
         
         return jsonify({
             'user_id': row[0],
@@ -11703,13 +11730,30 @@ def update_user_permissions(user_id):
         import json
         permissions_json = json.dumps(permissions) if permissions else None
         
-        cursor.execute('''
-            UPDATE users 
-            SET custom_permissions = ?
-            WHERE id = ?
-        ''', (permissions_json, user_id))
+        # Try to update custom_permissions, but handle if column doesn't exist yet
+        try:
+            cursor.execute('''
+                UPDATE users 
+                SET custom_permissions = ?
+                WHERE id = ?
+            ''', (permissions_json, user_id))
+            conn.commit()
+        except Exception as e:
+            # If column doesn't exist, try to add it first
+            try:
+                cursor.execute('ALTER TABLE users ADD COLUMN custom_permissions TEXT DEFAULT NULL')
+                cursor.execute('''
+                    UPDATE users 
+                    SET custom_permissions = ?
+                    WHERE id = ?
+                ''', (permissions_json, user_id))
+                conn.commit()
+            except Exception as e2:
+                conn.rollback()
+                conn.close()
+                logger.error(f"Error updating permissions (column may not exist): {e2}")
+                return jsonify({'error': 'Failed to update permissions. Migration may be needed.'}), 500
         
-        conn.commit()
         conn.close()
         
         logger.info(f"Updated permissions for user ID: {user_id}")
