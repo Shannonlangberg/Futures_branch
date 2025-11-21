@@ -17462,6 +17462,14 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import heartbeat_api: {e}")
 
+# ENGAGEMENT API ROUTES (App opens, Prayer, Events)
+try:
+    from engagement_api import engagement_api_bp
+    app.register_blueprint(engagement_api_bp)
+    logger.info("Engagement API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import engagement_api: {e}")
+
 # CONNECT GROUPS API ROUTES
 try:
     from connect_groups_api import connect_groups_bp
