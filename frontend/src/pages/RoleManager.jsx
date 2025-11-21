@@ -642,8 +642,13 @@ const RoleManager = () => {
                               <p className="text-slate-400 text-sm mb-4">
                                 Select which campuses this user can view data for. Leave all unchecked to allow access to all campuses.
                               </p>
-                              <div className="flex flex-wrap gap-2">
-                                {campuses.map(campus => {
+                              {campuses.length === 0 ? (
+                                <div className="text-yellow-400 text-sm py-4">
+                                  ⚠️ No campuses loaded. Please refresh the page or check the console for errors.
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-2">
+                                  {campuses.map(campus => {
                                   const isAllowed = isCampusAllowed(user.id, campus.id);
                                   const allowedCampuses = getAllowedCampuses(user.id);
                                   const hasRestriction = allowedCampuses !== null;
@@ -691,7 +696,8 @@ const RoleManager = () => {
                                     Clear Restrictions (Allow All)
                                   </button>
                                 )}
-                              </div>
+                                </div>
+                              )}
                               {getAllowedCampuses(user.id) !== null && (
                                 <div className="mt-3 text-xs text-slate-400">
                                   <span className="text-purple-400">⚠️</span> Campus restriction active: User can only view data from selected campuses.
