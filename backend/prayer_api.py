@@ -664,4 +664,47 @@ def submit_via_link(link_id):
         logger.error(f"Error submitting via link: {e}")
         return jsonify({'error': str(e)}), 500
 
-# Prayer & Praise deployed to Beta for testing
+
+# ============================================================================
+# ADMIN UTILITIES
+# ============================================================================
+
+@prayer_bp.route('/admin/fix-campus', methods=['POST'])
+@login_required
+def fix_user_campus():
+    """Admin endpoint to update a user's campus (for fixing incorrect assignments)"""
+    try:
+        if not current_user.has_permission('people', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        email = data.get('email')
+        new_campus = data.get('campus')
+        
+        if not email or not new_campus:
+            return jsonify({'error': 'Email and campus required'}), 400
+        
+        person = Person.query.filter_by(email=email, is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        old_campus = person.campus
+        person.campus = new_campus
+        person.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        logger.info(f"✅ Updated {email} campus from {old_campus} to {new_campus} by {current_user.username}")
+        return jsonify({
+            'success': True,
+            'message': f'Updated {person.full_name} campus from {old_campus} to {new_campus}',
+            'person': {
+                'email': person.email,
+                'full_name': person.full_name,
+                'old_campus': old_campus,
+                'new_campus': new_campus
+            }
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Error updating person campus: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to update campus'}), 500
