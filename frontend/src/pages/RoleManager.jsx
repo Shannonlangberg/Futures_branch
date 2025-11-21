@@ -6,7 +6,10 @@ import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
   Squares2X2Icon,
-  UserGroupIcon
+  UserGroupIcon,
+  MapPinIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from '@heroicons/react/24/outline';
 
 const RoleManager = () => {
@@ -19,6 +22,8 @@ const RoleManager = () => {
   const [permissions, setPermissions] = useState({}); // { userId: { feature: true/false } }
   const [hasChanges, setHasChanges] = useState(false);
   const [originalPermissions, setOriginalPermissions] = useState({});
+  const [campuses, setCampuses] = useState([]);
+  const [expandedUsers, setExpandedUsers] = useState({}); // { userId: true/false } for campus selection
 
   // Define all features grouped by category
   const pageFeatures = [
@@ -143,7 +148,22 @@ const RoleManager = () => {
 
   useEffect(() => {
     loadUsers();
+    loadCampuses();
   }, []);
+
+  const loadCampuses = async () => {
+    try {
+      const response = await fetch('/api/campuses/public', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCampuses(data.campuses || []);
+      }
+    } catch (err) {
+      console.error('Error loading campuses:', err);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -315,6 +335,54 @@ const RoleManager = () => {
       setHasChanges(hasChanges);
       return newPerms;
     });
+  };
+
+  const toggleCampusSelection = (userId) => {
+    setExpandedUsers(prev => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
+  };
+
+  const toggleCampusAccess = (userId, campusId) => {
+    setPermissions(prev => {
+      const newPerms = { ...prev };
+      if (!newPerms[userId]) {
+        newPerms[userId] = {};
+      }
+      
+      // Get current allowed campuses
+      const currentAllowed = newPerms[userId].allowed_campuses || [];
+      const isAllowed = currentAllowed.includes(campusId);
+      
+      // Toggle campus access
+      if (isAllowed) {
+        newPerms[userId].allowed_campuses = currentAllowed.filter(id => id !== campusId);
+      } else {
+        newPerms[userId].allowed_campuses = [...currentAllowed, campusId];
+      }
+      
+      // If empty array, remove the key
+      if (newPerms[userId].allowed_campuses.length === 0) {
+        delete newPerms[userId].allowed_campuses;
+      }
+      
+      const hasChanges = JSON.stringify(newPerms) !== JSON.stringify(originalPermissions);
+      setHasChanges(hasChanges);
+      
+      return newPerms;
+    });
+  };
+
+  const getAllowedCampuses = (userId) => {
+    const userPerms = permissions[userId] || {};
+    return userPerms.allowed_campuses || null; // null means all campuses (no restriction)
+  };
+
+  const isCampusAllowed = (userId, campusId) => {
+    const allowed = getAllowedCampuses(userId);
+    if (allowed === null) return true; // No restriction = all campuses allowed
+    return allowed.includes(campusId);
   };
 
   const filteredUsers = users.filter(user => {
@@ -502,10 +570,22 @@ const RoleManager = () => {
                         <div className="flex flex-col">
                           <div className="text-white font-medium">{user.full_name || user.username}</div>
                           <div className="text-slate-400 text-sm">{user.username}</div>
-                          <div className="text-slate-500 text-xs mt-1">
+                          <div className="text-slate-500 text-xs mt-1 flex items-center gap-2">
                             <span className="inline-flex px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">
                               {user.role}
                             </span>
+                            <button
+                              onClick={() => toggleCampusSelection(user.id)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 transition-colors"
+                              title="Manage campus access"
+                            >
+                              <MapPinIcon className="w-3 h-3" />
+                              {expandedUsers[user.id] ? (
+                                <ChevronUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ChevronDownIcon className="w-3 h-3" />
+                              )}
+                            </button>
                           </div>
                         </div>
                       </td>
@@ -544,6 +624,77 @@ const RoleManager = () => {
                         );
                       })}
                     </tr>
+                    {/* Campus Selection Row */}
+                    {expandedUsers[user.id] && (
+                      <tr key={`${user.id}-campuses`} className="bg-slate-750/30">
+                        <td colSpan={allFeatures.length + 1} className="px-4 py-4">
+                          <div className="bg-slate-800/80 border border-slate-700/50 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <MapPinIcon className="w-5 h-5 text-purple-400" />
+                              <h3 className="text-white font-medium">Campus Access for {user.full_name || user.username}</h3>
+                            </div>
+                            <p className="text-slate-400 text-sm mb-4">
+                              Select which campuses this user can view data for. Leave all unchecked to allow access to all campuses.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {campuses.map(campus => {
+                                const isAllowed = isCampusAllowed(user.id, campus.id);
+                                const allowedCampuses = getAllowedCampuses(user.id);
+                                const hasRestriction = allowedCampuses !== null;
+                                
+                                return (
+                                  <button
+                                    key={campus.id}
+                                    onClick={() => toggleCampusAccess(user.id, campus.id)}
+                                    className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                                      isAllowed
+                                        ? 'bg-green-500/20 text-green-400 border-green-500/50 hover:bg-green-500/30'
+                                        : 'bg-slate-700/50 text-slate-400 border-slate-600 hover:bg-slate-700/70'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      {isAllowed ? (
+                                        <CheckIcon className="w-4 h-4" />
+                                      ) : (
+                                        <XMarkIcon className="w-4 h-4" />
+                                      )}
+                                      <span>{campus.name || campus.display_name || campus.id}</span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                              {getAllowedCampuses(user.id) !== null && (
+                                <button
+                                  onClick={() => {
+                                    setPermissions(prev => {
+                                      const newPerms = { ...prev };
+                                      if (!newPerms[user.id]) {
+                                        newPerms[user.id] = {};
+                                      }
+                                      delete newPerms[user.id].allowed_campuses;
+                                      if (Object.keys(newPerms[user.id]).length === 0) {
+                                        delete newPerms[user.id];
+                                      }
+                                      const hasChanges = JSON.stringify(newPerms) !== JSON.stringify(originalPermissions);
+                                      setHasChanges(hasChanges);
+                                      return newPerms;
+                                    });
+                                  }}
+                                  className="px-4 py-2 rounded-lg border-2 border-blue-500/50 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all"
+                                >
+                                  Clear Restrictions (Allow All)
+                                </button>
+                              )}
+                            </div>
+                            {getAllowedCampuses(user.id) !== null && (
+                              <div className="mt-3 text-xs text-slate-400">
+                                <span className="text-purple-400">⚠️</span> Campus restriction active: User can only view data from selected campuses.
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   ))
                 )}
               </tbody>

@@ -9393,27 +9393,41 @@ def get_campuses():
     """Get list of active campuses for dropdowns based on user permissions"""
     active_campuses = get_active_campuses()
     
-    # Filter campuses based on user role and permissions
-    if current_user.role == 'admin' or current_user.role == 'senior_leader':
-        # Admin and senior leaders see all campuses
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
-    elif current_user.role == 'campus_pastor':
-        # Campus pastors only see their assigned campus
-        filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
-        default_campus = current_user.campus
-    elif current_user.role == 'finance':
-        # Finance users see all campuses (for logging purposes)
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
-    elif current_user.role == 'pastor':
-        # Pastors see all campuses (for logging purposes)
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
+    # Check for custom campus restrictions first (overrides role defaults)
+    custom_permissions = getattr(current_user, 'custom_permissions', {}) or {}
+    allowed_campuses = custom_permissions.get('allowed_campuses')
+    
+    if allowed_campuses is not None:
+        # User has custom campus restrictions
+        # Filter to only allowed campuses
+        filtered_campuses = [c for c in active_campuses if c['id'] in allowed_campuses]
+        # Default to first allowed campus, or 'all_campuses' if multiple
+        if len(allowed_campuses) == 1:
+            default_campus = allowed_campuses[0]
+        else:
+            default_campus = "all_campuses" if len(allowed_campuses) > 1 else (allowed_campuses[0] if allowed_campuses else "all_campuses")
     else:
-        # Default to all campuses for unknown roles
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
+        # No custom restrictions, use role-based filtering
+        if current_user.role == 'admin' or current_user.role == 'senior_leader':
+            # Admin and senior leaders see all campuses
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
+        elif current_user.role == 'campus_pastor':
+            # Campus pastors only see their assigned campus
+            filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
+            default_campus = current_user.campus
+        elif current_user.role == 'finance':
+            # Finance users see all campuses (for logging purposes)
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
+        elif current_user.role == 'pastor':
+            # Pastors see all campuses (for logging purposes)
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
+        else:
+            # Default to all campuses for unknown roles
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
     
     return jsonify({
         "campuses": [{
