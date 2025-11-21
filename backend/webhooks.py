@@ -206,40 +206,8 @@ def handle_payment_success(payment_intent):
         )
         engagement.recalculate_heartbeat()
         
-        # Update GivingSummary for heartbeat risk factors
-        from models import GivingSummary
-        from datetime import timedelta
-        
-        giving_date = datetime.now(timezone.utc).date()
-        period_start = (giving_date.replace(day=1) - timedelta(days=90)).replace(day=1)  # Last 3 months
-        period_end = giving_date
-        
-        # Find or create giving summary for this period
-        giving_summary = GivingSummary.query.filter_by(
-            person_id=person.id,
-            period_start=period_start,
-            period_end=period_end
-        ).first()
-        
-        if not giving_summary:
-            giving_summary = GivingSummary(
-                person_id=person.id,
-                period_start=period_start,
-                period_end=period_end,
-                frequency='monthly',  # Will be recalculated based on actual frequency
-                pattern_score=1.0,
-                last_gift_at=giving_date
-            )
-            db.session.add(giving_summary)
-        else:
-            giving_summary.last_gift_at = giving_date
-            giving_summary.frequency = 'monthly'  # Update frequency based on giving pattern
-            giving_summary.pattern_score = 1.0
-            giving_summary.updated_at = datetime.utcnow()
-        
         db.session.commit()
         logger.info(f"[WEBHOOK] ✅ Payment processed: ${transaction.amount} from {email} (Transaction ID: {transaction.id})")
-        logger.info(f"[WEBHOOK] ✅ Updated GivingSummary for heartbeat risk factors")
         
     except Exception as e:
         db.session.rollback()
@@ -301,41 +269,9 @@ def handle_subscription_payment(invoice):
                 campus=transaction.campus
             )
             engagement.recalculate_heartbeat()
-            
-            # Update GivingSummary for heartbeat risk factors
-            from models import GivingSummary
-            from datetime import timedelta
-            
-            giving_date = datetime.now(timezone.utc).date()
-            period_start = (giving_date.replace(day=1) - timedelta(days=90)).replace(day=1)  # Last 3 months
-            period_end = giving_date
-            
-            # Find or create giving summary for this period
-            giving_summary = GivingSummary.query.filter_by(
-                person_id=person.id,
-                period_start=period_start,
-                period_end=period_end
-            ).first()
-            
-            if not giving_summary:
-                giving_summary = GivingSummary(
-                    person_id=person.id,
-                    period_start=period_start,
-                    period_end=period_end,
-                    frequency='monthly',  # Will be recalculated based on actual frequency
-                    pattern_score=1.0,
-                    last_gift_at=giving_date
-                )
-                db.session.add(giving_summary)
-            else:
-                giving_summary.last_gift_at = giving_date
-                giving_summary.frequency = 'monthly'  # Update frequency based on giving pattern
-                giving_summary.pattern_score = 1.0
-                giving_summary.updated_at = datetime.utcnow()
         
         db.session.commit()
         logger.info(f"Subscription payment processed: ${invoice['amount_paid']/100} for subscription {subscription_id}")
-        logger.info(f"[WEBHOOK] ✅ Updated GivingSummary for heartbeat risk factors")
         
     except Exception as e:
         db.session.rollback()
