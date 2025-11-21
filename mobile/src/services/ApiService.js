@@ -315,13 +315,6 @@ export const ApiService = {
     return response.data;
   },
 
-  async completePathwayStep(progressId, stepId) {
-    const response = await api.post(`/api/pathways/progress/${progressId}/complete-step`, {
-      step_id: stepId,
-    });
-    return response.data;
-  },
-
   // Profile
   async getPersonProfile(email) {
     try {
