@@ -946,12 +946,53 @@ class ConnectGroup(db.Model):
     co_leader = db.relationship('Person', foreign_keys=[co_leader_id], backref='co_led_groups')
     
     def get_members(self):
-        """Get all active members of this group"""
-        return Person.query.filter_by(connect_group=self.id, is_active=True).all()
+        """Get all active members of this group (matches by ID or name)"""
+        from sqlalchemy import text
+        
+        # First try by ID (exact match)
+        members = Person.query.filter_by(connect_group=self.id, is_active=True).all()
+        
+        if members:
+            return members
+        
+        # If no members found by ID, try by name (Pulse stores names like "Mums Group (Courtney Langberg)")
+        group_name = self.name.strip()
+        
+        # Try exact name match
+        members = Person.query.filter(
+            db.func.lower(Person.connect_group) == db.func.lower(group_name),
+            Person.is_active == True
+        ).all()
+        
+        if members:
+            return members
+        
+        # Try with "&" instead of "and" (variations)
+        group_name_variant = group_name.replace(' and ', ' & ').replace(' And ', ' & ')
+        if group_name_variant != group_name:
+            members = Person.query.filter(
+                db.func.lower(Person.connect_group) == db.func.lower(group_name_variant),
+                Person.is_active == True
+            ).all()
+            if members:
+                return members
+        
+        # Try partial match (in case name is slightly different)
+        if group_name:
+            first_word = group_name.split()[0] if group_name else ''
+            if first_word:
+                members = Person.query.filter(
+                    db.func.lower(Person.connect_group).like(db.func.lower(f"%{first_word}%")),
+                    Person.is_active == True
+                ).all()
+                if members:
+                    return members
+        
+        return []
     
     def get_member_count(self):
         """Get count of active members"""
-        return Person.query.filter_by(connect_group=self.id, is_active=True).count()
+        return len(self.get_members())
     
     def get_leader_emails(self):
         """Get list of all leader emails (leader, co-leader, and additional leaders)"""

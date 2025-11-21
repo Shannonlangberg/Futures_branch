@@ -16260,9 +16260,20 @@ def get_leader_portal(group_id):
         if group.leader_access_code and access_code != group.leader_access_code:
             return jsonify({'error': 'Invalid access code'}), 403
         
-        # Get all members
+        # Get all members (handles both ID and name matching)
         members = group.get_members()
         members_data = [m.to_dict() for m in members]
+        
+        # Log for debugging
+        logger.info(f"Leader portal - Group {group_id} ({group.name}): Found {len(members_data)} members")
+        if len(members_data) == 0:
+            # Check what's actually in the database
+            from sqlalchemy import text
+            sample_persons = db.session.execute(
+                text("SELECT id, full_name, connect_group FROM persons WHERE is_active = 1 AND connect_group IS NOT NULL LIMIT 10")
+            ).fetchall()
+            logger.info(f"Sample persons with connect_group: {[dict(p) for p in sample_persons]}")
+            logger.info(f"Looking for group ID: {group_id}, group name: {group.name}")
         
         # Get recent meetings (last 10)
         recent_meetings = ConnectGroupMeeting.query.filter_by(
