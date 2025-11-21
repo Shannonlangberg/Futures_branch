@@ -72,12 +72,32 @@ def create_prayer_request():
             logger.warning(f"Missing email or request text")
             return jsonify({'error': 'Email and request text required'}), 400
         
-        # Find person by email
+        # Find person by email, create if doesn't exist (like giving endpoint)
         logger.info(f"Looking up person: {email}")
         person = Person.query.filter_by(email=email, is_active=True).first()
+        
         if not person:
-            logger.warning(f"Person not found for email: {email}")
-            return jsonify({'error': 'Person not found'}), 404
+            # Auto-create person (like giving endpoint does)
+            logger.info(f"Person not found, creating new person for: {email}")
+            try:
+                import uuid
+                person_id = f"user_{uuid.uuid4().hex[:12]}"
+                name_from_email = email.split('@')[0].replace('.', ' ').title()
+                
+                person = Person(
+                    id=person_id,
+                    full_name=name_from_email,
+                    email=email,
+                    campus='paradise',  # Default campus
+                    is_active=True
+                )
+                db.session.add(person)
+                db.session.flush()
+                logger.info(f"✅ Created new person: {person.id} - {person.full_name}")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"❌ Error creating person: {e}", exc_info=True)
+                return jsonify({'error': 'Failed to create person record'}), 500
         
         # Find campus pastor for routing
         campus_pastor = None
@@ -151,12 +171,32 @@ def create_praise_report():
             logger.warning(f"Missing email or report text")
             return jsonify({'error': 'Email and report text required'}), 400
         
-        # Find person by email
+        # Find person by email, create if doesn't exist (like giving endpoint)
         logger.info(f"Looking up person: {email}")
         person = Person.query.filter_by(email=email, is_active=True).first()
+        
         if not person:
-            logger.warning(f"Person not found for email: {email}")
-            return jsonify({'error': 'Person not found'}), 404
+            # Auto-create person (like giving endpoint does)
+            logger.info(f"Person not found, creating new person for: {email}")
+            try:
+                import uuid
+                person_id = f"user_{uuid.uuid4().hex[:12]}"
+                name_from_email = email.split('@')[0].replace('.', ' ').title()
+                
+                person = Person(
+                    id=person_id,
+                    full_name=name_from_email,
+                    email=email,
+                    campus='paradise',  # Default campus
+                    is_active=True
+                )
+                db.session.add(person)
+                db.session.flush()
+                logger.info(f"✅ Created new person: {person.id} - {person.full_name}")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"❌ Error creating person: {e}", exc_info=True)
+                return jsonify({'error': 'Failed to create person record'}), 500
         
         # Find campus pastor for routing
         campus_pastor = None
