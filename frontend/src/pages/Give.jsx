@@ -6,8 +6,14 @@ import { QrCodeIcon, DevicePhoneMobileIcon, ArrowPathIcon } from '@heroicons/rea
 import QRCode from 'qrcode';
 
 // Only initialize Stripe if publishable key is available
-const stripeKey = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
+
+// Debug logging
+console.log('[Give.jsx] Stripe key available:', !!stripeKey);
+if (stripeKey) {
+  console.log('[Give.jsx] Stripe key prefix:', stripeKey.substring(0, 10));
+}
 
 // Wrapper component to provide Stripe Elements context
 const GiveWrapper = () => {
