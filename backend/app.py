@@ -16453,12 +16453,12 @@ def mark_leader_attendance(group_id):
             if person:
                 # Ensure engagement profile exists
                 if not person.engagement_profile:
-                    from models import create_person_with_engagement
                     # Create engagement profile if it doesn't exist
                     engagement = EngagementProfile(person_id=person_id)
                     db.session.add(engagement)
                     db.session.flush()
-                    person.engagement_profile = engagement
+                    # Refresh person to get the relationship
+                    db.session.refresh(person)
                 
                 try:
                     person.engagement_profile.add_group_attendance(
