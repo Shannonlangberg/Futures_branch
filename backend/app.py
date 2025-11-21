@@ -1505,14 +1505,14 @@ def authenticate_user(username_or_email, password):
         normalized_input = username_or_email.strip().lower()
         
         # Check both username and email fields (case-insensitive)
-        # SQLite LOWER() function for case-insensitive comparison
+        # SQLite: Use LOWER() on both sides for reliable case-insensitive comparison
         # Try to include custom_permissions if column exists, otherwise fall back to 8 columns
         try:
             cursor.execute('''
                 SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
                 FROM users
-                WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
-            ''', (normalized_input, normalized_input))
+                WHERE (LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)) AND active = 1
+            ''', (username_or_email.strip(), username_or_email.strip()))
         except Exception as col_error:
             # Check if error is due to missing column
             error_msg = str(col_error).lower()
@@ -1521,8 +1521,8 @@ def authenticate_user(username_or_email, password):
                 cursor.execute('''
                     SELECT id, username, password_hash, full_name, email, role, campus, active
                     FROM users
-                    WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
-                ''', (normalized_input, normalized_input))
+                    WHERE (LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)) AND active = 1
+                ''', (username_or_email.strip(), username_or_email.strip()))
             else:
                 # Re-raise if it's a different error
                 logger.error(f"Database error in authenticate_user: {col_error}")
