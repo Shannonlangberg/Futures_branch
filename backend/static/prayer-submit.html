@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prayer & Praise - Futures Branch</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #667eea;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: #f0f0f0;
+            color: #666;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .optional {
+            color: #999;
+            font-size: 12px;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🙏 Prayer & Praise</h1>
+            <p id="locationText">Futures Branch</p>
+        </div>
+        
+        <div id="message" class="message"></div>
+        
+        <div class="tabs">
+            <button class="tab active" id="prayerTab" onclick="switchTab('prayer')">
+                🙏 Prayer Request
+            </button>
+            <button class="tab" id="praiseTab" onclick="switchTab('praise')">
+                🎉 Praise Report
+            </button>
+        </div>
+        
+        <form id="submissionForm">
+            <div class="form-group">
+                <label for="name">Your Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="phone">Phone <span class="optional">(optional)</span></label>
+                <input type="tel" id="phone" name="phone">
+            </div>
+            
+            <div class="form-group" id="campusGroup">
+                <label for="campus">Campus <span class="optional">(optional)</span></label>
+                <select id="campus" name="campus">
+                    <option value="">Select a campus</option>
+                    <option value="paradise">Paradise</option>
+                    <option value="south">South</option>
+                    <option value="salisbury">Salisbury</option>
+                    <option value="adelaide_city">Adelaide City</option>
+                    <option value="mount_barker">Mount Barker</option>
+                    <option value="copper_coast">Copper Coast</option>
+                    <option value="clare_valley">Clare Valley</option>
+                    <option value="victor_harbour">Victor Harbour</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="text" id="textLabel">What would you like us to pray for?</label>
+                <textarea id="text" name="text" required></textarea>
+            </div>
+            
+            <button type="submit" class="submit-btn" id="submitBtn">
+                <span id="btnText">Submit Prayer Request</span>
+            </button>
+        </form>
+    </div>
+    
+    <script>
+        // Get link_id from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const linkId = urlParams.get('link_id') || window.location.pathname.split('/').pop();
+        
+        let currentType = 'prayer';
+        let linkInfo = null;
+        
+        // Load link info
+        async function loadLinkInfo() {
+            if (!linkId || linkId === 'prayer-submit.html') return;
+            
+            try {
+                const response = await fetch(`/api/prayer/link/${linkId}`);
+                if (response.ok) {
+                    linkInfo = await response.json();
+                    
+                    // Update UI based on link info
+                    if (linkInfo.location) {
+                        document.getElementById('locationText').textContent = linkInfo.location;
+                    }
+                    
+                    // Pre-select campus if specified
+                    if (linkInfo.campus) {
+                        document.getElementById('campus').value = linkInfo.campus;
+                        document.getElementById('campusGroup').style.display = 'none';
+                    }
+                    
+                    // Set default tab based on link type
+                    if (linkInfo.link_type === 'prayer') {
+                        switchTab('prayer');
+                    } else if (linkInfo.link_type === 'praise') {
+                        switchTab('praise');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading link info:', error);
+            }
+        }
+        
+        // Switch between prayer and praise
+        function switchTab(type) {
+            currentType = type;
+            
+            const prayerTab = document.getElementById('prayerTab');
+            const praiseTab = document.getElementById('praiseTab');
+            const textLabel = document.getElementById('textLabel');
+            const btnText = document.getElementById('btnText');
+            
+            if (type === 'prayer') {
+                prayerTab.classList.add('active');
+                praiseTab.classList.remove('active');
+                textLabel.textContent = 'What would you like us to pray for?';
+                btnText.textContent = 'Submit Prayer Request';
+            } else {
+                praiseTab.classList.add('active');
+                prayerTab.classList.remove('active');
+                textLabel.textContent = 'What are you praising God for?';
+                btnText.textContent = 'Submit Praise Report';
+            }
+        }
+        
+        // Show message
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Handle form submission
+        document.getElementById('submissionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            
+            submitBtn.disabled = true;
+            btnText.innerHTML = 'Submitting... <div class="loader"></div>';
+            
+            const formData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                campus: document.getElementById('campus').value,
+                type: currentType,
+                text: document.getElementById('text').value
+            };
+            
+            try {
+                const endpoint = linkId && linkId !== 'prayer-submit.html' 
+                    ? `/api/prayer/link/${linkId}/submit`
+                    : `/api/prayer/${currentType === 'prayer' ? 'requests' : 'praise'}`;
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showMessage(result.message || 'Thank you! Your submission has been received.', 'success');
+                    document.getElementById('submissionForm').reset();
+                } else {
+                    showMessage(result.error || 'Failed to submit. Please try again.', 'error');
+                }
+            } catch (error) {
+                console.error('Error submitting:', error);
+                showMessage('Network error. Please check your connection and try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                btnText.textContent = currentType === 'prayer' ? 'Submit Prayer Request' : 'Submit Praise Report';
+            }
+        });
+        
+        // Load link info on page load
+        loadLinkInfo();
+    </script>
+</body>
+</html>
+

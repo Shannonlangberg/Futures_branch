@@ -120,6 +120,16 @@ function MainTabs() {
         }}
       />
       <Tab.Screen 
+        name="Prayer" 
+        component={PrayerScreen}
+        options={{
+          tabBarLabel: 'Prayer',
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ fontSize: 24 }}>🙏</Text>
+          ),
+        }}
+      />
+      <Tab.Screen 
         name="Settings" 
         component={ProfileScreen}
         options={{
@@ -277,24 +287,6 @@ export default function App() {
                     fontWeight: '600',
                   },
                   headerTitle: 'Events',
-                  headerBackTitleVisible: false,
-                }}
-              />
-              <Stack.Screen 
-                name="Prayer" 
-                component={PrayerScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Prayer',
                   headerBackTitleVisible: false,
                 }}
               />

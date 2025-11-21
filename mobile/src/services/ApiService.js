@@ -163,6 +163,17 @@ export const ApiService = {
     return response.data;
   },
 
+  // Prayer Links (for QR/NFC tap points)
+  async getPrayerLinkInfo(linkId) {
+    const response = await api.get(`/api/prayer/link/${linkId}`);
+    return response.data;
+  },
+
+  async submitViaLink(linkId, data) {
+    const response = await api.post(`/api/prayer/link/${linkId}/submit`, data);
+    return response.data;
+  },
+
   // Groups
   async getConnectGroups(campus) {
     const response = await api.get(`/api/connect-groups?campus=${campus}`);
