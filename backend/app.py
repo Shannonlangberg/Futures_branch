@@ -1445,22 +1445,35 @@ def load_user(user_id):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
-            FROM users
-            WHERE id = ? AND active = 1
-        ''', (user_id,))
+        
+        # Try to select with custom_permissions, fallback if column doesn't exist
+        try:
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
+                FROM users
+                WHERE id = ? AND active = 1
+            ''', (user_id,))
+        except Exception:
+            # Fallback if custom_permissions column doesn't exist yet
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active
+                FROM users
+                WHERE id = ? AND active = 1
+            ''', (user_id,))
         
         row = cursor.fetchone()
         conn.close()
         
         if row:
             import json
-            custom_perms = row[8] if len(row) > 8 else None
-            try:
-                custom_permissions = json.loads(custom_perms) if custom_perms else {}
-            except:
-                custom_permissions = {}
+            custom_permissions = {}
+            if len(row) > 8:
+                try:
+                    custom_perms = row[8]
+                    if custom_perms:
+                        custom_permissions = json.loads(custom_perms) if isinstance(custom_perms, str) else custom_perms
+                except:
+                    custom_permissions = {}
             
             user_data = {
                 'id': str(row[0]),  # Flask-Login expects string ID
@@ -1476,7 +1489,7 @@ def load_user(user_id):
             return User(user_data)
         return None
     except Exception as e:
-        logger.error(f"Error loading user {user_id}: {e}")
+        logger.error(f"Error loading user {user_id}: {e}", exc_info=True)
         return None
 
 def authenticate_user(username_or_email, password):
@@ -1493,11 +1506,20 @@ def authenticate_user(username_or_email, password):
         
         # Check both username and email fields (case-insensitive)
         # SQLite LOWER() function for case-insensitive comparison
-        cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active
-            FROM users
-            WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
-        ''', (normalized_input, normalized_input))
+        # Try to include custom_permissions if column exists, otherwise fall back to 8 columns
+        try:
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
+                FROM users
+                WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
+            ''', (normalized_input, normalized_input))
+        except Exception:
+            # Fallback if custom_permissions column doesn't exist yet
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active
+                FROM users
+                WHERE (LOWER(TRIM(username)) = ? OR LOWER(TRIM(email)) = ?) AND active = 1
+            ''', (normalized_input, normalized_input))
         
         row = cursor.fetchone()
         
@@ -1509,6 +1531,17 @@ def authenticate_user(username_or_email, password):
             logger.info(f"      - Role: {row[5]}")
             logger.info(f"      - Active: {bool(row[7])}")
             
+            # Handle custom_permissions if column exists
+            import json
+            custom_permissions = {}
+            if len(row) > 8:
+                try:
+                    custom_perms = row[8]
+                    if custom_perms:
+                        custom_permissions = json.loads(custom_perms) if isinstance(custom_perms, str) else custom_perms
+                except:
+                    custom_permissions = {}
+            
             user_data = {
                 'id': str(row[0]),
                 'username': row[1],
@@ -1517,7 +1550,8 @@ def authenticate_user(username_or_email, password):
                 'email': row[4] or '',
                 'role': row[5],
                 'campus': row[6] or '',
-                'active': bool(row[7])
+                'active': bool(row[7]),
+                'custom_permissions': custom_permissions
             }
             
             user = User(user_data)
