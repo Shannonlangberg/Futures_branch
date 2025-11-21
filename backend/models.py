@@ -948,47 +948,82 @@ class ConnectGroup(db.Model):
     def get_members(self):
         """Get all active members of this group (matches by ID or name)"""
         from sqlalchemy import text
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        all_members = []
         
         # First try by ID (exact match)
-        members = Person.query.filter_by(connect_group=self.id, is_active=True).all()
-        
-        if members:
-            return members
+        members_by_id = Person.query.filter_by(connect_group=self.id, is_active=True).all()
+        if members_by_id:
+            logger.info(f"Found {len(members_by_id)} members by ID for group {self.id}")
+            all_members.extend(members_by_id)
         
         # If no members found by ID, try by name (Pulse stores names like "Mums Group (Courtney Langberg)")
         group_name = self.name.strip()
         
-        # Try exact name match
-        members = Person.query.filter(
+        # Try exact name match (case-insensitive)
+        members_by_name = Person.query.filter(
             db.func.lower(Person.connect_group) == db.func.lower(group_name),
             Person.is_active == True
         ).all()
-        
-        if members:
-            return members
+        if members_by_name:
+            logger.info(f"Found {len(members_by_name)} members by exact name match: '{group_name}'")
+            # Add only if not already in list
+            for m in members_by_name:
+                if m not in all_members:
+                    all_members.append(m)
         
         # Try with "&" instead of "and" (variations)
         group_name_variant = group_name.replace(' and ', ' & ').replace(' And ', ' & ')
         if group_name_variant != group_name:
-            members = Person.query.filter(
+            members_by_variant = Person.query.filter(
                 db.func.lower(Person.connect_group) == db.func.lower(group_name_variant),
                 Person.is_active == True
             ).all()
-            if members:
-                return members
+            if members_by_variant:
+                logger.info(f"Found {len(members_by_variant)} members by variant name: '{group_name_variant}'")
+                for m in members_by_variant:
+                    if m not in all_members:
+                        all_members.append(m)
         
-        # Try partial match (in case name is slightly different)
-        if group_name:
-            first_word = group_name.split()[0] if group_name else ''
-            if first_word:
-                members = Person.query.filter(
-                    db.func.lower(Person.connect_group).like(db.func.lower(f"%{first_word}%")),
-                    Person.is_active == True
-                ).all()
-                if members:
-                    return members
+        # Try with "And" capitalized
+        group_name_capitalized = group_name.replace(' and ', ' And ')
+        if group_name_capitalized != group_name and group_name_capitalized != group_name_variant:
+            members_by_capitalized = Person.query.filter(
+                db.func.lower(Person.connect_group) == db.func.lower(group_name_capitalized),
+                Person.is_active == True
+            ).all()
+            if members_by_capitalized:
+                logger.info(f"Found {len(members_by_capitalized)} members by capitalized name: '{group_name_capitalized}'")
+                for m in members_by_capitalized:
+                    if m not in all_members:
+                        all_members.append(m)
         
-        return []
+        # Try partial match (in case name is slightly different) - use LIKE with group name
+        if group_name and len(all_members) == 0:
+            # Try matching with LIKE - more flexible
+            members_by_like = Person.query.filter(
+                db.func.lower(Person.connect_group).like(db.func.lower(f"%{group_name}%")),
+                Person.is_active == True
+            ).all()
+            if members_by_like:
+                logger.info(f"Found {len(members_by_like)} members by partial match: '%{group_name}%'")
+                all_members.extend(members_by_like)
+        
+        # If still no members, try reverse - find all people with this group name/ID and log them
+        if len(all_members) == 0:
+            # Use raw SQL to see what's actually in the database
+            try:
+                from sqlalchemy import text
+                sample = db.session.execute(
+                    text("SELECT id, full_name, connect_group FROM persons WHERE is_active = 1 AND connect_group IS NOT NULL AND connect_group != '' LIMIT 20")
+                ).fetchall()
+                logger.warning(f"No members found for group '{self.name}' (ID: {self.id}). Sample connect_group values in DB: {[(r[0], r[1], r[2]) for r in sample]}")
+            except Exception as e:
+                logger.error(f"Error checking database: {e}")
+        
+        return all_members
     
     def get_member_count(self):
         """Get count of active members"""
