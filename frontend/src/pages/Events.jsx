@@ -20,6 +20,15 @@ const Events = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [registrationData, setRegistrationData] = useState({
+    email: '',
+    name: '',
+    phone: '',
+    guest_count: 0
+  });
+  const [registering, setRegistering] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   useEffect(() => {
     fetchCampuses();
@@ -367,26 +376,26 @@ const Events = () => {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-6 border-t border-white/10">
-              {selectedEvent.requires_payment && selectedEvent.stripe_price_id && (
+              {selectedEvent.requires_payment && selectedEvent.price && (
                 <button
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => {
-                    // TODO: Implement Stripe checkout
-                    alert('Payment integration coming soon!');
+                    setShowRegistrationModal(true);
                   }}
+                  disabled={registering || paymentProcessing}
                 >
-                  Register & Pay
+                  {paymentProcessing ? 'Processing...' : `Register & Pay $${parseFloat(selectedEvent.price).toFixed(2)}`}
                 </button>
               )}
-              {(!selectedEvent.requires_payment || !selectedEvent.stripe_price_id) && (
+              {(!selectedEvent.requires_payment || !selectedEvent.price) && (
                 <button
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => {
-                    // TODO: Implement RSVP
-                    alert('RSVP functionality coming soon!');
+                    setShowRegistrationModal(true);
                   }}
+                  disabled={registering}
                 >
-                  RSVP
+                  {registering ? 'Registering...' : 'RSVP'}
                 </button>
               )}
               <button
@@ -399,6 +408,221 @@ const Events = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Registration Modal */}
+      {showRegistrationModal && selectedEvent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full border border-white/10 shadow-2xl">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {selectedEvent.requires_payment && selectedEvent.price ? 'Register & Pay' : 'RSVP'}
+                </h2>
+                <p className="text-slate-400 text-sm">
+                  {selectedEvent.title}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowRegistrationModal(false);
+                  setRegistrationData({ email: '', name: '', phone: '', guest_count: 0 });
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <XMarkIcon className="w-6 h-6 text-white/60" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                
+                if (!registrationData.email) {
+                  alert('Email is required');
+                  return;
+                }
+
+                try {
+                  setRegistering(true);
+
+                  // Check if event requires payment
+                  if (selectedEvent.requires_payment && selectedEvent.price) {
+                    setPaymentProcessing(true);
+                    
+                    // Step 1: Create payment intent
+                    const paymentResponse = await fetch(`/api/events/${selectedEvent.id}/create-payment-intent`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        email: registrationData.email,
+                        guest_count: parseInt(registrationData.guest_count) || 0
+                      })
+                    });
+
+                    if (!paymentResponse.ok) {
+                      const error = await paymentResponse.json();
+                      throw new Error(error.error || 'Failed to create payment intent');
+                    }
+
+                    const paymentData = await paymentResponse.json();
+
+                    // Step 2: Register with payment intent ID
+                    // The webhook will automatically complete registration when payment succeeds
+                    const registerResponse = await fetch(`/api/events/${selectedEvent.id}/register`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        ...registrationData,
+                        payment_intent_id: paymentData.payment_intent_id
+                      })
+                    });
+
+                    if (!registerResponse.ok) {
+                      const error = await registerResponse.json();
+                      throw new Error(error.error || 'Registration failed');
+                    }
+
+                    // Step 3: Registration created, payment will be processed via webhook
+                    // For now, show success message
+                    alert(
+                      `Registration submitted!\n\n` +
+                      `Amount: $${paymentData.amount.toFixed(2)}\n` +
+                      `Your registration is pending payment confirmation.\n` +
+                      `You'll receive a confirmation email once payment is processed.`
+                    );
+
+                    // Close modals
+                    setShowRegistrationModal(false);
+                    setShowEventModal(false);
+                    setSelectedEvent(null);
+                    setRegistrationData({ email: '', name: '', phone: '', guest_count: 0 });
+                    fetchEvents();
+                  } else {
+                    // Free event - use RSVP endpoint
+                    const rsvpResponse = await fetch(`/api/events/${selectedEvent.id}/rsvp`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        email: registrationData.email,
+                        name: registrationData.name,
+                        phone: registrationData.phone,
+                        status: 'going',
+                        guest_count: parseInt(registrationData.guest_count) || 0
+                      })
+                    });
+
+                    if (!rsvpResponse.ok) {
+                      const error = await rsvpResponse.json();
+                      throw new Error(error.error || 'RSVP failed');
+                    }
+
+                    alert('RSVP successful! You\'re registered for this event.');
+                  }
+
+                  // Success - close modals and refresh events
+                  setShowRegistrationModal(false);
+                  setShowEventModal(false);
+                  setSelectedEvent(null);
+                  setRegistrationData({ email: '', name: '', phone: '', guest_count: 0 });
+                  fetchEvents();
+                } catch (error) {
+                  console.error('Registration error:', error);
+                  alert(error.message || 'Failed to register. Please try again.');
+                } finally {
+                  setRegistering(false);
+                  setPaymentProcessing(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-white text-sm font-medium mb-2">
+                  Email <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={registrationData.email}
+                  onChange={(e) => setRegistrationData({ ...registrationData, email: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="your@email.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-sm font-medium mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={registrationData.name}
+                  onChange={(e) => setRegistrationData({ ...registrationData, name: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Your name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-sm font-medium mb-2">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={registrationData.phone}
+                  onChange={(e) => setRegistrationData({ ...registrationData, phone: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Your phone number"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-sm font-medium mb-2">
+                  Number of Guests
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={registrationData.guest_count}
+                  onChange={(e) => setRegistrationData({ ...registrationData, guest_count: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+              </div>
+
+              {selectedEvent.requires_payment && selectedEvent.price && (
+                <div className="bg-green-500/20 rounded-xl px-4 py-3 border border-green-500/30">
+                  <p className="text-green-400 text-sm">
+                    Total: ${(parseFloat(selectedEvent.price) * (1 + (parseInt(registrationData.guest_count) || 0))).toFixed(2)}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={registering || paymentProcessing}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {paymentProcessing ? 'Processing Payment...' : registering ? 'Registering...' : selectedEvent.requires_payment && selectedEvent.price ? 'Pay & Register' : 'RSVP'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRegistrationModal(false);
+                    setRegistrationData({ email: '', name: '', phone: '', guest_count: 0 });
+                  }}
+                  className="px-6 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
