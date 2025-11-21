@@ -16527,7 +16527,7 @@ def mark_leader_attendance(group_id):
                     # Also create ConnectAttendance record for heartbeat engine
                     # The heartbeat engine reads from ConnectAttendance table, not ConnectGroupAttendance
                     try:
-                        from models import ConnectAttendance, HeartbeatConnectGroup, HeartbeatCampus
+                        from models import ConnectAttendance, HeartbeatConnectGroup, Campus
                         
                         # Find or create corresponding HeartbeatConnectGroup
                         heartbeat_group = None
