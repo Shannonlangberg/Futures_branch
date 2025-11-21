@@ -16484,19 +16484,38 @@ def mark_leader_attendance(group_id):
                 # Continue with next person instead of failing entire request
                 continue
         
-        db.session.commit()
+        # Commit all changes
+        try:
+            db.session.commit()
+            logger.info(f"Attendance marked for group {group_id} on {meeting_date_obj} by {email}: {len([a for a in attendance_list if a.get('person_id')])} records")
+        except Exception as commit_error:
+            db.session.rollback()
+            logger.error(f"Error committing attendance: {commit_error}", exc_info=True)
+            import traceback
+            logger.error(f"Commit traceback: {traceback.format_exc()}")
+            return jsonify({'error': f'Failed to save attendance: {str(commit_error)}'}), 500
         
-        logger.info(f"Attendance marked for group {group_id} on {meeting_date_obj} by {email}")
+        # Get updated meeting with attendance
+        try:
+            meeting_dict = meeting.to_dict()
+            attendance_records = ConnectGroupAttendance.query.filter_by(meeting_id=meeting.id).all()
+            meeting_dict['attendance'] = [att.to_dict() for att in attendance_records]
+        except Exception as dict_error:
+            logger.error(f"Error serializing meeting data: {dict_error}", exc_info=True)
+            # Return basic success even if serialization fails
+            meeting_dict = {'id': meeting.id, 'meeting_date': meeting_date_obj.isoformat()}
         
         return jsonify({
             'message': 'Attendance marked successfully',
-            'meeting': meeting.to_dict()
+            'meeting': meeting_dict
         }), 200
         
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error marking attendance: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to mark attendance'}), 500
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to mark attendance: {str(e)}'}), 500
 
 
 @app.route('/api/connect-groups/meetings/<meeting_id>/attendance', methods=['POST'])
