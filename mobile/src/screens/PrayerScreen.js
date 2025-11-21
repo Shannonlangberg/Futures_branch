@@ -50,6 +50,7 @@ export default function PrayerScreen({ navigation }) {
     try {
       const result = await ApiService.submitPrayerRequest(user.email, {
         request: request.trim(),
+        campus: user.campus, // Pass the user's campus
         created_at: new Date().toISOString(),
       });
 
@@ -85,6 +86,7 @@ export default function PrayerScreen({ navigation }) {
     try {
       const result = await ApiService.submitPraiseReport(user.email, {
         report: praise.trim(),
+        campus: user.campus, // Pass the user's campus
         created_at: new Date().toISOString(),
       });
 

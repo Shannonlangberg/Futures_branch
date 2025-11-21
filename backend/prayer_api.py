@@ -67,18 +67,19 @@ def create_prayer_request():
         
         email = data.get('email')
         request_text = data.get('request')
+        campus = data.get('campus', 'paradise')  # Get campus from request, default to paradise
         
         if not email or not request_text:
             logger.warning(f"Missing email or request text")
             return jsonify({'error': 'Email and request text required'}), 400
         
         # Find person by email, create if doesn't exist (like giving endpoint)
-        logger.info(f"Looking up person: {email}")
+        logger.info(f"Looking up person: {email}, campus: {campus}")
         person = Person.query.filter_by(email=email, is_active=True).first()
         
         if not person:
             # Auto-create person (like giving endpoint does)
-            logger.info(f"Person not found, creating new person for: {email}")
+            logger.info(f"Person not found, creating new person for: {email} at {campus}")
             try:
                 import uuid
                 person_id = f"user_{uuid.uuid4().hex[:12]}"
@@ -88,16 +89,22 @@ def create_prayer_request():
                     id=person_id,
                     full_name=name_from_email,
                     email=email,
-                    campus='paradise',  # Default campus
+                    campus=campus,  # Use campus from request
                     is_active=True
                 )
                 db.session.add(person)
                 db.session.flush()
-                logger.info(f"✅ Created new person: {person.id} - {person.full_name}")
+                logger.info(f"✅ Created new person: {person.id} - {person.full_name} at {campus}")
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"❌ Error creating person: {e}", exc_info=True)
                 return jsonify({'error': 'Failed to create person record'}), 500
+        else:
+            # Update person's campus if it has changed
+            if person.campus != campus and campus != 'paradise':
+                logger.info(f"Updating person {email} campus from {person.campus} to {campus}")
+                person.campus = campus
+                db.session.flush()
         
         # Find campus pastor for routing
         campus_pastor = None
@@ -166,18 +173,19 @@ def create_praise_report():
         
         email = data.get('email')
         report = data.get('report')
+        campus = data.get('campus', 'paradise')  # Get campus from request, default to paradise
         
         if not email or not report:
             logger.warning(f"Missing email or report text")
             return jsonify({'error': 'Email and report text required'}), 400
         
         # Find person by email, create if doesn't exist (like giving endpoint)
-        logger.info(f"Looking up person: {email}")
+        logger.info(f"Looking up person: {email}, campus: {campus}")
         person = Person.query.filter_by(email=email, is_active=True).first()
         
         if not person:
             # Auto-create person (like giving endpoint does)
-            logger.info(f"Person not found, creating new person for: {email}")
+            logger.info(f"Person not found, creating new person for: {email} at {campus}")
             try:
                 import uuid
                 person_id = f"user_{uuid.uuid4().hex[:12]}"
@@ -187,16 +195,22 @@ def create_praise_report():
                     id=person_id,
                     full_name=name_from_email,
                     email=email,
-                    campus='paradise',  # Default campus
+                    campus=campus,  # Use campus from request
                     is_active=True
                 )
                 db.session.add(person)
                 db.session.flush()
-                logger.info(f"✅ Created new person: {person.id} - {person.full_name}")
+                logger.info(f"✅ Created new person: {person.id} - {person.full_name} at {campus}")
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"❌ Error creating person: {e}", exc_info=True)
                 return jsonify({'error': 'Failed to create person record'}), 500
+        else:
+            # Update person's campus if it has changed
+            if person.campus != campus and campus != 'paradise':
+                logger.info(f"Updating person {email} campus from {person.campus} to {campus}")
+                person.campus = campus
+                db.session.flush()
         
         # Find campus pastor for routing
         campus_pastor = None
@@ -287,6 +301,44 @@ def get_submissions():
     except Exception as e:
         logger.error(f"Error getting prayer/praise submissions: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@prayer_bp.route('/submissions/<int:case_id>/status', methods=['PUT'])
+@login_required
+def update_submission_status(case_id):
+    """Update the status of a prayer/praise submission"""
+    try:
+        if not current_user.has_permission('prayer_requests', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        new_status = data.get('status')
+        
+        if not new_status or new_status not in ['open', 'in_progress', 'closed']:
+            return jsonify({'error': 'Invalid status. Must be: open, in_progress, or closed'}), 400
+        
+        care_case = CareCase.query.get(case_id)
+        if not care_case:
+            return jsonify({'error': 'Submission not found'}), 404
+        
+        # Check if this is a prayer/praise case
+        if care_case.type not in ['prayer_request', 'praise_report']:
+            return jsonify({'error': 'Not a prayer/praise submission'}), 400
+        
+        care_case.status = new_status
+        care_case.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        logger.info(f"✅ Updated submission {case_id} status to {new_status} by {current_user.username}")
+        return jsonify({
+            'success': True,
+            'message': f'Status updated to {new_status}',
+            'case': care_case.to_dict()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Error updating submission status: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to update status'}), 500
 
 
 # ============================================================================

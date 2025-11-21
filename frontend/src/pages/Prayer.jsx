@@ -9,6 +9,8 @@ const Prayer = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateLink, setShowCreateLink] = useState(false);
+  const [campusFilter, setCampusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [newLink, setNewLink] = useState({
     link_type: 'both',
     campus: '',
@@ -24,7 +26,7 @@ const Prayer = () => {
     } else {
       fetchCareCases();
     }
-  }, [activeTab]);
+  }, [activeTab, campusFilter, statusFilter]);
 
   const fetchCareCases = async () => {
     try {
@@ -40,9 +42,21 @@ const Prayer = () => {
 
       const data = await response.json();
       
-      // Filter by type
-      const prayers = data.submissions?.filter(c => c.type === 'prayer_request') || [];
-      const praise = data.submissions?.filter(c => c.type === 'praise_report') || [];
+      // Filter by type, campus, and status
+      let prayers = data.submissions?.filter(c => c.type === 'prayer_request') || [];
+      let praise = data.submissions?.filter(c => c.type === 'praise_report') || [];
+      
+      // Apply campus filter
+      if (campusFilter !== 'all') {
+        prayers = prayers.filter(p => p.campus === campusFilter);
+        praise = praise.filter(p => p.campus === campusFilter);
+      }
+      
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        prayers = prayers.filter(p => p.status === statusFilter);
+        praise = praise.filter(p => p.status === statusFilter);
+      }
       
       setPrayerRequests(prayers);
       setPraiseReports(praise);
@@ -136,6 +150,28 @@ const Prayer = () => {
     alert('Link copied to clipboard!');
   };
 
+  const updateCaseStatus = async (caseId, newStatus) => {
+    try {
+      const response = await fetch(`/api/prayer/submissions/${caseId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update status');
+      }
+
+      // Refresh the list
+      fetchCareCases();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const renderCareCases = (cases, type) => {
     if (loading) {
       return <div className="text-center py-12 text-gray-400">Loading...</div>;
@@ -196,22 +232,60 @@ const Prayer = () => {
               </p>
             )}
             
-            <div className="flex items-center gap-4 text-sm text-gray-400">
-              {item.campus && (
-                <div className="flex items-center gap-1">
-                  <MapPinIcon className="h-4 w-4" />
-                  <span>{item.campus}</span>
-                </div>
-              )}
-              {item.priority && (
-                <span className={`px-2 py-1 rounded text-xs ${
-                  item.priority === 'high' ? 'bg-red-500/20 text-red-300' :
-                  item.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
-                  'bg-green-500/20 text-green-300'
-                }`}>
-                  {item.priority} priority
-                </span>
-              )}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4 text-sm text-gray-400">
+                {item.campus && (
+                  <div className="flex items-center gap-1">
+                    <MapPinIcon className="h-4 w-4" />
+                    <span className="capitalize">{item.campus.replace('_', ' ')}</span>
+                  </div>
+                )}
+                {item.priority && (
+                  <span className={`px-2 py-1 rounded text-xs ${
+                    item.priority === 'high' ? 'bg-red-500/20 text-red-300' :
+                    item.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                    'bg-green-500/20 text-green-300'
+                  }`}>
+                    {item.priority} priority
+                  </span>
+                )}
+              </div>
+              
+              {/* Status Actions */}
+              <div className="flex items-center gap-2">
+                {item.status === 'open' && (
+                  <>
+                    <button
+                      onClick={() => updateCaseStatus(item.id, 'in_progress')}
+                      className="px-3 py-1 text-xs bg-blue-500/20 text-blue-300 rounded hover:bg-blue-500/30 transition-colors"
+                    >
+                      Mark In Progress
+                    </button>
+                    <button
+                      onClick={() => updateCaseStatus(item.id, 'closed')}
+                      className="px-3 py-1 text-xs bg-green-500/20 text-green-300 rounded hover:bg-green-500/30 transition-colors"
+                    >
+                      Resolve
+                    </button>
+                  </>
+                )}
+                {item.status === 'in_progress' && (
+                  <button
+                    onClick={() => updateCaseStatus(item.id, 'closed')}
+                    className="px-3 py-1 text-xs bg-green-500/20 text-green-300 rounded hover:bg-green-500/30 transition-colors"
+                  >
+                    Resolve
+                  </button>
+                )}
+                {item.status === 'closed' && (
+                  <button
+                    onClick={() => updateCaseStatus(item.id, 'open')}
+                    className="px-3 py-1 text-xs bg-gray-500/20 text-gray-300 rounded hover:bg-gray-500/30 transition-colors"
+                  >
+                    Reopen
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -444,6 +518,44 @@ const Prayer = () => {
         {error && (
           <div className="mb-6 bg-red-900/30 border border-red-500/40 text-red-200 rounded-lg p-4">
             {error}
+          </div>
+        )}
+
+        {/* Filters */}
+        {(activeTab === 'requests' || activeTab === 'praise') && (
+          <div className="mb-6 flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Campus</label>
+              <select
+                value={campusFilter}
+                onChange={(e) => setCampusFilter(e.target.value)}
+                className="w-full bg-slate-800 border border-white/10 rounded-lg px-4 py-2 text-white"
+              >
+                <option value="all">All Campuses</option>
+                <option value="paradise">Paradise</option>
+                <option value="south">South</option>
+                <option value="salisbury">Salisbury</option>
+                <option value="adelaide_city">Adelaide City</option>
+                <option value="mount_barker">Mount Barker</option>
+                <option value="copper_coast">Copper Coast</option>
+                <option value="clare_valley">Clare Valley</option>
+                <option value="victor_harbour">Victor Harbour</option>
+              </select>
+            </div>
+            
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full bg-slate-800 border border-white/10 rounded-lg px-4 py-2 text-white"
+              >
+                <option value="all">All Status</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="closed">Resolved</option>
+              </select>
+            </div>
           </div>
         )}
 
