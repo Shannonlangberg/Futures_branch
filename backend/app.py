@@ -15398,19 +15398,55 @@ def get_my_groups():
 
 
 @app.route('/api/connect-groups/<group_id>', methods=['GET'])
-@login_required
 def get_connect_group(group_id):
-    """Get connect group details with members"""
+    """Get connect group details with members (allows leader access via email + access code)"""
     try:
-        if not current_user.has_permission('groups', 'view'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-        
         group = ConnectGroup.query.filter_by(id=group_id).first()
         if not group:
             return jsonify({'error': 'Connect group not found'}), 404
         
+        # Check permissions - either logged-in admin/staff OR leader via email + access code
+        is_leader = False
+        is_authenticated_user = False
+        
+        # Check if user is logged in
+        try:
+            if current_user and hasattr(current_user, 'email'):
+                all_leader_emails = group.get_leader_emails()
+                is_leader = current_user.email.lower() in all_leader_emails
+                is_authenticated_user = current_user.has_permission('groups', 'view')
+        except:
+            pass  # Not logged in, check email + access code
+        
+        # If not authenticated user, check email + access code
+        if not is_authenticated_user and not is_leader:
+            all_leader_emails = group.get_leader_emails()
+            provided_email = request.args.get('leader_email', '').lower()
+            provided_code = request.args.get('access_code', '')
+            
+            if provided_email and provided_email in all_leader_emails:
+                # Verify access code if set
+                if group.leader_access_code:
+                    if provided_code != group.leader_access_code:
+                        return jsonify({'error': 'Invalid access code'}), 403
+                is_leader = True
+            else:
+                # If no email provided or not a leader, require login
+                try:
+                    if not (current_user and hasattr(current_user, 'has_permission')):
+                        return jsonify({'error': 'Authentication required'}), 401
+                    if not current_user.has_permission('groups', 'view'):
+                        return jsonify({'error': 'Insufficient permissions'}), 403
+                    is_authenticated_user = True
+                except:
+                    return jsonify({'error': 'Authentication required'}), 401
+        
+        if not (is_authenticated_user or is_leader):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
         # Get members
         members = group.get_members()
+        logger.info(f"get_connect_group - Group {group_id} ({group.name}): Found {len(members)} members via get_members()")
         
         # Get meetings (sorted by date, most recent first)
         meetings = ConnectGroupMeeting.query.filter_by(group_id=group_id).order_by(ConnectGroupMeeting.meeting_date.desc()).all()
@@ -15422,7 +15458,7 @@ def get_connect_group(group_id):
         return jsonify(group_data)
         
     except Exception as e:
-        logger.error(f"Error fetching connect group: {e}")
+        logger.error(f"Error fetching connect group: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch connect group'}), 500
 
 
