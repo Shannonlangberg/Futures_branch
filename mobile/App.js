@@ -413,20 +413,7 @@ export default function App() {
                 options={{ 
                   presentation: 'card',
                   animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerBackTitleVisible: false,
-                  headerLeft: ({ onPress }) => (
-                    <TouchableOpacity onPress={onPress} style={{ marginLeft: 16, padding: 8 }}>
-                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>← Back</Text>
-                    </TouchableOpacity>
-                  ),
+                  headerShown: false,
                 }}
               />
               <Stack.Screen 
@@ -435,20 +422,7 @@ export default function App() {
                 options={{ 
                   presentation: 'card',
                   animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerBackTitleVisible: false,
-                  headerLeft: ({ onPress }) => (
-                    <TouchableOpacity onPress={onPress} style={{ marginLeft: 16, padding: 8 }}>
-                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>← Back</Text>
-                    </TouchableOpacity>
-                  ),
+                  headerShown: false,
                 }}
               />
             </>
