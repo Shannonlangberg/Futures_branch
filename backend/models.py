@@ -1218,16 +1218,17 @@ class Event(db.Model):
     
     # Enhanced event fields
     ministry = db.Column(db.String(100))  # e.g. Kids, Youth, Sunday Services, Prayer, Courses
-    is_all_day = db.Column(db.Boolean, default=False)
-    recurrence_rule = db.Column(db.Text)  # iCal-style RRULE or JSON recurrence object
-    status = db.Column(db.String(20), default='draft')  # draft, published, cancelled, completed
-    visibility = db.Column(db.String(20), default='public')  # internal, public, leaders_only
-    capacity = db.Column(db.Integer, nullable=True)  # Optional max capacity
-    registration_required = db.Column(db.Boolean, default=False)
-    registration_form_id = db.Column(db.Integer, nullable=True)  # Optional reference to form
-    tags = db.Column(db.Text)  # JSON array of tags
-    created_by_user_id = db.Column(db.Integer, nullable=True)  # User who created
-    updated_by_user_id = db.Column(db.Integer, nullable=True)  # User who last updated
+    # Note: The following columns don't exist in the database - commented out to prevent errors
+    # is_all_day = db.Column(db.Boolean, default=False)
+    # recurrence_rule = db.Column(db.Text)  # iCal-style RRULE or JSON recurrence object
+    # status = db.Column(db.String(20), default='draft')  # draft, published, cancelled, completed
+    # visibility = db.Column(db.String(20), default='public')  # internal, public, leaders_only
+    # capacity = db.Column(db.Integer, nullable=True)  # Optional max capacity
+    # registration_required = db.Column(db.Boolean, default=False)
+    # registration_form_id = db.Column(db.Integer, nullable=True)  # Optional reference to form
+    # tags = db.Column(db.Text)  # JSON array of tags
+    # created_by_user_id = db.Column(db.Integer, nullable=True)  # User who created
+    # updated_by_user_id = db.Column(db.Integer, nullable=True)  # User who last updated
     
     # Relationships
     category = db.relationship('EventCategory', backref='events')
@@ -1245,10 +1246,8 @@ class Event(db.Model):
     
     def to_dict(self):
         """Convert event to dictionary"""
-        try:
-            tags_list = json.loads(self.tags) if self.tags else []
-        except (TypeError, ValueError, json.JSONDecodeError):
-            tags_list = []
+        # Note: tags column doesn't exist, so return empty list
+        tags_list = []
         
         return {
             'id': self.id,
@@ -1267,17 +1266,18 @@ class Event(db.Model):
             'price': float(self.price) if self.price else None,
             'requires_payment': self.requires_payment if self.requires_payment else False,
             'stripe_price_id': self.stripe_price_id,
-            'ministry': self.ministry,
-            'is_all_day': self.is_all_day,
-            'recurrence_rule': self.recurrence_rule,
-            'status': self.status,
-            'visibility': self.visibility,
-            'capacity': self.capacity,
-            'registration_required': self.registration_required,
-            'registration_form_id': self.registration_form_id,
-            'tags': tags_list,
-            'created_by_user_id': self.created_by_user_id,
-            'updated_by_user_id': self.updated_by_user_id,
+            'ministry': self.ministry if hasattr(self, 'ministry') else None,
+            # Note: Removed fields that don't exist in database
+            # 'is_all_day': self.is_all_day,
+            # 'recurrence_rule': self.recurrence_rule,
+            # 'status': self.status,
+            # 'visibility': self.visibility,
+            # 'capacity': self.capacity,
+            # 'registration_required': self.registration_required,
+            # 'registration_form_id': self.registration_form_id,
+            # 'tags': tags_list,
+            # 'created_by_user_id': self.created_by_user_id,
+            # 'updated_by_user_id': self.updated_by_user_id,
             'registration_count': self.get_registration_count(),
             'waitlist_count': self.get_waitlist_count(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
