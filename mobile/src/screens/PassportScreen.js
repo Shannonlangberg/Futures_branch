@@ -238,7 +238,7 @@ export default function PathwayScreen() {
                   end={{ x: 1, y: 1 }}
                 >
                   <View style={styles.progressInner}>
-                    <Text style={styles.progressPercent}>{pathway.progress_percentage || 0}%</Text>
+                    <Text style={styles.progressPercent}>{Math.round(pathway.progress_percentage || 0)}%</Text>
                     <Text style={styles.progressLabel}>Complete</Text>
                   </View>
                 </LinearGradient>
