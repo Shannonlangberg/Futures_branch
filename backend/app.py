@@ -19106,65 +19106,6 @@ def get_user_events(user_email):
         logger.error(f"Error fetching user events: {e}", exc_info=True)
         return jsonify({'error': f'Failed to fetch user events: {str(e)}'}), 500
 
-@app.route('/api/events/registrations/all', methods=['GET'])
-@login_required
-def get_all_event_registrations():
-    """Get all registrations across all events (admin view)"""
-    try:
-        # Check if user has admin permissions
-        if not hasattr(current_user, 'has_permission') or not current_user.has_permission('query_access'):
-            return jsonify({'error': 'Insufficient permissions'}), 403
-        
-        # Get query parameters
-        event_id = request.args.get('event_id')
-        status = request.args.get('status')
-        campus = request.args.get('campus')
-        
-        query = EventRegistration.query
-        
-        # Filter by event if specified
-        if event_id:
-            query = query.filter_by(event_id=event_id)
-        
-        # Filter by status if specified
-        if status:
-            query = query.filter_by(status=status)
-        
-        # Filter by campus if specified
-        if campus:
-            query = query.join(Event).filter(Event.campus == campus)
-        
-        registrations = query.order_by(EventRegistration.created_at.desc()).all()
-        
-        # Build response with event details
-        registrations_data = []
-        for reg in registrations:
-            reg_dict = reg.to_dict()
-            event = Event.query.get(reg.event_id)
-            if event:
-                reg_dict['event'] = {
-                    'id': event.id,
-                    'title': event.title,
-                    'start_time': event.start_time.isoformat() if event.start_time else None,
-                    'campus': event.campus,
-                    'location': event.location
-                }
-            registrations_data.append(reg_dict)
-        
-        return jsonify({
-            'registrations': registrations_data,
-            'count': len(registrations_data),
-            'filters': {
-                'event_id': event_id,
-                'status': status,
-                'campus': campus
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error fetching all registrations: {e}", exc_info=True)
-        return jsonify({'error': f'Failed to fetch registrations: {str(e)}'}), 500
-
 # Event Team Assignments endpoints
 @app.route('/api/events/<event_id>/teams', methods=['GET'])
 @login_required
