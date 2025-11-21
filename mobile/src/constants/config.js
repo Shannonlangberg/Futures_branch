@@ -2,8 +2,8 @@
 // In production, this would come from environment variables
 // For testing on physical device or simulator, update this to your local IP address
 // e.g., 'http://192.168.1.100:5000' (get your IP with: ipconfig getifaddr en0 or ifconfig)
-// TEMPORARY: Force Beta Branch production to test sync with web app
-export const API_BASE_URL = 'https://futuresbranch-production.up.railway.app';
+// TEMPORARY: Force Beta Branch to test Prayer & Praise
+export const API_BASE_URL = 'https://futuresbranch-beta.up.railway.app';
 
 // Original config (restore after testing):
 // export const API_BASE_URL = __DEV__ 

@@ -29,8 +29,8 @@ const Prayer = () => {
   const fetchCareCases = async () => {
     try {
       setLoading(true);
-      // Fetch care cases filtered by prayer_request and praise_report types
-      const response = await fetch('/api/heartbeat/care-cases', {
+      // Fetch prayer and praise submissions from prayer API
+      const response = await fetch('/api/prayer/submissions', {
         credentials: 'include'
       });
 
@@ -41,8 +41,8 @@ const Prayer = () => {
       const data = await response.json();
       
       // Filter by type
-      const prayers = data.care_cases?.filter(c => c.type === 'prayer_request') || [];
-      const praise = data.care_cases?.filter(c => c.type === 'praise_report') || [];
+      const prayers = data.submissions?.filter(c => c.type === 'prayer_request') || [];
+      const praise = data.submissions?.filter(c => c.type === 'praise_report') || [];
       
       setPrayerRequests(prayers);
       setPraiseReports(praise);

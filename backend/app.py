@@ -1266,6 +1266,7 @@ class User(UserMixin):
         self.campus = user_data['campus']
         self.active = user_data['active']
         self.password_hash = user_data['password_hash']
+        self.custom_permissions = user_data.get('custom_permissions') or {}
         
     def is_authenticated(self):
         return True
@@ -1445,7 +1446,7 @@ def load_user(user_id):
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active
+            SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
             FROM users
             WHERE id = ? AND active = 1
         ''', (user_id,))
@@ -1454,6 +1455,13 @@ def load_user(user_id):
         conn.close()
         
         if row:
+            import json
+            custom_perms = row[8] if len(row) > 8 else None
+            try:
+                custom_permissions = json.loads(custom_perms) if custom_perms else {}
+            except:
+                custom_permissions = {}
+            
             user_data = {
                 'id': str(row[0]),  # Flask-Login expects string ID
                 'username': row[1],
@@ -1462,7 +1470,8 @@ def load_user(user_id):
                 'email': row[4] or '',
                 'role': row[5],
                 'campus': row[6] or '',
-                'active': bool(row[7])
+                'active': bool(row[7]),
+                'custom_permissions': custom_permissions
             }
             return User(user_data)
         return None
@@ -8684,6 +8693,7 @@ def session_info():
             "role": current_user.role,
             "campus": current_user.campus,
             "full_name": current_user.full_name,
+            "custom_permissions": getattr(current_user, 'custom_permissions', {}),
             "needs_drive_auth": needs_drive_auth,
             "drive_status": drive_status,  # Debug info
             "user_id": current_user.id,  # Debug info

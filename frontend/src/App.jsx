@@ -8,6 +8,7 @@ import Finance from './pages/Finance';
 import GivingAnalytics from './pages/GivingAnalytics';
 import CampusManagement from './pages/CampusManagement';
 import UserManagement from './pages/UserManagement';
+import RoleManager from './pages/RoleManager';
 import DataExport from './pages/DataExport';
 import MyProfile from './pages/MyProfile';
 import Passport from './pages/Passport';
@@ -366,6 +367,7 @@ function App() {
                   <Route path="/prayer" element={<Prayer />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
+                  <Route path="/role-manager" element={<RoleManager />} />
                   <Route path="/export" element={<DataExport />} />
                   <Route path="/beacons" element={<BeaconManagement />} />
                   <Route path="/pathways" element={<PathwayManager />} />

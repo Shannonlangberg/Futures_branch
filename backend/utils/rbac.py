@@ -37,8 +37,25 @@ class RBACManager:
         self.resources = self.config.get('resources', {})
         self.campus_scoping = self.config.get('campus_scoping', {})
     
-    def has_permission(self, user_role: str, resource: str, action: str) -> bool:
-        """Check if a user role has permission for a specific resource and action"""
+    def has_permission(self, user_role: str, resource: str, action: str, custom_permissions: Optional[Dict] = None) -> bool:
+        """Check if a user role has permission for a specific resource and action
+        
+        Args:
+            user_role: The user's role
+            resource: The resource being accessed
+            action: The action being performed
+            custom_permissions: Optional dict of custom permissions that override role defaults
+        """
+        # First check custom permissions if provided
+        if custom_permissions is not None:
+            # Custom permissions are stored as feature names (e.g., 'home', 'dashboard', 'tv_manager')
+            # If a feature is in custom_permissions and set to True, user has access
+            if resource in custom_permissions:
+                return bool(custom_permissions[resource])
+            # If explicitly set to False, deny access
+            if resource in custom_permissions and custom_permissions[resource] is False:
+                return False
+        
         if not self.config:
             return True  # No RBAC config means allow all
         
@@ -58,6 +75,26 @@ class RBACManager:
                 return True
         
         return False
+    
+    def has_feature_access(self, user_role: str, feature: str, custom_permissions: Optional[Dict] = None) -> bool:
+        """Check if a user has access to a specific feature/page
+        
+        Args:
+            user_role: The user's role
+            feature: The feature name (e.g., 'home', 'dashboard', 'tv_manager')
+            custom_permissions: Optional dict of custom permissions
+        """
+        # First check custom permissions if provided
+        if custom_permissions is not None:
+            if feature in custom_permissions:
+                return bool(custom_permissions[feature])
+            if feature in custom_permissions and custom_permissions[feature] is False:
+                return False
+        
+        # Map features to resources for role-based checking
+        # For now, if no custom permission, check role defaults
+        # This will be enhanced based on how features map to resources
+        return True  # Default to allowing if no explicit deny
     
     def get_user_permissions(self, user_role: str) -> Dict[str, List[str]]:
         """Get all permissions for a specific user role"""

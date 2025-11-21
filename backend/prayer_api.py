@@ -213,6 +213,43 @@ def create_praise_report():
 
 
 # ============================================================================
+# GET PRAYER/PRAISE SUBMISSIONS
+# ============================================================================
+
+@prayer_bp.route('/submissions', methods=['GET'])
+@login_required
+def get_submissions():
+    """Get all prayer requests and praise reports (from CareCase table)"""
+    try:
+        from flask_login import current_user
+        if not current_user.has_permission('prayer_requests', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get all care cases that are prayer_request or praise_report
+        care_cases = CareCase.query.filter(
+            CareCase.type.in_(['prayer_request', 'praise_report'])
+        ).order_by(CareCase.created_at.desc()).all()
+        
+        # Convert to dict and add person name
+        submissions = []
+        for case in care_cases:
+            case_dict = case.to_dict()
+            if case.person:
+                case_dict['person_name'] = case.person.full_name
+                case_dict['campus'] = case.person.campus
+            submissions.append(case_dict)
+        
+        return jsonify({
+            'submissions': submissions,
+            'count': len(submissions)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting prayer/praise submissions: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
 # PRAYER LINK MANAGEMENT (similar to Giving QR Codes)
 # ============================================================================
 
