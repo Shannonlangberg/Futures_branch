@@ -612,3 +612,4 @@ def submit_via_link(link_id):
         logger.error(f"Error submitting via link: {e}")
         return jsonify({'error': str(e)}), 500
 
+# Prayer & Praise deployed to Beta for testing
