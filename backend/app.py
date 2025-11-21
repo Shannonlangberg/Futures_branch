@@ -11610,14 +11610,20 @@ def get_all_users_permissions():
                 WHERE active = 1
                 ORDER BY full_name, username
             ''')
-        except Exception:
-            # Fallback if custom_permissions column doesn't exist yet
-            cursor.execute('''
-                SELECT id, username, full_name, email, role, campus, active
-                FROM users
-                WHERE active = 1
-                ORDER BY full_name, username
-            ''')
+        except Exception as col_error:
+            # Check if error is due to missing column
+            error_msg = str(col_error).lower()
+            if 'no such column' in error_msg or 'custom_permissions' in error_msg:
+                logger.info("custom_permissions column doesn't exist yet, using fallback query")
+                cursor.execute('''
+                    SELECT id, username, full_name, email, role, campus, active
+                    FROM users
+                    WHERE active = 1
+                    ORDER BY full_name, username
+                ''')
+            else:
+                # Re-raise if it's a different error
+                raise
         
         users_list = []
         import json
@@ -11645,8 +11651,8 @@ def get_all_users_permissions():
         conn.close()
         return jsonify({'users': users_list, 'success': True})
     except Exception as e:
-        logger.error(f"Error fetching users permissions: {e}")
-        return jsonify({'error': 'Failed to fetch users permissions'}), 500
+        logger.error(f"Error fetching users permissions: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to fetch users permissions: {str(e)}'}), 500
 
 @app.route('/api/users/<user_id>/permissions', methods=['GET'])
 @login_required
