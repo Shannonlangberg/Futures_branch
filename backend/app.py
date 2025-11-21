@@ -11602,34 +11602,31 @@ def get_all_users_permissions():
         conn = get_db()
         cursor = conn.cursor()
         
-        # Try to select with custom_permissions, fallback if column doesn't exist
-        try:
+        # Check if custom_permissions column exists
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [col[1] for col in cursor.fetchall()]
+        has_custom_permissions = 'custom_permissions' in columns
+        
+        if has_custom_permissions:
             cursor.execute('''
                 SELECT id, username, full_name, email, role, campus, active, custom_permissions
                 FROM users
                 WHERE active = 1
                 ORDER BY full_name, username
             ''')
-        except Exception as col_error:
-            # Check if error is due to missing column
-            error_msg = str(col_error).lower()
-            if 'no such column' in error_msg or 'custom_permissions' in error_msg:
-                logger.info("custom_permissions column doesn't exist yet, using fallback query")
-                cursor.execute('''
-                    SELECT id, username, full_name, email, role, campus, active
-                    FROM users
-                    WHERE active = 1
-                    ORDER BY full_name, username
-                ''')
-            else:
-                # Re-raise if it's a different error
-                raise
+        else:
+            cursor.execute('''
+                SELECT id, username, full_name, email, role, campus, active
+                FROM users
+                WHERE active = 1
+                ORDER BY full_name, username
+            ''')
         
         users_list = []
         import json
         for row in cursor.fetchall():
             custom_permissions = {}
-            if len(row) > 7:
+            if has_custom_permissions and len(row) > 7:
                 try:
                     custom_perms = row[7]
                     if custom_perms:
