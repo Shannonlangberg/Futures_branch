@@ -35,9 +35,20 @@ export default function HomeScreen() {
 
         // Load campus info
         const campuses = await ApiService.getCampuses();
-        const userCampus = campuses.campuses?.find(c => c.id === userObj.campus);
+        // Match campus by id (e.g., "copper_coast")
+        const userCampus = campuses.campuses?.find(c => 
+          c.id === userObj.campus || 
+          c.id.toLowerCase() === userObj.campus?.toLowerCase() ||
+          c.name?.toLowerCase().replace(/\s+/g, '_') === userObj.campus?.toLowerCase()
+        );
         if (userCampus) {
           setCampus(userCampus);
+        } else if (userObj.campus && userObj.campus !== 'all_campuses') {
+          // If campus not found but user has one set, create a fallback
+          setCampus({
+            id: userObj.campus,
+            name: userObj.campus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          });
         }
 
         // Load upcoming events for campus
@@ -130,26 +141,14 @@ export default function HomeScreen() {
               <Text style={styles.journeyArrow}>→</Text>
             </View>
             <Text style={styles.journeySubtitle}>Track your spiritual growth</Text>
-            {journeyData?.engagement?.pulse_status && (
-              <View style={styles.journeyStatus}>
-                <View style={[
-                  styles.statusDot,
-                  { backgroundColor: journeyData.engagement.pulse_status === 'green' ? Colors.success : 
-                    journeyData.engagement.pulse_status === 'yellow' ? Colors.warning : Colors.error }
-                ]} />
-                <Text style={styles.journeyStatusText}>
-                  Pulse: {journeyData.engagement.pulse_status.charAt(0).toUpperCase() + 
-                  journeyData.engagement.pulse_status.slice(1)}
-                </Text>
-              </View>
-            )}
+            {/* Pulse status hidden per user request */}
           </LinearGradient>
         </TouchableOpacity>
 
         {/* Campus Section - What's Coming Up */}
         <View style={styles.campusSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>📅 {campus?.name || 'Your Campus'}</Text>
+            <Text style={styles.sectionTitle}>📅 {campus?.name && campus.name !== 'All Campuses' ? campus.name : 'All Campuses'}</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Events')}>
               <Text style={styles.seeAllText}>See all →</Text>
             </TouchableOpacity>
