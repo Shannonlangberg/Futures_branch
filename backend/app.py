@@ -16535,7 +16535,8 @@ def mark_leader_attendance(group_id):
                         
                         if person_campus:
                             # Try to find heartbeat campus by name
-                            heartbeat_campus = HeartbeatCampus.query.filter_by(
+                            from models import Campus
+                            heartbeat_campus = Campus.query.filter_by(
                                 name=person_campus
                             ).first()
                             
@@ -16547,20 +16548,18 @@ def mark_leader_attendance(group_id):
                                     is_active=True
                                 ).first()
                                 
-                                # If not found, try to get leader person_id from group leader email
-                                if not heartbeat_group and group.leader_email:
-                                    leader_person = Person.query.filter_by(email=group.leader_email.lower()).first()
-                                    if leader_person:
-                                        heartbeat_group = HeartbeatConnectGroup(
-                                            campus_id=heartbeat_campus.id,
-                                            name=group.name,
-                                            leader_person_id=leader_person.id,
-                                            type='home',  # Default
-                                            is_active=True
-                                        )
-                                        db.session.add(heartbeat_group)
-                                        db.session.flush()
-                                        logger.info(f"Created new HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
+                                # If not found, create one using group's leader_id
+                                if not heartbeat_group and group.leader_id:
+                                    heartbeat_group = HeartbeatConnectGroup(
+                                        campus_id=heartbeat_campus.id,
+                                        name=group.name,
+                                        leader_person_id=group.leader_id,  # ConnectGroup has leader_id
+                                        type='home',  # Default
+                                        is_active=True
+                                    )
+                                    db.session.add(heartbeat_group)
+                                    db.session.flush()
+                                    logger.info(f"Created new HeartbeatConnectGroup: {heartbeat_group.id} for {group.name}")
                         
                         # Now create ConnectAttendance record if heartbeat_group exists
                         if heartbeat_group:
