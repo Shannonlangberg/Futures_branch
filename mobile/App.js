@@ -29,6 +29,7 @@ import TVWatchScreen from './src/screens/TVWatchScreen';
 import ExploreScreen from './src/screens/ExploreScreen';
 import GroupChatScreen from './src/screens/GroupChatScreen';
 import GroupLeaderPortalScreen from './src/screens/GroupLeaderPortalScreen';
+import PrayerSubmitScreen from './src/screens/PrayerSubmitScreen';
 
 // Services
 import { AuthService } from './src/services/AuthService';
@@ -420,6 +421,24 @@ export default function App() {
                     fontWeight: '600',
                   },
                   headerTitle: 'Explore',
+                  headerBackTitleVisible: false,
+                }}
+              />
+              <Stack.Screen 
+                name="PrayerSubmit" 
+                component={PrayerSubmitScreen}
+                options={{ 
+                  presentation: 'card',
+                  animation: 'slide_from_bottom',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: '#1e293b',
+                  },
+                  headerTintColor: '#ffffff',
+                  headerTitleStyle: {
+                    fontWeight: '600',
+                  },
+                  headerTitle: 'Prayer & Praise',
                   headerBackTitleVisible: false,
                 }}
               />

@@ -669,6 +669,39 @@ def submit_via_link(link_id):
 # ADMIN UTILITIES
 # ============================================================================
 
+@prayer_bp.route('/admin/check-person/<email>', methods=['GET'])
+@login_required
+def check_person_by_email(email):
+    """Diagnostic endpoint to check Person records"""
+    try:
+        if not current_user.has_permission('people', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Find all Person records with this email (including inactive)
+        persons = Person.query.filter_by(email=email).all()
+        
+        result = {
+            'email': email,
+            'found_count': len(persons),
+            'records': []
+        }
+        
+        for person in persons:
+            result['records'].append({
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+                'campus': person.campus,
+                'is_active': person.is_active,
+                'created_at': person.created_at.isoformat() if person.created_at else None,
+                'updated_at': person.updated_at.isoformat() if person.updated_at else None
+            })
+        
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error checking person: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 @prayer_bp.route('/admin/fix-campus', methods=['POST'])
 @login_required
 def fix_user_campus():
