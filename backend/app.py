@@ -16423,53 +16423,66 @@ def mark_leader_attendance(group_id):
             db.session.flush()
         
         # Update attendance records
+        logger.info(f"Processing {len(attendance_list)} attendance records for meeting {meeting.id}")
         for att_data in attendance_list:
             person_id = att_data.get('person_id')
             present = att_data.get('present', False)
             
             if not person_id:
+                logger.warning(f"Skipping attendance record with no person_id: {att_data}")
                 continue
             
-            # Find or create attendance record
-            attendance = ConnectGroupAttendance.query.filter_by(
-                meeting_id=meeting.id,
-                person_id=person_id
-            ).first()
-            
-            if attendance:
-                attendance.present = present
-                attendance.notes = att_data.get('notes')
-            else:
-                attendance = ConnectGroupAttendance(
+            try:
+                # Find or create attendance record
+                attendance = ConnectGroupAttendance.query.filter_by(
                     meeting_id=meeting.id,
-                    person_id=person_id,
-                    present=present,
-                    notes=att_data.get('notes')
-                )
-                db.session.add(attendance)
-            
-            # Update engagement profile
-            person = Person.query.filter_by(id=person_id, is_active=True).first()
-            if person:
-                # Ensure engagement profile exists
-                if not person.engagement_profile:
-                    # Create engagement profile if it doesn't exist
-                    engagement = EngagementProfile(person_id=person_id)
-                    db.session.add(engagement)
-                    db.session.flush()
-                    # Refresh person to get the relationship
-                    db.session.refresh(person)
+                    person_id=person_id
+                ).first()
                 
-                try:
-                    person.engagement_profile.add_group_attendance(
-                        group_id=group_id,
-                        attendance_date=meeting_date_obj,
-                        present=present
+                if attendance:
+                    attendance.present = present
+                    attendance.notes = att_data.get('notes')
+                    logger.info(f"Updated attendance for person {person_id}: present={present}")
+                else:
+                    attendance = ConnectGroupAttendance(
+                        meeting_id=meeting.id,
+                        person_id=person_id,
+                        present=present,
+                        notes=att_data.get('notes')
                     )
-                except Exception as e:
-                    logger.error(f"Error adding group attendance for person {person_id}: {e}", exc_info=True)
-                    # Don't fail the whole request if engagement profile update fails
-                    pass
+                    db.session.add(attendance)
+                    logger.info(f"Created attendance for person {person_id}: present={present}")
+                
+                # Update engagement profile (optional - don't fail if this fails)
+                person = Person.query.filter_by(id=person_id, is_active=True).first()
+                if person:
+                    # Ensure engagement profile exists
+                    if not person.engagement_profile:
+                        # Create engagement profile if it doesn't exist
+                        engagement = EngagementProfile(person_id=person_id)
+                        db.session.add(engagement)
+                        db.session.flush()
+                        # Refresh person to get the relationship
+                        db.session.refresh(person)
+                        logger.info(f"Created engagement profile for person {person_id}")
+                    
+                    try:
+                        person.engagement_profile.add_group_attendance(
+                            group_id=group_id,
+                            attendance_date=meeting_date_obj,
+                            present=present
+                        )
+                        logger.info(f"Updated engagement profile for person {person_id}")
+                    except Exception as e:
+                        logger.error(f"Error adding group attendance for person {person_id}: {e}", exc_info=True)
+                        # Don't fail the whole request if engagement profile update fails
+                        # Continue with the rest of the attendance records
+                else:
+                    logger.warning(f"Person {person_id} not found or inactive")
+            except Exception as e:
+                logger.error(f"Error processing attendance for person {person_id}: {e}", exc_info=True)
+                # Continue with next person instead of failing entire request
+                continue
         
         db.session.commit()
         
