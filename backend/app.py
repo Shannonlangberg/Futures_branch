@@ -1129,21 +1129,34 @@ def load_users_database():
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
-            FROM users
-            WHERE active = 1
-        ''')
+        
+        # Try to select with custom_permissions, fallback if column doesn't exist
+        try:
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active, custom_permissions
+                FROM users
+                WHERE active = 1
+            ''')
+        except Exception:
+            # Fallback if custom_permissions column doesn't exist yet
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active
+                FROM users
+                WHERE active = 1
+            ''')
         
         users = {}
         for row in cursor.fetchall():
             username = row[1]
             import json
-            custom_perms = row[8] if len(row) > 8 else None
-            try:
-                custom_permissions = json.loads(custom_perms) if custom_perms else None
-            except:
-                custom_permissions = None
+            custom_permissions = {}
+            if len(row) > 8:
+                try:
+                    custom_perms = row[8]
+                    if custom_perms:
+                        custom_permissions = json.loads(custom_perms) if isinstance(custom_perms, str) else custom_perms
+                except:
+                    custom_permissions = {}
             
             users[username] = {
                 'id': row[0],
