@@ -233,10 +233,35 @@ export const ApiService = {
   },
 
   async rsvpEvent(email, eventId, rsvp) {
-    const response = await api.post('/api/events/rsvp', {
+    // Map 'yes'/'no' to 'going'/'not_going' for backend
+    const statusMap = {
+      'yes': 'going',
+      'no': 'not_going',
+      'maybe': 'maybe'
+    };
+    const status = statusMap[rsvp] || 'going';
+    
+    const response = await api.post(`/api/events/${eventId}/rsvp`, {
       email,
-      event_id: eventId,
-      rsvp, // 'yes', 'no', 'maybe'
+      status, // 'going', 'maybe', 'not_going'
+    });
+    return response.data;
+  },
+
+  async registerForEvent(eventId, email, name, phone, guestCount = 0) {
+    const response = await api.post(`/api/events/${eventId}/register`, {
+      email,
+      name,
+      phone,
+      guest_count: guestCount,
+    });
+    return response.data;
+  },
+
+  async createEventPaymentIntent(eventId, email, guestCount = 0) {
+    const response = await api.post(`/api/events/${eventId}/create-payment-intent`, {
+      email,
+      guest_count: guestCount,
     });
     return response.data;
   },

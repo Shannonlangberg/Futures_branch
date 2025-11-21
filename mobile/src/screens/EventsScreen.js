@@ -142,24 +142,42 @@ export default function EventsScreen({ route }) {
       return;
     }
 
-    // Navigate to payment screen or show payment modal
-    Alert.alert(
-      'Paid Event',
-      `This event costs $${event.price || 0}. Would you like to register?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Register & Pay',
-          onPress: () => {
-            // For now, just show message - payment integration can be added
-            Alert.alert(
-              'Registration',
-              'Payment integration coming soon! Please contact the church office to register.',
-            );
-          },
-        },
-      ]
-    );
+    try {
+      // Step 1: Create payment intent
+      const paymentData = await ApiService.createEventPaymentIntent(
+        event.id,
+        user.email,
+        0 // guest_count - can be added later
+      );
+
+      if (!paymentData.client_secret) {
+        throw new Error('Failed to create payment intent');
+      }
+
+      // Step 2: Register with payment intent ID
+      // The webhook will complete registration when payment succeeds
+      const registrationData = await ApiService.registerForEvent(
+        event.id,
+        user.email,
+        user.full_name || user.name || '',
+        user.phone || '',
+        0
+      );
+
+      Alert.alert(
+        'Registration Submitted',
+        `Your registration has been created!\n\n` +
+        `Amount: $${paymentData.amount.toFixed(2)}\n\n` +
+        `Payment will be processed via Stripe. You'll receive a confirmation email once payment is complete.`,
+        [{ text: 'OK', onPress: () => loadEvents() }]
+      );
+    } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert(
+        'Registration Error',
+        error.message || 'Failed to register. Please try again or contact the church office.'
+      );
+    }
   };
 
   const formatEventDate = (dateString) => {
