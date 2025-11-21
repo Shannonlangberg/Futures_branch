@@ -47,6 +47,14 @@ class Person(db.Model):
         except (TypeError, ValueError, json.JSONDecodeError):
             tags = []
         
+        def safe_date_serialize(date_val):
+            """Safely serialize a date/datetime that might already be a string"""
+            if date_val is None:
+                return None
+            if isinstance(date_val, str):
+                return date_val  # Already a string
+            return date_val.isoformat()  # Convert date/datetime to string
+        
         return {
             'id': self.id,
             'full_name': self.full_name,
@@ -57,17 +65,17 @@ class Person(db.Model):
             'department': self.department,
             'connect_group': self.connect_group,
             'dream_team_roles': dream_team_roles,
-            'birthday': self.birthday.isoformat() if self.birthday else None,
+            'birthday': safe_date_serialize(self.birthday),
             'pastoral_notes': self.pastoral_notes,
             'tags': tags,
             'is_active': self.is_active,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'dna_completed': self.dna_completed.isoformat() if self.dna_completed else None,
-            'baptised_on': self.baptised_on.isoformat() if self.baptised_on else None,
-            'filled_holy_spirit': self.filled_holy_spirit.isoformat() if self.filled_holy_spirit else None,
-            'rise_attended': self.rise_attended.isoformat() if self.rise_attended else None,
-            'first_served_on': self.first_served_on.isoformat() if self.first_served_on else None,
+            'created_at': safe_date_serialize(self.created_at),
+            'updated_at': safe_date_serialize(self.updated_at),
+            'dna_completed': safe_date_serialize(self.dna_completed),
+            'baptised_on': safe_date_serialize(self.baptised_on),
+            'filled_holy_spirit': safe_date_serialize(self.filled_holy_spirit),
+            'rise_attended': safe_date_serialize(self.rise_attended),
+            'first_served_on': safe_date_serialize(self.first_served_on),
         }
 
 
