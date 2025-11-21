@@ -42,9 +42,14 @@ export default function GroupLeaderPortalScreen() {
         setUser(userObj);
         
         // Load leader portal data
-        const portalData = await ApiService.getLeaderPortal(group.id, userObj.email);
+        const portalData = await ApiService.getLeaderPortal(group.id, userObj.email, '');
+        console.log('Leader Portal Data:', JSON.stringify(portalData, null, 2));
+        
         if (portalData.members) {
+          console.log(`Found ${portalData.members.length} members:`, portalData.members.map(m => ({ name: m.full_name, connect_group: m.connect_group })));
           setMembers(portalData.members);
+        } else {
+          console.warn('No members array in portal data');
         }
         if (portalData.recent_meetings) {
           setMeetings(portalData.recent_meetings);
@@ -52,7 +57,8 @@ export default function GroupLeaderPortalScreen() {
       }
     } catch (error) {
       console.error('Error loading leader portal:', error);
-      Alert.alert('Error', 'Failed to load leader portal data');
+      console.error('Error details:', error.response?.data || error.message);
+      Alert.alert('Error', error.response?.data?.error || 'Failed to load leader portal data');
     } finally {
       setLoading(false);
     }
