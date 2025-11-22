@@ -446,23 +446,39 @@ def get_person_heartbeat(person_id):
         logger.info(f"DEBUG: Found {len(recent_giving)} giving transactions for person {person_id} in last 12 weeks")
         
         # NEW: App opens (engagement tracking)
-        recent_app_opens = AppSession.query.filter(
-            AppSession.person_id == person_id,
-            AppSession.session_start >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-        ).order_by(AppSession.session_start.desc()).limit(20).all()
+        recent_app_opens = []
+        try:
+            recent_app_opens = AppSession.query.filter(
+                AppSession.person_id == person_id,
+                AppSession.session_start >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+            ).order_by(AppSession.session_start.desc()).limit(20).all()
+        except Exception as e:
+            logger.warning(f"Error fetching app sessions for person {person_id}: {e}")
+            recent_app_opens = []
         
         # NEW: TV episode completions (spiritual growth)
-        recent_tv = TVUserEpisodeProgress.query.filter(
-            TVUserEpisodeProgress.person_id == person_id,
-            TVUserEpisodeProgress.completed == True,
-            TVUserEpisodeProgress.completed_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-        ).order_by(TVUserEpisodeProgress.completed_at.desc()).limit(20).all()
+        recent_tv = []
+        try:
+            recent_tv = TVUserEpisodeProgress.query.filter(
+                TVUserEpisodeProgress.person_id == person_id,
+                TVUserEpisodeProgress.completed == True,
+                TVUserEpisodeProgress.completed_at.isnot(None),
+                TVUserEpisodeProgress.completed_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+            ).order_by(TVUserEpisodeProgress.completed_at.desc()).limit(20).all()
+        except Exception as e:
+            logger.warning(f"Error fetching TV episode progress for person {person_id}: {e}")
+            recent_tv = []
         
         # NEW: Prayer submissions (care/spiritual)
-        recent_prayers = PrayerSubmission.query.filter(
-            PrayerSubmission.person_id == person_id,
-            PrayerSubmission.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-        ).order_by(PrayerSubmission.created_at.desc()).limit(20).all()
+        recent_prayers = []
+        try:
+            recent_prayers = PrayerSubmission.query.filter(
+                PrayerSubmission.person_id == person_id,
+                PrayerSubmission.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+            ).order_by(PrayerSubmission.created_at.desc()).limit(20).all()
+        except Exception as e:
+            logger.warning(f"Error fetching prayer submissions for person {person_id}: {e}")
+            recent_prayers = []
         
         logger.info(f"📊 NEW DATA: app_opens={len(recent_app_opens)}, tv_completions={len(recent_tv)}, prayers={len(recent_prayers)}")
         
