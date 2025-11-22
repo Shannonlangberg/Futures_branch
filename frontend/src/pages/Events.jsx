@@ -8,8 +8,36 @@ import {
   ChevronDownIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+
+// Initialize Stripe
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
+
+// Wrapper component to provide Stripe Elements context
+const EventsWrapper = () => {
+  if (!stripePromise) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-white text-center">
+          <p className="text-xl mb-2">Payment processing is not available</p>
+          <p className="text-slate-400">Please contact the church office to register for paid events.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Elements stripe={stripePromise}>
+      <Events />
+    </Elements>
+  );
+};
 
 const Events = () => {
+  const stripe = useStripe();
+  const elements = useElements();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -470,8 +498,39 @@ const Events = () => {
 
                     const paymentData = await paymentResponse.json();
 
-                    // Step 2: Register with payment intent ID
-                    // The webhook will automatically complete registration when payment succeeds
+                    // Step 2: Process payment with Stripe
+                    if (!stripe || !elements) {
+                      throw new Error('Payment system is not ready. Please refresh the page.');
+                    }
+
+                    const cardElement = elements.getElement(CardElement);
+                    if (!cardElement) {
+                      throw new Error('Card element not found. Please refresh the page.');
+                    }
+
+                    // Confirm payment with card
+                    const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+                      paymentData.client_secret,
+                      {
+                        payment_method: {
+                          card: cardElement,
+                          billing_details: {
+                            email: registrationData.email,
+                            name: registrationData.name || registrationData.email.split('@')[0],
+                          },
+                        },
+                      }
+                    );
+
+                    if (stripeError) {
+                      throw new Error(stripeError.message || 'Payment failed. Please try again.');
+                    }
+
+                    if (paymentIntent.status !== 'succeeded') {
+                      throw new Error('Payment was not completed. Please try again.');
+                    }
+
+                    // Step 3: Register with payment intent ID
                     const registerResponse = await fetch(`/api/events/${selectedEvent.id}/register`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -487,13 +546,12 @@ const Events = () => {
                       throw new Error(error.error || 'Registration failed');
                     }
 
-                    // Step 3: Registration created, payment will be processed via webhook
-                    // For now, show success message
+                    // Success!
                     alert(
-                      `Registration submitted!\n\n` +
-                      `Amount: $${paymentData.amount.toFixed(2)}\n` +
-                      `Your registration is pending payment confirmation.\n` +
-                      `You'll receive a confirmation email once payment is processed.`
+                      `Registration successful!\n\n` +
+                      `Amount paid: $${paymentData.amount.toFixed(2)}\n` +
+                      `You're registered for ${selectedEvent.title}!\n` +
+                      `A confirmation email has been sent.`
                     );
 
                     // Close modals
@@ -596,11 +654,36 @@ const Events = () => {
               </div>
 
               {selectedEvent.requires_payment && selectedEvent.price && (
-                <div className="bg-green-500/20 rounded-xl px-4 py-3 border border-green-500/30">
-                  <p className="text-green-400 text-sm">
-                    Total: ${(parseFloat(selectedEvent.price) * (1 + (parseInt(registrationData.guest_count) || 0))).toFixed(2)}
-                  </p>
-                </div>
+                <>
+                  <div className="bg-green-500/20 rounded-xl px-4 py-3 border border-green-500/30 mb-4">
+                    <p className="text-green-400 text-sm font-semibold">
+                      Total: ${(parseFloat(selectedEvent.price) * (1 + (parseInt(registrationData.guest_count) || 0))).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-white text-sm font-medium mb-2">
+                      Card Details <span className="text-red-400">*</span>
+                    </label>
+                    <div className="bg-slate-700/50 border border-white/10 rounded-xl p-4">
+                      <CardElement
+                        options={{
+                          style: {
+                            base: {
+                              fontSize: '16px',
+                              color: '#ffffff',
+                              '::placeholder': {
+                                color: '#9ca3af',
+                              },
+                            },
+                            invalid: {
+                              color: '#ef4444',
+                            },
+                          },
+                        }}
+                      />
+                    </div>
+                  </div>
+                </>
               )}
 
               <div className="flex gap-3 pt-4">
@@ -630,5 +713,5 @@ const Events = () => {
   );
 };
 
-export default Events;
+export default EventsWrapper;
 
