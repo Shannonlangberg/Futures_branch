@@ -259,12 +259,13 @@ export const ApiService = {
     return response.data;
   },
 
-  async registerForEvent(eventId, email, name, phone, guestCount = 0) {
+  async registerForEvent(eventId, email, name, phone, guestCount = 0, paymentIntentId = null) {
     const response = await api.post(`/api/events/${eventId}/register`, {
       email,
       name,
       phone,
       guest_count: guestCount,
+      payment_intent_id: paymentIntentId,
     });
     return response.data;
   },

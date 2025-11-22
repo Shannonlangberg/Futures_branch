@@ -26,6 +26,7 @@ const EventsManager = () => {
   const [selectedEventForRegistrations, setSelectedEventForRegistrations] = useState(null);
   const [registrations, setRegistrations] = useState([]);
   const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+  const [beaconZones, setBeaconZones] = useState([]);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -44,14 +45,31 @@ const EventsManager = () => {
     contact_email: '',
     contact_phone: '',
     image_url: '',
-    additional_info: ''
+    additional_info: '',
+    beacon_zone_id: ''
   });
 
   useEffect(() => {
     fetchEvents();
     fetchCategories();
     fetchCampuses();
+    fetchBeaconZones();
   }, [campusFilter, statusFilter]);
+
+  const fetchBeaconZones = async () => {
+    try {
+      const response = await fetch('/api/beacon_zones', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // API returns 'zones' not 'beacon_zones'
+        setBeaconZones(data.zones || data.beacon_zones || []);
+      }
+    } catch (error) {
+      console.error('Error fetching beacon zones:', error);
+    }
+  };
 
   const fetchCampuses = async () => {
     try {
@@ -184,7 +202,8 @@ const EventsManager = () => {
       contact_email: '',
       contact_phone: '',
       image_url: '',
-      additional_info: ''
+      additional_info: '',
+      beacon_zone_id: ''
     });
     setShowModal(true);
   };
@@ -223,7 +242,8 @@ const EventsManager = () => {
       contact_email: event.contact_email || '',
       contact_phone: event.contact_phone || '',
       image_url: event.image_url || '',
-      additional_info: event.additional_info || ''
+      additional_info: event.additional_info || '',
+      beacon_zone_id: event.beacon_zone_id || ''
     });
     setShowModal(true);
   };
@@ -245,7 +265,8 @@ const EventsManager = () => {
         end_datetime: formData.end_datetime ? new Date(formData.end_datetime).toISOString() : null,
         price: formData.price ? parseFloat(formData.price) : null,
         max_capacity: formData.max_capacity ? parseInt(formData.max_capacity) : null,
-        category_id: parseInt(formData.category_id) || null
+        category_id: parseInt(formData.category_id) || null,
+        beacon_zone_id: formData.beacon_zone_id ? parseInt(formData.beacon_zone_id) : null
       };
 
       const response = await fetch(url, {
@@ -624,6 +645,31 @@ const EventsManager = () => {
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
                   placeholder="Main Auditorium, 123 Main St"
                 />
+              </div>
+
+              {/* Beacon Zone for Attendance Tracking */}
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Bluetooth Beacon (for automatic attendance tracking)
+                </label>
+                <select
+                  name="beacon_zone_id"
+                  value={formData.beacon_zone_id}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="">No beacon (manual attendance only)</option>
+                  {beaconZones
+                    .filter(zone => !formData.campus || formData.campus === 'all_campuses' || zone.campus === formData.campus)
+                    .map(zone => (
+                      <option key={zone.id} value={zone.id}>
+                        {zone.zone_name} ({zone.campus})
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-white/50 mt-1">
+                  Link a beacon to automatically track attendance when people arrive at the event
+                </p>
               </div>
 
               {/* Payment Fields */}

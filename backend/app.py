@@ -18639,6 +18639,10 @@ def create_event():
             'stripe_price_id': stripe_price_id,
         }
         
+        # Add beacon_zone_id if provided
+        if data.get('beacon_zone_id'):
+            event_kwargs['beacon_zone_id'] = int(data['beacon_zone_id'])
+        
         # Only add fields that exist in the model (check using hasattr on a sample Event)
         # Create a temporary event to check which attributes exist
         temp_event = Event.__new__(Event)
@@ -18745,6 +18749,8 @@ def update_event(event_id):
             event.requires_payment = data['requires_payment']
         if 'stripe_price_id' in data:
             event.stripe_price_id = data['stripe_price_id']
+        if 'beacon_zone_id' in data:
+            event.beacon_zone_id = int(data['beacon_zone_id']) if data['beacon_zone_id'] else None
         if 'is_active' in data:
             event.is_active = data['is_active']
         if 'ministry' in data and hasattr(Event, 'ministry'):
