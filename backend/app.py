@@ -874,6 +874,7 @@ except Exception as e:
 
 # Helper function to get database file path (consistent across all endpoints)
 def get_db_path():
+def get_db_path():
     """Get the absolute path to the SQLite database file"""
     db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
     db_path = db_uri.replace('sqlite:///', '').replace('sqlite:////', '')
