@@ -370,7 +370,8 @@ function App() {
                   <Route path="/role-manager" element={<RoleManager />} />
                   <Route path="/export" element={<DataExport />} />
                   <Route path="/beacons" element={<BeaconManagement />} />
-                  <Route path="/pathways" element={<PathwayManager />} />
+                  <Route path="/journeys" element={<PathwayManager />} />
+                  <Route path="/pathways" element={<Navigate to="/journeys" replace />} />
                   <Route path="/profile" element={<MyProfile />} />
                   <Route path="/settings" element={<Navigate to="/profile" replace />} />
                   <Route path="/tv" element={<TV />} />
