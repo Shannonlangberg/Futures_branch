@@ -403,7 +403,7 @@ const MainLayout = ({ children }) => {
           </button>
           <div className="flex items-center space-x-2">
             <img 
-              src="/static/logo.png" 
+              src="/static/logo.png?v=2" 
               alt="Futures PULSE Logo" 
               className="h-6 w-auto object-contain"
             />
