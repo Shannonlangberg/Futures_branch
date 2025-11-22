@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/config';
@@ -40,7 +40,7 @@ import { Platform } from 'react-native';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Helper function to create header options with logo
+// Helper function to create header options
 const createHeaderOptions = (title) => ({
   presentation: 'card',
   animation: 'slide_from_right',
@@ -54,15 +54,6 @@ const createHeaderOptions = (title) => ({
   },
   headerTitle: title,
   headerBackTitleVisible: false,
-  headerLeft: () => (
-    <View style={{ paddingLeft: 8 }}>
-      <Image
-        source={require('./assets/logo.png')}
-        style={{ width: 100, height: 32 }}
-        resizeMode="contain"
-      />
-    </View>
-  ),
 });
 
 // Configure notifications

@@ -12,7 +12,6 @@ import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Header from '../components/Header';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
