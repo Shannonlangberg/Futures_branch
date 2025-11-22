@@ -28,8 +28,12 @@ export default function PathwayScreen() {
         const userObj = JSON.parse(userData);
         const profileData = await ApiService.getPersonProfile(userObj.email);
         
-        if (profileData && profileData.profile && profileData.profile.pathway) {
-          setPathway(profileData.profile.pathway);
+        if (profileData && profileData.profile) {
+          // Try journey first, fall back to pathway for backward compatibility
+          const journeyData = profileData.profile.journey || profileData.profile.pathway;
+          if (journeyData) {
+            setPathway(journeyData);
+          }
         }
       }
     } catch (error) {
@@ -70,7 +74,7 @@ export default function PathwayScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Pathway</Text>
+          <Text style={styles.headerTitle}>My Journey</Text>
           <Text style={styles.headerSubtitle}>Your discipleship journey</Text>
         </View>
 
@@ -176,9 +180,9 @@ export default function PathwayScreen() {
         {!pathway && !loading && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🗺️</Text>
-            <Text style={styles.emptyTitle}>No Pathway Data</Text>
+            <Text style={styles.emptyTitle}>No Journey Data</Text>
             <Text style={styles.emptyText}>
-              Your pathway information will appear here once it's available.
+              Your journey information will appear here once it's available.
             </Text>
           </View>
         )}

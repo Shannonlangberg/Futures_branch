@@ -474,7 +474,8 @@ def get_person_heartbeat(person_id):
             'person_id': person_id,
             'person': person.to_dict(),
             'heartbeat': heartbeat_dict,
-            'pathway': pathway_progress.to_dict() if pathway_progress else None,
+            'journey': pathway_progress.to_dict() if pathway_progress else None,
+            'pathway': pathway_progress.to_dict() if pathway_progress else None,  # Keep for backward compatibility
             'recent_activity': {
                 'attendance': recent_attendance if recent_attendance and isinstance(recent_attendance[0], dict) else ([a.to_dict() for a in recent_attendance] if recent_attendance else []),
                 'connect_groups': [

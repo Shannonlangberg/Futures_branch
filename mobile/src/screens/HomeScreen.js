@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
@@ -122,18 +123,25 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={styles.journeySection}
           onPress={() => navigation.navigate('Pathway')}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
         >
-          <View style={styles.journeyCard}>
+          <LinearGradient
+            colors={[Colors.primary, Colors.accent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.journeyCard}
+          >
             <View style={styles.journeyHeader}>
               <View style={styles.journeyTitleRow}>
-                <Icon name="pathway" size={24} color={Colors.primary} style={styles.journeyIcon} />
-                <Text style={styles.journeyTitle}>Your Pathway</Text>
+                <View style={styles.journeyIconContainer}>
+                  <Icon name="pathway" size={24} color="#ffffff" style={styles.journeyIcon} />
+                </View>
+                <Text style={styles.journeyTitleWhite}>Your Journey</Text>
               </View>
-              <Icon name="arrowRight" size={20} color={Colors.textMuted} />
+              <Icon name="arrowRight" size={20} color="rgba(255, 255, 255, 0.9)" />
             </View>
-            <Text style={styles.journeySubtitle}>Track your spiritual growth</Text>
-          </View>
+            <Text style={styles.journeySubtitleWhite}>Track your spiritual growth</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Campus Section - What's Coming Up */}
@@ -203,81 +211,125 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Sunday')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.actionContent}>
-                <View style={[styles.actionIconContainer, { backgroundColor: Colors.primary + '20' }]}>
-                  <Icon name="sunday" size={24} color={Colors.primary} />
+              <LinearGradient
+                colors={['#6366f1', '#8b5cf6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionGradient}
+              >
+                <View style={styles.actionContent}>
+                  <View style={styles.actionIconContainerWhite}>
+                    <Icon name="sunday" size={28} color="#ffffff" />
+                  </View>
+                  <Text style={styles.actionTextWhite}>Sunday</Text>
                 </View>
-                <Text style={styles.actionText}>Sunday</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Give')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.actionContent}>
-                <View style={[styles.actionIconContainer, { backgroundColor: Colors.success + '20' }]}>
-                  <Icon name="give" size={24} color={Colors.success} />
+              <LinearGradient
+                colors={['#10b981', '#34d399']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionGradient}
+              >
+                <View style={styles.actionContent}>
+                  <View style={styles.actionIconContainerWhite}>
+                    <Icon name="give" size={28} color="#ffffff" />
+                  </View>
+                  <Text style={styles.actionTextWhite}>Give</Text>
                 </View>
-                <Text style={styles.actionText}>Give</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Groups')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.actionContent}>
-                <View style={[styles.actionIconContainer, { backgroundColor: Colors.accent + '20' }]}>
-                  <Icon name="groups" size={24} color={Colors.accent} />
+              <LinearGradient
+                colors={['#8b5cf6', '#a78bfa']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionGradient}
+              >
+                <View style={styles.actionContent}>
+                  <View style={styles.actionIconContainerWhite}>
+                    <Icon name="groups" size={28} color="#ffffff" />
+                  </View>
+                  <Text style={styles.actionTextWhite}>Groups</Text>
                 </View>
-                <Text style={styles.actionText}>Groups</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('TVHome')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.actionContent}>
-                <View style={[styles.actionIconContainer, { backgroundColor: Colors.primary + '20' }]}>
-                  <Icon name="tv" size={24} color={Colors.primary} />
+              <LinearGradient
+                colors={['#3b82f6', '#60a5fa']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionGradient}
+              >
+                <View style={styles.actionContent}>
+                  <View style={styles.actionIconContainerWhite}>
+                    <Icon name="tv" size={28} color="#ffffff" />
+                  </View>
+                  <Text style={styles.actionTextWhite}>Pulse TV</Text>
                 </View>
-                <Text style={styles.actionText}>Pulse TV</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Prayer')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.actionContent}>
-                <View style={[styles.actionIconContainer, { backgroundColor: Colors.error + '20' }]}>
-                  <Icon name="prayer" size={24} color={Colors.error} />
+              <LinearGradient
+                colors={['#ef4444', '#f87171']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionGradient}
+              >
+                <View style={styles.actionContent}>
+                  <View style={styles.actionIconContainerWhite}>
+                    <Icon name="prayer" size={28} color="#ffffff" />
+                  </View>
+                  <Text style={styles.actionTextWhite}>Prayer</Text>
                 </View>
-                <Text style={styles.actionText}>Prayer</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Explore')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.actionContent}>
-                <View style={[styles.actionIconContainer, { backgroundColor: Colors.info + '20' }]}>
-                  <Icon name="explore" size={24} color={Colors.info} />
+              <LinearGradient
+                colors={['#06b6d4', '#22d3ee']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionGradient}
+              >
+                <View style={styles.actionContent}>
+                  <View style={styles.actionIconContainerWhite}>
+                    <Icon name="explore" size={28} color="#ffffff" />
+                  </View>
+                  <Text style={styles.actionTextWhite}>Explore</Text>
                 </View>
-                <Text style={styles.actionText}>Explore</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
+          {/* Spacing below Quick Actions */}
+          <View style={styles.actionsBottomSpacing} />
         </View>
 
         {/* Bottom Spacing */}
@@ -298,33 +350,42 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    marginBottom: Spacing.sectionSpacing,
+    marginBottom: Spacing.xl,
     marginTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
   headerContent: {
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   greeting: {
     fontSize: FontSizes.xxxl,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.xs,
     letterSpacing: -0.5,
+    lineHeight: 40,
   },
   campusName: {
     fontSize: FontSizes.md,
     color: Colors.textSecondary,
+    fontWeight: '500',
   },
   journeySection: {
-    marginBottom: Spacing.sectionSpacing,
+    marginBottom: Spacing.xl,
   },
   journeyCard: {
     padding: Spacing.cardPadding,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 0,
     marginBottom: 0,
+  },
+  journeyIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
   },
   journeyHeader: {
     flexDirection: 'row',
@@ -344,10 +405,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
   },
+  journeyTitleWhite: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
   journeySubtitle: {
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  journeySubtitleWhite: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 20,
+    marginTop: Spacing.xs,
   },
   journeyStatus: {
     flexDirection: 'row',
@@ -366,7 +438,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   campusSection: {
-    marginBottom: Spacing.sectionSpacing,
+    marginBottom: Spacing.xl,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -451,39 +523,58 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionsSection: {
-    marginBottom: Spacing.sectionSpacing,
+    marginBottom: Spacing.xl,
   },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: Spacing.cardGap,
   },
   actionCard: {
     width: '48%',
-    marginBottom: 0,
+    marginBottom: Spacing.cardGap,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 0,
+    overflow: 'hidden',
+  },
+  actionGradient: {
+    borderRadius: 20,
+    padding: Spacing.cardPadding,
+    minHeight: 130,
+    justifyContent: 'center',
   },
   actionContent: {
-    padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 120,
   },
   actionIconContainer: {
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  actionIconContainerWhite: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
   },
   actionText: {
     fontSize: FontSizes.md,
     fontWeight: '600',
     color: Colors.text,
+  },
+  actionTextWhite: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  actionsBottomSpacing: {
+    height: Spacing.lg,
   },
   bottomSpacing: {
     height: Spacing.xxl,

@@ -308,9 +308,9 @@ export const ApiService = {
     return response.data;
   },
 
-  // Pathway
+  // Journey
   async completePathwayStep(email, stepId, notes) {
-    const response = await api.post('/api/pathways/complete-step', {
+    const response = await api.post('/api/journeys/complete-step', {
       email,
       step_id: stepId,
       notes,
@@ -345,9 +345,9 @@ export const ApiService = {
     return response.data;
   },
 
-  // Pathways/Passport
+  // Journeys/Passport
   async getMyPathway(email) {
-    const response = await api.get(`/api/pathways/my-pathway?email=${email}`);
+    const response = await api.get(`/api/journeys/my-journey?email=${email}`);
     return response.data;
   },
 

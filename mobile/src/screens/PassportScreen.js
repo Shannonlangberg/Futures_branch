@@ -63,8 +63,10 @@ export default function PathwayScreen() {
         const profileData = await ApiService.getPersonProfile(userObj.email);
         
         if (profileData && profileData.profile) {
-          if (profileData.profile.pathway) {
-            setPathway(profileData.profile.pathway);
+          // Try journey first, fall back to pathway for backward compatibility
+          const journeyData = profileData.profile.journey || profileData.profile.pathway;
+          if (journeyData) {
+            setPathway(journeyData);
           }
           if (profileData.profile.streaks) {
             setStreaks(profileData.profile.streaks);
