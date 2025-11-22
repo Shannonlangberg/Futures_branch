@@ -1150,8 +1150,8 @@ Compress(app)
 # Initialize database
 init_db(app)
 
-# Run migrations
-run_migrations()
+# Migrations already run earlier (after database URL is set, before any models are used)
+# run_migrations()  # Already called at line 869
 
 # Seed database with initial data
 try:
