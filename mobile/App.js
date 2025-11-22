@@ -113,7 +113,7 @@ function MainTabs() {
         name="Pathway" 
         component={PassportScreen}
         options={{
-          tabBarLabel: 'Pathway',
+          tabBarLabel: 'Journey',
           tabBarIcon: ({ color, size }) => (
             <Icon name="pathway" size={size || 24} color={color} />
           ),

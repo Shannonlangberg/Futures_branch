@@ -57,7 +57,7 @@ const PathwayManager = () => {
         const data = await response.json();
         setPathways(data.pathways || []);
       } else {
-        setError('Failed to load pathways');
+        setError('Failed to load journeys');
       }
     } catch (err) {
       console.error('Error loading pathways:', err);

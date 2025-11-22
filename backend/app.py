@@ -14224,7 +14224,7 @@ def get_my_pathway():
             else:
                 # No pathway assigned - return None (staff needs to assign one)
                 logger.info(f"No pathway assigned to {person.email}")
-                return jsonify({'pathway': None})
+                return jsonify({'journey': None, 'pathway': None})  # Backward compatibility
                 
         except Exception as e:
             logger.error(f"Error loading assigned pathway: {e}", exc_info=True)

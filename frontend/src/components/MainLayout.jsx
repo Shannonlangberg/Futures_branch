@@ -199,7 +199,7 @@ const MainLayout = ({ children }) => {
       { name: 'Role Manager', href: '/role-manager', icon: ShieldCheckIcon, featureKey: 'user_management' }, // Role Manager requires user_management permission
       { name: 'Campuses', href: '/campuses', icon: BuildingOfficeIcon, featureKey: 'campus_management' },
       { name: 'Beacon Management', href: '/beacons', icon: SignalIcon, featureKey: 'beacon_management' },
-      { name: 'Journey Manager', href: '/pathways', icon: AcademicCapIcon, featureKey: 'pathway_manager' },
+      { name: 'Journey Manager', href: '/journeys', icon: AcademicCapIcon, featureKey: 'pathway_manager' },
       { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, featureKey: 'resource_manager' },
       { name: 'TV Manager', href: '/tv/manage', icon: PlayIcon, featureKey: 'tv_manager' },
       { name: 'Events Manager', href: '/events/manage', icon: CalendarIcon, featureKey: 'events_manager' }
