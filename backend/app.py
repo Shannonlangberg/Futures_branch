@@ -925,7 +925,7 @@ def run_migrations():
             logger.info(f"Migration: Using database from app config: {database_url}")
         except:
             # Fall back to environment variable if app not initialized
-        database_url = os.getenv('DATABASE_URL', '').strip()
+            database_url = os.getenv('DATABASE_URL', '').strip()
             logger.info(f"Migration: Using database from env var: {database_url}")
         
         # Extract actual file path from SQLite URL
