@@ -768,17 +768,27 @@ class PathwayStep(db.Model):
     def get_actions(self):
         """Get step actions as list"""
         try:
+            # Handle case where column doesn't exist yet (before migration)
+            if not hasattr(self, 'step_actions') or self.step_actions is None:
+                return []
             return json.loads(self.step_actions) if self.step_actions else []
         except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+        except AttributeError:
+            # Column doesn't exist in database yet
             return []
     
     def set_actions(self, actions_list):
         """Set step actions from list"""
-        self.step_actions = json.dumps(actions_list) if actions_list else '[]'
+        try:
+            self.step_actions = json.dumps(actions_list) if actions_list else '[]'
+        except AttributeError:
+            # Column doesn't exist in database yet - ignore for now
+            pass
     
     def to_dict(self):
         """Convert step to dictionary"""
-        return {
+        result = {
             'id': self.id,
             'pathway_id': self.pathway_id,
             'step_order': self.step_order,
@@ -786,9 +796,15 @@ class PathwayStep(db.Model):
             'step_description': self.step_description,
             'milestone_type': self.milestone_type,
             'is_required': self.is_required,
-            'step_actions': self.get_actions(),  # Return as list, not JSON string
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+        # Only include step_actions if column exists
+        try:
+            result['step_actions'] = self.get_actions()  # Return as list, not JSON string
+        except (AttributeError, KeyError):
+            # Column doesn't exist yet - default to empty list
+            result['step_actions'] = []
+        return result
 
 
 class PersonPathwayProgress(db.Model):

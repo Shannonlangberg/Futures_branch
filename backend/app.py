@@ -907,14 +907,18 @@ def run_migrations():
     import sqlite3
     try:
         # Determine which database to use for migrations
-        # Check if DATABASE_URL points to a database we should use
-        db_path = CHURCH_VOICE_DB_PATH
-        database_url = os.getenv('DATABASE_URL', '').strip()
+        # Use the same database as SQLAlchemy
+        database_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
         if database_url and database_url.startswith('sqlite:///'):
-            potential_path = database_url.replace('sqlite:///', '')
-            if potential_path.startswith('/'):
-                # On Railway, use the DATABASE_URL database
-                db_path = potential_path
+            db_path = database_url.replace('sqlite:///', '').replace('sqlite:////', '')
+            if not os.path.isabs(db_path):
+                # Use the same logic as get_db_path()
+                backend_dir = os.path.dirname(os.path.abspath(__file__))
+                instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
+                db_path = instance_path if os.path.exists(instance_path) else os.path.join(backend_dir, 'futures_link.db')
+        else:
+            # Fall back to default
+            db_path = CHURCH_VOICE_DB_PATH
         
         # Ensure instance directory exists (for default path)
         if db_path == CHURCH_VOICE_DB_PATH:
