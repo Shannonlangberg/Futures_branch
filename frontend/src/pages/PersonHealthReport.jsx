@@ -254,7 +254,7 @@ const PersonHealthReport = () => {
 
   const handleAssignPathway = async () => {
     if (!selectedPathwayId) {
-      alert('Please select a pathway');
+      alert('Please select a journey');
       return;
     }
 
@@ -275,23 +275,23 @@ const PersonHealthReport = () => {
       const result = await response.json();
 
       if (response.ok) {
-        alert(replaceExistingPathway || hasPathway ? 'Pathway replaced successfully!' : 'Pathway assigned successfully!');
+        alert(replaceExistingPathway || hasPathway ? 'Journey replaced successfully!' : 'Journey assigned successfully!');
         setShowPathwayModal(false);
         setSelectedPathwayId(null);
         setReplaceExistingPathway(false);
         await fetchPersonData();
       } else {
-        alert(result.error || 'Failed to assign pathway');
+        alert(result.error || 'Failed to assign journey');
       }
     } catch (err) {
-      console.error('Error assigning pathway:', err);
-      alert('Failed to assign pathway');
+      console.error('Error assigning journey:', err);
+      alert('Failed to assign journey');
     }
   };
 
   const handleCompleteStepClick = (stepId) => {
     if (!data.pathway) {
-      alert('No pathway assigned');
+      alert('No journey assigned');
       return;
     }
     
@@ -304,7 +304,7 @@ const PersonHealthReport = () => {
 
   const handleEditCompletionClick = (stepId, currentDate) => {
     if (!data.pathway) {
-      alert('No pathway assigned');
+      alert('No journey assigned');
       return;
     }
     
@@ -1013,13 +1013,13 @@ const PersonHealthReport = () => {
               return null;
             })()}
 
-            {/* Discipleship Pathway */}
+            {/* Discipleship Journey */}
             {hasPathway ? (
               <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-500/40 rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                     <span>🎓</span>
-                    Discipleship Pathway: {pathway.pathway_name}
+                    Discipleship Journey: {pathway.pathway_name}
                   </h2>
                   <div className="flex items-center gap-3">
                     <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-semibold">
@@ -1028,9 +1028,9 @@ const PersonHealthReport = () => {
                     <button
                       onClick={() => setShowPathwayModal(true)}
                       className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition-colors"
-                      title="Assign or change pathway"
+                      title="Assign or change journey"
                     >
-                      Change Pathway
+                      Change Journey
                     </button>
                   </div>
                 </div>
@@ -1102,7 +1102,7 @@ const PersonHealthReport = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">🎉</span>
                         <div>
-                          <div className="text-sm font-semibold text-green-300 mb-1">Pathway Complete!</div>
+                          <div className="text-sm font-semibold text-green-300 mb-1">Journey Complete!</div>
                           <div className="text-sm text-slate-300">All steps have been completed.</div>
                         </div>
                       </div>
@@ -1110,7 +1110,7 @@ const PersonHealthReport = () => {
                         onClick={() => setShowPathwayModal(true)}
                         className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors"
                       >
-                        Assign New Pathway
+                        Assign New Journey
                       </button>
                     </div>
                   </div>
@@ -1215,18 +1215,18 @@ const PersonHealthReport = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                     <span>🎓</span>
-                    Discipleship Pathway
+                    Discipleship Journey
                   </h2>
                   <button
                     onClick={() => setShowPathwayModal(true)}
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold"
                   >
-                    Assign Pathway
+                    Assign Journey
                   </button>
                 </div>
-                <p className="text-slate-400 mb-2">No pathway assigned yet.</p>
+                <p className="text-slate-400 mb-2">No journey assigned yet.</p>
                 <p className="text-sm text-slate-500">
-                  Assign a pathway to track their discipleship journey and next steps.
+                  Assign a journey to track their discipleship growth and next steps.
                 </p>
                 </div>
               )}
@@ -1346,12 +1346,12 @@ const PersonHealthReport = () => {
                     </div>
                   )}
 
-        {/* Assign Pathway Modal */}
+        {/* Assign Journey Modal */}
         {showPathwayModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-2xl w-full">
               <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-white">Assign Pathway</h2>
+                <h2 className="text-2xl font-bold text-white">Assign Journey</h2>
                 <button
                   onClick={() => {
                     setShowPathwayModal(false);
@@ -1366,14 +1366,14 @@ const PersonHealthReport = () => {
               <div className="p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Select Pathway
+                    Select Journey
                   </label>
                   <select
                     value={selectedPathwayId || ''}
                     onChange={(e) => setSelectedPathwayId(e.target.value)}
                     className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="">Choose a pathway...</option>
+                    <option value="">Choose a journey...</option>
                     {pathways.map((pathway) => (
                       <option key={pathway.id} value={pathway.id}>
                         {pathway.name} {pathway.is_template && '(Template)'}
@@ -1404,10 +1404,10 @@ const PersonHealthReport = () => {
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium text-amber-300 mb-1">
-                          Replace Current Pathway
+                          Replace Current Journey
                         </div>
                         <div className="text-xs text-amber-300/70">
-                          This will replace the current "{pathway.pathway_name}" pathway. The person will start fresh with the new pathway.
+                          This will replace the current "{pathway.pathway_name}" journey. The person will start fresh with the new journey.
                         </div>
                       </div>
                     </label>
@@ -1430,7 +1430,7 @@ const PersonHealthReport = () => {
                     disabled={!selectedPathwayId}
                     className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {hasPathway && replaceExistingPathway ? 'Replace Pathway' : 'Assign Pathway'}
+                    {hasPathway && replaceExistingPathway ? 'Replace Journey' : 'Assign Journey'}
                   </button>
                 </div>
               </div>

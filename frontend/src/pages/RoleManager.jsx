@@ -46,7 +46,7 @@ const RoleManager = () => {
     { key: 'user_management', label: 'User Management', icon: '👤' },
     { key: 'campus_management', label: 'Campus Management', icon: '🏢' },
     { key: 'beacon_management', label: 'Beacon Management', icon: '📡' },
-    { key: 'pathway_manager', label: 'Pathway Manager', icon: '🛤️' },
+    { key: 'pathway_manager', label: 'Journey Manager', icon: '🛤️' },
     { key: 'resource_manager', label: 'Resource Manager', icon: '📦' },
     { key: 'tv_manager', label: 'TV Manager', icon: '🎬' },
     { key: 'events_manager', label: 'Events Manager', icon: '🎪' }

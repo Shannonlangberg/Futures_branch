@@ -41,7 +41,7 @@ const PathwayManager = () => {
       setLoading(true);
       setError('');
       
-      const response = await fetch('/api/pathways', {
+      const response = await fetch('/api/journeys', {
         credentials: 'include'
       });
       
@@ -149,7 +149,7 @@ const PathwayManager = () => {
     e.preventDefault();
     
     if (!formData.name.trim()) {
-      alert('Pathway name is required');
+      alert('Journey name is required');
       return;
     }
 
@@ -186,13 +186,13 @@ const PathwayManager = () => {
       if (response.ok) {
         await loadPathways();
         handleCloseModal();
-        alert(editingPathway ? 'Pathway updated successfully' : 'Pathway created successfully');
+        alert(editingPathway ? 'Journey updated successfully' : 'Journey created successfully');
       } else {
-        alert(data.error || 'Failed to save pathway');
+        alert(data.error || 'Failed to save journey');
       }
     } catch (err) {
-      console.error('Error saving pathway:', err);
-      alert('Failed to save pathway');
+      console.error('Error saving journey:', err);
+      alert('Failed to save journey');
     }
   };
 
@@ -211,20 +211,20 @@ const PathwayManager = () => {
 
       if (response.ok) {
         await loadPathways();
-        alert('Pathway deleted successfully');
+        alert('Journey deleted successfully');
       } else {
-        alert(data.error || 'Failed to delete pathway');
+        alert(data.error || 'Failed to delete journey');
       }
     } catch (err) {
-      console.error('Error deleting pathway:', err);
-      alert('Failed to delete pathway');
+      console.error('Error deleting journey:', err);
+      alert('Failed to delete journey');
     }
   };
 
   if (loading && pathways.length === 0) {
     return (
       <div className="min-h-screen bg-slate-900 p-6 flex items-center justify-center">
-        <div className="text-white text-xl">Loading pathways...</div>
+        <div className="text-white text-xl">Loading journeys...</div>
       </div>
     );
   }
@@ -238,16 +238,16 @@ const PathwayManager = () => {
             <div>
               <h1 className="text-4xl font-bold text-white mb-2 flex items-center">
                 <AcademicCapIcon className="w-10 h-10 mr-3 text-purple-500" />
-                Pathway Manager
+                Journey Manager
               </h1>
-              <p className="text-slate-400">Create and manage discipleship pathways for tracking spiritual growth</p>
+              <p className="text-slate-400">Create and manage discipleship journeys for tracking spiritual growth</p>
             </div>
             <button
               onClick={() => handleOpenModal()}
               className="flex items-center px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
             >
               <PlusIcon className="w-5 h-5 mr-2" />
-              Create Pathway
+              Create Journey
             </button>
           </div>
         </div>
@@ -263,12 +263,12 @@ const PathwayManager = () => {
         <div className="space-y-4">
           {pathways.length === 0 ? (
             <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700/50">
-              <p className="text-slate-400 mb-4">No pathways found.</p>
+              <p className="text-slate-400 mb-4">No journeys found.</p>
               <button
                 onClick={() => handleOpenModal()}
                 className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
               >
-                Create Your First Pathway
+                Create Your First Journey
               </button>
             </div>
           ) : (
@@ -317,7 +317,7 @@ const PathwayManager = () => {
                       <button
                         onClick={() => handleDelete(pathway)}
                         className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg"
-                        title="Delete Pathway"
+                        title="Delete Journey"
                       >
                         <TrashIcon className="w-5 h-5" />
                       </button>

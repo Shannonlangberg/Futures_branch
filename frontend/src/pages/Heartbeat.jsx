@@ -786,7 +786,7 @@ const Heartbeat = () => {
                 </p>
                 <p className="text-slate-500 text-sm mb-4">
                   {viewMode === 'next-steps'
-                    ? 'Everyone is on track or no pathways assigned yet'
+                    ? 'Everyone is on track or no journeys assigned yet'
                     : searchQuery || statusFilter || departmentFilter
                     ? 'Try adjusting your filters'
                     : people.length === 0
@@ -828,8 +828,8 @@ const Heartbeat = () => {
                           </>
                         ) : person.reason === 'no_pathway_assigned' ? (
                           <div className="mt-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                            <div className="text-xs font-semibold text-amber-300">No Pathway Assigned</div>
-                            <div className="text-xs text-slate-400 mt-1">This person doesn't have a discipleship pathway assigned yet</div>
+                            <div className="text-xs font-semibold text-amber-300">No Journey Assigned</div>
+                            <div className="text-xs text-slate-400 mt-1">This person doesn't have a discipleship journey assigned yet</div>
                           </div>
                         ) : null}
                       </div>

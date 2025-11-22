@@ -14178,9 +14178,9 @@ def update_profile():
         return jsonify({'error': 'Failed to update profile'}), 500
 
 
-@app.route('/api/pathways/my-pathway', methods=['GET'])
+@app.route('/api/journeys/my-journey', methods=['GET'])
 def get_my_pathway():
-    """Get pathway/journey data for a person by email - public endpoint for mobile app"""
+    """Get journey data for a person by email - public endpoint for mobile app"""
     try:
         email = request.args.get('email', '').strip()
         if not email:
@@ -14222,9 +14222,9 @@ def get_my_pathway():
         return jsonify({'pathway': None, 'error': 'Failed to fetch pathway data'}), 500
 
 
-@app.route('/api/pathways/complete-step', methods=['POST'])
+@app.route('/api/journeys/complete-step', methods=['POST'])
 def complete_pathway_step():
-    """Mark a pathway step as complete (public endpoint for mobile app)"""
+    """Mark a journey step as complete (public endpoint for mobile app)"""
     try:
         data = request.get_json()
         email = data.get('email', '').strip()
