@@ -1512,11 +1512,11 @@ def load_user(user_id):
             ''', (user_id,))
         except Exception:
             # Fallback if custom_permissions column doesn't exist yet
-        cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active
-            FROM users
-            WHERE id = ? AND active = 1
-        ''', (user_id,))
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active
+                FROM users
+                WHERE id = ? AND active = 1
+            ''', (user_id,))
         
         row = cursor.fetchone()
         conn.close()
