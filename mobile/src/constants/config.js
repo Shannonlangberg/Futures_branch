@@ -42,7 +42,7 @@ export const Colors = {
   gradientEnd: '#8b5cf6',
 };
 
-// Spacing
+// Spacing - Updated to match Liven's generous spacing
 export const Spacing = {
   xs: 4,
   sm: 8,
@@ -50,6 +50,11 @@ export const Spacing = {
   lg: 24,
   xl: 32,
   xxl: 48,
+  // Additional spacing for better hierarchy
+  screenPadding: 24, // More generous screen padding
+  cardPadding: 20, // More generous card padding
+  sectionSpacing: 40, // More space between major sections
+  cardGap: 16, // Gap between cards in grids
 };
 
 // Font Sizes

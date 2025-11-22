@@ -99,6 +99,9 @@ def create_pathway():
                     milestone_type=step_data.get('milestone_type'),
                     is_required=step_data.get('is_required', True)
                 )
+                # Set step actions if provided
+                if 'step_actions' in step_data and step_data['step_actions']:
+                    step.set_actions(step_data['step_actions'])
                 db.session.add(step)
         
         db.session.commit()
@@ -195,6 +198,9 @@ def update_pathway(pathway_id):
                         step.step_description = step_data.get('step_description', step.step_description)
                         step.milestone_type = step_data.get('milestone_type', step.milestone_type)
                         step.is_required = step_data.get('is_required', True)
+                        # Update step actions if provided
+                        if 'step_actions' in step_data:
+                            step.set_actions(step_data.get('step_actions', []))
                 else:
                     # Create new step
                     new_step = PathwayStep(
@@ -205,6 +211,9 @@ def update_pathway(pathway_id):
                         milestone_type=step_data.get('milestone_type'),
                         is_required=step_data.get('is_required', True)
                     )
+                    # Set step actions if provided
+                    if 'step_actions' in step_data and step_data['step_actions']:
+                        new_step.set_actions(step_data['step_actions'])
                     db.session.add(new_step)
             
             # Reorder all steps to ensure proper ordering

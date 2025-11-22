@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { Linking } from 'react-native';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,10 +29,31 @@ export default function PathwayScreen() {
   const [showStepModal, setShowStepModal] = useState(false);
   const [completingStep, setCompletingStep] = useState(false);
   const [celebrationAnim] = useState(new Animated.Value(0));
+  const [pulseAnim] = useState(new Animated.Value(1));
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Golden pulsing animation for current step
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseAnimation.start();
+    return () => pulseAnimation.stop();
+  }, [pulseAnim]);
 
   const loadData = async () => {
     try {
@@ -269,12 +291,45 @@ export default function PathwayScreen() {
                           <Text style={styles.stepCheckmark}>✓</Text>
                         </LinearGradient>
                       ) : isNext ? (
-                        <LinearGradient
-                          colors={['#6366f1', '#8b5cf6']}
-                          style={[styles.stepCircle, styles.stepCircleNext]}
+                        <Animated.View
+                          style={[
+                            {
+                              transform: [{ scale: pulseAnim }],
+                            },
+                          ]}
                         >
-                          <Text style={styles.stepNumber}>{step.step_order}</Text>
-                        </LinearGradient>
+                          {/* Golden glow rings for pulsing effect */}
+                          <Animated.View
+                            style={[
+                              styles.goldenGlow,
+                              {
+                                opacity: pulseAnim.interpolate({
+                                  inputRange: [1, 1.15],
+                                  outputRange: [0.3, 0.6],
+                                }),
+                                transform: [{ scale: pulseAnim }],
+                              },
+                            ]}
+                          />
+                          <Animated.View
+                            style={[
+                              styles.goldenGlowInner,
+                              {
+                                opacity: pulseAnim.interpolate({
+                                  inputRange: [1, 1.15],
+                                  outputRange: [0.5, 0.8],
+                                }),
+                                transform: [{ scale: pulseAnim }],
+                              },
+                            ]}
+                          />
+                          <LinearGradient
+                            colors={['#fbbf24', '#f59e0b', '#d97706']}
+                            style={[styles.stepCircle, styles.stepCircleNext]}
+                          >
+                            <Text style={styles.stepNumber}>{step.step_order}</Text>
+                          </LinearGradient>
+                        </Animated.View>
                       ) : (
                         <View style={[styles.stepCircle, styles.stepCircleInactive]}>
                           <Text style={[styles.stepNumber, styles.stepNumberInactive]}>{step.step_order}</Text>
@@ -489,6 +544,53 @@ export default function PathwayScreen() {
                       <Text style={styles.modalMilestoneValue}>
                         {selectedStep.milestone_type.replace('_', ' ').toUpperCase()}
                       </Text>
+                    </View>
+                  )}
+
+                  {/* Step Actions */}
+                  {selectedStep.step_actions && selectedStep.step_actions.length > 0 && (
+                    <View style={styles.modalActions}>
+                      <Text style={styles.modalActionsTitle}>Actions to Complete:</Text>
+                      {selectedStep.step_actions.map((action, index) => {
+                        const getActionIcon = () => {
+                          if (action.type === 'watch_video') return '▶️';
+                          if (action.type === 'read_content') return '📖';
+                          if (action.type === 'complete_task') return '✓';
+                          return action.icon || '🔗';
+                        };
+                        
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            style={styles.actionCard}
+                            onPress={() => {
+                              if (action.url) {
+                                Linking.openURL(action.url).catch(err => {
+                                  Alert.alert('Error', 'Could not open link');
+                                });
+                              }
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.actionIcon}>
+                              <Text style={styles.actionIconText}>{getActionIcon()}</Text>
+                            </View>
+                            <View style={styles.actionContent}>
+                              <Text style={styles.actionTitle}>{action.title}</Text>
+                              {action.url && (
+                                <Text style={styles.actionLink} numberOfLines={1}>
+                                  {action.url.length > 40 ? action.url.substring(0, 40) + '...' : action.url}
+                                </Text>
+                              )}
+                            </View>
+                            {action.url && (
+                              <View style={styles.actionArrow}>
+                                <Text style={styles.actionArrowText}>→</Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   )}
 
@@ -772,8 +874,30 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   stepCircleNext: {
-    shadowColor: '#6366f1',
-    shadowOpacity: 0.5,
+    shadowColor: '#fbbf24',
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  goldenGlow: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#fbbf24',
+    opacity: 0.3,
+    top: -10,
+    left: -10,
+  },
+  goldenGlowInner: {
+    position: 'absolute',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#f59e0b',
+    opacity: 0.5,
+    top: -5,
+    left: -5,
   },
   stepCircleInactive: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',

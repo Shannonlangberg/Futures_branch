@@ -299,10 +299,11 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: Spacing.sectionSpacing,
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   headerContent: {
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
   greeting: {
     fontSize: FontSizes.xxxl,
@@ -323,6 +324,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: Colors.surface,
     borderWidth: 0,
+    marginBottom: 0,
   },
   journeyHeader: {
     flexDirection: 'row',
@@ -370,7 +372,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xs,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -390,7 +393,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   eventCard: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.cardGap,
     borderRadius: 20,
     overflow: 'hidden',
   },
@@ -454,10 +457,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: Spacing.cardGap,
   },
   actionCard: {
     width: '48%',
-    marginBottom: Spacing.md,
+    marginBottom: 0,
     borderRadius: 20,
     backgroundColor: Colors.surface,
     borderWidth: 0,
@@ -466,7 +470,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 100,
+    minHeight: 120,
   },
   actionIconContainer: {
     width: 56,
@@ -474,7 +478,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   actionText: {
     fontSize: FontSizes.md,
@@ -482,6 +486,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   bottomSpacing: {
-    height: Spacing.xl,
+    height: Spacing.xxl,
   },
 });
