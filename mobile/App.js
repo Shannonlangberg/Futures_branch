@@ -110,16 +110,6 @@ function MainTabs() {
         }}
       />
       <Tab.Screen 
-        name="Pathway" 
-        component={PassportScreen}
-        options={{
-          tabBarLabel: 'Journey',
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="pathway" size={size || 24} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen 
         name="Give" 
         component={GivingScreen}
         options={{
@@ -345,6 +335,11 @@ export default function App() {
                 name="EditProfile" 
                 component={EditProfileScreen}
                 options={createHeaderOptions('Edit Profile')}
+              />
+              <Stack.Screen 
+                name="Pathway" 
+                component={PassportScreen}
+                options={createHeaderOptions('Your Journey')}
               />
               <Stack.Screen 
                 name="Explore" 

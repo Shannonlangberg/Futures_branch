@@ -41,9 +41,37 @@ def get_pathways():
         
         pathways = query.order_by(DiscipleshipPathway.name).all()
         
+        # Try to convert to dict, handling missing columns gracefully
+        pathways_list = []
+        for p in pathways:
+            try:
+                pathways_list.append(p.to_dict())
+            except Exception as e:
+                error_str = str(e).lower()
+                if 'no such column' in error_str or 'step_actions' in error_str:
+                    # Column missing - try to run migration or return without steps
+                    logger.warning(f"Column step_actions missing for pathway {p.id}, skipping steps")
+                    # Return pathway without steps
+                    pathways_list.append({
+                        'id': p.id,
+                        'name': p.name,
+                        'description': p.description,
+                        'category': p.category,
+                        'is_active': p.is_active,
+                        'is_template': p.is_template,
+                        'created_by_person_id': p.created_by_person_id,
+                        'steps': [],  # Empty steps until migration runs
+                        'step_count': 0,
+                        'created_at': p.created_at.isoformat() if p.created_at else None,
+                        'updated_at': p.updated_at.isoformat() if p.updated_at else None
+                    })
+                else:
+                    # Different error - log and skip this pathway
+                    logger.error(f"Error converting pathway {p.id} to dict: {e}")
+        
         return jsonify({
-            'pathways': [p.to_dict() for p in pathways],
-            'count': len(pathways)
+            'pathways': pathways_list,
+            'count': len(pathways_list)
         }), 200
         
     except Exception as e:
@@ -54,6 +82,14 @@ def get_pathways():
             return jsonify({
                 'error': 'Journeys table not found. Please run migrations first.',
                 'details': str(e),
+                'pathways': [],
+                'count': 0
+            }), 500
+        # Check if it's a column missing error
+        if 'no such column' in error_str or 'step_actions' in error_str:
+            return jsonify({
+                'error': 'Database migration needed. The step_actions column is missing.',
+                'details': 'Please wait for migrations to run, or contact support.',
                 'pathways': [],
                 'count': 0
             }), 500

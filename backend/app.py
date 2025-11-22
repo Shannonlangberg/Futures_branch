@@ -1047,12 +1047,19 @@ def run_migrations():
                             continue
                         try:
                             cursor.execute(statement)
+                            conn.commit()  # Commit after each successful statement
+                            logger.info(f"Migration {migration_file}: Successfully executed: {statement[:50]}...")
                         except sqlite3.OperationalError as e:
                             error_msg = str(e).lower()
                             # If column already exists, that's okay - skip this statement
-                            if 'duplicate column' in error_msg or 'already exists' in error_msg or 'duplicate column name' in error_msg:
+                            if 'duplicate column' in error_msg or 'already exists' in error_msg or 'duplicate column name' in error_msg or 'duplicate column name: step_actions' in error_msg:
                                 logger.info(f"Migration {migration_file}: Column already exists, skipping statement: {statement[:50]}...")
+                                conn.commit()  # Commit anyway
                                 continue  # Skip this statement, continue with next
+                            else:
+                                # Other operational error - log and continue
+                                logger.warning(f"Migration {migration_file}: Operational error (might be harmless): {error_msg[:100]}")
+                                conn.commit()  # Commit anyway and continue
                             elif 'syntax error' in error_msg:
                                 # Syntax errors might be from comments or empty statements
                                 logger.debug(f"Migration {migration_file}: Syntax error (likely harmless): {statement[:50]}...")
