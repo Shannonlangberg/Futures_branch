@@ -7,6 +7,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import Icon from './src/components/Icon';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/config';
@@ -104,7 +105,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>🏠</Text>
+            <Icon name="home" size={size || 24} color={color} />
           ),
         }}
       />
@@ -114,7 +115,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Pathway',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>🗺️</Text>
+            <Icon name="pathway" size={size || 24} color={color} />
           ),
         }}
       />
@@ -124,7 +125,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Give',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>💰</Text>
+            <Icon name="give" size={size || 24} color={color} />
           ),
         }}
       />
@@ -134,7 +135,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Groups',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>👥</Text>
+            <Icon name="groups" size={size || 24} color={color} />
           ),
         }}
       />
@@ -144,7 +145,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Prayer',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>🙏</Text>
+            <Icon name="prayer" size={size || 24} color={color} />
           ),
         }}
       />
@@ -154,7 +155,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Settings',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: 24 }}>⚙️</Text>
+            <Icon name="settings" size={size || 24} color={color} />
           ),
         }}
       />

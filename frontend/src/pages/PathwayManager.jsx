@@ -29,7 +29,15 @@ const PathwayManager = () => {
     step_description: '',
     milestone_type: '',
     is_required: true,
-    step_order: 1
+    step_order: 1,
+    step_actions: []
+  });
+  const [editingStepIndex, setEditingStepIndex] = useState(null);
+  const [actionFormData, setActionFormData] = useState({
+    type: 'watch_video',
+    title: '',
+    url: '',
+    icon: 'play'
   });
 
   useEffect(() => {
@@ -67,7 +75,10 @@ const PathwayManager = () => {
         description: pathway.description || '',
         category: pathway.category || 'general',
         is_template: pathway.is_template || false,
-        steps: pathway.steps || []
+        steps: (pathway.steps || []).map(step => ({
+          ...step,
+          step_actions: step.step_actions || []
+        }))
       });
     } else {
       setEditingPathway(null);
@@ -90,7 +101,8 @@ const PathwayManager = () => {
       step_description: '',
       milestone_type: '',
       is_required: true,
-      step_order: 1
+      step_order: 1,
+      step_actions: []
     });
   };
 
@@ -116,7 +128,8 @@ const PathwayManager = () => {
       step_description: '',
       milestone_type: '',
       is_required: true,
-      step_order: formData.steps.length + 2
+      step_order: formData.steps.length + 2,
+      step_actions: []
     });
   };
 
@@ -168,7 +181,8 @@ const PathwayManager = () => {
           step_name: s.step_name,
           step_description: s.step_description,
           milestone_type: s.milestone_type,
-          is_required: s.is_required
+          is_required: s.is_required,
+          step_actions: s.step_actions || []
         }))
       };
 
@@ -491,17 +505,23 @@ const PathwayManager = () => {
                     <p className="text-slate-400 text-sm text-center py-4">No steps added yet. Add steps above.</p>
                   ) : (
                     formData.steps.map((step, index) => (
-                      <div key={step.id || index} className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg">
-                        <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 text-purple-400 rounded-full flex items-center justify-center text-sm font-bold">
-                          {step.step_order}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-white font-medium">{step.step_name}</div>
-                          {step.step_description && (
-                            <div className="text-sm text-slate-400">{step.step_description}</div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
+                      <div key={step.id || index} className="border border-slate-600 rounded-lg overflow-hidden">
+                        <div className="flex items-center gap-3 p-3 bg-slate-700/50">
+                          <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 text-purple-400 rounded-full flex items-center justify-center text-sm font-bold">
+                            {step.step_order}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-white font-medium">{step.step_name}</div>
+                            {step.step_description && (
+                              <div className="text-sm text-slate-400">{step.step_description}</div>
+                            )}
+                            {(step.step_actions && step.step_actions.length > 0) && (
+                              <div className="text-xs text-purple-400 mt-1">
+                                {step.step_actions.length} action{step.step_actions.length !== 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleMoveStep(index, 'up')}
@@ -518,14 +538,123 @@ const PathwayManager = () => {
                           >
                             ↓
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveStep(index)}
-                            className="p-1 text-red-400 hover:text-red-300"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingStepIndex(editingStepIndex === index ? null : index)}
+                              className="p-1 text-blue-400 hover:text-blue-300"
+                              title="Edit Actions"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveStep(index)}
+                              className="p-1 text-red-400 hover:text-red-300"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
+                        
+                        {/* Step Actions Editor */}
+                        {editingStepIndex === index && (
+                          <div className="bg-slate-800/50 border-t border-slate-600 p-4 space-y-3">
+                            <div className="text-sm font-semibold text-slate-300 mb-2">Step Actions</div>
+                            
+                            {/* Actions List */}
+                            {step.step_actions && step.step_actions.length > 0 && (
+                              <div className="space-y-2 mb-3">
+                                {step.step_actions.map((action, actionIndex) => (
+                                  <div key={actionIndex} className="flex items-center gap-2 p-2 bg-slate-700/50 rounded">
+                                    <span className="text-xs text-slate-400">
+                                      {action.type === 'watch_video' ? '▶️' : action.type === 'read_content' ? '📖' : action.icon || '✓'}
+                                    </span>
+                                    <span className="text-sm text-slate-300 flex-1">{action.title}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newSteps = [...formData.steps];
+                                        newSteps[index].step_actions = newSteps[index].step_actions.filter((_, i) => i !== actionIndex);
+                                        setFormData({ ...formData, steps: newSteps });
+                                      }}
+                                      className="text-xs text-red-400 hover:text-red-300"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Add Action Form */}
+                            <div className="bg-slate-700/30 rounded p-3 space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-xs text-slate-400 mb-1">Action Type</label>
+                                  <select
+                                    value={actionFormData.type}
+                                    onChange={(e) => setActionFormData({ ...actionFormData, type: e.target.value })}
+                                    className="w-full px-2 py-1 bg-slate-600 border border-slate-500 rounded text-white text-xs"
+                                  >
+                                    <option value="watch_video">Watch Video</option>
+                                    <option value="read_content">Read Content</option>
+                                    <option value="complete_task">Complete Task</option>
+                                    <option value="external_link">External Link</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-slate-400 mb-1">Icon</label>
+                                  <input
+                                    type="text"
+                                    value={actionFormData.icon}
+                                    onChange={(e) => setActionFormData({ ...actionFormData, icon: e.target.value })}
+                                    className="w-full px-2 py-1 bg-slate-600 border border-slate-500 rounded text-white text-xs"
+                                    placeholder="play, read, etc."
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-slate-400 mb-1">Title</label>
+                                <input
+                                  type="text"
+                                  value={actionFormData.title}
+                                  onChange={(e) => setActionFormData({ ...actionFormData, title: e.target.value })}
+                                  className="w-full px-2 py-1 bg-slate-600 border border-slate-500 rounded text-white text-xs"
+                                  placeholder="e.g., Watch This is Christianity on Pulse"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-slate-400 mb-1">URL/Link</label>
+                                <input
+                                  type="text"
+                                  value={actionFormData.url}
+                                  onChange={(e) => setActionFormData({ ...actionFormData, url: e.target.value })}
+                                  className="w-full px-2 py-1 bg-slate-600 border border-slate-500 rounded text-white text-xs"
+                                  placeholder="https://..."
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!actionFormData.title.trim()) {
+                                    alert('Action title is required');
+                                    return;
+                                  }
+                                  const newSteps = [...formData.steps];
+                                  if (!newSteps[index].step_actions) {
+                                    newSteps[index].step_actions = [];
+                                  }
+                                  newSteps[index].step_actions.push({ ...actionFormData });
+                                  setFormData({ ...formData, steps: newSteps });
+                                  setActionFormData({ type: 'watch_video', title: '', url: '', icon: 'play' });
+                                }}
+                                className="w-full px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs"
+                              >
+                                Add Action
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

@@ -7,12 +7,11 @@ import {
   StyleSheet,
   RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Header from '../components/Header';
+import Icon from '../components/Icon';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -110,48 +109,42 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       showsVerticalScrollIndicator={false}
     >
-      <LinearGradient
-        colors={[Colors.background, Colors.surface, Colors.background]}
-        style={styles.gradient}
-      >
+      <View style={styles.gradient}>
         {/* Personalized Header */}
         <View style={styles.header}>
-          <LinearGradient
-            colors={[Colors.primary, Colors.accent]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.headerGradient}
-          >
-            <Text style={styles.greeting}>{getGreeting()}, {getFirstName()}! 👋</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.greeting}>{getGreeting()}, {getFirstName()}</Text>
             <Text style={styles.campusName}>{campus?.name || 'Futures Church'}</Text>
-          </LinearGradient>
+          </View>
         </View>
 
         {/* Your Pathway Card */}
         <TouchableOpacity
           style={styles.journeySection}
           onPress={() => navigation.navigate('Pathway')}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
-          <LinearGradient
-            colors={[Colors.surface, Colors.surfaceLight]}
-            style={styles.journeyCard}
-          >
+          <View style={styles.journeyCard}>
             <View style={styles.journeyHeader}>
-              <Text style={styles.journeyTitle}>Your Pathway 🗺️</Text>
-              <Text style={styles.journeyArrow}>→</Text>
+              <View style={styles.journeyTitleRow}>
+                <Icon name="pathway" size={24} color={Colors.primary} style={styles.journeyIcon} />
+                <Text style={styles.journeyTitle}>Your Pathway</Text>
+              </View>
+              <Icon name="arrowRight" size={20} color={Colors.textMuted} />
             </View>
             <Text style={styles.journeySubtitle}>Track your spiritual growth</Text>
-            {/* Pulse status hidden per user request */}
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
 
         {/* Campus Section - What's Coming Up */}
         <View style={styles.campusSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>📅 {campus?.name && campus.name !== 'All Campuses' ? campus.name : 'All Campuses'}</Text>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="calendar" size={20} color={Colors.textSecondary} style={styles.sectionIcon} />
+              <Text style={styles.sectionTitle}>{campus?.name && campus.name !== 'All Campuses' ? campus.name : 'All Campuses'}</Text>
+            </View>
             <TouchableOpacity onPress={() => navigation.navigate('Events')}>
-              <Text style={styles.seeAllText}>See all →</Text>
+              <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
           </View>
 
@@ -164,26 +157,29 @@ export default function HomeScreen() {
                   onPress={() => navigation.navigate('Events', { eventId: event.id })}
                   activeOpacity={0.7}
                 >
-                  <LinearGradient
-                    colors={[Colors.surface, Colors.surfaceLight]}
-                    style={styles.eventGradient}
-                  >
+                  <View style={styles.eventGradient}>
                     <View style={styles.eventContent}>
                       <Text style={styles.eventTitle}>{event.title || 'Event'}</Text>
-                      <Text style={styles.eventDate}>
-                        📆 {new Date(event.start_time || event.start_datetime).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
-                      </Text>
+                      <View style={styles.eventInfoRow}>
+                        <Icon name="calendar" size={14} color={Colors.textMuted} />
+                        <Text style={styles.eventDate}>
+                          {new Date(event.start_time || event.start_datetime).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      </View>
                       {event.location && (
-                        <Text style={styles.eventLocation}>📍 {event.location}</Text>
+                        <View style={styles.eventInfoRow}>
+                          <Icon name="location" size={14} color={Colors.textMuted} />
+                          <Text style={styles.eventLocation}>{event.location}</Text>
+                        </View>
                       )}
                     </View>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               ))}
             </>
@@ -207,92 +203,86 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Sunday')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <LinearGradient
-                colors={[Colors.primary, Colors.accent]}
-                style={styles.actionGradient}
-              >
-                <Text style={styles.actionEmoji}>⛪</Text>
+              <View style={styles.actionContent}>
+                <View style={[styles.actionIconContainer, { backgroundColor: Colors.primary + '20' }]}>
+                  <Icon name="sunday" size={24} color={Colors.primary} />
+                </View>
                 <Text style={styles.actionText}>Sunday</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Give')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <LinearGradient
-                colors={[Colors.success, Colors.primary]}
-                style={styles.actionGradient}
-              >
-                <Text style={styles.actionEmoji}>💰</Text>
+              <View style={styles.actionContent}>
+                <View style={[styles.actionIconContainer, { backgroundColor: Colors.success + '20' }]}>
+                  <Icon name="give" size={24} color={Colors.success} />
+                </View>
                 <Text style={styles.actionText}>Give</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Groups')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <LinearGradient
-                colors={[Colors.accent, Colors.primary]}
-                style={styles.actionGradient}
-              >
-                <Text style={styles.actionEmoji}>👥</Text>
+              <View style={styles.actionContent}>
+                <View style={[styles.actionIconContainer, { backgroundColor: Colors.accent + '20' }]}>
+                  <Icon name="groups" size={24} color={Colors.accent} />
+                </View>
                 <Text style={styles.actionText}>Groups</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('TVHome')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <LinearGradient
-                colors={[Colors.primary, Colors.accent]}
-                style={styles.actionGradient}
-              >
-                <Text style={styles.actionEmoji}>📺</Text>
+              <View style={styles.actionContent}>
+                <View style={[styles.actionIconContainer, { backgroundColor: Colors.primary + '20' }]}>
+                  <Icon name="tv" size={24} color={Colors.primary} />
+                </View>
                 <Text style={styles.actionText}>Pulse TV</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Prayer')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <LinearGradient
-                colors={[Colors.warning, Colors.error]}
-                style={styles.actionGradient}
-              >
-                <Text style={styles.actionEmoji}>🙏</Text>
+              <View style={styles.actionContent}>
+                <View style={[styles.actionIconContainer, { backgroundColor: Colors.error + '20' }]}>
+                  <Icon name="prayer" size={24} color={Colors.error} />
+                </View>
                 <Text style={styles.actionText}>Prayer</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Explore')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <LinearGradient
-                colors={['#06b6d4', '#0891b2']}
-                style={styles.actionGradient}
-              >
-                <Text style={styles.actionEmoji}>🔍</Text>
+              <View style={styles.actionContent}>
+                <View style={[styles.actionIconContainer, { backgroundColor: Colors.info + '20' }]}>
+                  <Icon name="explore" size={24} color={Colors.info} />
+                </View>
                 <Text style={styles.actionText}>Explore</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Bottom Spacing */}
         <View style={styles.bottomSpacing} />
-      </LinearGradient>
+      </View>
     </ScrollView>
   );
 }
@@ -304,40 +294,35 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
-    padding: Spacing.md,
+    padding: Spacing.screenPadding,
+    backgroundColor: Colors.background,
   },
   header: {
-    marginBottom: Spacing.lg,
-    marginTop: Spacing.sm,
+    marginBottom: Spacing.sectionSpacing,
+    marginTop: Spacing.md,
   },
-  headerGradient: {
-    padding: Spacing.lg,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  headerContent: {
+    paddingVertical: Spacing.lg,
   },
   greeting: {
     fontSize: FontSizes.xxxl,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: Colors.text,
     marginBottom: Spacing.xs,
+    letterSpacing: -0.5,
   },
   campusName: {
     fontSize: FontSizes.md,
     color: Colors.textSecondary,
-    opacity: 0.9,
   },
   journeySection: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sectionSpacing,
   },
   journeyCard: {
-    padding: Spacing.lg,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    padding: Spacing.cardPadding,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 0,
   },
   journeyHeader: {
     flexDirection: 'row',
@@ -345,20 +330,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
+  journeyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  journeyIcon: {
+    marginRight: Spacing.sm,
+  },
   journeyTitle: {
     fontSize: FontSizes.xl,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Colors.text,
-  },
-  journeyArrow: {
-    fontSize: FontSizes.xl,
-    color: Colors.primary,
-    fontWeight: 'bold',
   },
   journeySubtitle: {
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
+    lineHeight: 20,
   },
   journeyStatus: {
     flexDirection: 'row',
@@ -377,17 +364,24 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   campusSection: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sectionSpacing,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionIcon: {
+    marginRight: Spacing.sm,
   },
   sectionTitle: {
     fontSize: FontSizes.lg,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Colors.text,
   },
   seeAllText: {
@@ -397,16 +391,14 @@ const styles = StyleSheet.create({
   },
   eventCard: {
     marginBottom: Spacing.md,
-    borderRadius: 12,
+    borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
   eventGradient: {
-    padding: Spacing.md,
+    padding: Spacing.cardPadding,
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    borderWidth: 0,
   },
   eventContent: {
     flex: 1,
@@ -415,24 +407,29 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     fontWeight: '600',
     color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  eventInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: Spacing.xs,
   },
   eventDate: {
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
+    marginLeft: Spacing.xs,
   },
   eventLocation: {
     fontSize: FontSizes.sm,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.xs,
   },
   emptyState: {
     padding: Spacing.xl,
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: 20,
+    borderWidth: 0,
   },
   emptyStateText: {
     fontSize: FontSizes.md,
@@ -442,7 +439,7 @@ const styles = StyleSheet.create({
   exploreButton: {
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: Colors.primary,
   },
   exploreButtonText: {
@@ -451,7 +448,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionsSection: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sectionSpacing,
   },
   actionsGrid: {
     flexDirection: 'row',
@@ -461,27 +458,27 @@ const styles = StyleSheet.create({
   actionCard: {
     width: '48%',
     marginBottom: Spacing.md,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 0,
   },
-  actionGradient: {
+  actionContent: {
     padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 110,
+    minHeight: 100,
   },
-  actionEmoji: {
-    fontSize: 36,
-    marginBottom: Spacing.sm,
+  actionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
   },
   actionText: {
     fontSize: FontSizes.md,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Colors.text,
   },
   bottomSpacing: {

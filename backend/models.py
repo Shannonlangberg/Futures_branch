@@ -759,10 +759,22 @@ class PathwayStep(db.Model):
     step_description = db.Column(db.Text)
     milestone_type = db.Column(db.String(50))  # Maps to DiscipleshipStep.type or custom
     is_required = db.Column(db.Boolean, default=True)
+    step_actions = db.Column(db.Text, default='[]')  # JSON array of actions/tasks for this step
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
     completions = db.relationship('PersonPathwayStepCompletion', backref='pathway_step', lazy='dynamic')
+    
+    def get_actions(self):
+        """Get step actions as list"""
+        try:
+            return json.loads(self.step_actions) if self.step_actions else []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+    
+    def set_actions(self, actions_list):
+        """Set step actions from list"""
+        self.step_actions = json.dumps(actions_list) if actions_list else '[]'
     
     def to_dict(self):
         """Convert step to dictionary"""
@@ -774,6 +786,7 @@ class PathwayStep(db.Model):
             'step_description': self.step_description,
             'milestone_type': self.milestone_type,
             'is_required': self.is_required,
+            'step_actions': self.get_actions(),  # Return as list, not JSON string
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
