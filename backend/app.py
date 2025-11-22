@@ -1342,7 +1342,7 @@ class User(UserMixin):
         from werkzeug.security import check_password_hash
         try:
             # Try standard werkzeug password check
-        return check_password_hash(self.password_hash, password)
+            return check_password_hash(self.password_hash, password)
         except (ValueError, AttributeError):
             # If scrypt hash fails (not available), try bcrypt as fallback
             try:
