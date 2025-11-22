@@ -732,7 +732,48 @@ class DiscipleshipPathway(db.Model):
     
     def to_dict(self):
         """Convert pathway to dictionary"""
-        steps_list = [s.to_dict() for s in self.steps.order_by(PathwayStep.step_order).all()]
+        # Try to load steps - handle gracefully if step_actions column doesn't exist yet
+        try:
+            steps_list = [s.to_dict() for s in self.steps.order_by(PathwayStep.step_order).all()]
+        except Exception as e:
+            # If column doesn't exist (e.g., step_actions), try loading without it
+            error_str = str(e).lower()
+            if 'no such column' in error_str or 'step_actions' in error_str:
+                # Column doesn't exist yet - load steps manually without step_actions
+                try:
+                    # Query steps without step_actions column
+                    steps_list = []
+                    from sqlalchemy import text
+                    raw_steps = db.session.execute(
+                        text('''
+                            SELECT id, pathway_id, step_order, step_name, step_description, 
+                                   milestone_type, is_required, created_at
+                            FROM discipleship_pathway_steps 
+                            WHERE pathway_id = :pathway_id
+                            ORDER BY step_order
+                        '''),
+                        {'pathway_id': self.id}
+                    ).fetchall()
+                    
+                    for row in raw_steps:
+                        steps_list.append({
+                            'id': row[0],
+                            'pathway_id': row[1],
+                            'step_order': row[2],
+                            'step_name': row[3],
+                            'step_description': row[4],
+                            'milestone_type': row[5],
+                            'is_required': bool(row[6]),
+                            'step_actions': [],  # Default to empty array
+                            'created_at': row[7].isoformat() if row[7] else None
+                        })
+                except Exception as e2:
+                    logger.error(f"Error loading steps manually: {e2}")
+                    steps_list = []
+            else:
+                # Different error - re-raise
+                raise
+        
         return {
             'id': self.id,
             'name': self.name,
