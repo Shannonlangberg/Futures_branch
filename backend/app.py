@@ -1056,19 +1056,14 @@ def run_migrations():
                                 logger.info(f"Migration {migration_file}: Column already exists, skipping statement: {statement[:50]}...")
                                 conn.commit()  # Commit anyway
                                 continue  # Skip this statement, continue with next
-                            else:
-                                # Other operational error - log and continue
-                                logger.warning(f"Migration {migration_file}: Operational error (might be harmless): {error_msg[:100]}")
-                                conn.commit()  # Commit anyway and continue
                             elif 'syntax error' in error_msg:
                                 # Syntax errors might be from comments or empty statements
                                 logger.debug(f"Migration {migration_file}: Syntax error (likely harmless): {statement[:50]}...")
                                 continue
                             else:
                                 # Other operational errors - log but continue (might be table already exists, etc)
-                                logger.warning(f"Migration {migration_file}: Statement failed: {e}")
-                                logger.warning(f"  Statement: {statement[:100]}...")
-                                # Continue with next statement (don't fail entire migration)
+                                logger.warning(f"Migration {migration_file}: Operational error (might be harmless): {error_msg[:100]}")
+                                conn.commit()  # Commit anyway and continue
                                 continue
                     
                     conn.commit()
