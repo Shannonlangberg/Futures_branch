@@ -982,6 +982,52 @@ class PersonPathwayProgress(db.Model):
         
         return None  # All steps completed
     
+    def _get_current_step_dict(self):
+        """Safely get current_step dictionary, handling missing step_actions column"""
+        if not self.current_step_id:
+            return None
+        
+        try:
+            if self.current_step:
+                return self.current_step.to_dict()
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'no such column' in error_str and 'step_actions' in error_str:
+                # Column doesn't exist - load step manually without step_actions
+                try:
+                    from sqlalchemy import text
+                    raw_step = db.session.execute(
+                        text('''
+                            SELECT id, pathway_id, step_order, step_name, step_description, 
+                                   milestone_type, is_required, created_at
+                            FROM discipleship_pathway_steps 
+                            WHERE id = :step_id
+                        '''),
+                        {'step_id': self.current_step_id}
+                    ).fetchone()
+                    
+                    if raw_step:
+                        # Create minimal step dict
+                        return {
+                            'id': raw_step[0],
+                            'pathway_id': raw_step[1],
+                            'step_order': raw_step[2],
+                            'step_name': raw_step[3],
+                            'step_description': raw_step[4],
+                            'milestone_type': raw_step[5],
+                            'is_required': bool(raw_step[6]),
+                            'step_actions': [],
+                            'created_at': raw_step[7].isoformat() if raw_step[7] else None
+                        }
+                except Exception as e2:
+                    logger.warning(f"Error loading current step manually in to_dict: {e2}")
+                    return None
+            else:
+                logger.warning(f"Error accessing current_step in to_dict: {e}")
+                return None
+        
+        return None
+    
     def to_dict(self):
         """Convert progress to dictionary"""
         next_step = self.get_next_step()
