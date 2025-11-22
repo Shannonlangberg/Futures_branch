@@ -486,9 +486,9 @@ export default function PathwayScreen() {
         {!pathway && !loading && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🗺️</Text>
-            <Text style={styles.emptyTitle}>No Pathway Data</Text>
+            <Text style={styles.emptyTitle}>No Journey Data</Text>
             <Text style={styles.emptyText}>
-              Your pathway information will appear here once it's available.
+              Your journey information will appear here once it's available.
             </Text>
           </View>
         )}
