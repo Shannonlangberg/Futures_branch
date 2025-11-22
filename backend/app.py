@@ -14207,11 +14207,11 @@ def get_my_pathway():
                 # Person has an assigned pathway - return it!
                 pathway_dict = pathway_progress.to_dict()
                 logger.info(f"Found assigned pathway for {person.email}: {pathway_dict.get('pathway_name')}")
-                return jsonify({'pathway': pathway_dict})
+                return jsonify({'journey': pathway_dict, 'pathway': pathway_dict})  # Backward compatibility
             else:
                 # No pathway assigned - return None (staff needs to assign one)
                 logger.info(f"No pathway assigned to {person.email}")
-                return jsonify({'pathway': None})
+                return jsonify({'journey': None, 'pathway': None})  # Backward compatibility
                 
         except Exception as e:
             logger.error(f"Error loading assigned pathway: {e}", exc_info=True)
