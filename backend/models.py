@@ -2,8 +2,10 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 import json
+import logging
 
 db = SQLAlchemy()
+logger = logging.getLogger(__name__)
 
 class Person(db.Model):
     """Person model for church members"""
@@ -888,7 +890,59 @@ class PersonPathwayProgress(db.Model):
             return None
         
         completed_step_ids = [c.pathway_step_id for c in self.step_completions.all()]
-        all_steps = self.pathway.steps.order_by(PathwayStep.step_order).all()
+        
+        # Handle missing step_actions column gracefully
+        try:
+            all_steps = self.pathway.steps.order_by(PathwayStep.step_order).all()
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'no such column' in error_str and 'step_actions' in error_str:
+                # Column doesn't exist - load steps manually without step_actions
+                try:
+                    from sqlalchemy import text
+                    raw_steps = db.session.execute(
+                        text('''
+                            SELECT id, pathway_id, step_order, step_name, step_description, 
+                                   milestone_type, is_required, created_at
+                            FROM discipleship_pathway_steps 
+                            WHERE pathway_id = :pathway_id
+                            ORDER BY step_order
+                        '''),
+                        {'pathway_id': self.pathway.id}
+                    ).fetchall()
+                    
+                    # Create minimal step objects
+                    class MinimalStep:
+                        def __init__(self, row):
+                            self.id = row[0]
+                            self.pathway_id = row[1]
+                            self.step_order = row[2]
+                            self.step_name = row[3]
+                            self.step_description = row[4]
+                            self.milestone_type = row[5]
+                            self.is_required = bool(row[6])
+                            self.created_at = row[7]
+                        def to_dict(self):
+                            return {
+                                'id': self.id,
+                                'step_order': self.step_order,
+                                'step_name': self.step_name,
+                                'step_description': self.step_description,
+                                'milestone_type': self.milestone_type,
+                                'is_required': self.is_required,
+                                'step_actions': [],
+                                'created_at': self.created_at.isoformat() if self.created_at else None
+                            }
+                    
+                    all_steps = [MinimalStep(row) for row in raw_steps]
+                except Exception as e2:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Error loading steps manually: {e2}")
+                    all_steps = []
+            else:
+                # Different error - re-raise
+                raise
         
         # If no steps completed, return first step
         if not completed_step_ids:
