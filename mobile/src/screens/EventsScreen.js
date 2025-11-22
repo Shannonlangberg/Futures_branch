@@ -77,21 +77,38 @@ export default function EventsScreen({ route }) {
   };
 
   const handleRSVP = async (eventId, rsvp) => {
-    if (!user) {
-      Alert.alert('Error', 'User not found.');
+    if (!user || !user.email) {
+      Alert.alert('Error', 'User email not found. Please log in.');
       return;
     }
 
     try {
+      setLoading(true);
       const result = await ApiService.rsvpEvent(user.email, eventId, rsvp);
-      if (result.success) {
-        Alert.alert('Success', `RSVP recorded: ${rsvp}`);
+      
+      if (result.error) {
+        // Check if it's a payment-required error
+        if (result.requires_payment) {
+          Alert.alert(
+            'Payment Required',
+            `This event requires payment of $${result.price?.toFixed(2) || '0.00'}. Please use "Register & Pay" instead.`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Error', result.error || 'Failed to record RSVP.');
+        }
+      } else if (result.message || result.success) {
+        Alert.alert('Success', result.message || `RSVP recorded: ${rsvp}`);
         loadEvents();
       } else {
-        Alert.alert('Error', result.error || 'Failed to record RSVP.');
+        Alert.alert('Success', 'RSVP recorded successfully!');
+        loadEvents();
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to record RSVP. Please try again.');
+      console.error('RSVP error:', error);
+      Alert.alert('Error', error.message || 'Failed to record RSVP. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 

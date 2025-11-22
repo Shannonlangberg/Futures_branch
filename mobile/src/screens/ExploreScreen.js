@@ -146,35 +146,34 @@ export default function ExploreScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Top Suggested Section - Full Width Cards */}
+        {/* Top Suggested Section - Two Column Grid */}
         <View style={styles.topSuggestedSection}>
           <Text style={styles.sectionTitle}>Top Suggested</Text>
-          {topSuggested.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.suggestedCard}
-              onPress={item.onPress}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={item.gradientColors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.suggestedGradient}
+          <View style={styles.suggestedGrid}>
+            {topSuggested.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.suggestedCard}
+                onPress={item.onPress}
+                activeOpacity={0.8}
               >
-                <View style={styles.suggestedContent}>
-                  <View style={styles.suggestedIconContainer}>
-                    <Icon name={item.icon} size={28} color="#ffffff" />
-                  </View>
-                  <View style={styles.suggestedTextContainer}>
+                <LinearGradient
+                  colors={item.gradientColors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.suggestedGradient}
+                >
+                  <View style={styles.suggestedContent}>
+                    <View style={styles.suggestedIconContainer}>
+                      <Icon name={item.icon} size={24} color="#ffffff" />
+                    </View>
                     <Text style={styles.suggestedTitle}>{item.title}</Text>
                     <Text style={styles.suggestedSubtitle}>{item.subtitle}</Text>
                   </View>
-                  <Icon name="arrowRight" size={20} color="rgba(255, 255, 255, 0.8)" />
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Categories Section - Two Column Grid */}
@@ -292,7 +291,13 @@ const styles = StyleSheet.create({
   topSuggestedSection: {
     marginBottom: Spacing.sectionSpacing,
   },
+  suggestedGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
   suggestedCard: {
+    width: '48%',
     marginBottom: Spacing.cardGap,
     borderRadius: 20,
     overflow: 'hidden',
@@ -300,33 +305,33 @@ const styles = StyleSheet.create({
   suggestedGradient: {
     padding: Spacing.cardPadding,
     borderRadius: 20,
+    minHeight: 140,
+    justifyContent: 'center',
   },
   suggestedContent: {
-    flexDirection: 'row',
     alignItems: 'center',
   },
   suggestedIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  suggestedTextContainer: {
-    flex: 1,
+    marginBottom: Spacing.sm,
   },
   suggestedTitle: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.md,
     fontWeight: '600',
     color: '#ffffff',
     marginBottom: Spacing.xs / 2,
+    textAlign: 'center',
   },
   suggestedSubtitle: {
     fontSize: FontSizes.sm,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 18,
+    textAlign: 'center',
   },
   categoriesSection: {
     marginBottom: Spacing.sectionSpacing,
@@ -348,7 +353,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: Spacing.cardGap,
   },
   categoryCard: {
     width: '48%',
@@ -357,6 +361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 160,
     justifyContent: 'center',
+    marginBottom: Spacing.cardGap,
   },
   categoryTitle: {
     fontSize: FontSizes.md,

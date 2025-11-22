@@ -7,7 +7,9 @@ import {
   ClockIcon,
   MapPinIcon,
   XMarkIcon,
-  CurrencyDollarIcon
+  CurrencyDollarIcon,
+  UserGroupIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 
 const EventsManager = () => {
@@ -21,6 +23,9 @@ const EventsManager = () => {
   const [statusFilter, setStatusFilter] = useState('all'); // all, upcoming, past
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [selectedEventForRegistrations, setSelectedEventForRegistrations] = useState(null);
+  const [registrations, setRegistrations] = useState([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -297,6 +302,52 @@ const EventsManager = () => {
     };
   };
 
+  const viewRegistrations = async (event) => {
+    setSelectedEventForRegistrations(event);
+    setLoadingRegistrations(true);
+    try {
+      const response = await fetch(`/api/events/${event.id}/registrations`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRegistrations(data.registrations || []);
+      } else {
+        alert('Failed to load registrations');
+      }
+    } catch (error) {
+      console.error('Error fetching registrations:', error);
+      alert('Failed to load registrations');
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  };
+
+  const exportRegistrations = async () => {
+    if (!selectedEventForRegistrations) return;
+    try {
+      const response = await fetch(`/api/events/${selectedEventForRegistrations.id}/registrations/export`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `registrations-${selectedEventForRegistrations.id}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert('Failed to export registrations');
+      }
+    } catch (error) {
+      console.error('Error exporting registrations:', error);
+      alert('Failed to export registrations');
+    }
+  };
+
   const filteredEvents = events;
 
   return (
@@ -379,6 +430,13 @@ const EventsManager = () => {
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => viewRegistrations(event)}
+                        className="p-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg transition-all"
+                        title="View Registrations"
+                      >
+                        <UserGroupIcon className="w-4 h-4 text-blue-400" />
+                      </button>
                       <button
                         onClick={() => openEditModal(event)}
                         className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
@@ -720,6 +778,89 @@ const EventsManager = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Registrations Modal */}
+      {selectedEventForRegistrations && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Registrations: {selectedEventForRegistrations.title}
+                </h2>
+                <p className="text-white/60 text-sm mt-1">
+                  {registrations.length} registration{registrations.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={exportRegistrations}
+                  className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-all"
+                  title="Export CSV"
+                >
+                  <ArrowDownTrayIcon className="w-5 h-5 text-green-400" />
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedEventForRegistrations(null);
+                    setRegistrations([]);
+                  }}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-all"
+                >
+                  <XMarkIcon className="w-6 h-6 text-white/60" />
+                </button>
+              </div>
+            </div>
+
+            {loadingRegistrations ? (
+              <div className="text-center text-white/60 py-20">Loading registrations...</div>
+            ) : registrations.length === 0 ? (
+              <div className="text-center text-white/60 py-20">
+                No registrations yet for this event.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-700/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Name</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Email</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Phone</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Guests</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Registered</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/50">
+                    {registrations.map((reg) => (
+                      <tr key={reg.id} className="hover:bg-slate-700/30 transition-colors">
+                        <td className="px-4 py-3 text-white">{reg.name || 'N/A'}</td>
+                        <td className="px-4 py-3 text-slate-300">{reg.email || 'N/A'}</td>
+                        <td className="px-4 py-3 text-slate-300">{reg.phone || 'N/A'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                            reg.status === 'registered' ? 'bg-green-500/20 text-green-400' :
+                            reg.status === 'waitlisted' ? 'bg-yellow-500/20 text-yellow-400' :
+                            reg.status === 'attended' ? 'bg-blue-500/20 text-blue-400' :
+                            reg.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                            'bg-slate-500/20 text-slate-400'
+                          }`}>
+                            {reg.status || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-300">{reg.guest_count || 0}</td>
+                        <td className="px-4 py-3 text-slate-300 text-sm">
+                          {reg.created_at ? new Date(reg.created_at).toLocaleDateString() : 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

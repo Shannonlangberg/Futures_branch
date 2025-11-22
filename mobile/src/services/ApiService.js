@@ -243,8 +243,19 @@ export const ApiService = {
     
     const response = await api.post(`/api/events/${eventId}/rsvp`, {
       email,
+      name: '', // Optional - backend will get from person record
+      phone: '', // Optional - backend will get from person record
       status, // 'going', 'maybe', 'not_going'
+      guest_count: 0
     });
+    
+    if (response.status >= 400) {
+      return { error: response.data?.error || 'RSVP failed', ...response.data };
+    }
+    // Backend returns 'message' not 'success', so normalize it
+    if (response.data.message && !response.data.success) {
+      response.data.success = true;
+    }
     return response.data;
   },
 
