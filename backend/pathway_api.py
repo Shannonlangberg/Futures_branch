@@ -104,7 +104,7 @@ def create_pathway():
         db.session.commit()
         
         return jsonify({
-            'message': 'Pathway created successfully',
+            'message': 'Journey created successfully',
             'pathway': pathway.to_dict()
         }), 201
         
@@ -245,7 +245,7 @@ def delete_pathway(pathway_id):
         db.session.delete(pathway)
         db.session.commit()
         
-        return jsonify({'message': 'Pathway deleted successfully'}), 200
+        return jsonify({'message': 'Journey deleted successfully'}), 200
         
     except Exception as e:
         db.session.rollback()
@@ -428,7 +428,7 @@ def assign_pathway_to_person(person_id):
         ).first()
         
         if existing_same:
-            return jsonify({'error': 'This pathway is already assigned to this person'}), 400
+            return jsonify({'error': 'This journey is already assigned to this person'}), 400
         
         # Allow assigning new pathways even if others exist
         # Optionally, if replace_existing is true, mark old pathways as inactive
@@ -459,7 +459,7 @@ def assign_pathway_to_person(person_id):
         db.session.commit()
         
         return jsonify({
-            'message': 'Pathway assigned successfully',
+            'message': 'Journey assigned successfully',
             'progress': progress.to_dict()
         }), 201
         
