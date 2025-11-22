@@ -15,6 +15,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Calendar from 'expo-calendar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useStripe } from '@stripe/stripe-react-native';
+import * as ExpoLinking from 'expo-linking';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,11 +24,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export default function EventsScreen({ route }) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [user, setUser] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [calendarPermission, setCalendarPermission] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     loadEvents();
@@ -136,11 +140,17 @@ export default function EventsScreen({ route }) {
     }
   };
 
+  const getReturnURL = () => {
+    return ExpoLinking.createURL('/');
+  };
+
   const handlePaidEventRegistration = async (event) => {
-    if (!user) {
-      Alert.alert('Error', 'User not found.');
+    if (!user || !user.email) {
+      Alert.alert('Error', 'User email not found. Please log in.');
       return;
     }
+
+    setProcessingPayment(true);
 
     try {
       // Step 1: Create payment intent
@@ -154,21 +164,43 @@ export default function EventsScreen({ route }) {
         throw new Error('Failed to create payment intent');
       }
 
-      // Step 2: Register with payment intent ID
-      // The webhook will complete registration when payment succeeds
+      // Step 2: Initialize payment sheet
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: paymentData.client_secret,
+        merchantDisplayName: 'Futures Church',
+        returnURL: getReturnURL(),
+      });
+
+      if (initError) {
+        throw new Error(initError.message || 'Failed to initialize payment');
+      }
+
+      // Step 3: Present payment sheet
+      const { error: paymentError } = await presentPaymentSheet();
+
+      if (paymentError) {
+        if (paymentError.code !== 'Canceled') {
+          Alert.alert('Payment Error', paymentError.message || 'Payment failed. Please try again.');
+        }
+        setProcessingPayment(false);
+        return;
+      }
+
+      // Step 4: Payment succeeded - register user
       const registrationData = await ApiService.registerForEvent(
         event.id,
         user.email,
         user.full_name || user.name || '',
         user.phone || '',
-        0
+        0,
+        paymentData.payment_intent_id
       );
 
       Alert.alert(
-        'Registration Submitted',
-        `Your registration has been created!\n\n` +
-        `Amount: $${paymentData.amount.toFixed(2)}\n\n` +
-        `Payment will be processed via Stripe. You'll receive a confirmation email once payment is complete.`,
+        'Registration Successful!',
+        `You're registered for ${event.title}!\n\n` +
+        `Amount paid: $${paymentData.amount.toFixed(2)}\n\n` +
+        `A confirmation email has been sent.`,
         [{ text: 'OK', onPress: () => loadEvents() }]
       );
     } catch (error) {
@@ -177,6 +209,8 @@ export default function EventsScreen({ route }) {
         'Registration Error',
         error.message || 'Failed to register. Please try again or contact the church office.'
       );
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -248,10 +282,15 @@ export default function EventsScreen({ route }) {
                 <View style={styles.eventActions}>
                   {requiresPayment ? (
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.registerButton]}
+                      style={[styles.actionButton, styles.registerButton, processingPayment && styles.disabledButton]}
                       onPress={() => handlePaidEventRegistration(event)}
+                      disabled={processingPayment}
                     >
-                      <Text style={styles.actionButtonText}>Register & Pay ${event.price}</Text>
+                      {processingPayment ? (
+                        <ActivityIndicator size="small" color="#ffffff" />
+                      ) : (
+                        <Text style={styles.actionButtonText}>Register & Pay ${event.price}</Text>
+                      )}
                     </TouchableOpacity>
                   ) : (
                     <>
@@ -419,6 +458,9 @@ const styles = StyleSheet.create({
   calendarButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     flex: 1,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
   actionButtonText: {
     color: '#ffffff',
