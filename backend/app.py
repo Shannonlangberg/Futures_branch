@@ -7914,7 +7914,19 @@ def api_login():
                 log_security_event(user.id, 'login_success', 'User logged in successfully')
             except Exception as log_error:
                 logger.error(f"Error logging security event: {log_error}")
+            # Look up Person record to get their actual campus (where they attend)
+            personal_campus = None
+            try:
+                from models import Person
+                person = Person.query.filter_by(email=user.email).first()
+                if person:
+                    personal_campus = person.campus
+                    logger.info(f"Found Person record for {user.email}, personal campus: {personal_campus}")
+            except Exception as person_lookup_error:
+                logger.warning(f"Could not look up Person record: {person_lookup_error}")
+            
             # Return proper response format for mobile app
+            user_campus = getattr(user, 'campus', 'all_campuses')
             return jsonify({
                 "success": True, 
                 "authenticated": True,
@@ -7925,7 +7937,8 @@ def api_login():
                     "email": user.email,
                     "name": user.full_name or user.username,
                     "role": user.role,
-                    "campus": getattr(user, 'campus', 'all_campuses')
+                    "access_campus": user_campus,  # For access control (all_campuses for admin)
+                    "campus": personal_campus or user_campus  # Personal campus (where they attend)
                 }
             })
         else:
@@ -14211,7 +14224,7 @@ def get_my_pathway():
             else:
                 # No pathway assigned - return None (staff needs to assign one)
                 logger.info(f"No pathway assigned to {person.email}")
-                return jsonify({'journey': None, 'pathway': None})  # Backward compatibility
+                return jsonify({'pathway': None})
                 
         except Exception as e:
             logger.error(f"Error loading assigned pathway: {e}", exc_info=True)
