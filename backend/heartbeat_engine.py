@@ -339,10 +339,18 @@ class HeartbeatEngine:
             for completion in completions:
                 if completion.pathway_step:
                     pathway_step_completions.append(completion.pathway_step)
+                    # Convert datetime to date for comparison
+                    completed_date = None
+                    if completion.completed_at:
+                        if isinstance(completion.completed_at, datetime):
+                            completed_date = completion.completed_at.date()
+                        elif isinstance(completion.completed_at, date):
+                            completed_date = completion.completed_at
+                    
                     pathway_completion_data.append({
                         'step': completion.pathway_step,
                         'completion': completion,
-                        'completed_at': completion.completed_at.date() if completion.completed_at else None
+                        'completed_at': completed_date
                     })
         
         # Care cases
