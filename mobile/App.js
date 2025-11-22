@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/config';
@@ -39,6 +39,31 @@ import { Platform } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Helper function to create header options with logo
+const createHeaderOptions = (title) => ({
+  presentation: 'card',
+  animation: 'slide_from_right',
+  headerShown: true,
+  headerStyle: {
+    backgroundColor: '#1e293b',
+  },
+  headerTintColor: '#ffffff',
+  headerTitleStyle: {
+    fontWeight: '600',
+  },
+  headerTitle: title,
+  headerBackTitleVisible: false,
+  headerLeft: () => (
+    <View style={{ paddingLeft: 8 }}>
+      <Image
+        source={require('./assets/logo.png')}
+        style={{ width: 100, height: 32 }}
+        resizeMode="contain"
+      />
+    </View>
+  ),
+});
 
 // Configure notifications
 Notifications.setNotificationHandler({
@@ -282,38 +307,12 @@ export default function App() {
               <Stack.Screen 
                 name="Sunday" 
                 component={SundayScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Sunday Service',
-                  headerBackTitleVisible: false,
-                }}
+                options={createHeaderOptions('Sunday Service')}
               />
               <Stack.Screen 
                 name="Events" 
                 component={EventsScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Events',
-                  headerBackTitleVisible: false,
-                }}
+                options={createHeaderOptions('Events')}
               />
               <Stack.Screen 
                 name="SermonNotes" 
@@ -327,37 +326,12 @@ export default function App() {
               <Stack.Screen 
                 name="TVHome" 
                 component={TVHomeScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Pulse TV',
-                  headerBackTitleVisible: false,
-                }}
+                options={createHeaderOptions('Pulse TV')}
               />
               <Stack.Screen 
                 name="TVSeries" 
                 component={TVSeriesScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerBackTitleVisible: false,
-                }}
+                options={createHeaderOptions('TV Series')}
               />
               <Stack.Screen 
                 name="TVWatch" 
@@ -373,73 +347,25 @@ export default function App() {
               <Stack.Screen 
                 name="Profile" 
                 component={ProfileScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Profile',
-                  headerBackTitleVisible: false,
-                }}
+                options={createHeaderOptions('Profile')}
               />
               <Stack.Screen 
                 name="EditProfile" 
                 component={EditProfileScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Edit Profile',
-                  headerBackTitleVisible: false,
-                }}
+                options={createHeaderOptions('Edit Profile')}
               />
               <Stack.Screen 
                 name="Explore" 
                 component={ExploreScreen}
-                options={{ 
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Explore',
-                  headerBackTitleVisible: false,
-                }}
+                options={createHeaderOptions('Explore')}
               />
               <Stack.Screen 
                 name="PrayerSubmit" 
                 component={PrayerSubmitScreen}
-                options={{ 
+                options={{
+                  ...createHeaderOptions('Prayer & Praise'),
                   presentation: 'card',
                   animation: 'slide_from_bottom',
-                  headerShown: true,
-                  headerStyle: {
-                    backgroundColor: '#1e293b',
-                  },
-                  headerTintColor: '#ffffff',
-                  headerTitleStyle: {
-                    fontWeight: '600',
-                  },
-                  headerTitle: 'Prayer & Praise',
-                  headerBackTitleVisible: false,
                 }}
               />
               <Stack.Screen 

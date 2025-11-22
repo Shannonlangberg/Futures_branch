@@ -49,7 +49,11 @@ export default function LoginScreen({ onLogin }) {
         <View style={styles.content}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>FUTURES</Text>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.tagline}>{'One place for church life,\ndiscipleship, connection, and growth.'}</Text>
           </View>
 
@@ -121,11 +125,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.xxl,
   },
-  logoText: {
-    fontSize: FontSizes.xxxl,
-    fontWeight: 'bold',
-    color: Colors.text,
-    letterSpacing: 4,
+  logo: {
+    width: 200,
+    height: 80,
     marginBottom: Spacing.md,
   },
   tagline: {

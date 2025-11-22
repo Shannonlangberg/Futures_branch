@@ -6,7 +6,9 @@
     "scheme": "futures",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
       "backgroundColor": "#0f172a",
       "resizeMode": "contain"
     },
@@ -17,6 +19,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.futureschurch.futures",
       "buildNumber": "1.0.0",
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Futures needs your location to help you check in at services and find nearby campuses.",
         "NSLocationAlwaysUsageDescription": "Futures uses your location for automatic check-in via beacons.",
