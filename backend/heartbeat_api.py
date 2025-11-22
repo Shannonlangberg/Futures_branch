@@ -14,6 +14,7 @@ from models import (
 )
 from heartbeat_engine import HeartbeatEngine
 from datetime import datetime, date, timedelta
+from sqlalchemy import text
 import logging
 
 logger = logging.getLogger(__name__)
@@ -382,7 +383,51 @@ def get_person_heartbeat(person_id):
                     logger.warning(f"Error fetching connect group name: {e}")
             
             for completion in completed_steps:
-                step = PathwayStep.query.get(completion.pathway_step_id)
+                # Handle case where step_actions column doesn't exist yet
+                step = None
+                try:
+                    step = PathwayStep.query.get(completion.pathway_step_id)
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if 'no such column' in error_str and 'step_actions' in error_str:
+                        # Column doesn't exist - load step manually without step_actions
+                        try:
+                            from sqlalchemy import text
+                            raw_step = db.session.execute(
+                                text('''
+                                    SELECT id, pathway_id, step_order, step_name, step_description, 
+                                           milestone_type, is_required, created_at
+                                    FROM discipleship_pathway_steps 
+                                    WHERE id = :step_id
+                                '''),
+                                {'step_id': completion.pathway_step_id}
+                            ).fetchone()
+                            
+                            if raw_step:
+                                # Create a minimal PathwayStep-like object
+                                class MinimalStep:
+                                    def __init__(self, row):
+                                        self.id = row[0]
+                                        self.pathway_id = row[1]
+                                        self.step_order = row[2]
+                                        self.step_name = row[3]
+                                        self.step_description = row[4]
+                                        self.milestone_type = row[5]
+                                        self.is_required = row[6]
+                                        self.created_at = row[7]
+                                    def get_actions(self):
+                                        return []
+                                
+                                step = MinimalStep(raw_step)
+                                logger.debug(f"Loaded pathway step {completion.pathway_step_id} without step_actions column")
+                        except Exception as e2:
+                            logger.warning(f"Error loading pathway step {completion.pathway_step_id} manually: {e2}")
+                            step = None
+                    else:
+                        # Different error - log and continue
+                        logger.warning(f"Error loading pathway step {completion.pathway_step_id}: {e}")
+                        step = None
+                
                 if step and completion.completed_at:
                     # Map milestone types to spiritual event types
                     milestone_type = step.milestone_type or ''
