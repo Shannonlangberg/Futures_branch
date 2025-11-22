@@ -337,21 +337,82 @@ class HeartbeatEngine:
         for progress in pathway_progress:
             completions = progress.step_completions.all()
             for completion in completions:
-                if completion.pathway_step:
-                    pathway_step_completions.append(completion.pathway_step)
-                    # Convert datetime to date for comparison
-                    completed_date = None
-                    if completion.completed_at:
-                        if isinstance(completion.completed_at, datetime):
-                            completed_date = completion.completed_at.date()
-                        elif isinstance(completion.completed_at, date):
-                            completed_date = completion.completed_at
-                    
-                    pathway_completion_data.append({
-                        'step': completion.pathway_step,
-                        'completion': completion,
-                        'completed_at': completed_date
-                    })
+                # Try to access pathway_step, but handle missing column gracefully
+                try:
+                    # Access pathway_step_id first (safer than accessing relationship)
+                    step_id = completion.pathway_step_id
+                    if step_id:
+                        # Try to get the step - handle missing column error
+                        try:
+                            step = completion.pathway_step
+                            pathway_step_completions.append(step)
+                            
+                            # Convert datetime to date for comparison
+                            completed_date = None
+                            if completion.completed_at:
+                                if isinstance(completion.completed_at, datetime):
+                                    completed_date = completion.completed_at.date()
+                                elif isinstance(completion.completed_at, date):
+                                    completed_date = completion.completed_at
+                            
+                            pathway_completion_data.append({
+                                'step': step,
+                                'completion': completion,
+                                'completed_at': completed_date
+                            })
+                        except Exception as e:
+                            error_str = str(e).lower()
+                            if 'no such column' in error_str and 'step_actions' in error_str:
+                                # Column doesn't exist - load step manually
+                                try:
+                                    from sqlalchemy import text
+                                    raw_step = db.session.execute(
+                                        text('''
+                                            SELECT id, pathway_id, step_order, step_name, step_description, 
+                                                   milestone_type, is_required, created_at
+                                            FROM discipleship_pathway_steps 
+                                            WHERE id = :step_id
+                                        '''),
+                                        {'step_id': step_id}
+                                    ).fetchone()
+                                    
+                                    if raw_step:
+                                        # Create minimal step object
+                                        class MinimalStep:
+                                            def __init__(self, row):
+                                                self.id = row[0]
+                                                self.pathway_id = row[1]
+                                                self.step_order = row[2]
+                                                self.step_name = row[3]
+                                                self.step_description = row[4]
+                                                self.milestone_type = row[5]
+                                                self.is_required = bool(row[6])
+                                                self.created_at = row[7]
+                                        
+                                        step = MinimalStep(raw_step)
+                                        pathway_step_completions.append(step)
+                                        
+                                        # Convert datetime to date for comparison
+                                        completed_date = None
+                                        if completion.completed_at:
+                                            if isinstance(completion.completed_at, datetime):
+                                                completed_date = completion.completed_at.date()
+                                            elif isinstance(completion.completed_at, date):
+                                                completed_date = completion.completed_at
+                                        
+                                        pathway_completion_data.append({
+                                            'step': step,
+                                            'completion': completion,
+                                            'completed_at': completed_date
+                                        })
+                                except Exception as e2:
+                                    logger.warning(f"Error loading step {step_id} manually: {e2}")
+                            else:
+                                # Different error - log and skip
+                                logger.warning(f"Error accessing pathway_step: {e}")
+                except Exception as e:
+                    logger.warning(f"Error processing completion: {e}")
+                    continue
         
         # Care cases
         care_cases = CareCase.query.filter(

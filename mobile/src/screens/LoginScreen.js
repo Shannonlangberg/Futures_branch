@@ -53,6 +53,7 @@ export default function LoginScreen({ onLogin }) {
               source={require('../../assets/logo.png')}
               style={styles.logo}
               resizeMode="contain"
+              tintColor={undefined}
             />
             <Text style={styles.tagline}>{'One place for church life,\ndiscipleship, connection, and growth.'}</Text>
           </View>
@@ -124,11 +125,14 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: Spacing.xxl,
+    paddingVertical: Spacing.lg,
+    backgroundColor: 'transparent',
   },
   logo: {
-    width: 200,
-    height: 80,
-    marginBottom: Spacing.md,
+    width: 220,
+    height: 90,
+    marginBottom: Spacing.lg,
+    backgroundColor: 'transparent',
   },
   tagline: {
     fontSize: FontSizes.md,
