@@ -874,7 +874,6 @@ except Exception as e:
 
 # Helper function to get database file path (consistent across all endpoints)
 def get_db_path():
-def get_db_path():
     """Get the absolute path to the SQLite database file"""
     db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
     db_path = db_uri.replace('sqlite:///', '').replace('sqlite:////', '')
@@ -926,7 +925,7 @@ def run_migrations():
             logger.info(f"Migration: Using database from app config: {database_url}")
         except:
             # Fall back to environment variable if app not initialized
-            database_url = os.getenv('DATABASE_URL', '').strip()
+        database_url = os.getenv('DATABASE_URL', '').strip()
             logger.info(f"Migration: Using database from env var: {database_url}")
         
         # Extract actual file path from SQLite URL
@@ -1343,7 +1342,7 @@ class User(UserMixin):
         from werkzeug.security import check_password_hash
         try:
             # Try standard werkzeug password check
-            return check_password_hash(self.password_hash, password)
+        return check_password_hash(self.password_hash, password)
         except (ValueError, AttributeError):
             # If scrypt hash fails (not available), try bcrypt as fallback
             try:
@@ -1513,11 +1512,11 @@ def load_user(user_id):
             ''', (user_id,))
         except Exception:
             # Fallback if custom_permissions column doesn't exist yet
-            cursor.execute('''
-                SELECT id, username, password_hash, full_name, email, role, campus, active
-                FROM users
-                WHERE id = ? AND active = 1
-            ''', (user_id,))
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active
+            FROM users
+            WHERE id = ? AND active = 1
+        ''', (user_id,))
         
         row = cursor.fetchone()
         conn.close()
@@ -1576,9 +1575,9 @@ def authenticate_user(username_or_email, password):
             error_msg = str(col_error).lower()
             if 'no such column' in error_msg or 'custom_permissions' in error_msg:
                 logger.info("custom_permissions column doesn't exist yet, using fallback query")
-                cursor.execute('''
-                    SELECT id, username, password_hash, full_name, email, role, campus, active
-                    FROM users
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active
+            FROM users
                     WHERE (LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)) AND active = 1
                 ''', (username_or_email.strip(), username_or_email.strip()))
             else:
@@ -7950,26 +7949,26 @@ def api_login():
         if data:
             # Accept both 'username' and 'email' for mobile app compatibility
             username = data.get('username', '').strip() or data.get('email', '').strip()
-            password = data.get('password', '').strip()
-        else:
+        password = data.get('password', '').strip()
+    else:
             username = ''
             password = ''
         
         logger.info(f"Parsed - username/email: '{username}', password: {'***' if password else '(empty)'}")
-        
-        if not username or not password:
+    
+    if not username or not password:
             logger.warning(f"Missing credentials - username='{username}', password={'present' if password else 'missing'}")
-            return jsonify({"error": "Please enter both username and password."}), 400
-        
-        user = authenticate_user(username, password)
-        if user:
-            login_user(user, remember=True)
-            # Ensure session is saved
-            session.modified = True
+        return jsonify({"error": "Please enter both username and password."}), 400
+    
+    user = authenticate_user(username, password)
+    if user:
+        login_user(user, remember=True)
+        # Ensure session is saved
+        session.modified = True
             logger.info(f"✅ User {username} logged in successfully, user_id={user.id}, role={user.role}")
-            # Log successful login
+        # Log successful login
             try:
-                log_security_event(user.id, 'login_success', 'User logged in successfully')
+        log_security_event(user.id, 'login_success', 'User logged in successfully')
             except Exception as log_error:
                 logger.error(f"Error logging security event: {log_error}")
             # Look up Person record to get their actual campus (where they attend)
@@ -7999,7 +7998,7 @@ def api_login():
                     "campus": personal_campus or user_campus  # Personal campus (where they attend)
                 }
             })
-        else:
+    else:
             # More detailed logging for failed login
             logger.warning(f"❌ Login FAILED for: '{username}'")
             logger.warning(f"   - Email format: {username if '@' in username else 'Not an email'}")
@@ -8028,9 +8027,9 @@ def api_login():
             except Exception as debug_error:
                 logger.error(f"Error checking user existence: {debug_error}")
             
-            # Log failed login attempt
+        # Log failed login attempt
             try:
-                log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
+        log_security_event('unknown', 'login_failed', f'Failed login attempt for username: {username}')
             except Exception as log_error:
                 logger.error(f"Error logging security event: {log_error}")
             return jsonify({"error": "Invalid username/email or password."}), 401
@@ -9479,26 +9478,26 @@ def get_campuses():
             default_campus = "all_campuses" if len(allowed_campuses) > 1 else (allowed_campuses[0] if allowed_campuses else "all_campuses")
     else:
         # No custom restrictions, use role-based filtering
-        if current_user.role == 'admin' or current_user.role == 'senior_leader':
-            # Admin and senior leaders see all campuses
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
-        elif current_user.role == 'campus_pastor':
-            # Campus pastors only see their assigned campus
-            filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
-            default_campus = current_user.campus
-        elif current_user.role == 'finance':
-            # Finance users see all campuses (for logging purposes)
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
-        elif current_user.role == 'pastor':
-            # Pastors see all campuses (for logging purposes)
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
-        else:
-            # Default to all campuses for unknown roles
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
+    if current_user.role == 'admin' or current_user.role == 'senior_leader':
+        # Admin and senior leaders see all campuses
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
+    elif current_user.role == 'campus_pastor':
+        # Campus pastors only see their assigned campus
+        filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
+        default_campus = current_user.campus
+    elif current_user.role == 'finance':
+        # Finance users see all campuses (for logging purposes)
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
+    elif current_user.role == 'pastor':
+        # Pastors see all campuses (for logging purposes)
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
+    else:
+        # Default to all campuses for unknown roles
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
     
     return jsonify({
         "campuses": [{
@@ -13237,7 +13236,7 @@ def serve_react_app(path):
                 return send_from_directory(app.static_folder, safe_path)
             except FileNotFoundError:
                 logger.warning(f"File not found: {safe_path}")
-                return jsonify({"error": "Not found"}), 404
+            return jsonify({"error": "Not found"}), 404
     except Exception as e:
         logger.error(f"Error serving static file {path}: {e}", exc_info=True)
         # Return a proper error response
@@ -13516,7 +13515,7 @@ def get_persons():
         result = []
         for person in persons:
             try:
-                person_data = person.to_dict()
+            person_data = person.to_dict()
             except Exception as e:
                 logger.error(f"Error serializing person {person.id}: {e}", exc_info=True)
                 # Skip this person if we can't serialize them
@@ -13870,18 +13869,18 @@ def get_person_detail(person_id):
         try:
             if hasattr(person, 'engagement_profile') and person.engagement_profile:
                 try:
-                    engagement_data = person.engagement_profile.to_dict()
-                    person_data['engagement'] = engagement_data
+            engagement_data = person.engagement_profile.to_dict()
+            person_data['engagement'] = engagement_data
                 except Exception as e:
                     logger.warning(f"Error serializing engagement profile for {person_id}: {e}")
                     person_data['engagement'] = None
-            else:
-                # Create engagement profile if it doesn't exist
+        else:
+            # Create engagement profile if it doesn't exist
                 try:
-                    engagement = EngagementProfile(person_id=person.id)
-                    db.session.add(engagement)
-                    db.session.commit()
-                    person_data['engagement'] = engagement.to_dict()
+            engagement = EngagementProfile(person_id=person.id)
+            db.session.add(engagement)
+            db.session.commit()
+            person_data['engagement'] = engagement.to_dict()
                 except Exception as e:
                     logger.warning(f"Error creating engagement profile for {person_id}: {e}")
                     person_data['engagement'] = None
@@ -15504,11 +15503,11 @@ def get_connect_groups():
                 except AttributeError:
                     # User object doesn't have has_permission, skip permission check
                     pass
-                
-                # Apply campus scoping
+        
+        # Apply campus scoping
                 try:
-                    from utils.campus_scope import apply_campus_filter
-                    query = apply_campus_filter(query, 'groups')
+        from utils.campus_scope import apply_campus_filter
+        query = apply_campus_filter(query, 'groups')
                 except Exception as filter_error:
                     logger.warning(f"Campus filter failed: {filter_error}")
         except Exception as scope_error:
@@ -17030,8 +17029,8 @@ def submit_meeting_attendance(meeting_id):
                 db.session.add(attendance)
             
             # Update engagement profile and heartbeat records (for both present and absent)
-            person = Person.query.filter_by(id=person_id, is_active=True).first()
-            if person:
+                person = Person.query.filter_by(id=person_id, is_active=True).first()
+                if person:
                 # Get or create engagement profile (needed for both present and absent tracking)
                 engagement = person.engagement_profile
                 if not engagement:
@@ -17148,16 +17147,16 @@ def submit_meeting_attendance(meeting_id):
                 # Update EngagementProfile (legacy system) - only if present
                 if present:
                     try:
-                        # Get or create engagement profile
-                        engagement = person.engagement_profile
-                        if not engagement:
-                            engagement = EngagementProfile(person_id=person.id)
-                            db.session.add(engagement)
+                    # Get or create engagement profile
+                    engagement = person.engagement_profile
+                    if not engagement:
+                        engagement = EngagementProfile(person_id=person.id)
+                        db.session.add(engagement)
                             db.session.flush()  # Flush to get the ID
-                            logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
-                        
-                        # Add group attendance to engagement profile (feeds to heartbeat)
-                        try:
+                        logger.info(f"Created engagement profile for person {person_id} ({person.full_name})")
+                    
+                    # Add group attendance to engagement profile (feeds to heartbeat)
+                    try:
                             # Ensure meeting_date is a date object
                             attendance_date = meeting.meeting_date
                             if isinstance(attendance_date, str):
@@ -17176,11 +17175,11 @@ def submit_meeting_attendance(meeting_id):
                             logger.info(f"Adding group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {attendance_date}, Type: {type(attendance_date)}")
                             
                             # Update EngagementProfile (legacy system)
-                            engagement.add_group_attendance(
-                                group_id=group.id,
+                        engagement.add_group_attendance(
+                            group_id=group.id,
                                 attendance_date=attendance_date,
-                                present=True
-                            )
+                            present=True
+                        )
                             
                             # ALSO create ConnectAttendance record for Heartbeat system
                             try:
@@ -17281,9 +17280,9 @@ def submit_meeting_attendance(meeting_id):
                     except Exception as e:
                         logger.error(f"Error updating engagement profile for {person.full_name}: {e}", exc_info=True)
                         # Don't fail the whole operation if engagement profile update fails
-                
-                db.session.commit()
-                logger.info(f"Successfully committed attendance for meeting {meeting_id}")
+        
+        db.session.commit()
+        logger.info(f"Successfully committed attendance for meeting {meeting_id}")
         
         # Refresh engagement profiles and recalculate heartbeat for affected people
         recalculated_people = []
@@ -18014,7 +18013,7 @@ def get_events():
                         Event.start_time.is_(None)
                     )
                 )
-            elif status == 'past':
+        elif status == 'past':
                 query = query.filter(
                     db.and_(
                         Event.start_time.isnot(None),
@@ -18406,7 +18405,7 @@ def google_oauth_callback():
         # Fall back to session validation
         if not state_valid and expected_state and state == expected_state:
             state_valid = True
-            user_id = session.get('google_oauth_user_id')
+        user_id = session.get('google_oauth_user_id')
             logger.info(f"State token validated from session for user {user_id}")
         
         # If still not valid, try to get user from Flask-Login (less secure but functional)
@@ -18422,7 +18421,7 @@ def google_oauth_callback():
         
         if not user_id:
             logger.warning("No user_id found after state validation")
-            return jsonify({'error': 'Session expired. Please log in again.'}), 401
+                return jsonify({'error': 'Session expired. Please log in again.'}), 401
         
         # Exchange code for tokens
         client_id = os.getenv('GOOGLE_CLIENT_ID')
@@ -18542,12 +18541,12 @@ def google_oauth_callback():
                 }
                 
                 // Store success flag for the app to detect
-                try {
-                    sessionStorage.setItem('google_oauth_success', 'true');
-                } catch (e) {
-                    console.log('Could not set sessionStorage:', e);
-                }
-                
+                    try {
+                        sessionStorage.setItem('google_oauth_success', 'true');
+                    } catch (e) {
+                        console.log('Could not set sessionStorage:', e);
+                    }
+                    
                 // Redirect back to the app with success flag
                 const separator = redirectUrl.includes('?') ? '&' : '?';
                 window.location.href = redirectUrl + separator + 'oauth_success=true';
@@ -18588,8 +18587,8 @@ def get_event_categories():
     """Get all event categories"""
     try:
         # Try to filter by is_active and order by display_order if they exist
-        try:
-            categories = EventCategory.query.filter_by(is_active=True).order_by(EventCategory.display_order.asc()).all()
+    try:
+        categories = EventCategory.query.filter_by(is_active=True).order_by(EventCategory.display_order.asc()).all()
         except:
             # Fallback if is_active or display_order don't exist
             categories = EventCategory.query.order_by(EventCategory.name.asc()).all()
@@ -18734,7 +18733,7 @@ def create_event():
         
         db.session.add(new_event)
         try:
-            db.session.commit()
+        db.session.commit()
         except Exception as db_error:
             db.session.rollback()
             logger.error(f"Database error creating event: {db_error}", exc_info=True)
