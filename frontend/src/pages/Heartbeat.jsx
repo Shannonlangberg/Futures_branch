@@ -821,7 +821,7 @@ const Heartbeat = () => {
                               <div className="text-xs font-semibold text-blue-300">Next Step Ready</div>
                             </div>
                             <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                              <div className="text-xs text-slate-400 mb-1">Pathway: {person.next_step.pathway_name || 'Unknown'}</div>
+                              <div className="text-xs text-slate-400 mb-1">Journey: {person.next_step.pathway_name || 'Unknown'}</div>
                               <div className="text-xs text-slate-300">Current: {person.next_step.current_step}</div>
                               <div className="text-sm font-semibold text-blue-300 mt-1">→ {person.next_step.next_step}</div>
                             </div>

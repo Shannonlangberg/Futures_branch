@@ -155,8 +155,8 @@ const PathwayManager = () => {
 
     try {
       const url = editingPathway 
-        ? `/api/pathways/${editingPathway.id}`
-        : '/api/pathways';
+        ? `/api/journeys/${editingPathway.id}`
+        : '/api/journeys';
       
       const method = editingPathway ? 'PUT' : 'POST';
       
@@ -202,7 +202,7 @@ const PathwayManager = () => {
     }
 
     try {
-      const response = await fetch(`/api/pathways/${pathway.id}`, {
+      const response = await fetch(`/api/journeys/${pathway.id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -310,7 +310,7 @@ const PathwayManager = () => {
                       <button
                         onClick={() => handleOpenModal(pathway)}
                         className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg"
-                        title="Edit Pathway"
+                        title="Edit Journey"
                       >
                         <PencilIcon className="w-5 h-5" />
                       </button>
@@ -327,7 +327,7 @@ const PathwayManager = () => {
                   {/* Expanded Steps View */}
                   {expandedPathway === pathway.id && (
                     <div className="mt-6 pt-6 border-t border-slate-700">
-                      <h4 className="text-sm font-semibold text-slate-300 mb-4">Pathway Steps</h4>
+                      <h4 className="text-sm font-semibold text-slate-300 mb-4">Journey Steps</h4>
                       <div className="space-y-2">
                         {pathway.steps && pathway.steps.length > 0 ? (
                           pathway.steps.map((step, index) => (
@@ -370,7 +370,7 @@ const PathwayManager = () => {
           <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-700 flex items-center justify-between sticky top-0 bg-slate-800 z-10">
               <h2 className="text-2xl font-bold text-white">
-                {editingPathway ? 'Edit Pathway' : 'Create New Pathway'}
+                {editingPathway ? 'Edit Journey' : 'Create New Journey'}
               </h2>
               <button
                 onClick={handleCloseModal}
@@ -385,7 +385,7 @@ const PathwayManager = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Pathway Name <span className="text-red-400">*</span>
+                    Journey Name <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
@@ -393,7 +393,7 @@ const PathwayManager = () => {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                    placeholder="e.g., Leadership Pathway"
+                    placeholder="e.g., Leadership Journey"
                   />
                 </div>
                 <div>
@@ -429,7 +429,7 @@ const PathwayManager = () => {
 
               {/* Steps Section */}
               <div className="border-t border-slate-700 pt-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Pathway Steps</h3>
+                <h3 className="text-lg font-semibold text-white mb-4">Journey Steps</h3>
                 
                 {/* Add Step Form */}
                 <div className="bg-slate-700/50 rounded-lg p-4 mb-4">
@@ -545,7 +545,7 @@ const PathwayManager = () => {
                   type="submit"
                   className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
                 >
-                  {editingPathway ? 'Update Pathway' : 'Create Pathway'}
+                  {editingPathway ? 'Update Journey' : 'Create Journey'}
                 </button>
               </div>
             </form>

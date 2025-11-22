@@ -218,7 +218,7 @@ def update_pathway(pathway_id):
         db.session.commit()
         
         return jsonify({
-            'message': 'Pathway updated successfully',
+            'message': 'Journey updated successfully',
             'pathway': pathway.to_dict()
         }), 200
         
