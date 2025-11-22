@@ -1081,7 +1081,7 @@ class PersonPathwayProgress(db.Model):
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'current_step_id': self.current_step_id,
-            'current_step': self.current_step.to_dict() if self.current_step else None,
+            'current_step': self._get_current_step_dict(),
             'next_step': next_step.to_dict() if next_step else None,
             'is_active': self.is_active,
             'notes': self.notes,

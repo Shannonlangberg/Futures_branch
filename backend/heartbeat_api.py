@@ -717,7 +717,49 @@ def get_next_steps():
             next_step_info = None
             reason = None
             
-            if progress and progress.current_step:
+            # Handle missing step_actions column when accessing current_step relationship
+            current_step = None
+            if progress and progress.current_step_id:
+                try:
+                    current_step = progress.current_step
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if 'no such column' in error_str and 'step_actions' in error_str:
+                        # Column doesn't exist - load step manually without step_actions
+                        try:
+                            raw_step = db.session.execute(
+                                text('''
+                                    SELECT id, pathway_id, step_order, step_name, step_description, 
+                                           milestone_type, is_required, created_at
+                                    FROM discipleship_pathway_steps 
+                                    WHERE id = :step_id
+                                '''),
+                                {'step_id': progress.current_step_id}
+                            ).fetchone()
+                            
+                            if raw_step:
+                                # Create minimal step object
+                                class MinimalStep:
+                                    def __init__(self, row):
+                                        self.id = row[0]
+                                        self.pathway_id = row[1]
+                                        self.step_order = row[2]
+                                        self.step_name = row[3]
+                                        self.step_description = row[4]
+                                        self.milestone_type = row[5]
+                                        self.is_required = bool(row[6])
+                                        self.created_at = row[7]
+                                
+                                current_step = MinimalStep(raw_step)
+                        except Exception as e2:
+                            logger.warning(f"Error loading current step manually: {e2}")
+                            current_step = None
+                    else:
+                        # Different error - log but continue
+                        logger.warning(f"Error accessing current_step: {e}")
+                        current_step = None
+            
+            if progress and current_step:
                 # Check if current step is completed
                 current_step_completion = PersonPathwayStepCompletion.query.filter_by(
                     person_pathway_progress_id=progress.id,
@@ -726,11 +768,47 @@ def get_next_steps():
                 ).first()
                 
                 if current_step_completion:
-                    # Find next step in pathway
-                    next_step = PathwayStep.query.filter_by(
-                        pathway_id=progress.pathway_id,
-                        step_order=progress.current_step.step_order + 1
-                    ).first()
+                    # Find next step in pathway - handle missing step_actions column
+                    next_step = None
+                    try:
+                        next_step = PathwayStep.query.filter_by(
+                            pathway_id=progress.pathway_id,
+                            step_order=current_step.step_order + 1
+                        ).first()
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        if 'no such column' in error_str and 'step_actions' in error_str:
+                            # Column doesn't exist - load step manually
+                            try:
+                                raw_step = db.session.execute(
+                                    text('''
+                                        SELECT id, pathway_id, step_order, step_name, step_description, 
+                                               milestone_type, is_required, created_at
+                                        FROM discipleship_pathway_steps 
+                                        WHERE pathway_id = :pathway_id AND step_order = :step_order
+                                    '''),
+                                    {'pathway_id': progress.pathway_id, 'step_order': current_step.step_order + 1}
+                                ).fetchone()
+                                
+                                if raw_step:
+                                    class MinimalStep:
+                                        def __init__(self, row):
+                                            self.id = row[0]
+                                            self.pathway_id = row[1]
+                                            self.step_order = row[2]
+                                            self.step_name = row[3]
+                                            self.step_description = row[4]
+                                            self.milestone_type = row[5]
+                                            self.is_required = bool(row[6])
+                                            self.created_at = row[7]
+                                    
+                                    next_step = MinimalStep(raw_step)
+                            except Exception as e2:
+                                logger.warning(f"Error loading next step manually: {e2}")
+                                next_step = None
+                        else:
+                            logger.warning(f"Error loading next step: {e}")
+                            next_step = None
                     
                     if next_step:
                         # Get pathway name
@@ -739,7 +817,7 @@ def get_next_steps():
                         next_step_info = {
                             'pathway_id': progress.pathway_id,
                             'pathway_name': pathway.name if pathway else None,
-                            'current_step': progress.current_step.step_name,
+                            'current_step': current_step.step_name,
                             'next_step': next_step.step_name,
                             'next_step_id': next_step.id
                         }
