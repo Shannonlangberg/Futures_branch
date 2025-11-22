@@ -19020,9 +19020,13 @@ def create_event_payment_intent(event_id):
         amount_cents = int(total_amount * 100)  # Convert to cents
         
         # Get Stripe API key
-        stripe_key = os.getenv('STRIPE_SECRET_KEY', '')
+        stripe_key = os.getenv('STRIPE_SECRET_KEY', '').strip()
         if not stripe_key:
-            return jsonify({'error': 'Payment processing not configured'}), 500
+            logger.error("STRIPE_SECRET_KEY environment variable not set")
+            return jsonify({
+                'error': 'Payment processing not configured. Please contact support.',
+                'details': 'Stripe API key is missing'
+            }), 500
         
         stripe.api_key = stripe_key
         
@@ -19032,20 +19036,27 @@ def create_event_payment_intent(event_id):
         customer_name = person.full_name if person else email.split('@')[0].replace('.', ' ').title()
         
         # Create payment intent
-        payment_intent = stripe.PaymentIntent.create(
-            amount=amount_cents,
-            currency='aud',
-            description=f'Event Registration: {event.title}',
-            metadata={
-                'event_id': str(event_id),
-                'event_title': event.title,
-                'email': email,
-                'guest_count': str(guest_count),
-                'type': 'event_registration'
-            },
-            receipt_email=email,
-            statement_descriptor=f'Event: {event.title[:22]}'  # Max 22 chars
-        )
+        try:
+            payment_intent = stripe.PaymentIntent.create(
+                amount=amount_cents,
+                currency='aud',
+                description=f'Event Registration: {event.title}',
+                metadata={
+                    'event_id': str(event_id),
+                    'event_title': event.title,
+                    'email': email,
+                    'guest_count': str(guest_count),
+                    'type': 'event_registration'
+                },
+                receipt_email=email,
+                statement_descriptor=f'Event: {event.title[:22]}'  # Max 22 chars
+            )
+        except stripe.error.StripeError as stripe_error:
+            logger.error(f"Stripe API error creating payment intent: {stripe_error}", exc_info=True)
+            return jsonify({
+                'error': f'Payment processing error: {stripe_error.user_message or str(stripe_error)}',
+                'stripe_error_type': stripe_error.__class__.__name__
+            }), 500
         
         return jsonify({
             'client_secret': payment_intent.client_secret,
@@ -19062,7 +19073,10 @@ def create_event_payment_intent(event_id):
         
     except Exception as e:
         logger.error(f"Error creating payment intent: {e}", exc_info=True)
-        return jsonify({'error': f'Failed to create payment intent: {str(e)}'}), 500
+        return jsonify({
+            'error': f'Failed to create payment intent: {str(e)}',
+            'details': 'Please check server logs for more information'
+        }), 500
 
 @app.route('/api/events/<event_id>/registrations', methods=['POST'])
 def create_event_registration(event_id):

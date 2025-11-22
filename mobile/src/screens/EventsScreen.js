@@ -177,8 +177,12 @@ export default function EventsScreen({ route }) {
         0 // guest_count - can be added later
       );
 
+      if (paymentData.error) {
+        throw new Error(paymentData.error || 'Failed to create payment intent');
+      }
+
       if (!paymentData.client_secret) {
-        throw new Error('Failed to create payment intent');
+        throw new Error('Payment intent created but no client secret returned');
       }
 
       // Step 2: Initialize payment sheet

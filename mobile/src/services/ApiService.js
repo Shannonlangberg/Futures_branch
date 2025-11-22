@@ -275,6 +275,10 @@ export const ApiService = {
       email,
       guest_count: guestCount,
     });
+    
+    if (response.status >= 400) {
+      return { error: response.data?.error || 'Failed to create payment intent', ...response.data };
+    }
     return response.data;
   },
 
