@@ -936,8 +936,6 @@ class PersonPathwayProgress(db.Model):
                     
                     all_steps = [MinimalStep(row) for row in raw_steps]
                 except Exception as e2:
-                    import logging
-                    logger = logging.getLogger(__name__)
                     logger.warning(f"Error loading steps manually: {e2}")
                     all_steps = []
             else:
