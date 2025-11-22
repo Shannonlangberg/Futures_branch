@@ -139,8 +139,10 @@ export default function PathwayScreen() {
                 selectedStep.id
               );
               
-              if (result.pathway) {
-                setPathway(result.pathway);
+              // Check for journey or pathway (backward compatibility)
+              const journeyResult = result.journey || result.pathway;
+              if (journeyResult) {
+                setPathway(journeyResult);
                 // Trigger celebration animation
                 Animated.sequence([
                   Animated.timing(celebrationAnim, {
