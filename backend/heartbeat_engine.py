@@ -331,13 +331,19 @@ class HeartbeatEngine:
             is_active=True
         ).all()
         
-        # Get all completed pathway steps
+        # Get all completed pathway steps WITH their completion data
         pathway_step_completions = []
+        pathway_completion_data = []  # Store completion objects with dates
         for progress in pathway_progress:
             completions = progress.step_completions.all()
             for completion in completions:
                 if completion.pathway_step:
                     pathway_step_completions.append(completion.pathway_step)
+                    pathway_completion_data.append({
+                        'step': completion.pathway_step,
+                        'completion': completion,
+                        'completed_at': completion.completed_at.date() if completion.completed_at else None
+                    })
         
         # Care cases
         care_cases = CareCase.query.filter(
@@ -391,6 +397,7 @@ class HeartbeatEngine:
             'giving_summaries': giving_summaries,
             'discipleship_steps': discipleship_steps,
             'pathway_step_completions': pathway_step_completions,
+            'pathway_completion_data': pathway_completion_data,  # Include completion dates
             'care_cases': care_cases,
             'care_touchpoints': care_touchpoints,
             'app_opens': app_opens,
@@ -609,14 +616,14 @@ class HeartbeatEngine:
     ) -> float:
         """
         Calculate spiritual score (0-100) based on:
-        - Salvation milestone (from DiscipleshipStep or PathwayStep)
-        - Baptism milestone (from DiscipleshipStep or PathwayStep)
-        - Holy Spirit milestone (from DiscipleshipStep or PathwayStep)
-        - Recent next steps
-        - Other discipleship milestones
+        - Major milestones (Salvation, Baptism, Holy Spirit) - HIGH WEIGHT
+        - Journey step completions (all steps) - MEDIUM WEIGHT
+        - Recent next steps - MEDIUM WEIGHT
+        - TV/content engagement - LOWER WEIGHT
         """
         discipleship_steps = data['discipleship_steps']
         pathway_step_completions = data.get('pathway_step_completions', [])
+        pathway_completion_data = data.get('pathway_completion_data', [])
         
         # If no data at all, return 0
         if not discipleship_steps and not pathway_step_completions:
@@ -624,7 +631,9 @@ class HeartbeatEngine:
         
         score = 0.0
         
-        # Check for major milestones from both sources
+        # ============================================
+        # MAJOR MILESTONES - HIGH WEIGHT (60 points)
+        # ============================================
         # From legacy DiscipleshipStep
         has_salvation = any(s.type == 'salvation' for s in discipleship_steps)
         has_baptism = any(s.type == 'baptism' for s in discipleship_steps)
@@ -648,35 +657,57 @@ class HeartbeatEngine:
         if has_holy_spirit:
             score += 20.0
         
-        # Recent next steps (30 points)
+        # ============================================
+        # JOURNEY STEP COMPLETIONS - MEDIUM WEIGHT
+        # ============================================
+        # Count ALL completed journey steps (not just major milestones)
+        # Steps with major milestone_type already counted above, so exclude them here
+        completed_journey_steps = []
+        for completion_info in pathway_completion_data:
+            step = completion_info['step']
+            milestone_type = (step.milestone_type or '').lower()
+            completed_at = completion_info.get('completed_at')
+            
+            # Only count steps that aren't major milestones
+            if milestone_type not in ['salvation', 'baptism', 'holy_spirit']:
+                # Check if completion is within date range (if date available)
+                if completed_at is None or completed_at >= start_date:
+                    completed_journey_steps.append(completion_info)
+        
+        # Journey step completions: 8 points each (max 40 points)
+        # This gives medium weight to completing journey steps like:
+        # - "This is Christianity"
+        # - "Joined Connect Group"
+        # - "Joined Dream Team"
+        # - Any custom journey steps
+        journey_step_score = min(len(completed_journey_steps) * 8.0, 40.0)
+        score += journey_step_score
+        
+        logger.info(f"Journey Steps: {len(completed_journey_steps)} steps completed ({journey_step_score} pts)")
+        
+        # ============================================
+        # RECENT NEXT STEPS - MEDIUM WEIGHT
+        # ============================================
         # Check legacy DiscipleshipStep
         recent_steps = [
             s for s in discipleship_steps
             if s.type == 'next_steps' and s.date >= start_date
         ]
-        # Check pathway steps with next_steps milestone_type
-        for step in pathway_step_completions:
+        # Check pathway steps with next_steps milestone_type (only if not already counted)
+        for completion_info in pathway_completion_data:
+            step = completion_info['step']
+            completed_at = completion_info.get('completed_at')
             if (step.milestone_type or '').lower() == 'next_steps':
-                # Check if completion date is recent (if available)
-                # For now, count all pathway next_steps as recent
-                recent_steps.append(step)
+                if completed_at is None or completed_at >= start_date:
+                    recent_steps.append(step)
         
         if recent_steps:
             # 10 points per recent next step, max 30
             score += min(len(recent_steps) * 10.0, 30.0)
         
-        # Other milestones (10 points)
-        # From legacy DiscipleshipStep
-        other_milestones = [
-            s for s in discipleship_steps
-            if s.type not in ['salvation', 'baptism', 'holy_spirit', 'next_steps']
-        ]
-        # From pathway steps
-        for step in pathway_step_completions:
-            milestone_type = (step.milestone_type or '').lower()
-            if milestone_type not in ['salvation', 'baptism', 'holy_spirit', 'next_steps']:
-                other_milestones.append(step)
-        
+        # ============================================
+        # TV/CONTENT ENGAGEMENT - LOWER WEIGHT
+        # ============================================
         # Count TV episode completions from legacy DiscipleshipStep
         tv_episode_completions_legacy = [
             s for s in discipleship_steps
@@ -700,10 +731,15 @@ class HeartbeatEngine:
         logger.info(f"TV Score: {total_tv_episodes} episodes ({tv_episode_score} pts), "
                    f"{len(tv_series_completions_legacy)} series ({tv_series_score} pts)")
         
-        # Other milestones: 2 points each (max 10 points)
+        # Other legacy milestones (for backward compatibility)
+        other_milestones = [
+            s for s in discipleship_steps
+            if s.type not in ['salvation', 'baptism', 'holy_spirit', 'next_steps', 
+                             'tv_episode_completion', 'tv_series_completion']
+        ]
         other_milestone_score = min(len(other_milestones) * 2.0, 10.0)
         
-        # Total other milestones score (capped at 50 points total for this section)
+        # Total media/other score (capped at 50 points total for this section)
         score += min(tv_episode_score + tv_series_score + other_milestone_score, 50.0)
         
         return round(min(score, 100.0), 2)
