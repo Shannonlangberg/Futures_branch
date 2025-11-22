@@ -1,7 +1,7 @@
 """
-Discipleship Pathway Management API
+Discipleship Journey Management API
 
-Endpoints for managing pathways and tracking person progress.
+Endpoints for managing journeys and tracking person progress.
 """
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
@@ -14,17 +14,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-pathway_bp = Blueprint('pathway', __name__, url_prefix='/api/pathways')
+pathway_bp = Blueprint('pathway', __name__, url_prefix='/api/journeys')
 
 
-# PATHWAY MANAGEMENT
+# JOURNEY MANAGEMENT
 
 @pathway_bp.route('', methods=['GET'])
 @login_required
 def get_pathways():
-    """Get all pathways"""
+    """Get all journeys"""
     try:
-        # Allow any logged-in user to view pathways (they can see their own progress)
+        # Allow any logged-in user to view journeys (they can see their own progress)
         # Only restrict creation/editing, not viewing
         
         category_filter = request.args.get('category')

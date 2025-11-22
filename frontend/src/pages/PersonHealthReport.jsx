@@ -206,7 +206,7 @@ const PersonHealthReport = () => {
 
   const fetchPathways = async () => {
     try {
-      const response = await fetch('/api/pathways', {
+      const response = await fetch('/api/journeys', {
         credentials: 'include'
       });
       if (response.ok) {
@@ -226,7 +226,7 @@ const PersonHealthReport = () => {
     
     try {
       setLoadingSuggestion(true);
-      const response = await fetch(`/api/pathways/progress/${data.pathway.id}/ai-suggestion`, {
+      const response = await fetch(`/api/journeys/progress/${data.pathway.id}/ai-suggestion`, {
         credentials: 'include'
       });
       
@@ -259,7 +259,7 @@ const PersonHealthReport = () => {
     }
 
     try {
-      const response = await fetch(`/api/pathways/person/${personId}/assign`, {
+      const response = await fetch(`/api/journeys/person/${personId}/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -329,7 +329,7 @@ const PersonHealthReport = () => {
       let response;
       if (isEditingCompletion) {
         // Update existing completion
-        response = await fetch(`/api/pathways/progress/${data.pathway.id}/update-completion`, {
+        response = await fetch(`/api/journeys/progress/${data.pathway.id}/update-completion`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -342,7 +342,7 @@ const PersonHealthReport = () => {
         });
       } else {
         // Create new completion
-        response = await fetch(`/api/pathways/progress/${data.pathway.id}/complete-step`, {
+        response = await fetch(`/api/journeys/progress/${data.pathway.id}/complete-step`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -437,7 +437,7 @@ const PersonHealthReport = () => {
         // Also refresh pathway data specifically
         if (data?.pathway?.id) {
           try {
-            const pathwayResponse = await fetch(`/api/pathways/person/${data.person.id}`, {
+            const pathwayResponse = await fetch(`/api/journeys/person/${data.person.id}`, {
               credentials: 'include',
               headers: {
                 'Cache-Control': 'no-cache',
