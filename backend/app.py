@@ -17498,7 +17498,7 @@ try:
         logger.info("Pulse TV API blueprint registered successfully")
     except Exception as e:
         logger.warning(f"Failed to register Pulse TV API blueprint: {e}")
-    logger.info("Pathway API registered successfully")
+    logger.info("Journey API registered successfully")
 except ImportError as e:
     logger.warning(f"Could not import pathway_api: {e}")
 

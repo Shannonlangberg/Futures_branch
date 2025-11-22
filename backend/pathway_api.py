@@ -52,7 +52,7 @@ def get_pathways():
         error_str = str(e).lower()
         if 'no such table' in error_str or 'does not exist' in error_str:
             return jsonify({
-                'error': 'Pathways table not found. Please run migrations first.',
+                'error': 'Journeys table not found. Please run migrations first.',
                 'details': str(e),
                 'pathways': [],
                 'count': 0
