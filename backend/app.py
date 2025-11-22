@@ -862,6 +862,16 @@ if not database_url or database_url.startswith('sqlite:///'):
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# IMPORTANT: Run migrations BEFORE initializing any models that might query the database
+# This ensures the step_actions column exists before SQLAlchemy tries to use it
+logger.info("🔄 Running database migrations before model initialization...")
+try:
+    run_migrations()
+    logger.info("✅ Migrations completed successfully")
+except Exception as e:
+    logger.error(f"❌ Migration error: {e}", exc_info=True)
+    # Don't fail startup - app should still work with graceful error handling
+
 # Helper function to get database file path (consistent across all endpoints)
 def get_db_path():
     """Get the absolute path to the SQLite database file"""
