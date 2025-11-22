@@ -907,18 +907,59 @@ def run_migrations():
     import sqlite3
     try:
         # Determine which database to use for migrations
-        # Use the same database as SQLAlchemy
-        database_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        # Use the same database as SQLAlchemy - CRITICAL!
+        # Get database path using the same logic as get_db_path() to ensure consistency
+        try:
+            # Try to get from app config first (most reliable)
+            database_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            logger.info(f"Migration: Using database from app config: {database_url}")
+        except:
+            # Fall back to environment variable if app not initialized
+            database_url = os.getenv('DATABASE_URL', '').strip()
+            logger.info(f"Migration: Using database from env var: {database_url}")
+        
+        # Extract actual file path from SQLite URL
         if database_url and database_url.startswith('sqlite:///'):
+            # Remove sqlite:/// prefix
             db_path = database_url.replace('sqlite:///', '').replace('sqlite:////', '')
-            if not os.path.isabs(db_path):
-                # Use the same logic as get_db_path()
+            
+            # Handle absolute vs relative paths
+            if os.path.isabs(db_path):
+                # Already absolute - use as is
+                logger.info(f"Migration: Using absolute database path: {db_path}")
+            else:
+                # Relative path - resolve it
                 backend_dir = os.path.dirname(os.path.abspath(__file__))
-                instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
-                db_path = instance_path if os.path.exists(instance_path) else os.path.join(backend_dir, 'futures_link.db')
+                
+                # Check common locations (same logic as database setup)
+                # 1. Check /data (Railway volume)
+                if os.path.exists('/data') and os.path.isdir('/data'):
+                    volume_path = os.path.join('/data', db_path if '/' not in db_path else os.path.basename(db_path))
+                    if os.path.exists(volume_path):
+                        db_path = volume_path
+                        logger.info(f"Migration: Found database in volume: {db_path}")
+                    elif '/' not in db_path:
+                        # Try default filename in /data
+                        volume_path = os.path.join('/data', 'futures_link.db')
+                        if os.path.exists(volume_path):
+                            db_path = volume_path
+                            logger.info(f"Migration: Using default volume database: {db_path}")
+                
+                # 2. Check instance directory
+                if not os.path.exists(db_path):
+                    instance_path = os.path.join(backend_dir, 'instance', db_path if '/' not in db_path else os.path.basename(db_path))
+                    if os.path.exists(instance_path):
+                        db_path = instance_path
+                        logger.info(f"Migration: Found database in instance: {db_path}")
+                
+                # 3. Fall back to backend directory
+                if not os.path.exists(db_path) and not os.path.isabs(db_path):
+                    db_path = os.path.join(backend_dir, db_path if '/' not in db_path else os.path.basename(db_path))
+                    logger.info(f"Migration: Using backend directory database: {db_path}")
         else:
-            # Fall back to default
+            # No database URL - use default
             db_path = CHURCH_VOICE_DB_PATH
+            logger.info(f"Migration: Using default database path: {db_path}")
         
         # Ensure instance directory exists (for default path)
         if db_path == CHURCH_VOICE_DB_PATH:
