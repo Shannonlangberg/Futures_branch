@@ -197,7 +197,7 @@ export default function PathwayScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Pathway</Text>
+          <Text style={styles.headerTitle}>My Journey</Text>
           <Text style={styles.headerSubtitle}>Your discipleship journey</Text>
         </View>
 

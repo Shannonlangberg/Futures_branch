@@ -14193,7 +14193,7 @@ def get_my_pathway():
         ).first()
         
         if not person:
-            return jsonify({'pathway': None, 'error': 'Person not found'}), 404
+            return jsonify({'journey': None, 'pathway': None, 'error': 'Person not found'}), 404
         
         # Get the person's ACTUAL assigned pathway from database (not hardcoded)
         try:
@@ -14215,11 +14215,11 @@ def get_my_pathway():
                 
         except Exception as e:
             logger.error(f"Error loading assigned pathway: {e}", exc_info=True)
-            return jsonify({'pathway': None, 'error': 'Failed to load pathway'}), 500
+            return jsonify({'journey': None, 'pathway': None, 'error': 'Failed to load journey'}), 500
         
     except Exception as e:
         logger.error(f"Error fetching pathway for email {email}: {e}", exc_info=True)
-        return jsonify({'pathway': None, 'error': 'Failed to fetch pathway data'}), 500
+        return jsonify({'journey': None, 'pathway': None, 'error': 'Failed to fetch journey data'}), 500
 
 
 @app.route('/api/journeys/complete-step', methods=['POST'])
@@ -14267,7 +14267,8 @@ def complete_pathway_step():
         if existing_completion:
             return jsonify({
                 'message': 'Step already completed',
-                'pathway': pathway_progress.to_dict()
+                'journey': pathway_progress.to_dict(),
+                'pathway': pathway_progress.to_dict()  # Backward compatibility
             }), 200
         
         # Mark step as complete
@@ -14297,10 +14298,11 @@ def complete_pathway_step():
         
         logger.info(f"Step {step_id} marked complete for {email}")
         
-        # Return updated pathway
+        # Return updated journey
         return jsonify({
             'message': 'Step completed successfully!',
-            'pathway': pathway_progress.to_dict(),
+            'journey': pathway_progress.to_dict(),
+            'pathway': pathway_progress.to_dict(),  # Backward compatibility
             'completed_step': {
                 'id': step.id,
                 'name': step.step_name,
