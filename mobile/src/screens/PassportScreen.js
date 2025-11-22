@@ -1159,6 +1159,59 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
+  // Actions Styles
+  modalActions: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  modalActionsTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: Spacing.md,
+  },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderRadius: 12,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  actionIconText: {
+    fontSize: 20,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: Spacing.xs,
+  },
+  actionLink: {
+    fontSize: FontSizes.xs,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  actionArrow: {
+    marginLeft: Spacing.sm,
+  },
+  actionArrowText: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
   // Celebration Styles
   celebration: {
     position: 'absolute',
