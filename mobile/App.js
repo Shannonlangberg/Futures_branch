@@ -211,24 +211,39 @@ export default function App() {
   const setupNotifications = async () => {
     try {
       // Only setup notifications if we have a valid Expo project ID
-      const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
       if (!projectId || projectId === 'your-project-id' || projectId === null) {
         // Silently skip notifications if no project ID configured
+        console.log('Push notifications: No project ID configured, skipping auto-setup');
         return;
       }
       
-      await NotificationService.registerForPushNotifications();
-      const token = await NotificationService.getPushToken();
+      // Check if device is physical (notifications don't work on simulator)
+      if (!Device.isDevice) {
+        console.log('Push notifications: Not a physical device, skipping');
+        return;
+      }
+      
+      // Request permissions and get token
+      const token = await NotificationService.registerForPushNotifications();
       if (token && user) {
         const platform = Platform.OS; // 'ios' or 'android'
         const appVersion = Constants?.expoConfig?.version || '1.0.0';
-        await NotificationService.savePushToken(user.email, token, platform, null, appVersion);
+        const result = await NotificationService.savePushToken(user.email, token, platform, null, appVersion);
+        if (result.success) {
+          console.log('✅ Push notification token registered successfully');
+        } else {
+          console.warn('⚠️ Failed to save push token:', result.error);
+        }
+      } else if (!token) {
+        console.log('Push notifications: Permission not granted or token not available');
       }
     } catch (error) {
       // Fail gracefully - don't break the app if notifications can't be set up
       // This happens when projectId is invalid or missing
       if (error.message?.includes('projectId') || error.message?.includes('Invalid uuid')) {
         // Silently ignore invalid project ID errors
+        console.log('Push notifications: Invalid project ID, skipping');
         return;
       }
       console.warn('Notification setup failed (app will continue):', error.message);
