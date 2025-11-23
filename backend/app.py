@@ -17564,6 +17564,14 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import devotions_admin_api: {e}")
 
+# BIBLE API ROUTES
+try:
+    from bible_api import bible_bp
+    app.register_blueprint(bible_bp)
+    logger.info("Bible API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import bible_api: {e}")
+
 # WEBHOOK ROUTES
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)

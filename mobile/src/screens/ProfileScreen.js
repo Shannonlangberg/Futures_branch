@@ -27,6 +27,8 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [checkingNotifications, setCheckingNotifications] = useState(false);
+  const [pushToken, setPushToken] = useState(null);
+  const [showTokenModal, setShowTokenModal] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -37,6 +39,22 @@ export default function ProfileScreen() {
     try {
       const { status } = await Notifications.getPermissionsAsync();
       setNotificationsEnabled(status === 'granted');
+      
+      // If enabled, also get and display the token
+      if (status === 'granted') {
+        try {
+          const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
+          if (projectId && projectId !== 'your-project-id') {
+            const token = await Notifications.getExpoPushTokenAsync(
+              projectId ? { projectId } : undefined
+            );
+            setPushToken(token.data);
+            console.log('📱 Push Token:', token.data); // Log for easy copying
+          }
+        } catch (error) {
+          console.log('Could not get push token:', error.message);
+        }
+      }
     } catch (error) {
       console.error('Error checking notification status:', error);
     }
@@ -204,7 +222,7 @@ export default function ProfileScreen() {
             <View style={styles.menuTextContainer}>
               <Text style={styles.menuText}>Push Notifications</Text>
               <Text style={styles.menuSubtext}>
-                {notificationsEnabled ? 'Enabled' : 'Disabled'}
+                {notificationsEnabled ? (pushToken ? 'Enabled • Tap to view token' : 'Enabled') : 'Disabled'}
               </Text>
             </View>
             {checkingNotifications ? (
@@ -218,6 +236,23 @@ export default function ProfileScreen() {
               />
             )}
           </View>
+          
+          {/* Show Token Button (if enabled) */}
+          {notificationsEnabled && pushToken && (
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => setShowTokenModal(true)}
+            >
+              <Text style={styles.menuIcon}>📋</Text>
+              <View style={styles.menuTextContainer}>
+                <Text style={styles.menuText}>View Push Token</Text>
+                <Text style={styles.menuSubtext}>
+                  Tap to copy for testing
+                </Text>
+              </View>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Quick Access Links */}
