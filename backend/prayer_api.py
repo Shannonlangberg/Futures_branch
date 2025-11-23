@@ -138,7 +138,16 @@ def create_prayer_request():
             )
             db.session.add(care_case)
             logger.info(f"CareCase added to session, committing...")
+            logger.info(f"DEBUG: CareCase details - person_id={care_case.person_id}, type={care_case.type}, status={care_case.status}")
             db.session.commit()
+            logger.info(f"DEBUG: Commit successful, care_case.id={care_case.id}")
+            
+            # Verify it was saved
+            saved_case = CareCase.query.filter_by(id=care_case.id).first()
+            if saved_case:
+                logger.info(f"✅ VERIFIED: CareCase {care_case.id} exists in database for person {person.id}")
+            else:
+                logger.error(f"❌ ERROR: CareCase {care_case.id} NOT FOUND after commit!")
             
             logger.info(f"✅ Prayer request created for {email}: {care_case.id} - Campus: {person.campus}")
             
@@ -240,7 +249,16 @@ def create_praise_report():
                 updated_at=datetime.utcnow()
             )
             db.session.add(care_case)
+            logger.info(f"DEBUG: Praise CareCase details - person_id={care_case.person_id}, type={care_case.type}, status={care_case.status}")
             db.session.commit()
+            logger.info(f"DEBUG: Commit successful, care_case.id={care_case.id}")
+            
+            # Verify it was saved
+            saved_case = CareCase.query.filter_by(id=care_case.id).first()
+            if saved_case:
+                logger.info(f"✅ VERIFIED: Praise CareCase {care_case.id} exists in database for person {person.id}")
+            else:
+                logger.error(f"❌ ERROR: Praise CareCase {care_case.id} NOT FOUND after commit!")
             
             logger.info(f"Praise report created for {email}: {care_case.id} - Campus: {person.campus}")
             
