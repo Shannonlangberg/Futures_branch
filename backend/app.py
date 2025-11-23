@@ -19706,6 +19706,364 @@ def delete_event_resource_booking(event_id, booking_id):
         return jsonify({'error': 'Failed to delete resource booking'}), 500
 
 
+# ==================== PUSH NOTIFICATIONS ====================
+
+def send_expo_push_notification(push_tokens, title, body, data=None):
+    """
+    Send push notification via Expo Push Notification Service
+    
+    Args:
+        push_tokens: List of Expo push tokens
+        title: Notification title
+        body: Notification body
+        data: Optional JSON data payload
+    
+    Returns:
+        Tuple of (sent_count, failed_count, errors)
+    """
+    if not requests:
+        logger.error("Requests library not available - cannot send push notifications")
+        return 0, len(push_tokens), ["requests library not installed"]
+    
+    if not push_tokens:
+        return 0, 0, []
+    
+    expo_push_url = "https://exp.host/--/api/v2/push/send"
+    
+    # Prepare notification payloads
+    messages = []
+    for token in push_tokens:
+        message = {
+            "to": token,
+            "sound": "default",
+            "title": title,
+            "body": body,
+            "data": data or {},
+            "priority": "high",
+            "channelId": "default"
+        }
+        messages.append(message)
+    
+    try:
+        # Send notifications in batches (Expo recommends max 100 per request)
+        batch_size = 100
+        sent_count = 0
+        failed_count = 0
+        errors = []
+        
+        for i in range(0, len(messages), batch_size):
+            batch = messages[i:i + batch_size]
+            
+            response = requests.post(
+                expo_push_url,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Accept-Encoding": "gzip, deflate"
+                },
+                json={"messages": batch},
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                # Process Expo response
+                for receipt in result.get('data', {}).get('results', []):
+                    if receipt.get('status') == 'ok':
+                        sent_count += 1
+                    else:
+                        failed_count += 1
+                        error_msg = receipt.get('message', 'Unknown error')
+                        errors.append(error_msg)
+                        logger.warning(f"Push notification failed: {error_msg}")
+            else:
+                logger.error(f"Expo push API error: {response.status_code} - {response.text}")
+                failed_count += len(batch)
+                errors.append(f"API error: {response.status_code}")
+        
+        logger.info(f"Sent {sent_count} push notifications, {failed_count} failed")
+        return sent_count, failed_count, errors
+        
+    except Exception as e:
+        logger.error(f"Error sending push notifications: {e}", exc_info=True)
+        return 0, len(push_tokens), [str(e)]
+
+
+@app.route('/api/push-tokens', methods=['POST'])
+def save_push_token():
+    """Save or update push notification token for a user"""
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        push_token = data.get('push_token')
+        platform = data.get('platform')
+        device_id = data.get('device_id')
+        app_version = data.get('app_version')
+        
+        if not email or not push_token:
+            return jsonify({'error': 'Email and push_token are required'}), 400
+        
+        # Find or create push token record
+        token_record = PushNotificationToken.query.filter_by(
+            expo_push_token=push_token
+        ).first()
+        
+        # Also try to find by email to update existing token
+        if not token_record:
+            token_record = PushNotificationToken.query.filter_by(
+                email=email.lower(),
+                is_active=True
+            ).first()
+        
+        # Get person by email
+        person = Person.query.filter_by(email=email.lower()).first()
+        if not person:
+            return jsonify({'error': 'User not found'}), 404
+        
+        if token_record:
+            # Update existing token
+            token_record.person_id = person.id
+            token_record.email = email.lower()
+            token_record.platform = platform
+            token_record.device_id = device_id
+            token_record.app_version = app_version
+            token_record.is_active = True
+            token_record.updated_at = datetime.utcnow()
+            logger.info(f"Updated push token for {email}")
+        else:
+            # Create new token
+            token_record = PushNotificationToken(
+                person_id=person.id,
+                email=email.lower(),
+                expo_push_token=push_token,
+                platform=platform,
+                device_id=device_id,
+                app_version=app_version,
+                is_active=True
+            )
+            db.session.add(token_record)
+            logger.info(f"Created new push token for {email}")
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Push token saved successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error saving push token: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to save push token'}), 500
+
+
+@app.route('/api/notifications/send', methods=['POST'])
+@login_required
+@admin_required
+def send_notification():
+    """Send push notification immediately"""
+    try:
+        data = request.get_json()
+        title = data.get('title')
+        body = data.get('body')
+        notification_data = data.get('data', {})
+        target_audience = data.get('target_audience', 'all')
+        target_campus = data.get('target_campus')
+        target_emails = data.get('target_emails', [])
+        target_role = data.get('target_role')
+        
+        if not title or not body:
+            return jsonify({'error': 'Title and body are required'}), 400
+        
+        # Get push tokens based on target audience
+        push_tokens = []
+        tokens_query = PushNotificationToken.query.filter_by(is_active=True)
+        
+        if target_audience == 'all':
+            # Send to all active tokens
+            tokens = tokens_query.all()
+            push_tokens = [t.expo_push_token for t in tokens]
+        elif target_audience == 'specific_campus' and target_campus:
+            # Send to users from specific campus
+            persons = Person.query.filter_by(campus=target_campus, is_active=True).all()
+            person_ids = [p.id for p in persons]
+            tokens = tokens_query.filter(PushNotificationToken.person_id.in_(person_ids)).all()
+            push_tokens = [t.expo_push_token for t in tokens]
+        elif target_audience == 'specific_users' and target_emails:
+            # Send to specific users
+            email_list = [e.lower() for e in target_emails]
+            tokens = tokens_query.filter(PushNotificationToken.email.in_(email_list)).all()
+            push_tokens = [t.expo_push_token for t in tokens]
+        elif target_audience == 'role' and target_role:
+            # Get users with specific role (would need to check User model)
+            # For now, return error if roles not implemented
+            return jsonify({'error': 'Role-based targeting not yet implemented'}), 400
+        
+        if not push_tokens:
+            return jsonify({'error': 'No active push tokens found for target audience'}), 404
+        
+        # Send notifications
+        sent_count, failed_count, errors = send_expo_push_notification(
+            push_tokens, title, body, notification_data
+        )
+        
+        # Update last_used_at for successfully sent tokens
+        if sent_count > 0:
+            tokens = tokens_query.filter(PushNotificationToken.expo_push_token.in_(push_tokens)).all()
+            for token in tokens:
+                token.last_used_at = datetime.utcnow()
+            db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'sent_count': sent_count,
+            'failed_count': failed_count,
+            'total_tokens': len(push_tokens),
+            'errors': errors[:5]  # Return first 5 errors
+        })
+        
+    except Exception as e:
+        logger.error(f"Error sending notification: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to send notification'}), 500
+
+
+@app.route('/api/notifications/schedule', methods=['POST'])
+@login_required
+@admin_required
+def schedule_notification():
+    """Schedule a push notification for later"""
+    try:
+        data = request.get_json()
+        title = data.get('title')
+        body = data.get('body')
+        notification_data = data.get('data', {})
+        scheduled_for_str = data.get('scheduled_for')
+        target_audience = data.get('target_audience', 'all')
+        target_campus = data.get('target_campus')
+        target_emails = data.get('target_emails', [])
+        target_role = data.get('target_role')
+        
+        if not title or not body:
+            return jsonify({'error': 'Title and body are required'}), 400
+        
+        if not scheduled_for_str:
+            return jsonify({'error': 'scheduled_for is required'}), 400
+        
+        # Parse scheduled_for datetime
+        try:
+            scheduled_for = datetime.fromisoformat(scheduled_for_str.replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({'error': 'Invalid scheduled_for format. Use ISO 8601 format'}), 400
+        
+        # Validate scheduled_for is in the future
+        if scheduled_for <= datetime.utcnow():
+            return jsonify({'error': 'scheduled_for must be in the future'}), 400
+        
+        # Create scheduled notification
+        scheduled_notification = ScheduledNotification(
+            title=title,
+            body=body,
+            data=json.dumps(notification_data) if notification_data else None,
+            target_audience=target_audience,
+            target_campus=target_campus,
+            target_emails=json.dumps(target_emails) if target_emails else None,
+            target_role=target_role,
+            scheduled_for=scheduled_for,
+            status='pending',
+            created_by=current_user.email if hasattr(current_user, 'email') else 'unknown'
+        )
+        
+        db.session.add(scheduled_notification)
+        db.session.commit()
+        
+        logger.info(f"Scheduled notification {scheduled_notification.id} for {scheduled_for}")
+        
+        return jsonify({
+            'success': True,
+            'notification': scheduled_notification.to_dict()
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error scheduling notification: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to schedule notification'}), 500
+
+
+@app.route('/api/notifications/scheduled', methods=['GET'])
+@login_required
+@admin_required
+def get_scheduled_notifications():
+    """Get list of scheduled notifications"""
+    try:
+        status = request.args.get('status', 'all')  # all, pending, sent, failed, cancelled
+        limit = request.args.get('limit', 50, type=int)
+        
+        query = ScheduledNotification.query
+        
+        if status != 'all':
+            query = query.filter_by(status=status)
+        
+        notifications = query.order_by(ScheduledNotification.scheduled_for.desc()).limit(limit).all()
+        
+        return jsonify({
+            'success': True,
+            'notifications': [n.to_dict() for n in notifications]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting scheduled notifications: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to get scheduled notifications'}), 500
+
+
+@app.route('/api/notifications/scheduled/<int:notification_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def cancel_scheduled_notification(notification_id):
+    """Cancel a scheduled notification"""
+    try:
+        notification = ScheduledNotification.query.get_or_404(notification_id)
+        
+        if notification.status != 'pending':
+            return jsonify({'error': 'Only pending notifications can be cancelled'}), 400
+        
+        notification.status = 'cancelled'
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Notification cancelled'})
+        
+    except Exception as e:
+        logger.error(f"Error cancelling notification: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to cancel notification'}), 500
+
+
+@app.route('/api/notifications/stats', methods=['GET'])
+@login_required
+@admin_required
+def get_notification_stats():
+    """Get statistics about push notifications"""
+    try:
+        total_tokens = PushNotificationToken.query.filter_by(is_active=True).count()
+        platform_stats = db.session.query(
+            PushNotificationToken.platform,
+            db.func.count(PushNotificationToken.id)
+        ).filter_by(is_active=True).group_by(PushNotificationToken.platform).all()
+        
+        scheduled_pending = ScheduledNotification.query.filter_by(status='pending').count()
+        scheduled_sent = ScheduledNotification.query.filter_by(status='sent').count()
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_active_tokens': total_tokens,
+                'platform_breakdown': {platform: count for platform, count in platform_stats if platform},
+                'scheduled_pending': scheduled_pending,
+                'scheduled_sent': scheduled_sent
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting notification stats: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to get notification stats'}), 500
+
+
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5002))
