@@ -17526,6 +17526,14 @@ def prayer_submission_page(link_id):
 from serving_api import serving_bp
 app.register_blueprint(serving_bp)
 
+# COMMUNICATION MODULE ROUTES (Email & SMS Campaign Management)
+try:
+    from communication_api import communication_bp
+    app.register_blueprint(communication_bp)
+    logger.info("Communication API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import communication_api: {e}")
+
 # WEBHOOK ROUTES
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
@@ -19081,7 +19089,15 @@ def register_for_event(event_id):
 def create_event_payment_intent(event_id):
     """Create Stripe Payment Intent for event registration"""
     try:
-        import stripe
+        # Import stripe - use same pattern as giving_api
+        try:
+            import stripe
+            if not hasattr(stripe, 'PaymentIntent'):
+                logger.error("Stripe.PaymentIntent not available - Stripe module may not be properly loaded")
+                raise ImportError("Stripe module not properly loaded")
+        except ImportError as e:
+            logger.error(f"Failed to import stripe: {e}")
+            return jsonify({'error': 'Payment processing unavailable'}), 500
         
         event = Event.query.get(event_id)
         if not event:
@@ -19105,16 +19121,23 @@ def create_event_payment_intent(event_id):
         total_amount = float(price) * (1 + guest_count)
         amount_cents = int(total_amount * 100)  # Convert to cents
         
-        # Get Stripe API key
+        # Get Stripe API key - use same pattern as giving_api
         stripe_key = os.getenv('STRIPE_SECRET_KEY', '').strip()
         if not stripe_key:
             logger.error("STRIPE_SECRET_KEY environment variable not set")
+            logger.error("Please set STRIPE_SECRET_KEY in Railway environment variables")
             return jsonify({
-                'error': 'Payment processing not configured. Please contact support.',
-                'details': 'Stripe API key is missing'
+                'error': 'Payment processing not configured',
+                'details': 'Stripe API key is missing. Please contact support or check server configuration.'
             }), 500
         
+        # Always set Stripe API key fresh (in case it got reset) - same as giving_api
         stripe.api_key = stripe_key
+        
+        # Verify it's set
+        if not stripe.api_key:
+            logger.error("Stripe API key is None after setting")
+            return jsonify({'error': 'Stripe API key configuration failed'}), 500
         
         # Find or create person
         person = Person.query.filter_by(email=email, is_active=True).first()
