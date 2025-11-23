@@ -19995,7 +19995,14 @@ def send_notification():
             return jsonify({'error': 'Role-based targeting not yet implemented'}), 400
         
         if not push_tokens:
-            return jsonify({'error': 'No active push tokens found for target audience'}), 404
+            return jsonify({
+                'success': False,
+                'error': 'No active push tokens found for target audience',
+                'message': 'No users have registered for push notifications yet. Users need to log into the mobile app to register their push tokens.',
+                'sent_count': 0,
+                'failed_count': 0,
+                'total_tokens': 0
+            }), 200
         
         # Send notifications
         sent_count, failed_count, errors = send_expo_push_notification(
