@@ -226,9 +226,16 @@ export default function EventsScreen({ route }) {
       );
     } catch (error) {
       console.error('Registration error:', error);
+      const errorMessage = error.message || 
+                          (error.response?.data?.error) || 
+                          (error.error) ||
+                          'Failed to register. Please try again.';
+      const errorDetails = error.details || error.response?.data?.details;
+      
       Alert.alert(
         'Registration Error',
-        error.message || 'Failed to register. Please try again or contact the church office.'
+        errorDetails ? `${errorMessage}\n\n${errorDetails}` : errorMessage,
+        [{ text: 'OK' }]
       );
     } finally {
       setProcessingPayment(false);
