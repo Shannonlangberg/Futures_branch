@@ -512,68 +512,33 @@ def twilio_webhook():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @communication_bp.route('/stats/overview', methods=['GET'])
-# @login_required  # Temporarily disabled for testing
+@login_required
 def get_communication_stats():
     """Get overview statistics for communication platform"""
     try:
-        # Check if Campaign table exists, if not return sample data
-        try:
-            # Get basic counts
-            total_campaigns = Campaign.query.count()
-            active_campaigns = Campaign.query.filter_by(status='active').count()
-            draft_campaigns = Campaign.query.filter_by(status='draft').count()
-            completed_campaigns = Campaign.query.filter_by(status='completed').count()
-            
-            # Get recent activity
-            recent_campaigns = Campaign.query.order_by(
-                Campaign.created_at.desc()
-            ).limit(5).all()
-            
-            recent_campaigns_data = []
-            for campaign in recent_campaigns:
-                recent_campaigns_data.append({
-                    'id': campaign.id,
-                    'name': campaign.name,
-                    'type': campaign.campaign_type.value,
-                    'status': campaign.status.value,
-                    'created_at': campaign.created_at.isoformat(),
-                    'recipient_count': campaign.total_recipients
-                })
-                
-        except Exception as table_error:
-            logger.warning(f"Campaign table not available, using sample data: {table_error}")
-            # Fallback to sample data
-            total_campaigns = 3
-            active_campaigns = 1
-            draft_campaigns = 1
-            completed_campaigns = 1
-            
-            recent_campaigns_data = [
-                {
-                    'id': '1',
-                    'name': 'Weekly Newsletter',
-                    'type': 'email',
-                    'status': 'active',
-                    'created_at': '2024-08-15T00:00:00Z',
-                    'recipient_count': 150
-                },
-                {
-                    'id': '2',
-                    'name': 'Youth Group Reminder',
-                    'type': 'sms',
-                    'status': 'scheduled',
-                    'created_at': '2024-08-14T00:00:00Z',
-                    'recipient_count': 45
-                },
-                {
-                    'id': '3',
-                    'name': 'Devotional Invitation',
-                    'type': 'email',
-                    'status': 'draft',
-                    'created_at': '2024-08-13T00:00:00Z',
-                    'recipient_count': 200
-                }
-            ]
+        from communication_models import CampaignStatus
+        
+        # Get basic counts from database
+        total_campaigns = Campaign.query.count()
+        active_campaigns = Campaign.query.filter_by(status=CampaignStatus.ACTIVE).count()
+        draft_campaigns = Campaign.query.filter_by(status=CampaignStatus.DRAFT).count()
+        completed_campaigns = Campaign.query.filter_by(status=CampaignStatus.COMPLETED).count()
+        
+        # Get recent activity
+        recent_campaigns = Campaign.query.order_by(
+            Campaign.created_at.desc()
+        ).limit(5).all()
+        
+        recent_campaigns_data = []
+        for campaign in recent_campaigns:
+            recent_campaigns_data.append({
+                'id': campaign.id,
+                'name': campaign.name,
+                'type': campaign.campaign_type.value,
+                'status': campaign.status.value,
+                'created_at': campaign.created_at.isoformat(),
+                'recipient_count': campaign.total_recipients
+            })
         
         return jsonify({
             "success": True,
@@ -842,4 +807,258 @@ def import_csv_data():
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error importing CSV data: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/campaigns/<campaign_id>/recipients/export', methods=['GET'])
+@login_required
+def export_campaign_recipients(campaign_id):
+    """Export campaign recipients with engagement data"""
+    try:
+        from communication_models import CampaignRecipient
+        
+        campaign = Campaign.query.get(campaign_id)
+        if not campaign:
+            return jsonify({"success": False, "error": "Campaign not found"}), 404
+        
+        recipients = CampaignRecipient.query.filter_by(campaign_id=campaign_id).all()
+        
+        recipient_data = []
+        for recipient in recipients:
+            person = recipient.person
+            recipient_data.append({
+                'name': person.preferred_name or person.full_name if person else 'Unknown',
+                'email': recipient.email,
+                'phone': recipient.phone,
+                'campus': person.campus if person else '',
+                'department': person.department if person else '',
+                'sent_at': recipient.sent_at.isoformat() if recipient.sent_at else None,
+                'delivered_at': recipient.delivered_at.isoformat() if recipient.delivered_at else None,
+                'opened_at': recipient.opened_at.isoformat() if recipient.opened_at else None,
+                'clicked_at': recipient.clicked_at.isoformat() if recipient.clicked_at else None,
+                'replied_at': recipient.replied_at.isoformat() if recipient.replied_at else None,
+                'status': 'sent' if recipient.sent_at else 'pending'
+            })
+        
+        return jsonify({
+            "success": True,
+            "recipients": recipient_data,
+            "total": len(recipient_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error exporting recipients: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/campaigns/<campaign_id>/analytics/detailed', methods=['GET'])
+@login_required
+def get_detailed_campaign_analytics(campaign_id):
+    """Get detailed campaign analytics with heartbeat integration"""
+    try:
+        from communication_models import CampaignRecipient, EngagementEvent
+        
+        campaign = Campaign.query.get(campaign_id)
+        if not campaign:
+            return jsonify({"success": False, "error": "Campaign not found"}), 404
+        
+        # Get basic analytics
+        analytics = campaign_manager.get_campaign_analytics(campaign_id)
+        
+        # Get recipient-level engagement
+        recipients = CampaignRecipient.query.filter_by(campaign_id=campaign_id).all()
+        
+        recipient_engagement = []
+        for recipient in recipients:
+            person = recipient.person
+            if not person:
+                continue
+            
+            # Get engagement events for this recipient
+            events = EngagementEvent.query.filter_by(
+                campaign_id=campaign_id,
+                recipient_id=recipient.id
+            ).all()
+            
+            # Get heartbeat data
+            heartbeat_data = None
+            if person.engagement_profile:
+                profile = person.engagement_profile
+                heartbeat_data = {
+                    'pulse_status': profile.pulse_status,
+                    'last_seen': profile.last_seen.isoformat() if profile.last_seen else None,
+                    'attendance_frequency': profile.attendance_frequency,
+                    'serving_frequency': profile.serving_frequency,
+                    'overall_engagement': profile.overall_engagement
+                }
+            
+            recipient_engagement.append({
+                'person_id': person.id,
+                'name': person.preferred_name or person.full_name,
+                'email': recipient.email,
+                'phone': recipient.phone,
+                'campus': person.campus,
+                'department': person.department,
+                'sent_at': recipient.sent_at.isoformat() if recipient.sent_at else None,
+                'delivered_at': recipient.delivered_at.isoformat() if recipient.delivered_at else None,
+                'opened_at': recipient.opened_at.isoformat() if recipient.opened_at else None,
+                'clicked_at': recipient.clicked_at.isoformat() if recipient.clicked_at else None,
+                'replied_at': recipient.replied_at.isoformat() if recipient.replied_at else None,
+                'events': [event.to_dict() for event in events],
+                'heartbeat': heartbeat_data
+            })
+        
+        analytics['recipient_engagement'] = recipient_engagement
+        
+        return jsonify({
+            "success": True,
+            "analytics": analytics
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting detailed analytics: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/sms/activity', methods=['GET'])
+@login_required
+def get_sms_activity():
+    """Get SMS activity and scheduled campaigns"""
+    try:
+        from communication_models import CampaignRecipient
+        
+        # Get query parameters
+        status = request.args.get('status', 'all')
+        date_range = request.args.get('date_range', '30')  # days
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+        
+        # Build query for SMS campaigns
+        query = Campaign.query.filter(Campaign.campaign_type == 'sms')
+        
+        if status != 'all':
+            query = query.filter(Campaign.status == status)
+        
+        # Date filtering
+        if date_range and date_range.isdigit():
+            days = int(date_range)
+            start_date = datetime.utcnow() - timedelta(days=days)
+            query = query.filter(Campaign.created_at >= start_date)
+        
+        # Order by date
+        query = query.order_by(Campaign.created_at.desc())
+        
+        # Apply pagination
+        campaigns = query.limit(limit).offset(offset).all()
+        
+        # Build activity list
+        activity = []
+        for campaign in campaigns:
+            # Get recipient stats
+            recipients = CampaignRecipient.query.filter_by(campaign_id=campaign.id).all()
+            
+            sent_count = sum(1 for r in recipients if r.sent_at)
+            delivered_count = sum(1 for r in recipients if r.delivered_at)
+            replied_count = sum(1 for r in recipients if r.replied_at)
+            
+            activity.append({
+                'id': campaign.id,
+                'name': campaign.name,
+                'date_time': campaign.sent_at.isoformat() if campaign.sent_at else campaign.created_at.isoformat(),
+                'from': campaign.target_criteria.get('sender_id', 'FUTURES'),
+                'to': campaign.name,  # Or get recipient group name
+                'message_text': campaign.content[:50] + '...' if len(campaign.content) > 50 else campaign.content,
+                'type': 'Campaign',
+                'status': f"{sent_count} Sent" if sent_count > 0 else "Pending",
+                'sent_count': sent_count,
+                'delivered_count': delivered_count,
+                'replied_count': replied_count,
+                'total_recipients': campaign.total_recipients,
+                'campaign_status': campaign.status.value
+            })
+        
+        return jsonify({
+            "success": True,
+            "activity": activity,
+            "total": len(activity)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting SMS activity: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/email/upload-image', methods=['POST'])
+@login_required
+def upload_email_image():
+    """Upload image for email campaigns"""
+    try:
+        from werkzeug.utils import secure_filename
+        import os
+        
+        if 'image' not in request.files:
+            return jsonify({"success": False, "error": "No image file provided"}), 400
+        
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({"success": False, "error": "No file selected"}), 400
+        
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        filename = secure_filename(file.filename)
+        file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        
+        if file_ext not in allowed_extensions:
+            return jsonify({"success": False, "error": "Invalid file type"}), 400
+        
+        # Create uploads directory if it doesn't exist
+        upload_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'email_images')
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        unique_filename = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{filename}"
+        filepath = os.path.join(upload_dir, unique_filename)
+        file.save(filepath)
+        
+        # Return URL path
+        image_url = f"/uploads/email_images/{unique_filename}"
+        
+        return jsonify({
+            "success": True,
+            "image_url": image_url,
+            "filename": unique_filename
+        })
+        
+    except Exception as e:
+        logger.error(f"Error uploading image: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/campuses', methods=['GET'])
+@login_required
+def get_campuses():
+    """Get list of campuses for filtering"""
+    try:
+        campuses = db.session.query(Person.campus).distinct().all()
+        campus_list = [campus[0] for campus in campuses if campus[0]]
+        
+        return jsonify({
+            "success": True,
+            "campuses": sorted(campus_list)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting campuses: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/departments', methods=['GET'])
+@login_required
+def get_departments():
+    """Get list of departments for filtering"""
+    try:
+        departments = db.session.query(Person.department).distinct().all()
+        dept_list = [dept[0] for dept in departments if dept[0]]
+        
+        return jsonify({
+            "success": True,
+            "departments": sorted(dept_list)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting departments: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500

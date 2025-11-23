@@ -34,12 +34,15 @@ const CampaignAnalytics = ({ campaign, onClose }) => {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch(`/api/communication/campaigns/${campaign.id}/analytics`, {
+      const response = await fetch(`/api/communication/campaigns/${campaign.id}/analytics/detailed`, {
         credentials: 'include'
       });
       if (response.ok) {
         const data = await response.json();
         setAnalytics(data.analytics);
+        if (data.analytics?.recipient_engagement) {
+          setRecipients(data.analytics.recipient_engagement);
+        }
       }
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -49,16 +52,16 @@ const CampaignAnalytics = ({ campaign, onClose }) => {
   };
 
   const fetchRecipients = async () => {
-    try {
-      const response = await fetch(`/api/communication/campaigns/${campaign.id}/recipients`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setRecipients(data.recipients || []);
-      }
-    } catch (error) {
-      console.error('Error fetching recipients:', error);
+    // Recipients are now included in detailed analytics
+    // This function is kept for backward compatibility
+  };
+
+  const getHeartbeatColor = (status) => {
+    switch (status) {
+      case 'green': return 'text-green-400';
+      case 'amber': return 'text-yellow-400';
+      case 'red': return 'text-red-400';
+      default: return 'text-white/60';
     }
   };
 
@@ -235,32 +238,47 @@ const CampaignAnalytics = ({ campaign, onClose }) => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/10 text-white/60">
+                        <th className="text-left py-3 px-4">Name</th>
                         <th className="text-left py-3 px-4">Email/Phone</th>
+                        <th className="text-left py-3 px-4">Campus</th>
                         <th className="text-left py-3 px-4">Sent</th>
-                        <th className="text-left py-3 px-4">Delivered</th>
                         <th className="text-left py-3 px-4">Opened</th>
                         <th className="text-left py-3 px-4">Clicked</th>
                         <th className="text-left py-3 px-4">Replied</th>
+                        <th className="text-left py-3 px-4">Heartbeat</th>
                       </tr>
                     </thead>
                     <tbody>
                       {recipients.slice(0, 20).map((recipient) => (
-                        <tr key={recipient.id} className="border-b border-white/5 text-white/80">
-                          <td className="py-3 px-4">{recipient.email || recipient.phone}</td>
+                        <tr key={recipient.person_id || recipient.id} className="border-b border-white/5 text-white/80">
+                          <td className="py-3 px-4 font-medium">{recipient.name || '-'}</td>
+                          <td className="py-3 px-4">{recipient.email || recipient.phone || '-'}</td>
+                          <td className="py-3 px-4 text-white/60">{recipient.campus || '-'}</td>
                           <td className="py-3 px-4">
                             {recipient.sent_at ? new Date(recipient.sent_at).toLocaleDateString() : '-'}
                           </td>
                           <td className="py-3 px-4">
-                            {recipient.delivered_at ? new Date(recipient.delivered_at).toLocaleDateString() : '-'}
+                            {recipient.opened_at ? <span className="text-green-400">✓</span> : '-'}
                           </td>
                           <td className="py-3 px-4">
-                            {recipient.opened_at ? '✓' : '-'}
+                            {recipient.clicked_at ? <span className="text-blue-400">✓</span> : '-'}
                           </td>
                           <td className="py-3 px-4">
-                            {recipient.clicked_at ? '✓' : '-'}
+                            {recipient.replied_at ? <span className="text-purple-400">✓</span> : '-'}
                           </td>
                           <td className="py-3 px-4">
-                            {recipient.replied_at ? '✓' : '-'}
+                            {recipient.heartbeat ? (
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${
+                                  recipient.heartbeat.pulse_status === 'green' ? 'bg-green-400' :
+                                  recipient.heartbeat.pulse_status === 'amber' ? 'bg-yellow-400' :
+                                  'bg-red-400'
+                                }`}></span>
+                                <span className={`text-xs ${getHeartbeatColor(recipient.heartbeat.pulse_status)}`}>
+                                  {recipient.heartbeat.pulse_status?.toUpperCase() || 'N/A'}
+                                </span>
+                              </div>
+                            ) : '-'}
                           </td>
                         </tr>
                       ))}

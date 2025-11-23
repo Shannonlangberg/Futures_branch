@@ -91,7 +91,7 @@ class SendGridService:
             
             # Unsubscribe group
             if self.unsubscribe_group_id > 0:
-                asm = ASM(GroupId(self.unsubscribe_group_id), GroupsToDisplay([self.unsubscribe_group_id]))
+                asm = Asm(GroupId(self.unsubscribe_group_id), GroupsToDisplay([self.unsubscribe_group_id]))
                 mail.asm = asm
             
             mail.mail_settings = mail_settings

@@ -36,6 +36,7 @@ import EventsManager from './pages/EventsManager';
 import NotificationManager from './pages/NotificationManager';
 import ServingDashboard from './pages/ServingDashboard';
 import CommunicationDashboard from './pages/CommunicationDashboard';
+import SMSActivity from './pages/SMSActivity';
 import DevotionsAdmin from './pages/DevotionsAdmin';
 import DevotionPlanManager from './pages/DevotionPlanManager';
 
@@ -389,6 +390,7 @@ function App() {
                   <Route path="/events/manage" element={<EventsManager />} />
                   <Route path="/serving" element={<ServingDashboard />} />
                   <Route path="/communication" element={<CommunicationDashboard />} />
+                  <Route path="/communication/sms-activity" element={<SMSActivity />} />
                   <Route path="/devotions" element={<DevotionsAdmin />} />
                   <Route path="/devotions/plans" element={<DevotionPlanManager />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

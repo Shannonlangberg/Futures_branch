@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { XMarkIcon, EnvelopeIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, EnvelopeIcon, DevicePhoneMobileIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
+import RichEmailEditor from './RichEmailEditor';
+import SMSCampaignCreator from './SMSCampaignCreator';
 
 const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaign }) => {
   const [formData, setFormData] = useState({
@@ -18,11 +20,16 @@ const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaig
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [campuses, setCampuses] = useState([]);
-  const [departments] = useState(['Kids', 'Youth', 'Young Adults', 'Families', 'Adults', 'Seniors']);
+  const [departments, setDepartments] = useState([]);
   const [sendNow, setSendNow] = useState(false);
+  const [showCSVUpload, setShowCSVUpload] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvData, setCsvData] = useState([]);
+  const [csvMapping, setCsvMapping] = useState({});
 
   useEffect(() => {
     fetchCampuses();
+    fetchDepartments();
     if (existingCampaign) {
       setFormData({
         name: existingCampaign.name || '',
@@ -38,7 +45,7 @@ const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaig
 
   const fetchCampuses = async () => {
     try {
-      const response = await fetch('/api/campuses', {
+      const response = await fetch('/api/communication/campuses', {
         credentials: 'include'
       });
       if (response.ok) {
@@ -47,6 +54,79 @@ const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaig
       }
     } catch (error) {
       console.error('Error fetching campuses:', error);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('/api/communication/departments', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDepartments(data.departments || ['Kids', 'Youth', 'Young Adults', 'Families', 'Adults', 'Seniors']);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setDepartments(['Kids', 'Youth', 'Young Adults', 'Families', 'Adults', 'Seniors']);
+    }
+  };
+
+  const handleCSVUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCsvFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim());
+      const rows = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim());
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        return row;
+      }).filter(row => Object.values(row).some(v => v));
+
+      setCsvData(rows);
+      setShowCSVUpload(true);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCSVImport = async () => {
+    try {
+      const response = await fetch('/api/communication/import/csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          data: csvData,
+          mapping: csvMapping,
+          target_group: {
+            campus: formData.target_criteria.campus,
+            department: formData.target_criteria.department,
+            tags: formData.target_criteria.tags
+          }
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`Successfully imported ${data.imported_count} records!`);
+        setShowCSVUpload(false);
+        setCsvFile(null);
+        setCsvData([]);
+        setCsvMapping({});
+      } else {
+        alert('Error: ' + (data.error || 'Failed to import CSV'));
+      }
+    } catch (error) {
+      console.error('Error importing CSV:', error);
+      alert('Error importing CSV');
     }
   };
 
@@ -220,21 +300,21 @@ const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaig
           )}
 
           {/* Content */}
-          <div>
-            <label className="block text-white/80 text-sm font-semibold mb-2">
-              {campaignType === 'email' ? 'Email Content (HTML)' : 'SMS Message'} *
-            </label>
-            {campaignType === 'email' ? (
-              <textarea
-                name="content"
+          {campaignType === 'email' ? (
+            <div>
+              <label className="block text-white/80 text-sm font-semibold mb-2">
+                Email Content *
+              </label>
+              <RichEmailEditor
                 value={formData.content}
-                onChange={handleChange}
-                required
-                rows="10"
-                className="w-full px-4 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white/10 transition-all font-mono text-sm"
-                placeholder="<html>...</html>"
+                onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
               />
-            ) : (
+            </div>
+          ) : (
+            <div>
+              <label className="block text-white/80 text-sm font-semibold mb-2">
+                SMS Message *
+              </label>
               <textarea
                 name="content"
                 value={formData.content}
@@ -245,13 +325,11 @@ const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaig
                 className="w-full px-4 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white/10 transition-all"
                 placeholder="SMS message (160 characters recommended for single message)"
               />
-            )}
-            {campaignType === 'sms' && (
               <div className="text-white/50 text-sm mt-1">
                 {formData.content.length} / 160 characters
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Plain Text Content (Email only) */}
           {campaignType === 'email' && (
@@ -276,19 +354,36 @@ const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaig
               Target Audience
             </label>
             
+            {/* CSV Upload */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-white/60 text-sm">Custom Lists</div>
+                <label className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg cursor-pointer transition-colors text-sm">
+                  <ArrowUpTrayIcon className="w-4 h-4" />
+                  Upload CSV
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCSVUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
             {/* Campus Selection */}
             <div className="mb-4">
               <div className="text-white/60 text-sm mb-2">Campuses</div>
               <div className="flex flex-wrap gap-2">
                 {campuses.map((campus) => (
-                  <label key={campus.id} className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition-colors">
+                  <label key={campus} className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition-colors">
                     <input
                       type="checkbox"
-                      checked={formData.target_criteria.campus?.includes(campus.name)}
-                      onChange={(e) => handleTargetChange('campus', campus.name, e.target.checked)}
+                      checked={formData.target_criteria.campus?.includes(campus)}
+                      onChange={(e) => handleTargetChange('campus', campus, e.target.checked)}
                       className="w-4 h-4 text-blue-500 bg-white/10 border-white/20 rounded focus:ring-blue-500"
                     />
-                    <span className="text-white text-sm">{campus.name}</span>
+                    <span className="text-white text-sm">{campus}</span>
                   </label>
                 ))}
               </div>
@@ -356,6 +451,79 @@ const CreateCampaignModal = ({ campaignType, onClose, onSuccess, existingCampaig
             </button>
           </div>
         </form>
+
+        {/* CSV Upload Modal */}
+        {showCSVUpload && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-slate-800 rounded-xl p-6 border border-white/10 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">CSV Import</h3>
+                <button
+                  onClick={() => {
+                    setShowCSVUpload(false);
+                    setCsvFile(null);
+                    setCsvData([]);
+                    setCsvMapping({});
+                  }}
+                  className="p-2 hover:bg-white/10 rounded transition-colors"
+                >
+                  <XMarkIcon className="w-5 h-5 text-white" />
+                </button>
+              </div>
+
+              {csvData.length > 0 && (
+                <div className="space-y-4">
+                  <div className="text-white/80 text-sm">
+                    Found {csvData.length} rows. Map your CSV columns to person fields:
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {Object.keys(csvData[0] || {}).map(header => (
+                      <div key={header} className="flex items-center gap-2">
+                        <span className="text-white/60 text-sm w-32">{header}:</span>
+                        <select
+                          value={csvMapping[header] || ''}
+                          onChange={(e) => setCsvMapping(prev => ({ ...prev, [header]: e.target.value }))}
+                          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="" className="bg-slate-800">-- Select Field --</option>
+                          <option value="email" className="bg-slate-800">Email *</option>
+                          <option value="first_name" className="bg-slate-800">First Name *</option>
+                          <option value="last_name" className="bg-slate-800">Last Name</option>
+                          <option value="phone" className="bg-slate-800">Phone</option>
+                          <option value="campus" className="bg-slate-800">Campus</option>
+                          <option value="department" className="bg-slate-800">Department</option>
+                          <option value="tags" className="bg-slate-800">Tags</option>
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setShowCSVUpload(false);
+                        setCsvFile(null);
+                        setCsvData([]);
+                        setCsvMapping({});
+                      }}
+                      className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleCSVImport}
+                      disabled={!csvMapping.email || !csvMapping.first_name}
+                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Import
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
