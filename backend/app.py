@@ -1575,9 +1575,9 @@ def authenticate_user(username_or_email, password):
             error_msg = str(col_error).lower()
             if 'no such column' in error_msg or 'custom_permissions' in error_msg:
                 logger.info("custom_permissions column doesn't exist yet, using fallback query")
-        cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active
-            FROM users
+                cursor.execute('''
+                    SELECT id, username, password_hash, full_name, email, role, campus, active
+                    FROM users
                     WHERE (LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)) AND active = 1
                 ''', (username_or_email.strip(), username_or_email.strip()))
             else:
