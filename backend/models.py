@@ -1545,6 +1545,9 @@ class Event(db.Model):
     requires_payment = db.Column(db.Boolean, default=False)
     stripe_price_id = db.Column(db.String(200), nullable=True)  # Stripe Price ID for checkout
     
+    # Image/thumbnail
+    image_url = db.Column(db.String(500), nullable=True)  # URL to event thumbnail/image
+    
     # Enhanced event fields
     # Note: The following columns don't exist in the database yet - commented out to prevent errors
     # Uncomment these after migration 028_enhanced_events_module.sql runs successfully
@@ -1596,6 +1599,7 @@ class Event(db.Model):
             'price': float(self.price) if self.price else None,
             'requires_payment': self.requires_payment if self.requires_payment else False,
             'stripe_price_id': self.stripe_price_id,
+            'image_url': self.image_url if hasattr(self, 'image_url') else None,
             # 'ministry': self.ministry if hasattr(self, 'ministry') else None,  # Commented out until migration runs
             # Note: Removed fields that don't exist in database
             # 'is_all_day': self.is_all_day,
