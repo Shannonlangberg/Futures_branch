@@ -8,15 +8,26 @@ export const AuthService = {
       console.log('🔐 Login response:', response);
       
       if (response.authenticated) {
+        // Ensure person_id is included from backend response
+        const userData = response.user || {
+          email: response.email || email,
+          name: response.name || email.split('@')[0],
+          role: response.role,
+          campus: response.campus,
+        };
+        
+        // CRITICAL: Include person_id if backend provides it
+        if (response.user?.person_id) {
+          userData.person_id = response.user.person_id;
+          console.log('✅ Login: person_id stored:', userData.person_id);
+        } else {
+          console.warn('⚠️ Login: No person_id in response!', response.user);
+        }
+        
         return {
           success: true,
           token: response.token || 'mock-token', // Backend should return JWT token
-          user: response.user || {
-            email: response.email || email,
-            name: response.name || email.split('@')[0],
-            role: response.role,
-            campus: response.campus,
-          },
+          user: userData,
         };
       } else {
         return {

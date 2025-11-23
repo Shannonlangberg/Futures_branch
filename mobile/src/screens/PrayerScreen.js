@@ -48,12 +48,26 @@ export default function PrayerScreen({ navigation }) {
     setSubmitting(true);
 
     try {
+      console.log('🙏 Submitting prayer request:');
+      console.log('   - Email:', user.email);
+      console.log('   - Person ID:', user.person_id);
+      console.log('   - Campus:', user.campus);
+      
+      if (!user.person_id) {
+        console.error('❌ WARNING: No person_id in user object!', user);
+        Alert.alert('Error', 'User profile not loaded correctly. Please log out and log back in.');
+        setSubmitting(false);
+        return;
+      }
+      
       const result = await ApiService.submitPrayerRequest(user.email, {
         request: request.trim(),
         campus: user.campus, // Pass the user's campus
         person_id: user.person_id, // NEW: Pass person_id to link to correct profile
         created_at: new Date().toISOString(),
       });
+      
+      console.log('✅ Prayer request response:', result);
 
       if (result.success || result.message) {
         Alert.alert(
@@ -85,12 +99,26 @@ export default function PrayerScreen({ navigation }) {
     setSubmitting(true);
 
     try {
+      console.log('🎉 Submitting praise report:');
+      console.log('   - Email:', user.email);
+      console.log('   - Person ID:', user.person_id);
+      console.log('   - Campus:', user.campus);
+      
+      if (!user.person_id) {
+        console.error('❌ WARNING: No person_id in user object!', user);
+        Alert.alert('Error', 'User profile not loaded correctly. Please log out and log back in.');
+        setSubmitting(false);
+        return;
+      }
+      
       const result = await ApiService.submitPraiseReport(user.email, {
         report: praise.trim(),
         campus: user.campus, // Pass the user's campus
         person_id: user.person_id, // NEW: Pass person_id to link to correct profile
         created_at: new Date().toISOString(),
       });
+      
+      console.log('✅ Praise report response:', result);
 
       if (result.success || result.message) {
         Alert.alert(
