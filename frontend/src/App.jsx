@@ -36,6 +36,8 @@ import EventsManager from './pages/EventsManager';
 import NotificationManager from './pages/NotificationManager';
 import ServingDashboard from './pages/ServingDashboard';
 import CommunicationDashboard from './pages/CommunicationDashboard';
+import DevotionsAdmin from './pages/DevotionsAdmin';
+import DevotionPlanManager from './pages/DevotionPlanManager';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
 
@@ -387,6 +389,8 @@ function App() {
                   <Route path="/events/manage" element={<EventsManager />} />
                   <Route path="/serving" element={<ServingDashboard />} />
                   <Route path="/communication" element={<CommunicationDashboard />} />
+                  <Route path="/devotions" element={<DevotionsAdmin />} />
+                  <Route path="/devotions/plans" element={<DevotionPlanManager />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>
