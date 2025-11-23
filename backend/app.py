@@ -17549,6 +17549,21 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import communication_api: {e}")
 
+# DEVOTIONS MODULE ROUTES
+try:
+    from devotions_api import devotions_bp
+    app.register_blueprint(devotions_bp)
+    logger.info("Devotions API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import devotions_api: {e}")
+
+try:
+    from devotions_admin_api import devotions_admin_bp
+    app.register_blueprint(devotions_admin_bp)
+    logger.info("Devotions Admin API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import devotions_admin_api: {e}")
+
 # WEBHOOK ROUTES
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
