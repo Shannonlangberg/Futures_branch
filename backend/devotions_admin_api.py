@@ -49,7 +49,16 @@ except ImportError:
     def scope_devotions_query(query, user_role=None, user_campus=None):
         return query
     def validate_campus_access(perm, campus, user_role, user_campus):
-        return True
+        # More permissive validation - allow if user is admin/leadership or campuses match
+        admin_roles = ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']
+        if user_role in admin_roles:
+            return True
+        if not campus or campus.lower() in ['', 'all', 'all_campuses', 'all campuses']:
+            return True
+        if user_campus == 'all_campuses':
+            return True
+        # Allow if campuses match (case insensitive)
+        return str(campus).lower() == str(user_campus).lower()
 
 devotions_admin_bp = Blueprint('devotions_admin', __name__, url_prefix='/api/devotions/admin')
 
@@ -147,10 +156,28 @@ def create_devotion_plan():
         if not data.get('title'):
             return jsonify({'error': 'Title is required'}), 400
         
-        # Check campus access
-        campus = data.get('campus', user_context.get('campus'))
-        if not validate_campus_access('devotions_admin', campus, user_context['role'], user_context['campus']):
-            return jsonify({'error': 'Insufficient campus access'}), 403
+        # Check campus access - allow if user has admin/leadership role or campus matches
+        campus = data.get('campus', user_context.get('campus')) or ''
+        
+        # Allow creation if:
+        # 1. User is admin/senior leadership
+        # 2. Campus is empty/None (all campuses)
+        # 3. Campus matches user's campus
+        # 4. Campus access validation passes
+        user_role = user_context.get('role', 'user')
+        user_campus = user_context.get('campus', 'all_campuses')
+        
+        if campus.lower() in ['', 'all', 'all_campuses', 'all campuses']:
+            campus = None  # Set to None for all campuses
+        
+        # Allow admin and senior leadership to create plans for any campus
+        admin_roles = ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']
+        if user_role in admin_roles:
+            pass  # Allow
+        elif campus and user_campus != 'all_campuses' and campus.lower() != user_campus.lower():
+            # Only block if trying to create for a different campus and not admin
+            if not validate_campus_access('devotions_admin', campus, user_role, user_campus):
+                return jsonify({'error': 'Insufficient campus access'}), 403
         
         # Create new plan
         plan = DevotionPlan(
