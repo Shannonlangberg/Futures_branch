@@ -246,7 +246,10 @@ def create_prayer_request():
             logger.error(f"❌ Error creating prayer records: {e}", exc_info=True)
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return jsonify({'error': 'Failed to create prayer request'}), 500
+            return jsonify({
+                'error': 'Failed to create prayer request',
+                'details': str(e)
+            }), 500
         
     except Exception as e:
         logger.error(f"❌ FATAL: Error creating prayer request: {e}", exc_info=True)
@@ -423,7 +426,10 @@ def create_praise_report():
             logger.error(f"❌ Error creating praise records: {e}", exc_info=True)
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return jsonify({'error': 'Failed to create praise report'}), 500
+            return jsonify({
+                'error': 'Failed to create praise report',
+                'details': str(e)
+            }), 500
         
     except Exception as e:
         logger.error(f"❌ FATAL: Error creating praise report: {e}", exc_info=True)
