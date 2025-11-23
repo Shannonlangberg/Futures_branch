@@ -922,25 +922,26 @@ class PersonPathwayProgress(db.Model):
                             self.milestone_type = row[5]
                             self.is_required = bool(row[6])
                             self.created_at = row[7]
-                         def to_dict(self):
-                             # Handle created_at - might be string or datetime
-                             created_at_str = None
-                             if self.created_at:
-                                 if isinstance(self.created_at, str):
-                                     created_at_str = self.created_at
-                                 else:
-                                     created_at_str = self.created_at.isoformat() if hasattr(self.created_at, 'isoformat') else str(self.created_at)
-                             
-                             return {
-                                 'id': self.id,
-                                 'step_order': self.step_order,
-                                 'step_name': self.step_name,
-                                 'step_description': self.step_description,
-                                 'milestone_type': self.milestone_type,
-                                 'is_required': self.is_required,
-                                 'step_actions': [],
-                                 'created_at': created_at_str
-                             }
+
+                        def to_dict(self):
+                            # Handle created_at - might be string or datetime
+                            created_at_str = None
+                            if self.created_at:
+                                if isinstance(self.created_at, str):
+                                    created_at_str = self.created_at
+                                else:
+                                    created_at_str = self.created_at.isoformat() if hasattr(self.created_at, 'isoformat') else str(self.created_at)
+                            
+                            return {
+                                'id': self.id,
+                                'step_order': self.step_order,
+                                'step_name': self.step_name,
+                                'step_description': self.step_description,
+                                'milestone_type': self.milestone_type,
+                                'is_required': self.is_required,
+                                'step_actions': [],
+                                'created_at': created_at_str
+                            }
                     
                     all_steps = [MinimalStep(row) for row in raw_steps]
                 except Exception as e2:
@@ -1073,25 +1074,30 @@ class PersonPathwayProgress(db.Model):
                                 self.milestone_type = row[5]
                                 self.is_required = bool(row[6])
                                 self.created_at = row[7]
-                         def to_dict(self):
-                             # Handle created_at - might be string or datetime
-                             created_at_str = None
-                             if self.created_at:
-                                 if isinstance(self.created_at, str):
-                                     created_at_str = self.created_at
-                                 else:
-                                     created_at_str = self.created_at.isoformat() if hasattr(self.created_at, 'isoformat') else str(self.created_at)
-                             
-                             return {
-                                 'id': self.id,
-                                 'step_order': self.step_order,
-                                 'step_name': self.step_name,
-                                 'step_description': self.step_description,
-                                 'milestone_type': self.milestone_type,
-                                 'is_required': self.is_required,
-                                 'step_actions': [],
-                                 'created_at': created_at_str
-                             }
+
+                            def to_dict(self):
+                                # Handle created_at - might be string or datetime
+                                created_at_str = None
+                                if self.created_at:
+                                    if isinstance(self.created_at, str):
+                                        created_at_str = self.created_at
+                                    else:
+                                        created_at_str = (
+                                            self.created_at.isoformat()
+                                            if hasattr(self.created_at, 'isoformat')
+                                            else str(self.created_at)
+                                        )
+                                
+                                return {
+                                    'id': self.id,
+                                    'step_order': self.step_order,
+                                    'step_name': self.step_name,
+                                    'step_description': self.step_description,
+                                    'milestone_type': self.milestone_type,
+                                    'is_required': self.is_required,
+                                    'step_actions': [],
+                                    'created_at': created_at_str
+                                }
                         
                         pathway_steps = [MinimalStep(row) for row in raw_steps]
                     except Exception as e2:
