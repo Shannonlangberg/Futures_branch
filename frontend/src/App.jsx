@@ -381,6 +381,7 @@ function App() {
                   <Route path="/events" element={<Events />} />
                   <Route path="/events/enhanced" element={<EventsEnhanced />} />
                   <Route path="/events/manage" element={<EventsManager />} />
+                  <Route path="/serving" element={<ServingDashboard />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>
