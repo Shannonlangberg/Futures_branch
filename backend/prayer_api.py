@@ -118,22 +118,34 @@ def create_prayer_request():
                 logger.error(f"❌ Error creating person: {e}", exc_info=True)
                 return jsonify({'error': 'Failed to create person record'}), 500
         else:
-            # Update person's campus if it has changed
-            if person.campus != campus and campus != 'paradise':
-                logger.info(f"Updating person {email} campus from {person.campus} to {campus}")
+            # Update person's campus if it has changed (use campus from request, not person record)
+            if person.campus != campus and campus and campus != 'paradise' and campus != 'all_campuses':
+                logger.info(f"📝 Updating person {email} campus from '{person.campus}' to '{campus}'")
                 person.campus = campus
                 db.session.flush()
+                logger.info(f"✅ Updated person campus to: {person.campus}")
+        
+        # CRITICAL: Use campus from request data (not person.campus) to ensure correct linking
+        final_campus = campus if campus and campus != 'paradise' and campus != 'all_campuses' else (person.campus if person.campus != 'all_campuses' else 'copper_coast')
+        
+        # If person campus is wrong, fix it now
+        if person.campus == 'all_campuses' and final_campus != 'all_campuses':
+            logger.info(f"🔧 FIXING: Person campus is 'all_campuses', changing to '{final_campus}'")
+            person.campus = final_campus
+            db.session.flush()
+        
+        logger.info(f"📍 FINAL CAMPUS DECISION: request_campus={campus}, person.campus={person.campus}, using={final_campus}")
         
         # Find campus pastor for routing
         campus_pastor = None
         pastor_info = None
-        if person.campus and person.campus != 'all_campuses':
-            campus_pastor = get_campus_pastor(person.campus)
+        if final_campus and final_campus != 'all_campuses':
+            campus_pastor = get_campus_pastor(final_campus)
             if campus_pastor:
-                pastor_info = f"Routed to {campus_pastor['full_name']} ({campus_pastor['email']}) - {person.campus} campus pastor"
-                logger.info(f"Prayer request from {email} ({person.campus}) - {pastor_info}")
+                pastor_info = f"Routed to {campus_pastor['full_name']} ({campus_pastor['email']}) - {final_campus} campus pastor"
+                logger.info(f"Prayer request from {email} ({final_campus}) - {pastor_info}")
             else:
-                logger.warning(f"No campus pastor found for {person.campus} campus")
+                logger.warning(f"No campus pastor found for {final_campus} campus")
         
         # Create BOTH PrayerSubmission (for Prayer & Praise page) AND CareCase (for Heartbeat)
         try:
@@ -142,15 +154,15 @@ def create_prayer_request():
             if pastor_info:
                 details_with_routing += f"\n\n---\n{pastor_info}"
             
-            # 1. Create PrayerSubmission record (for Prayer & Praise page)
-            logger.info(f"Creating PrayerSubmission for {email}")
+            # 1. Create PrayerSubmission record (for Prayer & Praise page) - USE FINAL_CAMPUS
+            logger.info(f"Creating PrayerSubmission for {email} with campus: {final_campus}")
             prayer_submission = PrayerSubmission(
                 person_id=person.id,
                 email=email,
                 name=person.full_name,
                 submission_type='prayer',
                 content=request_text,
-                campus=person.campus,
+                campus=final_campus,  # USE REQUEST CAMPUS, not person.campus
                 source='app',
                 status='approved',  # Auto-approve from app
                 is_public=False,
@@ -180,10 +192,10 @@ def create_prayer_request():
             logger.info(f"Committing both PrayerSubmission and CareCase...")
             db.session.commit()
             logger.info(f"✅ COMMIT SUCCESSFUL!")
-            logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}")
-            logger.info(f"   - CareCase ID: {care_case.id}")
-            logger.info(f"   - Person: {person.full_name} ({person.id})")
-            logger.info(f"   - Campus: {person.campus}")
+            logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}, Campus: {prayer_submission.campus}")
+            logger.info(f"   - CareCase ID: {care_case.id}, Person ID: {care_case.person_id}")
+            logger.info(f"   - Person: {person.full_name} ({person.id}), Person Campus: {person.campus}")
+            logger.info(f"   - Request Campus: {campus}, Final Campus Used: {final_campus}")
             
             response_message = 'Prayer request received'
             if pastor_info:
@@ -270,20 +282,32 @@ def create_praise_report():
                 logger.error(f"❌ Error creating person: {e}", exc_info=True)
                 return jsonify({'error': 'Failed to create person record'}), 500
         else:
-            # Update person's campus if it has changed
-            if person.campus != campus and campus != 'paradise':
-                logger.info(f"Updating person {email} campus from {person.campus} to {campus}")
+            # Update person's campus if it has changed (use campus from request, not person record)
+            if person.campus != campus and campus and campus != 'paradise' and campus != 'all_campuses':
+                logger.info(f"📝 Updating person {email} campus from '{person.campus}' to '{campus}'")
                 person.campus = campus
                 db.session.flush()
+                logger.info(f"✅ Updated person campus to: {person.campus}")
+        
+        # CRITICAL: Use campus from request data (not person.campus) to ensure correct linking
+        final_campus = campus if campus and campus != 'paradise' and campus != 'all_campuses' else (person.campus if person.campus != 'all_campuses' else 'copper_coast')
+        
+        # If person campus is wrong, fix it now
+        if person.campus == 'all_campuses' and final_campus != 'all_campuses':
+            logger.info(f"🔧 FIXING: Person campus is 'all_campuses', changing to '{final_campus}'")
+            person.campus = final_campus
+            db.session.flush()
+        
+        logger.info(f"📍 FINAL CAMPUS DECISION (praise): request_campus={campus}, person.campus={person.campus}, using={final_campus}")
         
         # Find campus pastor for routing
         campus_pastor = None
         pastor_info = None
-        if person.campus and person.campus != 'all_campuses':
-            campus_pastor = get_campus_pastor(person.campus)
+        if final_campus and final_campus != 'all_campuses':
+            campus_pastor = get_campus_pastor(final_campus)
             if campus_pastor:
-                pastor_info = f"Routed to {campus_pastor['full_name']} ({campus_pastor['email']}) - {person.campus} campus pastor"
-                logger.info(f"Praise report from {email} ({person.campus}) - {pastor_info}")
+                pastor_info = f"Routed to {campus_pastor['full_name']} ({campus_pastor['email']}) - {final_campus} campus pastor"
+                logger.info(f"Praise report from {email} ({final_campus}) - {pastor_info}")
         
         # Create BOTH PrayerSubmission (for Prayer & Praise page) AND CareCase (for Heartbeat)
         try:
@@ -292,15 +316,15 @@ def create_praise_report():
             if pastor_info:
                 details_with_routing += f"\n\n---\n{pastor_info}"
             
-            # 1. Create PrayerSubmission record (for Prayer & Praise page)
-            logger.info(f"Creating PrayerSubmission (praise) for {email}")
+            # 1. Create PrayerSubmission record (for Prayer & Praise page) - USE FINAL_CAMPUS
+            logger.info(f"Creating PrayerSubmission (praise) for {email} with campus: {final_campus}")
             prayer_submission = PrayerSubmission(
                 person_id=person.id,
                 email=email,
                 name=person.full_name,
                 submission_type='praise',
                 content=report,
-                campus=person.campus,
+                campus=final_campus,  # USE REQUEST CAMPUS, not person.campus
                 source='app',
                 status='approved',  # Auto-approve from app
                 is_public=False,
@@ -330,10 +354,10 @@ def create_praise_report():
             logger.info(f"Committing both PrayerSubmission and CareCase (praise)...")
             db.session.commit()
             logger.info(f"✅ COMMIT SUCCESSFUL!")
-            logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}")
-            logger.info(f"   - CareCase ID: {care_case.id}")
-            logger.info(f"   - Person: {person.full_name} ({person.id})")
-            logger.info(f"   - Campus: {person.campus}")
+            logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}, Campus: {prayer_submission.campus}")
+            logger.info(f"   - CareCase ID: {care_case.id}, Person ID: {care_case.person_id}")
+            logger.info(f"   - Person: {person.full_name} ({person.id}), Person Campus: {person.campus}")
+            logger.info(f"   - Request Campus: {campus}, Final Campus Used: {final_campus}")
             
             response_message = 'Praise report received'
             if pastor_info:
