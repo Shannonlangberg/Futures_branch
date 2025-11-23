@@ -2727,3 +2727,94 @@ class PrayerSubmission(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
+
+class PushNotificationToken(db.Model):
+    """Push notification tokens for mobile app users"""
+    __tablename__ = 'push_notification_tokens'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    email = db.Column(db.String(200), nullable=False, index=True)  # Also index by email for faster lookups
+    expo_push_token = db.Column(db.String(200), nullable=False, unique=True, index=True)
+    platform = db.Column(db.String(20))  # 'ios', 'android'
+    device_id = db.Column(db.String(200))  # Optional device identifier
+    app_version = db.Column(db.String(50))  # App version for debugging
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_used_at = db.Column(db.DateTime)  # Track when token was last successfully used
+    
+    # Relationships
+    person = db.relationship('Person', backref='push_tokens')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'email': self.email,
+            'expo_push_token': self.expo_push_token,
+            'platform': self.platform,
+            'device_id': self.device_id,
+            'app_version': self.app_version,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'last_used_at': self.last_used_at.isoformat() if self.last_used_at else None
+        }
+
+
+class ScheduledNotification(db.Model):
+    """Scheduled push notifications"""
+    __tablename__ = 'scheduled_notifications'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    data = db.Column(db.Text)  # JSON data for notification payload
+    target_audience = db.Column(db.String(50), default='all')  # 'all', 'specific_campus', 'specific_users', 'role'
+    target_campus = db.Column(db.String(100))  # If targeting specific campus
+    target_emails = db.Column(db.Text)  # JSON array of emails if targeting specific users
+    target_role = db.Column(db.String(50))  # If targeting specific role
+    scheduled_for = db.Column(db.DateTime, nullable=False, index=True)
+    sent_at = db.Column(db.DateTime)  # When notification was actually sent
+    status = db.Column(db.String(20), default='pending')  # 'pending', 'sent', 'failed', 'cancelled'
+    sent_count = db.Column(db.Integer, default=0)  # Number of devices successfully notified
+    failed_count = db.Column(db.Integer, default=0)  # Number of failed deliveries
+    created_by = db.Column(db.String(200))  # Email of admin who created it
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    def to_dict(self):
+        target_emails_list = []
+        try:
+            if self.target_emails:
+                target_emails_list = json.loads(self.target_emails) if isinstance(self.target_emails, str) else self.target_emails
+        except:
+            pass
+        
+        data_dict = {}
+        try:
+            if self.data:
+                data_dict = json.loads(self.data) if isinstance(self.data, str) else self.data
+        except:
+            pass
+        
+        return {
+            'id': self.id,
+            'title': self.title,
+            'body': self.body,
+            'data': data_dict,
+            'target_audience': self.target_audience,
+            'target_campus': self.target_campus,
+            'target_emails': target_emails_list,
+            'target_role': self.target_role,
+            'scheduled_for': self.scheduled_for.isoformat() if self.scheduled_for else None,
+            'sent_at': self.sent_at.isoformat() if self.sent_at else None,
+            'status': self.status,
+            'sent_count': self.sent_count,
+            'failed_count': self.failed_count,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
