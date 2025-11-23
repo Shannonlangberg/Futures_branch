@@ -19040,9 +19040,10 @@ def create_event_payment_intent(event_id):
         stripe_key = os.getenv('STRIPE_SECRET_KEY', '').strip()
         if not stripe_key:
             logger.error("STRIPE_SECRET_KEY environment variable not set")
+            logger.error("Please set STRIPE_SECRET_KEY in Railway environment variables")
             return jsonify({
-                'error': 'Payment processing not configured. Please contact support.',
-                'details': 'Stripe API key is missing'
+                'error': 'Payment processing not configured',
+                'details': 'Stripe API key is missing. Please contact support or check server configuration.'
             }), 500
         
         stripe.api_key = stripe_key

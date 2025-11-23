@@ -271,15 +271,43 @@ export const ApiService = {
   },
 
   async createEventPaymentIntent(eventId, email, guestCount = 0) {
-    const response = await api.post(`/api/events/${eventId}/create-payment-intent`, {
-      email,
-      guest_count: guestCount,
-    });
-    
-    if (response.status >= 400) {
-      return { error: response.data?.error || 'Failed to create payment intent', ...response.data };
+    try {
+      const response = await api.post(`/api/events/${eventId}/create-payment-intent`, {
+        email,
+        guest_count: guestCount,
+      });
+      
+      if (response.status >= 400) {
+        return { 
+          error: response.data?.error || 'Failed to create payment intent', 
+          details: response.data?.details,
+          ...response.data 
+        };
+      }
+      return response.data;
+    } catch (error) {
+      console.error('Error creating payment intent:', error);
+      if (error.response) {
+        // Server responded with error status
+        return {
+          error: error.response.data?.error || `Server error: ${error.response.status}`,
+          details: error.response.data?.details,
+          status: error.response.status
+        };
+      } else if (error.request) {
+        // Request made but no response
+        return {
+          error: 'Network error: Unable to reach server',
+          details: 'Please check your internet connection'
+        };
+      } else {
+        // Something else happened
+        return {
+          error: error.message || 'Failed to create payment intent',
+          details: 'An unexpected error occurred'
+        };
+      }
     }
-    return response.data;
   },
 
   // Giving
