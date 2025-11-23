@@ -1,7 +1,7 @@
 # prayer_api.py
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from models import db, Person, CareCase, PrayerLink
+from models import db, Person, CareCase, PrayerLink, PrayerSubmission
 from datetime import datetime
 import logging
 import sqlite3
@@ -117,13 +117,32 @@ def create_prayer_request():
             else:
                 logger.warning(f"No campus pastor found for {person.campus} campus")
         
-        # Create care case in Heartbeat
+        # Create BOTH PrayerSubmission (for Prayer & Praise page) AND CareCase (for Heartbeat)
         try:
             # Include routing info in details
             details_with_routing = request_text
             if pastor_info:
                 details_with_routing += f"\n\n---\n{pastor_info}"
             
+            # 1. Create PrayerSubmission record (for Prayer & Praise page)
+            logger.info(f"Creating PrayerSubmission for {email}")
+            prayer_submission = PrayerSubmission(
+                person_id=person.id,
+                email=email,
+                name=person.full_name,
+                submission_type='prayer',
+                content=request_text,
+                campus=person.campus,
+                source='app',
+                status='approved',  # Auto-approve from app
+                is_public=False,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(prayer_submission)
+            logger.info(f"PrayerSubmission added")
+            
+            # 2. Create CareCase record (for Heartbeat profile)
             logger.info(f"Creating CareCase for {email}")
             care_case = CareCase(
                 person_id=person.id,
@@ -137,19 +156,16 @@ def create_prayer_request():
                 updated_at=datetime.utcnow()
             )
             db.session.add(care_case)
-            logger.info(f"CareCase added to session, committing...")
-            logger.info(f"DEBUG: CareCase details - person_id={care_case.person_id}, type={care_case.type}, status={care_case.status}")
+            logger.info(f"CareCase added")
+            
+            # Commit both records
+            logger.info(f"Committing both PrayerSubmission and CareCase...")
             db.session.commit()
-            logger.info(f"DEBUG: Commit successful, care_case.id={care_case.id}")
-            
-            # Verify it was saved
-            saved_case = CareCase.query.filter_by(id=care_case.id).first()
-            if saved_case:
-                logger.info(f"✅ VERIFIED: CareCase {care_case.id} exists in database for person {person.id}")
-            else:
-                logger.error(f"❌ ERROR: CareCase {care_case.id} NOT FOUND after commit!")
-            
-            logger.info(f"✅ Prayer request created for {email}: {care_case.id} - Campus: {person.campus}")
+            logger.info(f"✅ COMMIT SUCCESSFUL!")
+            logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}")
+            logger.info(f"   - CareCase ID: {care_case.id}")
+            logger.info(f"   - Person: {person.full_name} ({person.id})")
+            logger.info(f"   - Campus: {person.campus}")
             
             response_message = 'Prayer request received'
             if pastor_info:
@@ -158,12 +174,15 @@ def create_prayer_request():
             return jsonify({
                 'success': True,
                 'message': response_message,
-                'id': care_case.id,
+                'prayer_submission_id': prayer_submission.id,
+                'care_case_id': care_case.id,
                 'routed_to': campus_pastor['email'] if campus_pastor else None
             }), 201
         except Exception as e:
             db.session.rollback()
-            logger.error(f"❌ Error creating care case: {e}", exc_info=True)
+            logger.error(f"❌ Error creating prayer records: {e}", exc_info=True)
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return jsonify({'error': 'Failed to create prayer request'}), 500
         
     except Exception as e:
@@ -230,13 +249,33 @@ def create_praise_report():
                 pastor_info = f"Routed to {campus_pastor['full_name']} ({campus_pastor['email']}) - {person.campus} campus pastor"
                 logger.info(f"Praise report from {email} ({person.campus}) - {pastor_info}")
         
-        # Create care case in Heartbeat (praise reports are positive care signals)
+        # Create BOTH PrayerSubmission (for Prayer & Praise page) AND CareCase (for Heartbeat)
         try:
             # Include routing info in details
             details_with_routing = report
             if pastor_info:
                 details_with_routing += f"\n\n---\n{pastor_info}"
             
+            # 1. Create PrayerSubmission record (for Prayer & Praise page)
+            logger.info(f"Creating PrayerSubmission (praise) for {email}")
+            prayer_submission = PrayerSubmission(
+                person_id=person.id,
+                email=email,
+                name=person.full_name,
+                submission_type='praise',
+                content=report,
+                campus=person.campus,
+                source='app',
+                status='approved',  # Auto-approve from app
+                is_public=False,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(prayer_submission)
+            logger.info(f"PrayerSubmission (praise) added")
+            
+            # 2. Create CareCase record (for Heartbeat profile)
+            logger.info(f"Creating CareCase (praise) for {email}")
             care_case = CareCase(
                 person_id=person.id,
                 type='praise_report',
@@ -249,18 +288,16 @@ def create_praise_report():
                 updated_at=datetime.utcnow()
             )
             db.session.add(care_case)
-            logger.info(f"DEBUG: Praise CareCase details - person_id={care_case.person_id}, type={care_case.type}, status={care_case.status}")
+            logger.info(f"CareCase (praise) added")
+            
+            # Commit both records
+            logger.info(f"Committing both PrayerSubmission and CareCase (praise)...")
             db.session.commit()
-            logger.info(f"DEBUG: Commit successful, care_case.id={care_case.id}")
-            
-            # Verify it was saved
-            saved_case = CareCase.query.filter_by(id=care_case.id).first()
-            if saved_case:
-                logger.info(f"✅ VERIFIED: Praise CareCase {care_case.id} exists in database for person {person.id}")
-            else:
-                logger.error(f"❌ ERROR: Praise CareCase {care_case.id} NOT FOUND after commit!")
-            
-            logger.info(f"Praise report created for {email}: {care_case.id} - Campus: {person.campus}")
+            logger.info(f"✅ COMMIT SUCCESSFUL!")
+            logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}")
+            logger.info(f"   - CareCase ID: {care_case.id}")
+            logger.info(f"   - Person: {person.full_name} ({person.id})")
+            logger.info(f"   - Campus: {person.campus}")
             
             response_message = 'Praise report received'
             if pastor_info:
@@ -269,12 +306,15 @@ def create_praise_report():
             return jsonify({
                 'success': True,
                 'message': response_message,
-                'id': care_case.id,
+                'prayer_submission_id': prayer_submission.id,
+                'care_case_id': care_case.id,
                 'routed_to': campus_pastor['email'] if campus_pastor else None
             }), 201
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error creating care case: {e}")
+            logger.error(f"❌ Error creating praise records: {e}", exc_info=True)
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return jsonify({'error': 'Failed to create praise report'}), 500
         
     except Exception as e:
