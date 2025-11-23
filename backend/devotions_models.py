@@ -29,6 +29,7 @@ class DevotionPlan(db.Model):
     # Dates
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
+    total_days = db.Column(db.Integer, default=30, nullable=False)  # Custom plan length
     
     # Metadata
     created_by = db.Column(db.String(50), nullable=True)
@@ -65,13 +66,18 @@ class DevotionContent(db.Model):
     plan_id = db.Column(db.String(36), db.ForeignKey('devotion_plans.id'), nullable=False)
     
     day_index = db.Column(db.Integer, nullable=False)  # 1, 2, 3, etc.
-    scripture_ref = db.Column(db.String(200), nullable=False)  # e.g. "Luke 11:1-13 (NIV)"
-    scripture_text = db.Column(db.Text, nullable=False)  # Full scripture text
+    scripture_ref = db.Column(db.String(200), nullable=True)  # e.g. "Luke 11:1-13 (NIV)"
+    scripture_text = db.Column(db.Text, nullable=True)  # Full scripture text
     devo_body = db.Column(db.Text, nullable=True)  # Devotional content (HTML/MD)
+    title = db.Column(db.String(200), nullable=True)  # Day title
+    prayer_focus = db.Column(db.Text, nullable=True)  # Prayer focus text
     
-    media = db.Column(db.Text, nullable=True)  # JSON array: [{type:"audio", url:"..."}]
+    # Media support - images and videos
+    media = db.Column(db.Text, nullable=True)  # JSON array: [{type:"image"|"video"|"audio", url:"...", thumbnail:"..."}]
+    cover_image = db.Column(db.String(500), nullable=True)  # Day cover image
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Unique constraint on plan_id + day_index
     __table_args__ = (db.UniqueConstraint('plan_id', 'day_index', name='uq_plan_day'),)

@@ -158,6 +158,7 @@ def create_devotion_plan():
             status=data.get('status', 'draft'),
             start_date=datetime.fromisoformat(data['start_date']) if data.get('start_date') else None,
             end_date=datetime.fromisoformat(data['end_date']) if data.get('end_date') else None,
+            total_days=data.get('total_days', 30),  # Support custom plan length
             created_by=user_context['user_id'],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
