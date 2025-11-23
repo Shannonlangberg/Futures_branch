@@ -21,7 +21,6 @@ ChartJS.register(
   Tooltip,
   Legend
 );
->>>>>>> main
 
 const CampaignAnalytics = ({ campaign, onClose }) => {
   const [analytics, setAnalytics] = useState(null);
