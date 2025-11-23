@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from models import db, Person, CareCase, PrayerLink, PrayerSubmission
+from heartbeat_engine import HeartbeatEngine
 from datetime import datetime
 import logging
 import sqlite3
@@ -228,6 +229,28 @@ def create_prayer_request():
             all_person_cases = CareCase.query.filter_by(person_id=person.id).all()
             open_person_cases = [c for c in all_person_cases if c.status in ['open', 'in_progress']]
             logger.info(f"📊 Person {person.id} now has {len(all_person_cases)} total CareCases, {len(open_person_cases)} open")
+
+            # Recalculate heartbeat so praise immediately boosts care score
+            try:
+                engine = HeartbeatEngine()
+                snapshot = engine.calculate_heartbeat(person.id)
+                logger.info(
+                    f"💗 Heartbeat recalculated after praise: "
+                    f"care={snapshot.care_score}, total={snapshot.total_score}, status={snapshot.status}"
+                )
+            except Exception as hb_error:
+                logger.warning(f"⚠️ Could not recalculate heartbeat after praise report: {hb_error}", exc_info=True)
+
+            # Recalculate heartbeat immediately so Care score reflects this request
+            try:
+                engine = HeartbeatEngine()
+                snapshot = engine.calculate_heartbeat(person.id)
+                logger.info(
+                    f"💗 Heartbeat recalculated after prayer request: "
+                    f"care={snapshot.care_score}, total={snapshot.total_score}, status={snapshot.status}"
+                )
+            except Exception as hb_error:
+                logger.warning(f"⚠️ Could not recalculate heartbeat after prayer request: {hb_error}", exc_info=True)
             
             response_message = 'Prayer request received'
             if pastor_info:
