@@ -218,7 +218,6 @@ def create_prayer_request():
             logger.info(f"   - Request Campus: {campus}, Final Campus Used: {final_campus}")
             
             # VERIFY: Query the database to confirm CareCase exists
-            from models import CareCase
             verify_case = CareCase.query.filter_by(id=care_case.id).first()
             if verify_case:
                 logger.info(f"✅ VERIFIED: CareCase {verify_case.id} exists in DB with person_id={verify_case.person_id}, status={verify_case.status}")
