@@ -817,6 +817,53 @@ def submit_via_link(link_id):
 # ADMIN UTILITIES
 # ============================================================================
 
+@prayer_bp.route('/admin/debug-care-cases/<person_id>', methods=['GET'])
+def debug_care_cases(person_id):
+    """Debug endpoint to check ALL care cases for a person_id - NO AUTH for debugging"""
+    try:
+        logger.info(f"🔍 DEBUG: Checking care cases for person_id: {person_id}")
+        
+        # Get person
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': f'Person {person_id} not found'}), 404
+        
+        # Get ALL care cases (not just open)
+        all_cases = CareCase.query.filter_by(person_id=person_id).all()
+        open_cases = [c for c in all_cases if c.status in ['open', 'in_progress']]
+        prayer_cases = [c for c in all_cases if c.type == 'prayer_request']
+        praise_cases = [c for c in all_cases if c.type == 'praise_report']
+        
+        result = {
+            'person': {
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+                'campus': person.campus
+            },
+            'care_cases': {
+                'total': len(all_cases),
+                'open': len(open_cases),
+                'prayer_requests': len(prayer_cases),
+                'praise_reports': len(praise_cases),
+                'all_cases': [{
+                    'id': c.id,
+                    'type': c.type,
+                    'status': c.status,
+                    'priority': c.priority,
+                    'summary': c.summary[:100] if c.summary else None,
+                    'created_at': c.created_at.isoformat() if c.created_at else None,
+                    'person_id': c.person_id
+                } for c in all_cases]
+            }
+        }
+        
+        logger.info(f"📊 DEBUG RESULT: {result}")
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error in debug endpoint: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 @prayer_bp.route('/admin/check-person/<email>', methods=['GET'])
 def check_person_by_email(email):
     """Diagnostic endpoint to check Person records and care cases - NO AUTH for debugging"""
