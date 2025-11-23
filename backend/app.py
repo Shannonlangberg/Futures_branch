@@ -7949,15 +7949,15 @@ def api_login():
         if data:
             # Accept both 'username' and 'email' for mobile app compatibility
             username = data.get('username', '').strip() or data.get('email', '').strip()
-        password = data.get('password', '').strip()
-    else:
+            password = data.get('password', '').strip()
+        else:
             username = ''
             password = ''
         
         logger.info(f"Parsed - username/email: '{username}', password: {'***' if password else '(empty)'}")
     
     if not username or not password:
-            logger.warning(f"Missing credentials - username='{username}', password={'present' if password else 'missing'}")
+        logger.warning(f"Missing credentials - username='{username}', password={'present' if password else 'missing'}")
         return jsonify({"error": "Please enter both username and password."}), 400
     
     user = authenticate_user(username, password)
@@ -7965,7 +7965,7 @@ def api_login():
         login_user(user, remember=True)
         # Ensure session is saved
         session.modified = True
-            logger.info(f"✅ User {username} logged in successfully, user_id={user.id}, role={user.role}")
+        logger.info(f"✅ User {username} logged in successfully, user_id={user.id}, role={user.role}")
         # Log successful login
             try:
         log_security_event(user.id, 'login_success', 'User logged in successfully')
