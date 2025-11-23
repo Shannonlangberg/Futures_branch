@@ -20165,6 +20165,58 @@ def get_notification_stats():
         return jsonify({'error': 'Failed to get notification stats'}), 500
 
 
+@app.route('/api/notifications/test', methods=['POST'])
+@admin_required_json
+def test_notification():
+    """Test sending a notification to a specific Expo push token"""
+    try:
+        data = request.get_json()
+        expo_push_token = data.get('expo_push_token')
+        title = data.get('title', 'Test Notification')
+        body = data.get('body', 'This is a test notification from Futures PULSE')
+        data_payload = data.get('data', {})
+        
+        if not expo_push_token:
+            return jsonify({'error': 'expo_push_token is required'}), 400
+        
+        # Validate token format (Expo push tokens start with ExponentPushToken or ExpoPushToken)
+        if not (expo_push_token.startswith('ExponentPushToken[') or 
+                expo_push_token.startswith('ExpoPushToken[') or
+                'ExponentPushToken' in expo_push_token or
+                'ExpoPushToken' in expo_push_token):
+            return jsonify({
+                'error': 'Invalid Expo push token format. Token should start with ExponentPushToken[ or ExpoPushToken['
+            }), 400
+        
+        # Send test notification
+        sent_count, failed_count, errors = send_expo_push_notification(
+            [expo_push_token], 
+            title, 
+            body, 
+            data_payload
+        )
+        
+        if sent_count > 0:
+            return jsonify({
+                'success': True,
+                'message': 'Test notification sent successfully!',
+                'sent_count': sent_count,
+                'failed_count': failed_count,
+                'token': expo_push_token[:30] + '...'  # Show partial token for confirmation
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to send test notification',
+                'failed_count': failed_count,
+                'errors': errors[:3]  # Return first 3 errors
+            }), 400
+        
+    except Exception as e:
+        logger.error(f"Error sending test notification: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to send test notification: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5002))

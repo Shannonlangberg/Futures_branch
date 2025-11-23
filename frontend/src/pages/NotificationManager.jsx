@@ -9,7 +9,14 @@ const NotificationManager = () => {
   const [success, setSuccess] = useState('');
   const [showSendModal, setShowSendModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
   const [activeTab, setActiveTab] = useState('send'); // 'send' or 'scheduled'
+  
+  const [testForm, setTestForm] = useState({
+    expo_push_token: '',
+    title: 'Test Notification',
+    body: 'This is a test notification from Futures PULSE'
+  });
   
   const [sendForm, setSendForm] = useState({
     title: '',
@@ -117,6 +124,49 @@ const NotificationManager = () => {
     } catch (err) {
       console.error('Error sending notification:', err);
       setError('Failed to send notification. Please try again.');
+    }
+  };
+
+  const handleTestNotification = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!testForm.expo_push_token.trim()) {
+      setError('Please enter an Expo push token');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(testForm)
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccess(`✅ Test notification sent successfully! Token: ${data.token}`);
+        setShowTestModal(false);
+        setTestForm({
+          expo_push_token: '',
+          title: 'Test Notification',
+          body: 'This is a test notification from Futures PULSE'
+        });
+        setTimeout(() => setSuccess(''), 10000);
+      } else {
+        setError(data.error || 'Failed to send test notification');
+        if (data.errors && data.errors.length > 0) {
+          setError(data.error + ': ' + data.errors.join(', '));
+        }
+      }
+    } catch (err) {
+      console.error('Error sending test notification:', err);
+      setError('Failed to send test notification. Please try again.');
     }
   };
 
@@ -286,7 +336,7 @@ const NotificationManager = () => {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-700/50">
+      <div className="flex gap-2 border-b border-slate-700/50 items-center">
         <button
           onClick={() => setActiveTab('send')}
           className={`px-4 py-2 font-medium transition-colors ${
@@ -306,6 +356,12 @@ const NotificationManager = () => {
           }`}
         >
           Scheduled ({scheduledNotifications.filter(n => n.status === 'pending').length})
+        </button>
+        <button
+          onClick={() => setShowTestModal(true)}
+          className="ml-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm font-medium"
+        >
+          🧪 Test
         </button>
       </div>
 
@@ -615,6 +671,93 @@ const NotificationManager = () => {
                   className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                 >
                   Schedule Notification
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Test Notification Modal */}
+      {showTestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white">🧪 Test Notification</h2>
+              <button
+                onClick={() => setShowTestModal(false)}
+                className="p-2 text-white/60 hover:text-white"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-blue-900/30 border border-blue-500/40 rounded-lg text-sm text-blue-200">
+              <p className="font-semibold mb-2">How to get a test push token:</p>
+              <ol className="list-decimal list-inside space-y-1 ml-2 text-xs">
+                <li>Open the mobile app on a physical device</li>
+                <li>Go to Profile → Settings</li>
+                <li>Enable "Push Notifications" toggle</li>
+                <li>Grant permission when prompted</li>
+                <li>Token will be registered automatically</li>
+              </ol>
+              <p className="mt-3 text-xs text-blue-300 italic">
+                Or check the app console logs for the Expo push token
+              </p>
+            </div>
+
+            <form onSubmit={handleTestNotification} className="space-y-6">
+              <div>
+                <label className="block text-white/90 text-sm font-medium mb-2">
+                  Expo Push Token
+                </label>
+                <input
+                  type="text"
+                  value={testForm.expo_push_token}
+                  onChange={(e) => setTestForm({ ...testForm, expo_push_token: e.target.value })}
+                  className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                  placeholder="ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+                />
+                <p className="mt-1 text-xs text-white/50">
+                  Paste the full Expo push token (starts with ExponentPushToken[...])
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-white/90 text-sm font-medium mb-2">Title</label>
+                <input
+                  type="text"
+                  value={testForm.title}
+                  onChange={(e) => setTestForm({ ...testForm, title: e.target.value })}
+                  className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-white/90 text-sm font-medium mb-2">Message</label>
+                <textarea
+                  value={testForm.body}
+                  onChange={(e) => setTestForm({ ...testForm, body: e.target.value })}
+                  className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 h-24"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowTestModal(false)}
+                  className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  🧪 Send Test
                 </button>
               </div>
             </form>
