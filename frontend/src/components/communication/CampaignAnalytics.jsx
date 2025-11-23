@@ -1,6 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon, ChartBarIcon, EyeIcon, CursorArrowRaysIcon, ChatBubbleLeftRightIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { Bar, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 const CampaignAnalytics = ({ campaign, onClose }) => {
   const [analytics, setAnalytics] = useState(null);
