@@ -204,13 +204,31 @@ def create_prayer_request():
             logger.info(f"CareCase added")
             
             # Commit both records
-            logger.info(f"Committing both PrayerSubmission and CareCase...")
+            logger.info(f"🔄 Committing both PrayerSubmission and CareCase...")
+            logger.info(f"   BEFORE COMMIT - PrayerSubmission ID: {prayer_submission.id}")
+            logger.info(f"   BEFORE COMMIT - CareCase ID: {care_case.id}, person_id: {care_case.person_id}, status: {care_case.status}, type: {care_case.type}")
+            
             db.session.commit()
+            
+            # Verify records were actually saved
             logger.info(f"✅ COMMIT SUCCESSFUL!")
             logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}, Campus: {prayer_submission.campus}")
             logger.info(f"   - CareCase ID: {care_case.id}, Person ID: {care_case.person_id}")
             logger.info(f"   - Person: {person.full_name} ({person.id}), Person Campus: {person.campus}")
             logger.info(f"   - Request Campus: {campus}, Final Campus Used: {final_campus}")
+            
+            # VERIFY: Query the database to confirm CareCase exists
+            from models import CareCase
+            verify_case = CareCase.query.filter_by(id=care_case.id).first()
+            if verify_case:
+                logger.info(f"✅ VERIFIED: CareCase {verify_case.id} exists in DB with person_id={verify_case.person_id}, status={verify_case.status}")
+            else:
+                logger.error(f"❌ CRITICAL: CareCase {care_case.id} NOT FOUND in database after commit!")
+            
+            # Check how many open cases exist for this person
+            all_person_cases = CareCase.query.filter_by(person_id=person.id).all()
+            open_person_cases = [c for c in all_person_cases if c.status in ['open', 'in_progress']]
+            logger.info(f"📊 Person {person.id} now has {len(all_person_cases)} total CareCases, {len(open_person_cases)} open")
             
             response_message = 'Prayer request received'
             if pastor_info:
@@ -816,6 +834,49 @@ def submit_via_link(link_id):
 # ============================================================================
 # ADMIN UTILITIES
 # ============================================================================
+
+@prayer_bp.route('/admin/check-care-cases/<person_id>', methods=['GET'])
+def check_care_cases_by_person_id(person_id):
+    """Check all CareCases for a specific person_id - NO AUTH for debugging"""
+    try:
+        logger.info(f"🔍 ADMIN: Checking care cases for person_id: {person_id}")
+        
+        person = Person.query.filter_by(id=person_id).first()
+        if not person:
+            return jsonify({'error': f'Person {person_id} not found'}), 404
+        
+        all_cases = CareCase.query.filter_by(person_id=person_id).all()
+        open_cases = [c for c in all_cases if c.status in ['open', 'in_progress']]
+        prayer_cases = [c for c in all_cases if c.type == 'prayer_request']
+        
+        result = {
+            'person': {
+                'id': person.id,
+                'full_name': person.full_name,
+                'email': person.email,
+                'campus': person.campus
+            },
+            'care_cases': {
+                'total': len(all_cases),
+                'open': len(open_cases),
+                'prayer_requests': len(prayer_cases),
+                'all_cases': [{
+                    'id': c.id,
+                    'type': c.type,
+                    'status': c.status,
+                    'priority': c.priority,
+                    'person_id': c.person_id,
+                    'summary': c.summary[:100] if c.summary else None,
+                    'created_at': c.created_at.isoformat() if c.created_at else None
+                } for c in all_cases]
+            }
+        }
+        
+        logger.info(f"📊 ADMIN RESULT: {result}")
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error in check-care-cases endpoint: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 @prayer_bp.route('/admin/check-person/<email>', methods=['GET'])
 def check_person_by_email(email):
