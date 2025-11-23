@@ -409,10 +409,13 @@ export const ApiService = {
   },
 
   // Push Notifications
-  async savePushToken(email, pushToken) {
+  async savePushToken(email, pushToken, platform, deviceId, appVersion) {
     const response = await api.post('/api/push-tokens', {
       email,
       push_token: pushToken,
+      platform: platform || 'unknown',
+      device_id: deviceId,
+      app_version: appVersion,
     });
     return response.data;
   },

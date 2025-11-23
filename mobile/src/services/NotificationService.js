@@ -60,9 +60,9 @@ export const NotificationService = {
     }
   },
 
-  async savePushToken(email, pushToken) {
+  async savePushToken(email, pushToken, platform, deviceId, appVersion) {
     try {
-      await ApiService.savePushToken(email, pushToken);
+      await ApiService.savePushToken(email, pushToken, platform, deviceId, appVersion);
       return { success: true };
     } catch (error) {
       console.error('Error saving push token:', error);

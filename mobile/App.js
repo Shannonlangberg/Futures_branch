@@ -220,7 +220,9 @@ export default function App() {
       await NotificationService.registerForPushNotifications();
       const token = await NotificationService.getPushToken();
       if (token && user) {
-        await NotificationService.savePushToken(user.email, token);
+        const platform = Platform.OS; // 'ios' or 'android'
+        const appVersion = Constants?.expoConfig?.version || '1.0.0';
+        await NotificationService.savePushToken(user.email, token, platform, null, appVersion);
       }
     } catch (error) {
       // Fail gracefully - don't break the app if notifications can't be set up
@@ -245,7 +247,9 @@ export default function App() {
         // Setup notifications with user email
         const pushToken = await NotificationService.getPushToken();
         if (pushToken) {
-          await NotificationService.savePushToken(result.user.email, pushToken);
+          const platform = Platform.OS;
+          const appVersion = Constants?.expoConfig?.version || '1.0.0';
+          await NotificationService.savePushToken(result.user.email, pushToken, platform, null, appVersion);
         }
         
         return { success: true };
