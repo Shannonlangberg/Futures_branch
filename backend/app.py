@@ -7974,14 +7974,16 @@ def api_login():
             except Exception as log_error:
                 logger.error(f"Error logging security event: {log_error}")
             
-            # Look up Person record to get their actual campus (where they attend)
+            # Look up Person record to get their actual campus (where they attend) and person_id
             personal_campus = None
+            person_id = None
             try:
                 from models import Person
                 person = Person.query.filter_by(email=user.email).first()
                 if person:
                     personal_campus = person.campus
-                    logger.info(f"Found Person record for {user.email}, personal campus: {personal_campus}")
+                    person_id = person.id
+                    logger.info(f"Found Person record for {user.email}, person_id: {person_id}, personal campus: {personal_campus}")
             except Exception as person_lookup_error:
                 logger.warning(f"Could not look up Person record: {person_lookup_error}")
             
@@ -7998,7 +8000,8 @@ def api_login():
                     "name": user.full_name or user.username,
                     "role": user.role,
                     "access_campus": user_campus,  # For access control (all_campuses for admin)
-                    "campus": personal_campus or user_campus  # Personal campus (where they attend)
+                    "campus": personal_campus or user_campus,  # Personal campus (where they attend)
+                    "person_id": person_id  # NEW: Person ID for linking prayer requests to correct profile
                 }
             })
         else:

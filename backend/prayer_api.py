@@ -66,6 +66,7 @@ def create_prayer_request():
         logger.info(f"Request data: {data}")
         
         email = data.get('email')
+        person_id = data.get('person_id')  # NEW: Accept person_id from mobile app
         request_text = data.get('request')
         campus = data.get('campus', 'paradise')  # Get campus from request, default to paradise
         
@@ -73,9 +74,26 @@ def create_prayer_request():
             logger.warning(f"Missing email or request text")
             return jsonify({'error': 'Email and request text required'}), 400
         
-        # Find person by email, create if doesn't exist (like giving endpoint)
-        logger.info(f"Looking up person: {email}, campus: {campus}")
-        person = Person.query.filter_by(email=email, is_active=True).first()
+        # Find person - prefer person_id if provided (most reliable), otherwise lookup by email+campus
+        person = None
+        if person_id:
+            # Use person_id directly if provided (most reliable - from logged-in user)
+            logger.info(f"Looking up person by person_id: {person_id}")
+            person = Person.query.filter_by(id=person_id, is_active=True).first()
+            if person:
+                logger.info(f"✅ Found person by ID: {person.full_name} ({person.id}) at {person.campus}")
+            else:
+                logger.warning(f"⚠️ Person ID {person_id} not found, falling back to email lookup")
+        
+        if not person:
+            # Fallback: Look up by email AND campus to ensure we get the right person
+            logger.info(f"Looking up person by email+campus: {email}, campus: {campus}")
+            person = Person.query.filter_by(email=email, campus=campus, is_active=True).first()
+            
+            if not person:
+                # Try without campus filter (in case campus changed)
+                logger.info(f"Person not found with campus filter, trying without: {email}")
+                person = Person.query.filter_by(email=email, is_active=True).first()
         
         if not person:
             # Auto-create person (like giving endpoint does)
@@ -200,6 +218,7 @@ def create_praise_report():
         logger.info(f"Request data: {data}")
         
         email = data.get('email')
+        person_id = data.get('person_id')  # NEW: Accept person_id from mobile app
         report = data.get('report')
         campus = data.get('campus', 'paradise')  # Get campus from request, default to paradise
         
@@ -207,9 +226,26 @@ def create_praise_report():
             logger.warning(f"Missing email or report text")
             return jsonify({'error': 'Email and report text required'}), 400
         
-        # Find person by email, create if doesn't exist (like giving endpoint)
-        logger.info(f"Looking up person: {email}, campus: {campus}")
-        person = Person.query.filter_by(email=email, is_active=True).first()
+        # Find person - prefer person_id if provided (most reliable), otherwise lookup by email+campus
+        person = None
+        if person_id:
+            # Use person_id directly if provided (most reliable - from logged-in user)
+            logger.info(f"Looking up person by person_id: {person_id}")
+            person = Person.query.filter_by(id=person_id, is_active=True).first()
+            if person:
+                logger.info(f"✅ Found person by ID: {person.full_name} ({person.id}) at {person.campus}")
+            else:
+                logger.warning(f"⚠️ Person ID {person_id} not found, falling back to email lookup")
+        
+        if not person:
+            # Fallback: Look up by email AND campus to ensure we get the right person
+            logger.info(f"Looking up person by email+campus: {email}, campus: {campus}")
+            person = Person.query.filter_by(email=email, campus=campus, is_active=True).first()
+            
+            if not person:
+                # Try without campus filter (in case campus changed)
+                logger.info(f"Person not found with campus filter, trying without: {email}")
+                person = Person.query.filter_by(email=email, is_active=True).first()
         
         if not person:
             # Auto-create person (like giving endpoint does)
