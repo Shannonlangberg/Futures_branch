@@ -6,6 +6,7 @@ import {
   ListBulletIcon,
   LinkIcon,
   PhotoIcon,
+  VideoCameraIcon,
   CodeBracketIcon,
   EyeIcon,
   XMarkIcon
@@ -17,6 +18,8 @@ const RichEmailEditor = ({ value, onChange, onPreview }) => {
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
+  const [showVideoDialog, setShowVideoDialog] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -74,6 +77,51 @@ const RichEmailEditor = ({ value, onChange, onPreview }) => {
       setShowLinkDialog(false);
       setLinkUrl('');
       setLinkText('');
+    }
+  };
+
+  const handleInsertVideo = () => {
+    if (videoUrl) {
+      // Support YouTube, Vimeo, and direct video URLs
+      let embedHtml = '';
+      
+      // YouTube
+      if (videoUrl.includes('youtube.com/watch') || videoUrl.includes('youtu.be')) {
+        const videoId = videoUrl.includes('youtu.be') 
+          ? videoUrl.split('youtu.be/')[1].split('?')[0]
+          : videoUrl.split('v=')[1].split('&')[0];
+        embedHtml = `<div style="margin: 20px 0; text-align: center;">
+          <iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="max-width: 100%; height: auto;"></iframe>
+        </div>`;
+      }
+      // Vimeo
+      else if (videoUrl.includes('vimeo.com')) {
+        const videoId = videoUrl.split('vimeo.com/')[1].split('?')[0];
+        embedHtml = `<div style="margin: 20px 0; text-align: center;">
+          <iframe src="https://player.vimeo.com/video/${videoId}" width="560" height="315" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen style="max-width: 100%; height: auto;"></iframe>
+        </div>`;
+      }
+      // Direct video URL
+      else if (videoUrl.match(/\.(mp4|webm|ogg)$/i)) {
+        embedHtml = `<div style="margin: 20px 0; text-align: center;">
+          <video controls width="560" style="max-width: 100%; height: auto;">
+            <source src="${videoUrl}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+        </div>`;
+      }
+      // Generic video link
+      else {
+        embedHtml = `<div style="margin: 20px 0; text-align: center;">
+          <a href="${videoUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px;">
+            Watch Video
+          </a>
+        </div>`;
+      }
+      
+      execCommand('insertHTML', embedHtml);
+      setShowVideoDialog(false);
+      setVideoUrl('');
     }
   };
 
@@ -274,6 +322,14 @@ const RichEmailEditor = ({ value, onChange, onPreview }) => {
           >
             <LinkIcon className="w-4 h-4 text-white" />
           </button>
+          <button
+            type="button"
+            onClick={() => setShowVideoDialog(true)}
+            className="p-2 hover:bg-white/10 rounded transition-colors"
+            title="Insert Video"
+          >
+            <VideoCameraIcon className="w-4 h-4 text-white" />
+          </button>
         </div>
 
         {/* Blocks */}
@@ -390,6 +446,53 @@ const RichEmailEditor = ({ value, onChange, onPreview }) => {
                 <button
                   onClick={handleInsertLink}
                   className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                >
+                  Insert
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Dialog */}
+      {showVideoDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-800 rounded-xl p-6 border border-white/10 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">Insert Video</h3>
+              <button
+                onClick={() => setShowVideoDialog(false)}
+                className="p-2 hover:bg-white/10 rounded transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5 text-white" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/80 text-sm font-semibold mb-2">Video URL</label>
+                <input
+                  type="url"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="YouTube, Vimeo, or direct video URL"
+                />
+                <p className="text-white/50 text-xs mt-1">
+                  Supports YouTube, Vimeo, or direct video links (.mp4, .webm, .ogg)
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowVideoDialog(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleInsertVideo}
+                  disabled={!videoUrl}
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50"
                 >
                   Insert
                 </button>

@@ -11,7 +11,7 @@ import logging
 import json
 
 from campaign_manager import CampaignManager
-from communication_models import Campaign, CampaignTemplate, CommunicationPreferences
+from communication_models import Campaign, CampaignTemplate, CommunicationPreferences, CampaignRecipient, EngagementEvent
 from models import db, Person
 
 logger = logging.getLogger(__name__)
@@ -814,7 +814,6 @@ def import_csv_data():
 def export_campaign_recipients(campaign_id):
     """Export campaign recipients with engagement data"""
     try:
-        from communication_models import CampaignRecipient
         
         campaign = Campaign.query.get(campaign_id)
         if not campaign:
@@ -854,7 +853,6 @@ def export_campaign_recipients(campaign_id):
 def get_detailed_campaign_analytics(campaign_id):
     """Get detailed campaign analytics with heartbeat integration"""
     try:
-        from communication_models import CampaignRecipient, EngagementEvent
         
         campaign = Campaign.query.get(campaign_id)
         if not campaign:
@@ -922,7 +920,6 @@ def get_detailed_campaign_analytics(campaign_id):
 def get_sms_activity():
     """Get SMS activity and scheduled campaigns"""
     try:
-        from communication_models import CampaignRecipient
         
         # Get query parameters
         status = request.args.get('status', 'all')
@@ -1061,4 +1058,178 @@ def get_departments():
         
     except Exception as e:
         logger.error(f"Error getting departments: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/email-lists', methods=['GET'])
+@login_required
+def get_email_lists():
+    """Get all custom email lists"""
+    try:
+        from communication_models import EmailList
+        
+        lists = EmailList.query.order_by(EmailList.created_at.desc()).all()
+        
+        return jsonify({
+            "success": True,
+            "lists": [list.to_dict() for list in lists]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting email lists: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/email-lists', methods=['POST'])
+@login_required
+def create_email_list():
+    """Create a new custom email list"""
+    try:
+        from communication_models import EmailList
+        
+        data = request.get_json()
+        
+        if not data or not data.get('name'):
+            return jsonify({"success": False, "error": "List name is required"}), 400
+        
+        # Create list
+        email_list = EmailList(
+            name=data['name'],
+            description=data.get('description', ''),
+            list_type=data.get('list_type', 'custom'),
+            filter_criteria=data.get('filter_criteria'),
+            members=data.get('members', []),
+            created_by=current_user.id
+        )
+        
+        email_list.update_member_count()
+        
+        db.session.add(email_list)
+        db.session.commit()
+        
+        logger.info(f"Email list created: {email_list.id} - {email_list.name}")
+        
+        return jsonify({
+            "success": True,
+            "list": email_list.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating email list: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/email-lists/<list_id>', methods=['GET'])
+@login_required
+def get_email_list(list_id):
+    """Get a specific email list"""
+    try:
+        from communication_models import EmailList
+        
+        email_list = EmailList.query.get(list_id)
+        
+        if not email_list:
+            return jsonify({"success": False, "error": "List not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "list": email_list.to_dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting email list: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/email-lists/<list_id>', methods=['PUT'])
+@login_required
+def update_email_list(list_id):
+    """Update an email list"""
+    try:
+        from communication_models import EmailList
+        
+        email_list = EmailList.query.get(list_id)
+        
+        if not email_list:
+            return jsonify({"success": False, "error": "List not found"}), 404
+        
+        data = request.get_json()
+        
+        if 'name' in data:
+            email_list.name = data['name']
+        if 'description' in data:
+            email_list.description = data['description']
+        if 'members' in data:
+            email_list.members = data['members']
+            email_list.update_member_count()
+        
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "list": email_list.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating email list: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/email-lists/<list_id>', methods=['DELETE'])
+@login_required
+def delete_email_list(list_id):
+    """Delete an email list"""
+    try:
+        from communication_models import EmailList
+        
+        email_list = EmailList.query.get(list_id)
+        
+        if not email_list:
+            return jsonify({"success": False, "error": "List not found"}), 404
+        
+        db.session.delete(email_list)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": "List deleted successfully"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting email list: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/email/send-test', methods=['POST'])
+@login_required
+def send_test_email():
+    """Send a test email"""
+    try:
+        from sendgrid_service import SendGridService
+        
+        data = request.get_json()
+        
+        if not data or not data.get('to_email'):
+            return jsonify({"success": False, "error": "Email address is required"}), 400
+        
+        sendgrid_service = SendGridService()
+        
+        result = sendgrid_service.send_single_email(
+            to_email=data['to_email'],
+            to_name=data.get('to_name', 'Test Recipient'),
+            subject=data.get('subject', 'Test Email'),
+            html_content=data.get('html_content', ''),
+            text_content=data.get('text_content', '')
+        )
+        
+        if result.get('success'):
+            return jsonify({
+                "success": True,
+                "message": "Test email sent successfully"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": result.get('error', 'Failed to send test email')
+            }), 400
+        
+    except Exception as e:
+        logger.error(f"Error sending test email: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500

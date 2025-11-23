@@ -318,3 +318,51 @@ class CommunicationPreferences(db.Model):
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
+
+class EmailList(db.Model):
+    """
+    Custom email lists for targeted campaigns (e.g., "Business People", "New People")
+    """
+    __tablename__ = 'email_lists'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    
+    # List type: 'custom' (manually created), 'csv' (imported from CSV), 'filtered' (based on criteria)
+    list_type = db.Column(db.String(50), nullable=False, default='custom')
+    
+    # For filtered lists, store the criteria
+    filter_criteria = db.Column(db.JSON, nullable=True)
+    # Format: {"campus": ["Paradise"], "department": ["Adults"], "tags": ["Business"]}
+    
+    # List members (stored as JSON array of person IDs or email addresses)
+    members = db.Column(db.JSON, nullable=False, default=list)
+    # Format: [{"email": "user@example.com", "name": "John Doe", "person_id": "123"}, ...]
+    
+    # Metadata
+    member_count = db.Column(db.Integer, default=0)
+    created_by = db.Column(db.String(36), nullable=False)  # User ID
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<EmailList {self.name} ({self.member_count} members)>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'list_type': self.list_type,
+            'filter_criteria': self.filter_criteria,
+            'members': self.members,
+            'member_count': self.member_count,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+    
+    def update_member_count(self):
+        """Update member count from members array"""
+        self.member_count = len(self.members) if self.members else 0

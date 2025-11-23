@@ -80,8 +80,14 @@ const CommunicationDashboard = () => {
   };
 
   const handleCreateCampaign = () => {
-    setSelectedCampaign(null);
-    setShowCreateModal(true);
+    if (activeTab === 'email') {
+      // Navigate to full-page email editor
+      window.location.href = '/communication/email-editor';
+    } else {
+      // SMS campaigns still use modal
+      setSelectedCampaign(null);
+      setShowCreateModal(true);
+    }
   };
 
   const handleCampaignCreated = () => {
