@@ -7,22 +7,102 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { Colors, FontSizes, Spacing } from '../constants/config';
 import { ApiService } from '../services/ApiService';
+import { NotificationService } from '../services/NotificationService';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [checkingNotifications, setCheckingNotifications] = useState(false);
 
   useEffect(() => {
     loadProfile();
+    checkNotificationStatus();
   }, []);
+
+  const checkNotificationStatus = async () => {
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      setNotificationsEnabled(status === 'granted');
+    } catch (error) {
+      console.error('Error checking notification status:', error);
+    }
+  };
+
+  const handleNotificationToggle = async (value) => {
+    if (!Device.isDevice) {
+      Alert.alert('Notifications', 'Push notifications are only available on physical devices.');
+      return;
+    }
+
+    setCheckingNotifications(true);
+    try {
+      if (value) {
+        // Enable notifications
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+
+        if (finalStatus === 'granted') {
+          // Get push token and save it
+          const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
+          if (!projectId || projectId === 'your-project-id') {
+            Alert.alert(
+              'Notifications',
+              'Push notifications are not configured for this app. Please contact support.'
+            );
+            setNotificationsEnabled(false);
+            return;
+          }
+
+          const token = await Notifications.getExpoPushTokenAsync(
+            projectId ? { projectId } : undefined
+          );
+
+          if (token && user) {
+            const platform = Platform.OS;
+            const appVersion = Constants?.expoConfig?.version || '1.0.0';
+            await NotificationService.savePushToken(user.email, token.data, platform, null, appVersion);
+            setNotificationsEnabled(true);
+            Alert.alert('Success', 'Push notifications enabled! You will now receive notifications from Futures Church.');
+          }
+        } else {
+          Alert.alert(
+            'Permission Denied',
+            'Push notifications require permission. Please enable them in your device settings.'
+          );
+          setNotificationsEnabled(false);
+        }
+      } else {
+        // Disable notifications - just update local state
+        setNotificationsEnabled(false);
+        Alert.alert('Notifications Disabled', 'You will no longer receive push notifications.');
+      }
+    } catch (error) {
+      console.error('Error toggling notifications:', error);
+      Alert.alert('Error', 'Failed to update notification settings. Please try again.');
+      setNotificationsEnabled(!value); // Revert toggle
+    } finally {
+      setCheckingNotifications(false);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -113,6 +193,32 @@ export default function ProfileScreen() {
             <Text style={styles.editButtonText}>✏️ Edit Profile</Text>
           </LinearGradient>
         </TouchableOpacity>
+
+        {/* Settings */}
+        <View style={styles.menu}>
+          <Text style={styles.sectionTitle}>Settings</Text>
+          
+          {/* Push Notifications Toggle */}
+          <View style={styles.menuItem}>
+            <Text style={styles.menuIcon}>🔔</Text>
+            <View style={styles.menuTextContainer}>
+              <Text style={styles.menuText}>Push Notifications</Text>
+              <Text style={styles.menuSubtext}>
+                {notificationsEnabled ? 'Enabled' : 'Disabled'}
+              </Text>
+            </View>
+            {checkingNotifications ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={handleNotificationToggle}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor={notificationsEnabled ? Colors.accent : Colors.textSecondary}
+              />
+            )}
+          </View>
+        </View>
 
         {/* Quick Access Links */}
         <View style={styles.menu}>
@@ -256,6 +362,15 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.text,
     fontWeight: '500',
+  },
+  menuTextContainer: {
+    flex: 1,
+    marginLeft: Spacing.xs,
+  },
+  menuSubtext: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   menuArrow: {
     fontSize: FontSizes.lg,
