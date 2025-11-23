@@ -671,7 +671,7 @@ def submit_via_link(link_id):
 
 @prayer_bp.route('/admin/check-person/<email>', methods=['GET'])
 def check_person_by_email(email):
-    """Diagnostic endpoint to check Person records - NO AUTH for debugging"""
+    """Diagnostic endpoint to check Person records and care cases - NO AUTH for debugging"""
     try:
         # Find all Person records with this email (including inactive)
         persons = Person.query.filter_by(email=email).all()
@@ -683,11 +683,11 @@ def check_person_by_email(email):
         }
         
         for person in persons:
-            # Also check recent prayer requests from this person
-            recent_prayers = CareCase.query.filter_by(
-                person_id=person.id,
-                type='prayer_request'
-            ).order_by(CareCase.created_at.desc()).limit(3).all()
+            # Check all care cases (not just prayer requests)
+            all_care_cases = CareCase.query.filter_by(person_id=person.id).all()
+            prayer_cases = [c for c in all_care_cases if c.type == 'prayer_request']
+            praise_cases = [c for c in all_care_cases if c.type == 'praise_report']
+            open_cases = [c for c in all_care_cases if c.status in ['open', 'in_progress']]
             
             result['records'].append({
                 'id': person.id,
@@ -697,12 +697,18 @@ def check_person_by_email(email):
                 'is_active': person.is_active,
                 'created_at': person.created_at.isoformat() if person.created_at else None,
                 'updated_at': person.updated_at.isoformat() if person.updated_at else None,
-                'recent_prayers_count': len(recent_prayers),
+                'total_care_cases': len(all_care_cases),
+                'prayer_cases_count': len(prayer_cases),
+                'praise_cases_count': len(praise_cases),
+                'open_cases_count': len(open_cases),
                 'recent_prayers': [{
                     'id': p.id,
+                    'type': p.type,
+                    'status': p.status,
+                    'person_id': p.person_id,
                     'created_at': p.created_at.isoformat() if p.created_at else None,
-                    'summary': p.summary[:50] if p.summary else None
-                } for p in recent_prayers]
+                    'summary': p.summary[:100] if p.summary else None
+                } for p in prayer_cases[-5:]]  # Last 5
             })
         
         return jsonify(result), 200
