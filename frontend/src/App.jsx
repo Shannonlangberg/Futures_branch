@@ -33,6 +33,9 @@ import TVManager from './pages/TVManager';
 import Events from './pages/Events';
 import EventsEnhanced from './pages/EventsEnhanced';
 import EventsManager from './pages/EventsManager';
+import NotificationManager from './pages/NotificationManager';
+import ServingDashboard from './pages/ServingDashboard';
+import CommunicationDashboard from './pages/CommunicationDashboard';
 
 const RESOURCE_ALLOWED_ROLES = ['admin'];
 
@@ -367,6 +370,7 @@ function App() {
                   <Route path="/prayer" element={<Prayer />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
+                  <Route path="/notifications" element={<NotificationManager />} />
                   <Route path="/role-manager" element={<RoleManager />} />
                   <Route path="/export" element={<DataExport />} />
                   <Route path="/beacons" element={<BeaconManagement />} />
@@ -382,6 +386,7 @@ function App() {
                   <Route path="/events/enhanced" element={<EventsEnhanced />} />
                   <Route path="/events/manage" element={<EventsManager />} />
                   <Route path="/serving" element={<ServingDashboard />} />
+                  <Route path="/communication" element={<CommunicationDashboard />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>

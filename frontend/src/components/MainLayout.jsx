@@ -133,6 +133,7 @@ const MainLayout = ({ children }) => {
       { name: 'Pulse TV', href: '/tv', icon: PlayIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff', 'finance'], featureKey: 'pulse_tv' },
       { name: 'Events', href: '/events', icon: CalendarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: 'events' },
       { name: 'Serving', href: '/serving', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'staff'], featureKey: 'serving' },
+      { name: 'Communications', href: '/communication', icon: EnvelopeIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor'], featureKey: 'communication' },
       
       // Hidden items - commented out for now
       // { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'campus_pastor', 'finance'] },
@@ -203,7 +204,8 @@ const MainLayout = ({ children }) => {
       { name: 'Journey Manager', href: '/journeys', icon: AcademicCapIcon, featureKey: 'pathway_manager' },
       { name: 'Resource Manager', href: '/resources/manage', icon: BookOpenIcon, featureKey: 'resource_manager' },
       { name: 'TV Manager', href: '/tv/manage', icon: PlayIcon, featureKey: 'tv_manager' },
-      { name: 'Events Manager', href: '/events/manage', icon: CalendarIcon, featureKey: 'events_manager' }
+      { name: 'Events Manager', href: '/events/manage', icon: CalendarIcon, featureKey: 'events_manager' },
+      { name: 'Push Notifications', href: '/notifications', icon: BellIcon, featureKey: 'notifications' }
     ];
 
     // Check each admin item against role and custom permissions
