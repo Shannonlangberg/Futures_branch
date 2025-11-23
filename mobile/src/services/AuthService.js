@@ -8,20 +8,31 @@ export const AuthService = {
       console.log('🔐 Login response:', response);
       
       if (response.authenticated) {
-        // Ensure person_id is included from backend response
-        const userData = response.user || {
+        // Normalize payload
+        const userData = response.user ? { ...response.user } : {
           email: response.email || email,
           name: response.name || email.split('@')[0],
           role: response.role,
           campus: response.campus,
         };
         
-        // CRITICAL: Include person_id if backend provides it
-        if (response.user?.person_id) {
-          userData.person_id = response.user.person_id;
+        // Ensure person_id exists, fetch if missing
+        if (userData.person_id) {
           console.log('✅ Login: person_id stored:', userData.person_id);
         } else {
-          console.warn('⚠️ Login: No person_id in response!', response.user);
+          console.warn('⚠️ Login: No person_id in response, looking up profile for', userData.email);
+          try {
+            const profileResponse = await ApiService.getPersonProfile(userData.email || email);
+            const profile = profileResponse?.profile || profileResponse;
+            if (profile?.id) {
+              userData.person_id = profile.id;
+              console.log('✅ Retrieved person_id via profile lookup:', userData.person_id);
+            } else {
+              console.warn('⚠️ Profile lookup did not return person_id for', userData.email);
+            }
+          } catch (profileError) {
+            console.error('❌ Failed to fetch person profile for person_id:', profileError);
+          }
         }
         
         return {

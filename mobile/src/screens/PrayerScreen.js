@@ -45,6 +45,11 @@ export default function PrayerScreen({ navigation }) {
       return;
     }
 
+    if (!user.person_id) {
+      Alert.alert('Profile Error', 'We could not link your profile. Please log out and log back in.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -93,6 +98,11 @@ export default function PrayerScreen({ navigation }) {
 
     if (!user) {
       Alert.alert('Error', 'User not found.');
+      return;
+    }
+
+    if (!user.person_id) {
+      Alert.alert('Profile Error', 'We could not link your profile. Please log out and log back in.');
       return;
     }
 
