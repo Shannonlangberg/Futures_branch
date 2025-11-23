@@ -386,10 +386,15 @@ function App() {
                   <Route path="/events/enhanced" element={<EventsEnhanced />} />
                   <Route path="/events/manage" element={<EventsManager />} />
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
                   <Route path="/serving" element={<ServingDashboard />} />
                   <Route path="/communication" element={<CommunicationDashboard />} />
 >>>>>>> dc19090 (Add frontend UI for communication module (email & SMS))
+=======
+                  <Route path="/serving" element={<ServingDashboard />} />
+                  <Route path="/communication" element={<CommunicationDashboard />} />
+>>>>>>> main
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>

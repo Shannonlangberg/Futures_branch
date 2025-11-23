@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon, ChartBarIcon, EyeIcon, CursorArrowRaysIcon, ChatBubbleLeftRightIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { Bar, Doughnut } from 'react-chartjs-2';
+<<<<<<< HEAD
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,6 +22,8 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+=======
+>>>>>>> main
 
 const CampaignAnalytics = ({ campaign, onClose }) => {
   const [analytics, setAnalytics] = useState(null);

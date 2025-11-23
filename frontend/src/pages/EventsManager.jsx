@@ -48,6 +48,8 @@ const EventsManager = () => {
     additional_info: '',
     beacon_zone_id: ''
   });
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -183,6 +185,63 @@ const EventsManager = () => {
     }));
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch('/api/events/upload-image', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFormData(prev => ({ ...prev, image_url: data.image_url }));
+        setImagePreview(data.image_url);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to upload image');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleImageDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const fakeEvent = { target: { files: [file] } };
+      handleImageUpload(fakeEvent);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({ ...prev, image_url: '' }));
+    setImagePreview(null);
+  };
+
   const openCreateModal = () => {
     setEditingEvent(null);
     setFormData({
@@ -205,6 +264,7 @@ const EventsManager = () => {
       additional_info: '',
       beacon_zone_id: ''
     });
+    setImagePreview(null);
     setShowModal(true);
   };
 
@@ -245,6 +305,7 @@ const EventsManager = () => {
       additional_info: event.additional_info || '',
       beacon_zone_id: event.beacon_zone_id || ''
     });
+    setImagePreview(event.image_url || null);
     setShowModal(true);
   };
 
@@ -438,7 +499,18 @@ const EventsManager = () => {
                   {/* Event Header */}
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-start gap-3 flex-1">
-                      <div className="p-3 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl">
+                      {event.image_url ? (
+                        <img
+                          src={event.image_url}
+                          alt={event.title}
+                          className="w-16 h-16 object-cover rounded-xl"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <div className={`p-3 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl ${event.image_url ? 'hidden' : ''}`}>
                         <CalendarIcon className="w-6 h-6 text-blue-400" />
                       </div>
                       <div className="flex-1">
@@ -533,6 +605,70 @@ const EventsManager = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Image Upload Section */}
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Event Image
+                </label>
+                <div
+                  onDrop={handleImageDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-all ${
+                    imagePreview
+                      ? 'border-white/20 bg-white/5'
+                      : 'border-white/10 bg-white/5 hover:border-purple-500/50'
+                  }`}
+                >
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Event preview"
+                        className="max-h-64 mx-auto rounded-lg object-cover"
+                        onError={() => setImagePreview(null)}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute top-2 right-2 p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-all"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-white/60 mb-4">
+                        <svg className="mx-auto h-12 w-12 text-white/40" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                      <p className="text-white/80 mb-2">
+                        Drag & drop an image here, or{' '}
+                        <label className="text-purple-400 hover:text-purple-300 cursor-pointer underline">
+                          browse
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                            disabled={uploadingImage}
+                          />
+                        </label>
+                      </p>
+                      <p className="text-xs text-white/50">
+                        PNG, JPG, GIF or WEBP (max 5MB)
+                      </p>
+                      {uploadingImage && (
+                        <div className="mt-4">
+                          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
+                          <p className="text-sm text-white/60 mt-2">Uploading...</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Basic Info */}
               <div>
                 <label className="block text-sm font-medium text-white/80 mb-2">

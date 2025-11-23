@@ -18647,6 +18647,69 @@ def create_event_category():
         logger.error(f"Error creating event category: {e}", exc_info=True)
         return jsonify({'error': 'Failed to create category'}), 500
 
+@app.route('/api/events/upload-image', methods=['POST'])
+@admin_required
+def upload_event_image():
+    """Upload an image for an event (admin only)"""
+    try:
+        from werkzeug.utils import secure_filename
+        from PIL import Image
+        import uuid
+        
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image file provided'}), 400
+        
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+        
+        # Create uploads/events directory if it doesn't exist
+        upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'events')
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        filename = f"{uuid.uuid4().hex}.{file_ext}"
+        filepath = os.path.join(upload_dir, filename)
+        
+        # Save and optionally resize image
+        try:
+            img = Image.open(file)
+            # Resize if too large (max 1920x1080)
+            max_size = (1920, 1080)
+            if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
+                img.thumbnail(max_size, Image.Resampling.LANCZOS)
+            img.save(filepath, optimize=True, quality=85)
+        except Exception as img_error:
+            logger.error(f"Error processing image: {img_error}")
+            return jsonify({'error': 'Failed to process image'}), 500
+        
+        # Return URL path (relative to backend/uploads)
+        image_url = f"/api/uploads/events/{filename}"
+        
+        return jsonify({
+            'image_url': image_url,
+            'filename': filename
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error uploading event image: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to upload image: {str(e)}'}), 500
+
+@app.route('/api/uploads/events/<filename>')
+def serve_event_image(filename):
+    """Serve uploaded event images"""
+    try:
+        upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'events')
+        return send_from_directory(upload_dir, filename)
+    except FileNotFoundError:
+        return jsonify({'error': 'Image not found'}), 404
+
 @app.route('/api/events', methods=['POST'])
 @admin_required
 def create_event():
@@ -18715,6 +18778,10 @@ def create_event():
         # Add beacon_zone_id if provided
         if data.get('beacon_zone_id'):
             event_kwargs['beacon_zone_id'] = int(data['beacon_zone_id'])
+        
+        # Add image_url if provided
+        if data.get('image_url'):
+            event_kwargs['image_url'] = data['image_url']
         
         # Only add fields that exist in the model (check using hasattr on a sample Event)
         # Create a temporary event to check which attributes exist
@@ -18824,6 +18891,8 @@ def update_event(event_id):
             event.stripe_price_id = data['stripe_price_id']
         if 'beacon_zone_id' in data:
             event.beacon_zone_id = int(data['beacon_zone_id']) if data['beacon_zone_id'] else None
+        if 'image_url' in data and hasattr(event, 'image_url'):
+            event.image_url = data['image_url']
         if 'is_active' in data:
             event.is_active = data['is_active']
         if 'ministry' in data and hasattr(Event, 'ministry'):
