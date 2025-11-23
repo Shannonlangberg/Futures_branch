@@ -32,3 +32,4 @@ Make sure `DATABASE_URL` is set in your environment before running migrations.
 
 
 
+

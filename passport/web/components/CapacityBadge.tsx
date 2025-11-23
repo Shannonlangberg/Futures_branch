@@ -31,3 +31,4 @@ export function CapacityBadge({ active, capacity }: CapacityBadgeProps) {
 
 
 
+

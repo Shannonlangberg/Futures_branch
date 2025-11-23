@@ -12,3 +12,4 @@ SELECT email, campus, updated_at
 FROM persons 
 WHERE email = 'shannonlangberg@gmail.com';
 
+
