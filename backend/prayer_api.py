@@ -204,13 +204,31 @@ def create_prayer_request():
             logger.info(f"CareCase added")
             
             # Commit both records
-            logger.info(f"Committing both PrayerSubmission and CareCase...")
+            logger.info(f"🔄 Committing both PrayerSubmission and CareCase...")
+            logger.info(f"   BEFORE COMMIT - PrayerSubmission ID: {prayer_submission.id}")
+            logger.info(f"   BEFORE COMMIT - CareCase ID: {care_case.id}, person_id: {care_case.person_id}, status: {care_case.status}, type: {care_case.type}")
+            
             db.session.commit()
+            
+            # Verify records were actually saved
             logger.info(f"✅ COMMIT SUCCESSFUL!")
             logger.info(f"   - PrayerSubmission ID: {prayer_submission.id}, Campus: {prayer_submission.campus}")
             logger.info(f"   - CareCase ID: {care_case.id}, Person ID: {care_case.person_id}")
             logger.info(f"   - Person: {person.full_name} ({person.id}), Person Campus: {person.campus}")
             logger.info(f"   - Request Campus: {campus}, Final Campus Used: {final_campus}")
+            
+            # VERIFY: Query the database to confirm CareCase exists
+            from models import CareCase
+            verify_case = CareCase.query.filter_by(id=care_case.id).first()
+            if verify_case:
+                logger.info(f"✅ VERIFIED: CareCase {verify_case.id} exists in DB with person_id={verify_case.person_id}, status={verify_case.status}")
+            else:
+                logger.error(f"❌ CRITICAL: CareCase {care_case.id} NOT FOUND in database after commit!")
+            
+            # Check how many open cases exist for this person
+            all_person_cases = CareCase.query.filter_by(person_id=person.id).all()
+            open_person_cases = [c for c in all_person_cases if c.status in ['open', 'in_progress']]
+            logger.info(f"📊 Person {person.id} now has {len(all_person_cases)} total CareCases, {len(open_person_cases)} open")
             
             response_message = 'Prayer request received'
             if pastor_info:
