@@ -215,6 +215,46 @@ class EngagementProfile(db.Model):
         self.serving_log = self._dump_json(serving_log)
         self.recalculate_heartbeat()
     
+    def add_email_engagement(self, campaign_type, engagement_type, engagement_date=None):
+        """Add email engagement record (open, click, reply) to milestones_log"""
+        if engagement_date is None:
+            engagement_date = datetime.utcnow().date()
+        elif isinstance(engagement_date, str):
+            engagement_date = datetime.fromisoformat(engagement_date).date()
+        
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        milestones_log.append({
+            'type': 'email_engagement',
+            'subtype': engagement_type,  # 'open', 'click', 'reply'
+            'campaign_type': campaign_type,
+            'date': engagement_date.isoformat()
+        })
+        self.milestones_log = self._dump_json(milestones_log)
+        # Update last_seen for engagement activity
+        if engagement_date > (self.last_seen or datetime.min.date()):
+            self.last_seen = engagement_date
+        self.recalculate_heartbeat()
+    
+    def add_sms_engagement(self, campaign_type, engagement_type, engagement_date=None):
+        """Add SMS engagement record (delivered, read, reply) to milestones_log"""
+        if engagement_date is None:
+            engagement_date = datetime.utcnow().date()
+        elif isinstance(engagement_date, str):
+            engagement_date = datetime.fromisoformat(engagement_date).date()
+        
+        milestones_log = self._load_json(self.milestones_log or '[]')
+        milestones_log.append({
+            'type': 'sms_engagement',
+            'subtype': engagement_type,  # 'delivered', 'read', 'reply'
+            'campaign_type': campaign_type,
+            'date': engagement_date.isoformat()
+        })
+        self.milestones_log = self._dump_json(milestones_log)
+        # Update last_seen for engagement activity
+        if engagement_date > (self.last_seen or datetime.min.date()):
+            self.last_seen = engagement_date
+        self.recalculate_heartbeat()
+    
     def add_group_attendance(self, group_id, attendance_date=None, present=True):
         """Add connect group attendance record"""
         import logging

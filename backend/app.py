@@ -17526,6 +17526,14 @@ def prayer_submission_page(link_id):
 from serving_api import serving_bp
 app.register_blueprint(serving_bp)
 
+# COMMUNICATION MODULE ROUTES (Email & SMS Campaign Management)
+try:
+    from communication_api import communication_bp
+    app.register_blueprint(communication_bp)
+    logger.info("Communication API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import communication_api: {e}")
+
 # WEBHOOK ROUTES
 from webhooks import webhooks_bp
 app.register_blueprint(webhooks_bp)
