@@ -14,33 +14,45 @@ def seed_users(db_path=None):
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     users_json_path = os.path.join(backend_dir, 'users.json')
     
-    # Use provided db_path or use the same path as app.py (CHURCH_VOICE_DB_PATH)
+    # Use provided db_path or use the same path logic as app.py
     if not db_path:
-        # Default to the same path as authentication uses (CHURCH_VOICE_DB_PATH)
-        db_path = os.path.join(backend_dir, 'instance', 'church_voice.db')
+        # Check DATABASE_URL first (Railway PostgreSQL or custom SQLite)
+        database_url = os.getenv('DATABASE_URL', '').strip()
         
-        # On Railway, the database might be at /data/futures_link.db
-        # Check DATABASE_URL and if it points to a mounted volume, use that
-        database_url = os.getenv('DATABASE_URL', '')
         if database_url and database_url.startswith('sqlite:///'):
             # Extract path from DATABASE_URL (handles both sqlite:/// and sqlite:////)
             potential_path = database_url.replace('sqlite:///', '')
             # Handle 4 slashes (sqlite:////) - remove one more slash
             if potential_path.startswith('/'):
                 # This is an absolute path (Railway mounted volume)
-                # Check if users table exists there - if so, use it
-                import sqlite3
-                try:
-                    test_conn = sqlite3.connect(potential_path)
-                    test_cursor = test_conn.cursor()
-                    test_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-                    if test_cursor.fetchone():
-                        # Users table exists in this database, use it
-                        db_path = potential_path
-                        print(f"[SEED] Found users table in DATABASE_URL database, using: {db_path}")
-                    test_conn.close()
-                except:
-                    pass  # Fall back to default
+                db_path = potential_path
+                print(f"[SEED] Using DATABASE_URL path: {db_path}")
+        
+        # If no DATABASE_URL or it's not SQLite, check for Railway volumes (same logic as app.py)
+        if not db_path or not database_url.startswith('sqlite:///'):
+            volume_paths = [
+                '/data',  # Common Railway volume path (RECOMMENDED)
+                '/app/backend/instance',  # Alternative Railway volume path
+                '/app/data',  # Another common path
+            ]
+            
+            for volume_path in volume_paths:
+                if os.path.exists(volume_path) and os.path.isdir(volume_path):
+                    db_file = os.path.join(volume_path, 'futures_link.db')
+                    db_path = db_file
+                    print(f"[SEED] Found volume at {volume_path}, using: {db_path}")
+                    break
+        
+        # Fallback to local development path
+        if not db_path:
+            instance_path = os.path.join(backend_dir, 'instance', 'futures_link.db')
+            if os.path.exists(instance_path):
+                db_path = instance_path
+                print(f"[SEED] Using local instance path: {db_path}")
+            else:
+                # Last resort: backend directory
+                db_path = os.path.join(backend_dir, 'futures_link.db')
+                print(f"[SEED] Using fallback path: {db_path}")
     
     print(f"[SEED] Ensuring admin user exists")
     print(f"[SEED] Database path: {db_path}")
@@ -63,46 +75,93 @@ def seed_users(db_path=None):
             conn.close()
             return False
         
-        # Check if admin user exists
-        cursor.execute("SELECT id FROM users WHERE username = ?", ('admin',))
-        admin_exists = cursor.fetchone()
+        # Load users from users.json
+        users_data = {}
+        if os.path.exists(users_json_path):
+            try:
+                with open(users_json_path, 'r') as f:
+                    data = json.load(f)
+                    users_data = data.get('users', {})
+                print(f"[SEED] Loaded {len(users_data)} users from users.json")
+            except Exception as e:
+                print(f"[SEED] WARNING: Could not load users.json: {e}")
+                users_data = {}
         
-        # Always ensure admin user exists with correct password
-        from werkzeug.security import generate_password_hash
-        admin_password_hash = generate_password_hash('futures2025')
+        # If no users in JSON, create default admin
+        if not users_data:
+            from werkzeug.security import generate_password_hash
+            admin_password_hash = generate_password_hash('futures2025')
+            users_data = {
+                'admin': {
+                    'username': 'admin',
+                    'password_hash': admin_password_hash,
+                    'full_name': 'Administrator',
+                    'email': 'admin@futures.church',
+                    'role': 'admin',
+                    'campus': 'all_campuses',
+                    'active': True
+                }
+            }
+            print("[SEED] No users.json found, creating default admin user")
         
-        if admin_exists:
-            # Update existing admin to ensure password is correct
-            cursor.execute('''
-                UPDATE users 
-                SET password_hash = ?, full_name = ?, email = ?, role = ?, active = 1
-                WHERE username = ?
-            ''', (
-                admin_password_hash,
-                'Administrator',
-                'admin@futures.church',
-                'admin',
-                'admin'  # WHERE username = ?
-            ))
-            print("[SEED] Updated admin user (username: admin, password: futures2025)")
-        else:
-            # Create admin user
-            cursor.execute('''
-                INSERT INTO users (username, password_hash, full_name, email, role, campus, active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                'admin',
-                admin_password_hash,
-                'Administrator',
-                'admin@futures.church',
-                'admin',
-                'all_campuses',
-                1
-            ))
-            print("[SEED] Created default admin user (username: admin, password: futures2025)")
+        # Seed all users from users.json
+        users_seeded = 0
+        users_updated = 0
+        
+        for user_id, user_data in users_data.items():
+            username = user_data.get('username', user_id)
+            password_hash = user_data.get('password_hash', '')
+            full_name = user_data.get('full_name', username)
+            email = user_data.get('email', '')
+            role = user_data.get('role', 'pastor')
+            campus = user_data.get('campus', 'all_campuses')
+            active = 1 if user_data.get('active', True) else 0
+            
+            # If password_hash is not provided, generate default password hash
+            if not password_hash:
+                from werkzeug.security import generate_password_hash
+                password_hash = generate_password_hash('futures2025')
+            
+            # Check if user exists
+            cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+            user_exists = cursor.fetchone()
+            
+            if user_exists:
+                # Update existing user
+                cursor.execute('''
+                    UPDATE users 
+                    SET password_hash = ?, full_name = ?, email = ?, role = ?, campus = ?, active = ?
+                    WHERE username = ?
+                ''', (
+                    password_hash,
+                    full_name,
+                    email,
+                    role,
+                    campus,
+                    active,
+                    username
+                ))
+                users_updated += 1
+                print(f"[SEED] Updated user: {username} ({role})")
+            else:
+                # Create new user
+                cursor.execute('''
+                    INSERT INTO users (username, password_hash, full_name, email, role, campus, active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    username,
+                    password_hash,
+                    full_name,
+                    email,
+                    role,
+                    campus,
+                    active
+                ))
+                users_seeded += 1
+                print(f"[SEED] Created user: {username} ({role})")
         
         conn.commit()
-        print("[SEED] Admin user ensured successfully")
+        print(f"[SEED] Successfully seeded {users_seeded} new users and updated {users_updated} existing users")
         return True
         
     except Exception as e:
