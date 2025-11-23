@@ -476,10 +476,17 @@ def get_person_heartbeat(person_id):
         all_discipleship_steps.sort(key=lambda x: x.get('date') or x.get('created_at') or '', reverse=True)
         
         # Open care cases
+        logger.info(f"🔍 Looking for CareCases for person_id: {person_id}")
+        all_cases_for_person = CareCase.query.filter(CareCase.person_id == person_id).all()
+        logger.info(f"📊 Total CareCases for {person_id}: {len(all_cases_for_person)}")
+        for case in all_cases_for_person:
+            logger.info(f"   - CareCase {case.id}: type={case.type}, status={case.status}, created={case.created_at}")
+        
         open_cases = CareCase.query.filter(
             CareCase.person_id == person_id,
             CareCase.status.in_(['open', 'in_progress'])
         ).all()
+        logger.info(f"✅ Found {len(open_cases)} open CareCases for person {person_id}")
         
         # Recent giving transactions
         recent_giving = GivingTransaction.query.filter(

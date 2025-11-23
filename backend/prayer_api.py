@@ -70,20 +70,35 @@ def create_prayer_request():
         request_text = data.get('request')
         campus = data.get('campus', 'paradise')  # Get campus from request, default to paradise
         
+        logger.info(f"📥 PRAYER REQUEST RECEIVED:")
+        logger.info(f"   - Email: {email}")
+        logger.info(f"   - Person ID: {person_id}")
+        logger.info(f"   - Campus: {campus}")
+        logger.info(f"   - Request length: {len(request_text) if request_text else 0} chars")
+        
         if not email or not request_text:
             logger.warning(f"Missing email or request text")
             return jsonify({'error': 'Email and request text required'}), 400
         
-        # Find person - prefer person_id if provided (most reliable), otherwise lookup by email+campus
+        # Find person - CRITICAL: If person_id provided, USE IT and don't fall back to email
         person = None
         if person_id:
             # Use person_id directly if provided (most reliable - from logged-in user)
-            logger.info(f"Looking up person by person_id: {person_id}")
+            logger.info(f"🔍 STEP 1: Looking up person by person_id: {person_id}")
             person = Person.query.filter_by(id=person_id, is_active=True).first()
             if person:
-                logger.info(f"✅ Found person by ID: {person.full_name} ({person.id}) at {person.campus}")
+                logger.info(f"✅ FOUND PERSON BY ID: {person.full_name} ({person.id})")
+                logger.info(f"   - Email: {person.email}")
+                logger.info(f"   - Campus: {person.campus}")
+                logger.info(f"   - Is Active: {person.is_active}")
+                # Verify email matches (for debugging, but still use this person)
+                if person.email and person.email.lower() != email.lower():
+                    logger.warning(f"⚠️ Email mismatch: Person has '{person.email}' but request has '{email}'")
+                    logger.warning(f"   Using Person {person.id} anyway (person_id takes priority)")
             else:
-                logger.warning(f"⚠️ Person ID {person_id} not found, falling back to email lookup")
+                logger.error(f"❌ Person ID {person_id} NOT FOUND in database!")
+                logger.error(f"   This is a critical error - person_id should always exist after login")
+                return jsonify({'error': f'Person record not found for ID: {person_id}. Please log out and log back in.'}), 404
         
         if not person:
             # Fallback: Look up by email AND campus to ensure we get the right person
@@ -234,20 +249,35 @@ def create_praise_report():
         report = data.get('report')
         campus = data.get('campus', 'paradise')  # Get campus from request, default to paradise
         
+        logger.info(f"📥 PRAISE REPORT RECEIVED:")
+        logger.info(f"   - Email: {email}")
+        logger.info(f"   - Person ID: {person_id}")
+        logger.info(f"   - Campus: {campus}")
+        logger.info(f"   - Report length: {len(report) if report else 0} chars")
+        
         if not email or not report:
             logger.warning(f"Missing email or report text")
             return jsonify({'error': 'Email and report text required'}), 400
         
-        # Find person - prefer person_id if provided (most reliable), otherwise lookup by email+campus
+        # Find person - CRITICAL: If person_id provided, USE IT and don't fall back to email
         person = None
         if person_id:
             # Use person_id directly if provided (most reliable - from logged-in user)
-            logger.info(f"Looking up person by person_id: {person_id}")
+            logger.info(f"🔍 STEP 1: Looking up person by person_id: {person_id}")
             person = Person.query.filter_by(id=person_id, is_active=True).first()
             if person:
-                logger.info(f"✅ Found person by ID: {person.full_name} ({person.id}) at {person.campus}")
+                logger.info(f"✅ FOUND PERSON BY ID: {person.full_name} ({person.id})")
+                logger.info(f"   - Email: {person.email}")
+                logger.info(f"   - Campus: {person.campus}")
+                logger.info(f"   - Is Active: {person.is_active}")
+                # Verify email matches (for debugging, but still use this person)
+                if person.email and person.email.lower() != email.lower():
+                    logger.warning(f"⚠️ Email mismatch: Person has '{person.email}' but request has '{email}'")
+                    logger.warning(f"   Using Person {person.id} anyway (person_id takes priority)")
             else:
-                logger.warning(f"⚠️ Person ID {person_id} not found, falling back to email lookup")
+                logger.error(f"❌ Person ID {person_id} NOT FOUND in database!")
+                logger.error(f"   This is a critical error - person_id should always exist after login")
+                return jsonify({'error': f'Person record not found for ID: {person_id}. Please log out and log back in.'}), 404
         
         if not person:
             # Fallback: Look up by email AND campus to ensure we get the right person

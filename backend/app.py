@@ -7979,13 +7979,25 @@ def api_login():
             person_id = None
             try:
                 from models import Person
-                person = Person.query.filter_by(email=user.email).first()
+                logger.info(f"🔍 LOGIN: Looking up Person record for email: {user.email}")
+                all_persons = Person.query.filter_by(email=user.email).all()
+                logger.info(f"   Found {len(all_persons)} Person record(s) with email {user.email}")
+                for p in all_persons:
+                    logger.info(f"   - Person ID: {p.id}, Name: {p.full_name}, Campus: {p.campus}, Active: {p.is_active}")
+                
+                person = Person.query.filter_by(email=user.email, is_active=True).first()
                 if person:
                     personal_campus = person.campus
                     person_id = person.id
-                    logger.info(f"Found Person record for {user.email}, person_id: {person_id}, personal campus: {personal_campus}")
+                    logger.info(f"✅ LOGIN: Found Person record - person_id: {person_id}, campus: {personal_campus}")
+                else:
+                    logger.warning(f"⚠️ LOGIN: No active Person record found for {user.email}")
+                    # Try inactive ones
+                    inactive = Person.query.filter_by(email=user.email).first()
+                    if inactive:
+                        logger.warning(f"   Found inactive Person: {inactive.id} (campus: {inactive.campus})")
             except Exception as person_lookup_error:
-                logger.warning(f"Could not look up Person record: {person_lookup_error}")
+                logger.error(f"❌ LOGIN: Could not look up Person record: {person_lookup_error}", exc_info=True)
             
             # Return proper response format for mobile app
             user_campus = getattr(user, 'campus', 'all_campuses')
