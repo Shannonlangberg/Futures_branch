@@ -859,10 +859,26 @@ class HeartbeatEngine:
         # NEW: Bonus for prayer submissions (shows spiritual engagement/need awareness)
         prayer_submissions = data.get('prayer_submissions', [])
         if prayer_submissions:
-            # Add 3 points per prayer submission, max +15
-            prayer_bonus = min(len(prayer_submissions) * 3.0, 15.0)
-            score += prayer_bonus
-            logger.info(f"Prayer submissions: {len(prayer_submissions)} submissions = +{prayer_bonus} points")
+            prayer_requests = [
+                p for p in prayer_submissions
+                if (getattr(p, 'submission_type', '') or '').lower() == 'prayer'
+            ]
+            praise_reports = [
+                p for p in prayer_submissions
+                if (getattr(p, 'submission_type', '') or '').lower() == 'praise'
+            ]
+            
+            if prayer_requests:
+                # Each prayer request reflects pastoral need -> subtract (max 20)
+                prayer_penalty = min(len(prayer_requests) * 4.0, 20.0)
+                score -= prayer_penalty
+                logger.info(f"Prayer requests: {len(prayer_requests)} requests = -{prayer_penalty} points")
+            
+            if praise_reports:
+                # Praises lift health more than prayer requests reduce it (max 30)
+                praise_bonus = min(len(praise_reports) * 6.0, 30.0)
+                score += praise_bonus
+                logger.info(f"Praise reports: {len(praise_reports)} praises = +{praise_bonus} points")
         
         final_score = round(max(0.0, min(score, 100.0)), 2)
         
