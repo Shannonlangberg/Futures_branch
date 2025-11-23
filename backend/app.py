@@ -864,13 +864,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # IMPORTANT: Run migrations BEFORE initializing any models that might query the database
 # This ensures the step_actions column exists before SQLAlchemy tries to use it
-logger.info("🔄 Running database migrations before model initialization...")
-try:
-    run_migrations()
-    logger.info("✅ Migrations completed successfully")
-except Exception as e:
-    logger.error(f"❌ Migration error: {e}", exc_info=True)
-    # Don't fail startup - app should still work with graceful error handling
+# Note: run_migrations() is defined later in this file, so we'll call it after function definitions
+logger.info("🔄 Will run database migrations after function definitions...")
 
 # Helper function to get database file path (consistent across all endpoints)
 def get_db_path():
@@ -1149,8 +1144,14 @@ Compress(app)
 # Initialize database
 init_db(app)
 
-# Migrations already run earlier (after database URL is set, before any models are used)
-# run_migrations()  # Already called at line 869
+# IMPORTANT: Run migrations AFTER init_db but before any queries that need step_actions column
+logger.info("🔄 Running database migrations after database initialization...")
+try:
+    run_migrations()
+    logger.info("✅ Migrations completed successfully")
+except Exception as e:
+    logger.error(f"❌ Migration error: {e}", exc_info=True)
+    # Don't fail startup - app should still work with graceful error handling
 
 # Seed database with initial data
 try:

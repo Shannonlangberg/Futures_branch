@@ -877,7 +877,31 @@ class PersonPathwayProgress(db.Model):
         if not self.pathway:
             return 0
         
-        total_steps = self.pathway.steps.count()
+        # Handle missing step_actions column
+        try:
+            total_steps = self.pathway.steps.count()
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'no such column' in error_str and 'step_actions' in error_str:
+                # Column doesn't exist - count manually without step_actions
+                try:
+                    from sqlalchemy import text
+                    result = db.session.execute(
+                        text('''
+                            SELECT COUNT(*) 
+                            FROM discipleship_pathway_steps 
+                            WHERE pathway_id = :pathway_id
+                        '''),
+                        {'pathway_id': self.pathway_id}
+                    ).scalar()
+                    total_steps = result or 0
+                except Exception as e2:
+                    logger.warning(f"Error counting steps manually in get_progress_percentage: {e2}")
+                    total_steps = 0
+            else:
+                logger.warning(f"Error counting pathway steps in get_progress_percentage: {e}")
+                total_steps = 0
+        
         if total_steps == 0:
             return 0
         
@@ -1009,6 +1033,14 @@ class PersonPathwayProgress(db.Model):
                     
                     if raw_step:
                         # Create minimal step dict
+                        # Handle created_at - might be string or datetime
+                        created_at_str = None
+                        if raw_step[7]:
+                            if isinstance(raw_step[7], str):
+                                created_at_str = raw_step[7]
+                            else:
+                                created_at_str = raw_step[7].isoformat() if hasattr(raw_step[7], 'isoformat') else str(raw_step[7])
+                        
                         return {
                             'id': raw_step[0],
                             'pathway_id': raw_step[1],
@@ -1018,7 +1050,7 @@ class PersonPathwayProgress(db.Model):
                             'milestone_type': raw_step[5],
                             'is_required': bool(raw_step[6]),
                             'step_actions': [],
-                            'created_at': raw_step[7].isoformat() if raw_step[7] else None
+                            'created_at': created_at_str
                         }
                 except Exception as e2:
                     logger.warning(f"Error loading current step manually in to_dict: {e2}")
@@ -1028,6 +1060,35 @@ class PersonPathwayProgress(db.Model):
                 return None
         
         return None
+    
+    def _safe_count_steps(self):
+        """Safely count pathway steps, handling missing step_actions column"""
+        if not self.pathway:
+            return 0
+        
+        try:
+            return self.pathway.steps.count()
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'no such column' in error_str and 'step_actions' in error_str:
+                # Column doesn't exist - count manually
+                try:
+                    from sqlalchemy import text
+                    result = db.session.execute(
+                        text('''
+                            SELECT COUNT(*) 
+                            FROM discipleship_pathway_steps 
+                            WHERE pathway_id = :pathway_id
+                        '''),
+                        {'pathway_id': self.pathway_id}
+                    ).scalar()
+                    return result or 0
+                except Exception as e2:
+                    logger.warning(f"Error counting steps manually in _safe_count_steps: {e2}")
+                    return 0
+            else:
+                logger.warning(f"Error counting pathway steps in _safe_count_steps: {e}")
+                return 0
     
     def to_dict(self):
         """Convert progress to dictionary"""
@@ -1139,7 +1200,7 @@ class PersonPathwayProgress(db.Model):
             'notes': self.notes,
             'progress_percentage': self.get_progress_percentage(),
             'completed_steps': self.step_completions.count(),
-            'total_steps': self.pathway.steps.count() if self.pathway else 0,
+            'total_steps': self._safe_count_steps(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
