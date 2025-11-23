@@ -3,12 +3,14 @@ Devotions Admin API
 Provides endpoints for managing devotional plans and content
 """
 
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, send_from_directory
 from flask_login import login_required, current_user
 from models import db
 from datetime import datetime
 import uuid
 import logging
+import os
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,7 @@ def get_devotion_plans():
                     'status': plan.status,
                     'start_date': plan.start_date.isoformat() if plan.start_date else None,
                     'end_date': plan.end_date.isoformat() if plan.end_date else None,
+                    'total_days': getattr(plan, 'total_days', 30),
                     'created_at': plan.created_at.isoformat() if plan.created_at else None,
                     'updated_at': plan.updated_at.isoformat() if plan.updated_at else None,
                     'content_count': plan.content.count() if hasattr(plan, 'content') else 0
@@ -173,12 +176,14 @@ def create_devotion_plan():
                 'id': plan.id,
                 'title': plan.title,
                 'campus': plan.campus,
-                'status': plan.status
+                'status': plan.status,
+                'total_days': plan.total_days
             }
         }), 201
         
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Error creating devotion plan: {e}", exc_info=True)
         return jsonify({'error': f'Failed to create devotion plan: {str(e)}'}), 500
 
 @devotions_admin_bp.route('/plans/<plan_id>', methods=['PUT'])
@@ -209,6 +214,8 @@ def update_devotion_plan(plan_id):
             plan.description = data['description']
         if 'status' in data:
             plan.status = data['status']
+        if 'total_days' in data:
+            plan.total_days = data['total_days']
         if 'start_date' in data:
             plan.start_date = datetime.fromisoformat(data['start_date']) if data['start_date'] else None
         if 'end_date' in data:
@@ -230,6 +237,7 @@ def update_devotion_plan(plan_id):
         
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Error updating devotion plan: {e}", exc_info=True)
         return jsonify({'error': f'Failed to update devotion plan: {str(e)}'}), 500
 
 @devotions_admin_bp.route('/plans/<plan_id>/publish', methods=['POST'])
@@ -254,7 +262,6 @@ def publish_devotion_plan(plan_id):
         
         # Publish the plan
         plan.status = 'published'
-        plan.published_at = datetime.utcnow()
         plan.updated_at = datetime.utcnow()
         
         db.session.commit()
@@ -264,13 +271,13 @@ def publish_devotion_plan(plan_id):
             'plan': {
                 'id': plan.id,
                 'title': plan.title,
-                'status': plan.status,
-                'published_at': plan.published_at.isoformat()
+                'status': plan.status
             }
         })
         
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Error publishing devotion plan: {e}", exc_info=True)
         return jsonify({'error': f'Failed to publish devotion plan: {str(e)}'}), 500
 
 @devotions_admin_bp.route('/plans/<plan_id>/content', methods=['GET'])
@@ -296,26 +303,202 @@ def get_plan_content(plan_id):
         # Get content
         content_data = []
         if plan.content:
-            for item in plan.content:
-                content_data.append({
+            for item in plan.content.order_by(DevotionContent.day_index):
+                content_data.append(item.to_dict() if hasattr(item, 'to_dict') else {
                     'id': item.id,
-                    'day': item.day,
+                    'day_index': item.day_index,
                     'title': item.title,
-                    'content': item.content,
-                    'scripture_reference': item.scripture_reference,
+                    'scripture_ref': item.scripture_ref,
+                    'scripture_text': item.scripture_text,
+                    'devo_body': item.devo_body,
                     'prayer_focus': item.prayer_focus,
-                    'created_at': item.created_at.isoformat()
+                    'media': json.loads(item.media) if item.media else [],
+                    'cover_image': item.cover_image,
+                    'created_at': item.created_at.isoformat() if item.created_at else None,
+                    'updated_at': item.updated_at.isoformat() if item.updated_at else None
                 })
         
         return jsonify({
             'plan': {
                 'id': plan.id,
                 'title': plan.title,
-                'campus': plan.campus
+                'campus': plan.campus,
+                'total_days': getattr(plan, 'total_days', 30)
             },
             'content': content_data,
             'count': len(content_data)
         })
         
     except Exception as e:
+        logger.error(f"Error fetching plan content: {e}", exc_info=True)
         return jsonify({'error': f'Failed to fetch plan content: {str(e)}'}), 500
+
+@devotions_admin_bp.route('/plans/<plan_id>/content', methods=['POST'])
+@login_required
+def create_plan_content(plan_id):
+    """Create or update day content for a devotion plan"""
+    try:
+        if DevotionPlan is None or DevotionContent is None:
+            return jsonify({'error': 'Devotions module not fully configured. Database models missing.'}), 503
+        
+        data = request.get_json()
+        user_context = get_user_context()
+        
+        # Get the plan
+        plan = DevotionPlan.query.get(plan_id)
+        if not plan:
+            return jsonify({'error': 'Devotion plan not found'}), 404
+        
+        # Check campus access
+        if not validate_campus_access('devotions_admin', plan.campus, user_context['role'], user_context['campus']):
+            return jsonify({'error': 'Insufficient campus access'}), 403
+        
+        day_index = data.get('day_index')
+        if not day_index:
+            return jsonify({'error': 'day_index is required'}), 400
+        
+        # Check if content already exists for this day
+        existing = DevotionContent.query.filter_by(plan_id=plan_id, day_index=day_index).first()
+        
+        if existing:
+            # Update existing content
+            if 'title' in data:
+                existing.title = data['title']
+            if 'scripture_ref' in data:
+                existing.scripture_ref = data['scripture_ref']
+            if 'scripture_text' in data:
+                existing.scripture_text = data['scripture_text']
+            if 'devo_body' in data:
+                existing.devo_body = data['devo_body']
+            if 'prayer_focus' in data:
+                existing.prayer_focus = data['prayer_focus']
+            if 'media' in data:
+                existing.media = json.dumps(data['media']) if isinstance(data['media'], list) else data['media']
+            if 'cover_image' in data:
+                existing.cover_image = data['cover_image']
+            
+            existing.updated_at = datetime.utcnow()
+        else:
+            # Create new content
+            content = DevotionContent(
+                id=str(uuid.uuid4()),
+                plan_id=plan_id,
+                day_index=day_index,
+                title=data.get('title'),
+                scripture_ref=data.get('scripture_ref'),
+                scripture_text=data.get('scripture_text'),
+                devo_body=data.get('devo_body'),
+                prayer_focus=data.get('prayer_focus'),
+                media=json.dumps(data.get('media', [])) if data.get('media') else None,
+                cover_image=data.get('cover_image'),
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(content)
+        
+        db.session.commit()
+        
+        content_obj = existing if existing else DevotionContent.query.filter_by(plan_id=plan_id, day_index=day_index).first()
+        
+        return jsonify({
+            'message': 'Content saved successfully',
+            'content': content_obj.to_dict() if hasattr(content_obj, 'to_dict') else {
+                'id': content_obj.id,
+                'day_index': content_obj.day_index,
+                'title': content_obj.title
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error saving plan content: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to save content: {str(e)}'}), 500
+
+@devotions_admin_bp.route('/plans/<plan_id>/content/<day_index>', methods=['DELETE'])
+@login_required
+def delete_plan_content(plan_id, day_index):
+    """Delete day content from a devotion plan"""
+    try:
+        if DevotionContent is None:
+            return jsonify({'error': 'Devotions module not fully configured. Database models missing.'}), 503
+        
+        user_context = get_user_context()
+        
+        # Get the plan
+        plan = DevotionPlan.query.get(plan_id)
+        if not plan:
+            return jsonify({'error': 'Devotion plan not found'}), 404
+        
+        # Check campus access
+        if not validate_campus_access('devotions_admin', plan.campus, user_context['role'], user_context['campus']):
+            return jsonify({'error': 'Insufficient campus access'}), 403
+        
+        # Find and delete content
+        content = DevotionContent.query.filter_by(plan_id=plan_id, day_index=int(day_index)).first()
+        if content:
+            db.session.delete(content)
+            db.session.commit()
+            return jsonify({'message': 'Content deleted successfully'})
+        else:
+            return jsonify({'error': 'Content not found'}), 404
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting plan content: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to delete content: {str(e)}'}), 500
+
+# Media upload endpoints
+@devotions_admin_bp.route('/upload', methods=['POST'])
+@login_required
+def upload_media():
+    """Upload image or video for devotion plans"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'mov', 'avi', 'webm'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+        
+        # Create uploads/devotions directory if it doesn't exist
+        upload_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'devotions')
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        filename = f"{uuid.uuid4().hex}.{file_ext}"
+        filepath = os.path.join(upload_dir, filename)
+        
+        # Save file
+        file.save(filepath)
+        
+        # Determine file type
+        file_type = 'image' if file_ext in {'png', 'jpg', 'jpeg', 'gif', 'webp'} else 'video'
+        
+        # Return URL path
+        media_url = f"/api/devotions/admin/media/{filename}"
+        
+        return jsonify({
+            'success': True,
+            'url': media_url,
+            'filename': filename,
+            'type': file_type
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error uploading media: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to upload media: {str(e)}'}), 500
+
+@devotions_admin_bp.route('/media/<filename>')
+def serve_media(filename):
+    """Serve uploaded devotion media files"""
+    try:
+        upload_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'devotions')
+        return send_from_directory(upload_dir, filename)
+    except FileNotFoundError:
+        return jsonify({'error': 'Media file not found'}), 404
