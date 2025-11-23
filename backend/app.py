@@ -19953,8 +19953,7 @@ def save_push_token():
 
 
 @app.route('/api/notifications/send', methods=['POST'])
-@login_required
-@admin_required
+@admin_required_json
 def send_notification():
     """Send push notification immediately"""
     try:
@@ -20031,8 +20030,7 @@ def send_notification():
 
 
 @app.route('/api/notifications/schedule', methods=['POST'])
-@login_required
-@admin_required
+@admin_required_json
 def schedule_notification():
     """Schedule a push notification for later"""
     try:
@@ -20093,8 +20091,7 @@ def schedule_notification():
 
 
 @app.route('/api/notifications/scheduled', methods=['GET'])
-@login_required
-@admin_required
+@admin_required_json
 def get_scheduled_notifications():
     """Get list of scheduled notifications"""
     try:
@@ -20119,8 +20116,7 @@ def get_scheduled_notifications():
 
 
 @app.route('/api/notifications/scheduled/<int:notification_id>', methods=['DELETE'])
-@login_required
-@admin_required
+@admin_required_json
 def cancel_scheduled_notification(notification_id):
     """Cancel a scheduled notification"""
     try:
@@ -20141,8 +20137,7 @@ def cancel_scheduled_notification(notification_id):
 
 
 @app.route('/api/notifications/stats', methods=['GET'])
-@login_required
-@admin_required
+@admin_required_json
 def get_notification_stats():
     """Get statistics about push notifications"""
     try:
