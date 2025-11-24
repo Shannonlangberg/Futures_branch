@@ -19190,26 +19190,29 @@ def create_event():
             'stripe_price_id': stripe_price_id,
         }
         
-        # Add beacon_zone_id if provided
-        if data.get('beacon_zone_id'):
-            event_kwargs['beacon_zone_id'] = int(data['beacon_zone_id'])
+        # Check which columns exist in the database before adding optional fields
+        # This prevents errors if migrations haven't run yet
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        try:
+            columns = [col['name'] for col in inspector.get_columns('events')]
+        except Exception as schema_check_error:
+            logger.warning(f"Could not check events table schema: {schema_check_error}")
+            columns = []  # If we can't check, assume columns don't exist to be safe
         
-        # Add image_url if provided - check if column exists first
+        # Add beacon_zone_id if provided and column exists
+        if data.get('beacon_zone_id'):
+            if 'beacon_zone_id' in columns:
+                event_kwargs['beacon_zone_id'] = int(data['beacon_zone_id'])
+            else:
+                logger.warning("beacon_zone_id column not found in events table - migration 029_add_beacon_to_events.sql may not have run yet")
+        
+        # Add image_url if provided and column exists
         if data.get('image_url'):
-            # Check if image_url column exists in database by trying to query it
-            try:
-                # Quick check: try to see if column exists by checking table schema
-                from sqlalchemy import inspect
-                inspector = inspect(db.engine)
-                columns = [col['name'] for col in inspector.get_columns('events')]
-                if 'image_url' in columns:
-                    event_kwargs['image_url'] = data['image_url']
-                else:
-                    logger.warning("image_url column not found in events table - migration may not have run yet")
-            except Exception as schema_check_error:
-                # If we can't check, try to set it anyway and let the commit fail gracefully
-                logger.warning(f"Could not check if image_url column exists: {schema_check_error}")
+            if 'image_url' in columns:
                 event_kwargs['image_url'] = data['image_url']
+            else:
+                logger.warning("image_url column not found in events table - migration 034_add_image_url_to_events.sql may not have run yet")
         
         # Only add fields that exist in the model (check using hasattr on a sample Event)
         # Create a temporary event to check which attributes exist
@@ -19251,30 +19254,49 @@ def create_event():
             # Check if it's a column error (migration might not have run)
             error_str = str(db_error).lower()
             if 'no such column' in error_str or 'unknown column' in error_str:
-                # Check if it's specifically the image_url column
+                # Try to identify which column is missing and retry without it
+                missing_columns = []
                 if 'image_url' in error_str:
-                    # Try again without image_url
-                    if 'image_url' in event_kwargs:
-                        del event_kwargs['image_url']
-                        new_event = Event(**event_kwargs)
-                        db.session.add(new_event)
-                        try:
-                            db.session.commit()
-                            logger.warning("Event created without image_url - migration 034_add_image_url_to_events.sql needs to be applied")
-                            return jsonify({
-                                'message': 'Event created successfully (image_url column not available - migration pending)',
-                                'event': {
-                                    'id': new_event.id,
-                                    'title': new_event.title,
-                                    'warning': 'image_url column not found - please apply migration 034_add_image_url_to_events.sql'
-                                }
-                            }), 201
-                        except Exception as retry_error:
-                            db.session.rollback()
-                            return jsonify({
-                                'error': 'Database schema is missing required columns. Please check logs and ensure migration 034_add_image_url_to_events.sql has been applied.',
-                                'details': str(retry_error)
-                            }), 500
+                    missing_columns.append('image_url')
+                if 'beacon_zone_id' in error_str:
+                    missing_columns.append('beacon_zone_id')
+                
+                # Remove missing columns and retry
+                if missing_columns:
+                    for col in missing_columns:
+                        if col in event_kwargs:
+                            del event_kwargs[col]
+                            logger.warning(f"Removed {col} from event_kwargs due to missing column")
+                    
+                    # Try again without the missing columns
+                    new_event = Event(**event_kwargs)
+                    db.session.add(new_event)
+                    try:
+                        db.session.commit()
+                        migration_warnings = []
+                        if 'image_url' in missing_columns:
+                            migration_warnings.append('image_url (migration 034_add_image_url_to_events.sql)')
+                        if 'beacon_zone_id' in missing_columns:
+                            migration_warnings.append('beacon_zone_id (migration 029_add_beacon_to_events.sql)')
+                        
+                        logger.warning(f"Event created without {', '.join(missing_columns)} - migrations need to be applied")
+                        return jsonify({
+                            'message': f'Event created successfully (some columns not available - migrations pending)',
+                            'event': {
+                                'id': new_event.id,
+                                'title': new_event.title,
+                                'warning': f'Missing columns: {", ".join(migration_warnings)}. Please apply the migrations.'
+                            }
+                        }), 201
+                    except Exception as retry_error:
+                        db.session.rollback()
+                        return jsonify({
+                            'error': 'Database schema is missing required columns. Please check logs and ensure migrations have been applied.',
+                            'details': str(retry_error),
+                            'missing_columns': missing_columns
+                        }), 500
+                
+                # Generic column error
                 return jsonify({
                     'error': 'Database schema is missing required columns. The migration may have failed. Please check logs and run the appropriate migration manually.',
                     'details': str(db_error)
