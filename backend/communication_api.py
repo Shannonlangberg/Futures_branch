@@ -1013,8 +1013,8 @@ def upload_email_image():
         filepath = os.path.join(upload_dir, unique_filename)
         file.save(filepath)
         
-        # Return URL path
-        image_url = f"/uploads/email_images/{unique_filename}"
+        # Return URL path - use API route for serving
+        image_url = f"/api/communication/uploads/email_images/{unique_filename}"
         
         return jsonify({
             "success": True,
@@ -1196,6 +1196,19 @@ def delete_email_list(list_id):
         db.session.rollback()
         logger.error(f"Error deleting email list: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/uploads/email_images/<filename>', methods=['GET'])
+def serve_email_image(filename):
+    """Serve uploaded email images"""
+    try:
+        from flask import send_from_directory
+        import os
+        
+        upload_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'email_images')
+        return send_from_directory(upload_dir, filename)
+    except Exception as e:
+        logger.error(f"Error serving email image: {str(e)}")
+        return jsonify({"error": "Image not found"}), 404
 
 @communication_bp.route('/email/send-test', methods=['POST'])
 @login_required

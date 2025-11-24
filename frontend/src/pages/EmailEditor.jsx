@@ -15,6 +15,8 @@ import {
 } from '@heroicons/react/24/outline';
 import RichEmailEditor from '../components/communication/RichEmailEditor';
 import BlockEmailEditor from '../components/communication/BlockEmailEditor';
+import Vision6EmailEditor from '../components/communication/Vision6EmailEditor';
+import DesignSettingsPanel from '../components/communication/DesignSettingsPanel';
 
 const EmailEditor = () => {
   const navigate = useNavigate();
@@ -48,6 +50,27 @@ const EmailEditor = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [useBlockEditor, setUseBlockEditor] = useState(true);
+  const [useVision6Editor, setUseVision6Editor] = useState(true);
+  const [designSettings, setDesignSettings] = useState({
+    emailWidth: 567,
+    evenColumns: true,
+    fullWidthMobile: false,
+    gridWidth: 25,
+    useGrid: false,
+    borderColor: '#FFFFFF',
+    borderWidth: 0,
+    backgroundColor: '#E8E6E6',
+    fullHeightBackground: false,
+    backgroundImage: null,
+    bodyTextColor: '#2A2A2A',
+    bodyFont: 'Arial',
+    bodyFontSize: 12,
+    lineHeight: 1.5,
+    linkColor: null,
+    linkBold: false,
+    linkItalic: false,
+    linkUnderline: false
+  });
 
   useEffect(() => {
     fetchCampuses();
@@ -383,30 +406,47 @@ const EmailEditor = () => {
             </div>
 
             {/* Email Editor */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center justify-between mb-4">
-                <label className="block text-white/80 text-sm font-semibold">
-                  Email Content *
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setUseBlockEditor(!useBlockEditor)}
-                    className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white text-sm rounded-lg transition-colors"
-                  >
-                    {useBlockEditor ? 'Switch to Classic Editor' : 'Switch to Block Editor'}
-                  </button>
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden" style={{ height: '600px' }}>
+              {useVision6Editor ? (
+                <div className="flex h-full">
+                  <Vision6EmailEditor
+                    value={formData.content}
+                    onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                    designSettings={designSettings}
+                    onDesignSettingsChange={setDesignSettings}
+                  />
+                  <DesignSettingsPanel
+                    settings={designSettings}
+                    onChange={setDesignSettings}
+                  />
                 </div>
-              </div>
-              {useBlockEditor ? (
-                <BlockEmailEditor
-                  value={formData.content}
-                  onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                />
               ) : (
-                <RichEmailEditor
-                  value={formData.content}
-                  onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                />
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="block text-white/80 text-sm font-semibold">
+                      Email Content *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setUseVision6Editor(true)}
+                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+                      >
+                        Use Vision 6 Editor
+                      </button>
+                    </div>
+                  </div>
+                  {useBlockEditor ? (
+                    <BlockEmailEditor
+                      value={formData.content}
+                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                    />
+                  ) : (
+                    <RichEmailEditor
+                      value={formData.content}
+                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                    />
+                  )}
+                </div>
               )}
             </div>
 

@@ -442,8 +442,30 @@ const BlockEmailEditor = ({ value, onChange }) => {
               {block.type === 'text' ? (
                 <div
                   contentEditable
-                  onInput={(e) => updateBlockContent(block.id, e.target.innerHTML)}
+                  suppressContentEditableWarning
+                  onInput={(e) => {
+                    // Fix backwards text issue - get selection and maintain cursor position
+                    const selection = window.getSelection();
+                    const range = selection.getRangeAt(0);
+                    const cursorPos = range.startOffset;
+                    
+                    updateBlockContent(block.id, e.target.innerHTML);
+                    
+                    // Restore cursor position after update
+                    setTimeout(() => {
+                      const newRange = document.createRange();
+                      const textNode = e.target.childNodes[0] || e.target;
+                      const maxOffset = textNode.textContent ? textNode.textContent.length : 0;
+                      const safeOffset = Math.min(cursorPos, maxOffset);
+                      newRange.setStart(textNode, safeOffset);
+                      newRange.setEnd(textNode, safeOffset);
+                      selection.removeAllRanges();
+                      selection.addRange(newRange);
+                    }, 0);
+                  }}
+                  onBlur={(e) => updateBlockContent(block.id, e.target.innerHTML)}
                   className="min-h-[50px] text-white focus:outline-none"
+                  style={{ direction: 'ltr', unicodeBidi: 'embed' }}
                   dangerouslySetInnerHTML={{ __html: block.content }}
                 />
               ) : (
