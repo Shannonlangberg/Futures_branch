@@ -167,7 +167,14 @@ function App() {
       
       const checkAuthWithRetry = () => {
         attempts++;
-        fetch('/api/session', { credentials: 'include' })
+        fetch('/api/session', { 
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          }
+        })
           .then(res => res.json())
           .then((sessionData) => {
             if (sessionData && sessionData.authenticated) {
