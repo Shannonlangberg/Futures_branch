@@ -277,14 +277,14 @@ const MainLayout = ({ children }) => {
         <div className="flex h-full flex-col min-h-0">
           {/* Logo/Brand */}
           <div className="flex h-16 items-center justify-between px-6 border-b border-slate-700/50 flex-shrink-0">
-            <div className="flex items-center space-x-3">
+            <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
               <img 
                 src="/static/logo.png?v=3" 
                 alt="Futures PULSE Logo" 
                 className="h-8 w-auto object-contain"
               />
               <span className="text-white font-semibold text-lg">Futures PULSE</span>
-            </div>
+            </Link>
             <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800"
@@ -398,21 +398,21 @@ const MainLayout = ({ children }) => {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Mobile header */}
-        <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-700/50">
+          <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-700/50">
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800"
           >
             <Bars3Icon className="h-6 w-6" />
           </button>
-          <div className="flex items-center space-x-2">
+          <Link to="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
             <img 
               src="/static/logo.png?v=2" 
               alt="Futures PULSE Logo" 
               className="h-6 w-auto object-contain"
             />
             <span className="text-white font-semibold">Futures PULSE</span>
-          </div>
+          </Link>
           <button
             onClick={handleLogout}
             className="p-2 rounded-md text-red-400 hover:text-red-300 hover:bg-red-900/20"

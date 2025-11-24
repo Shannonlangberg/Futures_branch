@@ -22,11 +22,11 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
   };
 
   return (
-    <div className="w-80 bg-slate-800 border-l border-white/10 p-4 overflow-y-auto">
-      <div className="mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-white/40 text-xs">Content</span>
-          <span className="text-white font-semibold text-sm">Design</span>
+    <div className="w-80 bg-white border-l border-gray-200 p-6 overflow-y-auto">
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-1">
+          <span className="text-gray-400 text-xs">Content</span>
+          <span className="text-gray-900 font-semibold text-sm">Design</span>
         </div>
       </div>
 
@@ -34,34 +34,34 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
       <div className="mb-4">
         <button
           onClick={() => toggleSection('emailBody')}
-          className="w-full flex items-center justify-between p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
         >
-          <span className="text-white font-semibold text-sm">EMAIL BODY & BACKGROUND</span>
+          <span className="text-gray-900 font-semibold text-xs uppercase tracking-wide">EMAIL BODY & BACKGROUND</span>
           {expandedSections.emailBody ? (
-            <ChevronUpIcon className="w-4 h-4 text-white/60" />
+            <ChevronUpIcon className="w-4 h-4 text-gray-600" />
           ) : (
-            <ChevronDownIcon className="w-4 h-4 text-white/60" />
+            <ChevronDownIcon className="w-4 h-4 text-gray-600" />
           )}
         </button>
 
         {expandedSections.emailBody && (
-          <div className="mt-2 space-y-3 p-2">
+          <div className="mt-3 space-y-4 p-3">
             {/* Email Width */}
             <div>
-              <label className="block text-white/60 text-xs mb-1">Email Width</label>
+              <label className="block text-gray-700 text-xs font-medium mb-2">Email Width</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   value={settings.emailWidth}
                   onChange={(e) => updateSetting('emailWidth', parseInt(e.target.value) || 567)}
-                  className="flex-1 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <label className="flex items-center gap-1 text-white/60 text-xs">
+                <label className="flex items-center gap-2 text-gray-700 text-xs cursor-pointer">
                   <input
                     type="checkbox"
                     checked={settings.evenColumns}
                     onChange={(e) => updateSetting('evenColumns', e.target.checked)}
-                    className="w-4 h-4"
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   Even Columns
                 </label>
@@ -70,12 +70,12 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
 
             {/* Full width on mobile */}
             <div>
-              <label className="flex items-center gap-2 text-white/60 text-xs">
+              <label className="flex items-center gap-2 text-gray-700 text-xs cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.fullWidthMobile}
                   onChange={(e) => updateSetting('fullWidthMobile', e.target.checked)}
-                  className="w-4 h-4"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
                 Full width on mobile
               </label>
@@ -185,45 +185,45 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
       <div>
         <button
           onClick={() => toggleSection('fonts')}
-          className="w-full flex items-center justify-between p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
         >
-          <span className="text-white font-semibold text-sm">DEFAULT FONTS</span>
+          <span className="text-gray-900 font-semibold text-xs uppercase tracking-wide">DEFAULT FONTS</span>
           {expandedSections.fonts ? (
-            <ChevronUpIcon className="w-4 h-4 text-white/60" />
+            <ChevronUpIcon className="w-4 h-4 text-gray-600" />
           ) : (
-            <ChevronDownIcon className="w-4 h-4 text-white/60" />
+            <ChevronDownIcon className="w-4 h-4 text-gray-600" />
           )}
         </button>
 
         {expandedSections.fonts && (
-          <div className="mt-2 space-y-3 p-2">
+          <div className="mt-3 space-y-4 p-3">
             {/* Body Text */}
             <div>
-              <label className="block text-white/60 text-xs mb-1">Body Text</label>
+              <label className="block text-gray-700 text-xs font-medium mb-2">Body Text</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
                   value={settings.bodyTextColor}
                   onChange={(e) => updateSetting('bodyTextColor', e.target.value)}
-                  className="w-10 h-8 rounded border border-white/20 cursor-pointer"
+                  className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
                 />
                 <select
                   value={settings.bodyFont}
                   onChange={(e) => updateSetting('bodyFont', e.target.value)}
-                  className="flex-1 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="Arial" className="bg-slate-800">Arial</option>
-                  <option value="Helvetica" className="bg-slate-800">Helvetica</option>
-                  <option value="Georgia" className="bg-slate-800">Georgia</option>
-                  <option value="Times New Roman" className="bg-slate-800">Times New Roman</option>
-                  <option value="Verdana" className="bg-slate-800">Verdana</option>
-                  <option value="Courier New" className="bg-slate-800">Courier New</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Helvetica">Helvetica</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Verdana">Verdana</option>
+                  <option value="Courier New">Courier New</option>
                 </select>
                 <input
                   type="number"
                   value={settings.bodyFontSize}
                   onChange={(e) => updateSetting('bodyFontSize', parseInt(e.target.value) || 12)}
-                  className="w-16 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-20 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>

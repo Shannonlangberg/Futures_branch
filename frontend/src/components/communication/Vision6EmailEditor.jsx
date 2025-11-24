@@ -400,33 +400,33 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full">
+    <div className="flex h-full bg-slate-700">
       {/* Content Blocks Sidebar */}
-      <div className="w-full md:w-64 bg-slate-800 border-r border-white/10 p-2 md:p-4 overflow-y-auto flex-shrink-0">
-        <div className="mb-4">
-          <div className="flex items-center gap-2 mb-2">
+      <div className="w-72 bg-slate-800 border-r border-white/10 p-4 overflow-y-auto flex-shrink-0">
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-1">
             <span className="text-white font-semibold text-sm">Content</span>
-            <span className="text-white/40 text-xs">Design</span>
+            <span className="text-white/30 text-xs">Design</span>
           </div>
         </div>
         
-        <div className="grid grid-cols-4 md:grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => addBlock('header')}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Header"
           >
-            <Bars3Icon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Header</span>
+            <Bars3Icon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Header</span>
           </button>
           
           <button
             onClick={() => addBlock('text')}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Text"
           >
-            <DocumentTextIcon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Text</span>
+            <DocumentTextIcon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Text</span>
           </button>
           
           <button
@@ -434,69 +434,73 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
               setImageType('regular');
               fileInputRef.current?.click();
             }}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Image"
           >
-            <PhotoIcon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Image</span>
+            <PhotoIcon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Image</span>
           </button>
           
           <button
             onClick={() => setShowVideoDialog(true)}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Video"
           >
-            <PlayIcon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Video</span>
+            <PlayIcon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Video</span>
           </button>
           
           <button
             onClick={() => addBlock('button')}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Button"
           >
-            <Squares2X2Icon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Button</span>
+            <Squares2X2Icon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Button</span>
           </button>
           
           <button
             onClick={() => addBlock('divider')}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Divider"
           >
-            <MinusIcon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Divider</span>
+            <MinusIcon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Divider</span>
           </button>
           
           <button
             onClick={() => addBlock('spacer')}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Spacer"
           >
-            <RectangleStackIcon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Spacer</span>
+            <RectangleStackIcon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Spacer</span>
           </button>
           
           <button
             onClick={() => addBlock('footer')}
-            className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 border border-white/5"
             title="Footer"
           >
-            <Bars3Icon className="w-6 h-6 text-white/60" />
-            <span className="text-white/60 text-xs">Footer</span>
+            <Bars3Icon className="w-7 h-7 text-white/70" />
+            <span className="text-white/70 text-xs font-medium">Footer</span>
           </button>
         </div>
       </div>
 
       {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-100">
         {/* Toolbar */}
-        <div className="bg-slate-700 border-b border-white/10 p-2 flex items-center gap-2 flex-shrink-0 overflow-x-auto">
-          <button className="p-2 hover:bg-white/10 rounded text-white/60 flex-shrink-0" title="Undo">
-            ↶
+        <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 flex-shrink-0">
+          <button className="p-1.5 hover:bg-gray-100 rounded text-gray-600 flex-shrink-0 transition-colors" title="Undo">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
           </button>
-          <button className="p-2 hover:bg-white/10 rounded text-white/60 flex-shrink-0" title="Redo">
-            ↷
+          <button className="p-1.5 hover:bg-gray-100 rounded text-gray-600 flex-shrink-0 transition-colors" title="Redo">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+            </svg>
           </button>
           <div className="flex-1"></div>
           <button
@@ -504,7 +508,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
               setImageType('header');
               headerImageInputRef.current?.click();
             }}
-            className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm whitespace-nowrap flex-shrink-0"
+            className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm whitespace-nowrap flex-shrink-0 transition-colors font-medium"
             title="Add Header Image"
           >
             Add Header Image
@@ -512,8 +516,8 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         </div>
 
         {/* Email Preview/Editor */}
-        <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-600 p-2 md:p-8">
-          <div className="max-w-4xl mx-auto relative">
+        <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-100 p-8">
+          <div className="max-w-5xl mx-auto relative">
             <div 
               style={{
                 width: `${settings.emailWidth}px`,
@@ -521,10 +525,11 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                 margin: '0 auto',
                 backgroundColor: settings.backgroundColor,
                 border: `${settings.borderWidth}px solid ${settings.borderColor}`,
-                minHeight: '400px',
-                position: 'relative'
+                minHeight: '500px',
+                position: 'relative',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
               }}
-              className="bg-white shadow-lg"
+              className="bg-white"
             >
               {blocks.map((block, index) => (
                 <div
@@ -540,12 +545,14 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                   } ${draggedBlock === block.id ? 'opacity-50' : ''}`}
                 >
                   {/* Drag Handle - positioned inside to avoid overflow */}
-                  <div className="absolute left-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <Bars3Icon className="w-5 h-5 text-blue-500 bg-white/90 rounded p-1 shadow-md" />
+                  <div className="absolute left-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <div className="bg-blue-500 text-white rounded p-1.5 shadow-lg cursor-move">
+                      <Bars3Icon className="w-4 h-4" />
+                    </div>
                   </div>
 
                   {/* Block Content */}
-                  <div className="p-4 pr-12">
+                  <div className="p-6 pr-14">
                     {block.type === 'text' ? (
                       <div
                         ref={el => textBlockRefs.current[block.id] = el}
@@ -575,7 +582,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                       e.stopPropagation();
                       deleteBlock(block.id);
                     }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-500 hover:bg-red-600 rounded shadow-md z-10"
+                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-red-500 hover:bg-red-600 rounded shadow-lg z-10"
                     title="Delete block"
                   >
                     <TrashIcon className="w-4 h-4 text-white" />
@@ -584,8 +591,14 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
               ))}
 
               {blocks.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
-                  Drag content blocks from the sidebar to start building your email
+                <div className="text-center py-20 text-gray-400">
+                  <div className="mb-4">
+                    <svg className="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-medium text-gray-500">Start building your email</p>
+                  <p className="text-sm text-gray-400 mt-2">Drag content blocks from the sidebar to get started</p>
                 </div>
               )}
             </div>

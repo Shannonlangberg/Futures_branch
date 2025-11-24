@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const gradientBackground = 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900';
 
@@ -517,9 +518,11 @@ const Resources = () => {
                     📚
                   </div>
                   <div>
-                    <h1 className="text-white text-3xl sm:text-4xl font-bold tracking-tight">
-                      Team Resources
-                    </h1>
+                    <Link to="/resources" className="block hover:opacity-80 transition-opacity">
+                      <h1 className="text-white text-3xl sm:text-4xl font-bold tracking-tight">
+                        Team Resources
+                      </h1>
+                    </Link>
                     <p className="text-white/80 text-base sm:text-lg mt-2 max-w-2xl">
                       A single home for Futures Church documents, templates, and media. Select a category to explore the files your team needs.
                     </p>
