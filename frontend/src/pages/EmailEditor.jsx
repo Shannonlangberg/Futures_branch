@@ -319,80 +319,78 @@ const EmailEditor = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white/5 backdrop-blur-sm border-b border-white/10 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-[1920px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/communication')}
-                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeftIcon className="w-6 h-6 text-white" />
+                <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-white">
+                <h1 className="text-xl font-bold text-gray-900">
                   {campaignId ? 'Edit Email Campaign' : 'New Email'}
                 </h1>
-                <p className="text-white/60 text-sm">Design and send beautiful emails to your church</p>
+                <p className="text-gray-500 text-xs">Design and send beautiful emails to your church</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
-                <button className="px-3 py-1 bg-blue-500 text-white rounded text-sm font-semibold">
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <button className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold">
                   Designer
                 </button>
-                <button className="px-3 py-1 text-white/60 hover:text-white rounded text-sm">
+                <button className="px-3 py-1 text-gray-600 hover:text-gray-900 rounded text-xs">
                   Accessibility
                 </button>
-                <button className="px-3 py-1 text-white/60 hover:text-white rounded text-sm">
+                <button className="px-3 py-1 text-gray-600 hover:text-gray-900 rounded text-xs">
                   Social
                 </button>
               </div>
               <button
                 onClick={() => setShowPreview(!showPreview)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg transition-colors text-xs font-medium"
               >
-                <EyeIcon className="w-5 h-5" />
+                <EyeIcon className="w-4 h-4" />
                 Preview
               </button>
               <button
                 onClick={() => setShowTestEmail(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg transition-colors text-xs font-medium"
               >
-                <PaperAirplaneIcon className="w-5 h-5" />
+                <PaperAirplaneIcon className="w-4 h-4" />
                 Test
               </button>
               <button
                 onClick={() => handleSave(true)}
                 disabled={saving || !formData.name || !formData.subject_line || !formData.content}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 text-xs"
               >
-                <PaperAirplaneIcon className="w-5 h-5" />
+                <PaperAirplaneIcon className="w-4 h-4" />
                 Send
               </button>
-              <div className="relative">
-                <button
-                  onClick={() => handleSave(false)}
-                  disabled={saving}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
-                >
-                  Save
-                </button>
-              </div>
+              <button
+                onClick={() => handleSave(false)}
+                disabled={saving}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 text-xs"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Editor */}
-          <div className="lg:col-span-2 space-y-6">
+      <div className="max-w-[1920px] mx-auto px-4 py-4">
+        {/* Top Form Fields */}
+        <div className="mb-4 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Campaign Name */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <label className="block text-white/80 text-sm font-semibold mb-2">
+            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+              <label className="block text-gray-700 text-sm font-semibold mb-2">
                 Campaign Name *
               </label>
               <input
@@ -400,13 +398,13 @@ const EmailEditor = () => {
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="e.g., Weekly Newsletter"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             {/* Subject Line */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <label className="block text-white/80 text-sm font-semibold mb-2">
+            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+              <label className="block text-gray-700 text-sm font-semibold mb-2">
                 Subject Line *
               </label>
               <input
@@ -414,30 +412,28 @@ const EmailEditor = () => {
                 value={formData.subject_line}
                 onChange={(e) => setFormData(prev => ({ ...prev, subject_line: e.target.value }))}
                 placeholder="Email subject line"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+          </div>
+        </div>
 
-            {/* Email Editor */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden" style={{ minHeight: '600px', height: '600px' }}>
-              {useVision6Editor ? (
-                <div className="flex flex-col md:flex-row h-full overflow-hidden">
-                  <div className="flex-1 min-h-0 overflow-hidden">
-                    <Vision6EmailEditor
-                      value={formData.content}
-                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                      designSettings={designSettings}
-                      onDesignSettingsChange={setDesignSettings}
-                    />
-                  </div>
-                  <div className="hidden md:block flex-shrink-0">
-                    <DesignSettingsPanel
-                      settings={designSettings}
-                      onChange={setDesignSettings}
-                    />
-                  </div>
-                </div>
-              ) : (
+        {/* Main Editor Area - Full Width */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '700px' }}>
+          {useVision6Editor ? (
+            <div className="flex h-full overflow-hidden">
+              <Vision6EmailEditor
+                value={formData.content}
+                onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                designSettings={designSettings}
+                onDesignSettingsChange={setDesignSettings}
+              />
+              <DesignSettingsPanel
+                settings={designSettings}
+                onChange={setDesignSettings}
+              />
+            </div>
+          ) : (
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <label className="block text-white/80 text-sm font-semibold">
@@ -467,9 +463,41 @@ const EmailEditor = () => {
               )}
             </div>
 
-            {/* Plain Text Version */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <label className="block text-white/80 text-sm font-semibold mb-2">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="block text-white/80 text-sm font-semibold">
+                      Email Content *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setUseVision6Editor(true)}
+                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+                      >
+                        Use Vision 6 Editor
+                      </button>
+                    </div>
+                  </div>
+                  {useBlockEditor ? (
+                    <BlockEmailEditor
+                      value={formData.content}
+                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                    />
+                  ) : (
+                    <RichEmailEditor
+                      value={formData.content}
+                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+        {/* Bottom Section - Settings & Plain Text */}
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Left: Plain Text Version */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+              <label className="block text-gray-700 text-sm font-semibold mb-2">
                 Plain Text Version (Optional)
               </label>
               <textarea
@@ -477,58 +505,58 @@ const EmailEditor = () => {
                 onChange={(e) => setFormData(prev => ({ ...prev, content_text: e.target.value }))}
                 rows="6"
                 placeholder="Plain text version for email clients that don't support HTML"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
 
           {/* Right: Settings & Targeting */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* From Settings */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <h3 className="text-white font-semibold mb-4">From Settings</h3>
-              <div className="space-y-4">
+            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+              <h3 className="text-gray-900 font-semibold mb-3 text-sm">From Settings</h3>
+              <div className="space-y-3">
                 <div>
-                  <label className="block text-white/60 text-sm mb-2">From Name</label>
+                  <label className="block text-gray-700 text-xs font-medium mb-1.5">From Name</label>
                   <input
                     type="text"
                     value={formData.from_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, from_name: e.target.value }))}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-white/60 text-sm mb-2">From Email</label>
+                  <label className="block text-gray-700 text-xs font-medium mb-1.5">From Email</label>
                   <input
                     type="email"
                     value={formData.from_email}
                     onChange={(e) => setFormData(prev => ({ ...prev, from_email: e.target.value }))}
                     placeholder="noreply@futures.church"
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
             </div>
 
             {/* Target Audience */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-semibold">Target Audience</h3>
+            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-gray-900 font-semibold text-sm">Target Audience</h3>
                 <button
                   onClick={() => setShowCustomListModal(true)}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-sm transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
                 >
-                  <PlusIcon className="w-4 h-4" />
+                  <PlusIcon className="w-3.5 h-3.5" />
                   New List
                 </button>
               </div>
 
               {/* Custom Lists */}
-              <div className="mb-4">
-                <label className="block text-white/60 text-sm mb-2">Custom Lists</label>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
+              <div className="mb-3">
+                <label className="block text-gray-700 text-xs font-medium mb-2">Custom Lists</label>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
                   {customLists.map(list => (
-                    <label key={list.id} className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition-colors">
+                    <label key={list.id} className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors border border-gray-200">
                       <input
                         type="checkbox"
                         checked={selectedTargets.customLists.includes(list.id)}
@@ -545,21 +573,21 @@ const EmailEditor = () => {
                             }));
                           }
                         }}
-                        className="w-4 h-4 text-blue-500 bg-white/10 border-white/20 rounded focus:ring-blue-500"
+                        className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                      <span className="text-white text-sm flex-1">{list.name}</span>
-                      <span className="text-white/40 text-xs">({list.member_count})</span>
+                      <span className="text-gray-700 text-xs flex-1">{list.name}</span>
+                      <span className="text-gray-400 text-xs">({list.member_count})</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               {/* CSV Upload */}
-              <div className="mb-4">
-                <label className="block text-white/60 text-sm mb-2">Upload CSV</label>
-                <label className="flex items-center gap-2 px-4 py-3 bg-white/5 border border-white/10 rounded-lg cursor-pointer hover:bg-white/10 transition-colors">
-                  <PhotoIcon className="w-5 h-5 text-white/60" />
-                  <span className="text-white text-sm">Choose CSV File</span>
+              <div className="mb-3">
+                <label className="block text-gray-700 text-xs font-medium mb-2">Upload CSV</label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                  <PhotoIcon className="w-4 h-4 text-gray-600" />
+                  <span className="text-gray-700 text-xs">Choose CSV File</span>
                   <input
                     type="file"
                     accept=".csv"
@@ -568,18 +596,18 @@ const EmailEditor = () => {
                   />
                 </label>
                 {csvFile && (
-                  <div className="mt-2 text-white/60 text-sm">
+                  <div className="mt-1.5 text-gray-600 text-xs">
                     Selected: {csvFile.name}
                   </div>
                 )}
               </div>
 
               {/* Campuses */}
-              <div className="mb-4">
-                <label className="block text-white/60 text-sm mb-2">Campuses</label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+              <div className="mb-3">
+                <label className="block text-gray-700 text-xs font-medium mb-2">Campuses</label>
+                <div className="space-y-1.5 max-h-24 overflow-y-auto">
                   {campuses.map(campus => (
-                    <label key={campus} className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition-colors">
+                    <label key={campus} className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors border border-gray-200">
                       <input
                         type="checkbox"
                         checked={selectedTargets.campuses.includes(campus)}
@@ -596,9 +624,9 @@ const EmailEditor = () => {
                             }));
                           }
                         }}
-                        className="w-4 h-4 text-blue-500 bg-white/10 border-white/20 rounded focus:ring-blue-500"
+                        className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                      <span className="text-white text-sm">{campus}</span>
+                      <span className="text-gray-700 text-xs">{campus}</span>
                     </label>
                   ))}
                 </div>
@@ -606,10 +634,10 @@ const EmailEditor = () => {
 
               {/* Departments */}
               <div>
-                <label className="block text-white/60 text-sm mb-2">Departments</label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+                <label className="block text-gray-700 text-xs font-medium mb-2">Departments</label>
+                <div className="space-y-1.5 max-h-24 overflow-y-auto">
                   {departments.map(dept => (
-                    <label key={dept} className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition-colors">
+                    <label key={dept} className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors border border-gray-200">
                       <input
                         type="checkbox"
                         checked={selectedTargets.departments.includes(dept)}
@@ -626,9 +654,9 @@ const EmailEditor = () => {
                             }));
                           }
                         }}
-                        className="w-4 h-4 text-blue-500 bg-white/10 border-white/20 rounded focus:ring-blue-500"
+                        className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
-                      <span className="text-white text-sm">{dept}</span>
+                      <span className="text-gray-700 text-xs">{dept}</span>
                     </label>
                   ))}
                 </div>

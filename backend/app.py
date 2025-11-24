@@ -10778,6 +10778,14 @@ def ensure_google_sheets_columns(required_headers):
         all_records = safe_sheets_request(sheet.get_all_records)
         current_headers = list(all_records[0].keys()) if all_records else []
         
+        # If no records exist, get headers from row 1 directly
+        if not current_headers:
+            try:
+                header_row = sheet.row_values(1)
+                current_headers = header_row if header_row else []
+            except:
+                current_headers = []
+        
         # Find missing headers
         missing_headers = [h for h in required_headers if h not in current_headers]
         
@@ -10785,14 +10793,31 @@ def ensure_google_sheets_columns(required_headers):
             return True  # All headers exist
         
         # Get the header row (row 1)
-        header_row = sheet.row_values(1) if sheet.row_values(1) else []
+        try:
+            header_row = sheet.row_values(1)
+        except:
+            header_row = []
         
         # Add missing headers at the end
         for header in missing_headers:
             header_row.append(header)
         
+        # Calculate the range for the header row
+        # Convert column number to letter (handles AA, AB, etc.)
+        def col_num_to_letter(n):
+            """Convert column number to Excel-style letter (1=A, 27=AA, etc.)"""
+            result = ""
+            while n > 0:
+                n -= 1
+                result = chr(65 + (n % 26)) + result
+                n //= 26
+            return result
+        
+        last_col_letter = col_num_to_letter(len(header_row))
+        header_range = f'A1:{last_col_letter}1'
+        
         # Update the header row
-        sheet.update('A1', [header_row], value_input_option='USER_ENTERED')
+        sheet.update(header_range, [header_row], value_input_option='USER_ENTERED')
         logger.info(f"Added missing columns to Google Sheets: {missing_headers}")
         
         return True

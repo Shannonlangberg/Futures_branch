@@ -363,12 +363,8 @@ function App() {
                   <Route path="/finance" element={<Finance />} />
                   <Route path="/giving-analytics" element={<GivingAnalytics />} />
                   <Route path="/passport" element={<Passport />} />
-                  {userRole && RESOURCE_ALLOWED_ROLES.includes(userRole) && (
-                    <>
-                      <Route path="/resources" element={<Resources />} />
-                      <Route path="/resources/manage" element={<ResourceManager />} />
-                    </>
-                  )}
+                  <Route path="/resources" element={<Resources />} />
+                  <Route path="/resources/manage" element={<ResourceManager />} />
                   <Route path="/heartbeat" element={<Heartbeat />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/lists" element={<Lists />} />
