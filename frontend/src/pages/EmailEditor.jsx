@@ -333,19 +333,23 @@ const EmailEditor = () => {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-white">
-                  {campaignId ? 'Edit Email Campaign' : 'Create Email Campaign'}
+                  {campaignId ? 'Edit Email Campaign' : 'New Email'}
                 </h1>
                 <p className="text-white/60 text-sm">Design and send beautiful emails to your church</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowTestEmail(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors"
-              >
-                <PaperAirplaneIcon className="w-5 h-5" />
-                Send Test
-              </button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+                <button className="px-3 py-1 bg-blue-500 text-white rounded text-sm font-semibold">
+                  Designer
+                </button>
+                <button className="px-3 py-1 text-white/60 hover:text-white rounded text-sm">
+                  Accessibility
+                </button>
+                <button className="px-3 py-1 text-white/60 hover:text-white rounded text-sm">
+                  Social
+                </button>
+              </div>
               <button
                 onClick={() => setShowPreview(!showPreview)}
                 className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors"
@@ -354,20 +358,29 @@ const EmailEditor = () => {
                 Preview
               </button>
               <button
-                onClick={() => handleSave(false)}
-                disabled={saving}
-                className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                onClick={() => setShowTestEmail(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors"
               >
-                {saving ? 'Saving...' : 'Save Draft'}
+                <PaperAirplaneIcon className="w-5 h-5" />
+                Test
               </button>
               <button
                 onClick={() => handleSave(true)}
                 disabled={saving || !formData.name || !formData.subject_line || !formData.content}
-                className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold hover:scale-105 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
               >
                 <PaperAirplaneIcon className="w-5 h-5" />
-                Send Now
+                Send
               </button>
+              <div className="relative">
+                <button
+                  onClick={() => handleSave(false)}
+                  disabled={saving}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         </div>

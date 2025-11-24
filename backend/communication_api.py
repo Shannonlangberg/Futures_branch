@@ -1246,3 +1246,74 @@ def send_test_email():
     except Exception as e:
         logger.error(f"Error sending test email: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/templates/gallery', methods=['GET'])
+@login_required
+def get_template_gallery():
+    """Get email template gallery"""
+    try:
+        templates = CampaignTemplate.query.filter_by(template_type='email').order_by(
+            CampaignTemplate.created_at.desc()
+        ).all()
+        
+        template_list = [template.to_dict() for template in templates]
+        
+        # Add some default templates if none exist
+        if len(template_list) === 0:
+            template_list = [
+                {
+                    'id': 'default-1',
+                    'name': 'Blank Template',
+                    'description': 'Start from scratch',
+                    'preview': '<div style="padding: 20px;"><p>Blank email template</p></div>'
+                },
+                {
+                    'id': 'default-2',
+                    'name': 'Newsletter Template',
+                    'description': 'Simple newsletter layout',
+                    'preview': '<div style="padding: 20px;"><h2>Newsletter</h2><p>Content here</p></div>'
+                }
+            ]
+        
+        return jsonify({
+            "success": True,
+            "templates": template_list
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting template gallery: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@communication_bp.route('/templates/save', methods=['POST'])
+@login_required
+def save_template():
+    """Save current email as a template"""
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('name') or not data.get('content'):
+            return jsonify({"success": False, "error": "Name and content are required"}), 400
+        
+        template = CampaignTemplate(
+            name=data['name'],
+            description=data.get('description', ''),
+            template_type='email',
+            subject_line=data.get('subject_line', ''),
+            content=data['content'],
+            content_text=data.get('content_text', ''),
+            variables=data.get('variables', []),
+            created_by=current_user.id
+        )
+        
+        db.session.add(template)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "template": template.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error saving template: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
