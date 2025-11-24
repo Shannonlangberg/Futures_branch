@@ -404,45 +404,92 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
       setActiveBlockId(blockId);
-      setShowFormatToolbar(true);
       
-      // Position toolbar above selection
+      // Position toolbar above selection using viewport coordinates (for fixed positioning)
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
-      const editorRect = document.querySelector('.email-editor-container')?.getBoundingClientRect();
       
-      if (editorRect) {
-        setToolbarPosition({
-          top: rect.top - editorRect.top - 50,
-          left: rect.left - editorRect.left + (rect.width / 2) - 150
-        });
+      // Use viewport coordinates for fixed positioning
+      const toolbarWidth = 300;
+      const toolbarHeight = 50;
+      const padding = 10;
+      
+      let top = rect.top - toolbarHeight - padding;
+      let left = rect.left + (rect.width / 2);
+      
+      // Ensure toolbar stays within viewport
+      if (top < padding) {
+        top = rect.bottom + padding;
       }
+      if (left < toolbarWidth / 2) {
+        left = toolbarWidth / 2;
+      }
+      if (left > window.innerWidth - toolbarWidth / 2) {
+        left = window.innerWidth - toolbarWidth / 2;
+      }
+      
+      setToolbarPosition({
+        top: Math.max(padding, top),
+        left: left
+      });
+      
+      setShowFormatToolbar(true);
     } else {
       setShowFormatToolbar(false);
     }
   };
 
   const handleTextInput = (blockId, e) => {
-    // Fix backwards text - ensure proper direction
     const element = e.target;
     
-    // Force LTR direction
-    if (element.style.direction !== 'ltr') {
+    // Aggressively force LTR direction on every input - use requestAnimationFrame for smoothness
+    requestAnimationFrame(() => {
+      element.setAttribute('dir', 'ltr');
       element.style.direction = 'ltr';
       element.style.unicodeBidi = 'embed';
-    }
+      element.style.textAlign = 'left';
+      
+      // Fix all child elements too
+      const allElements = element.querySelectorAll('*');
+      allElements.forEach(el => {
+        el.setAttribute('dir', 'ltr');
+        el.style.direction = 'ltr';
+        el.style.unicodeBidi = 'embed';
+        el.style.textAlign = 'left';
+      });
+    });
     
-    // Update content
-    updateBlockContent(blockId, element.innerHTML);
+    // Update content (debounced to reduce clunkiness)
+    clearTimeout(element._updateTimeout);
+    element._updateTimeout = setTimeout(() => {
+      updateBlockContent(blockId, element.innerHTML);
+    }, 100);
     
-    // Check for selection to show toolbar
-    handleSelectionChange(blockId);
+    // Check for selection to show toolbar (debounced)
+    clearTimeout(element._selectionTimeout);
+    element._selectionTimeout = setTimeout(() => {
+      handleSelectionChange(blockId);
+    }, 150);
   };
 
   return (
     <div className="flex h-full bg-slate-700">
       {/* Global styles for better text editing */}
       <style>{`
+        /* Force LTR direction globally for all contentEditable */
+        [contenteditable="true"] {
+          direction: ltr !important;
+          unicode-bidi: embed !important;
+          text-align: left !important;
+          caret-color: #000000 !important;
+        }
+        [contenteditable="true"]:focus {
+          direction: ltr !important;
+          unicode-bidi: embed !important;
+          text-align: left !important;
+          caret-color: #000000 !important;
+          background-color: rgba(59, 130, 246, 0.08) !important;
+        }
         /* Better text selection visibility */
         [contenteditable="true"]::selection {
           background-color: rgba(59, 130, 246, 0.3) !important;
@@ -452,16 +499,10 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
           background-color: rgba(59, 130, 246, 0.3) !important;
           color: inherit !important;
         }
-        /* Ensure cursor is always visible */
-        [contenteditable="true"] {
-          caret-color: #000000 !important;
-        }
-        [contenteditable="true"]:focus {
-          caret-color: #000000 !important;
-        }
-        /* Better focus state */
-        [contenteditable="true"]:focus {
-          background-color: rgba(59, 130, 246, 0.08) !important;
+        /* Prevent RTL at the CSS level */
+        [contenteditable="true"] * {
+          direction: ltr !important;
+          unicode-bidi: embed !important;
         }
       `}</style>
       {/* Content Blocks Sidebar */}
@@ -625,6 +666,28 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                             el.style.direction = 'ltr';
                             el.style.unicodeBidi = 'embed';
                             el.setAttribute('dir', 'ltr');
+                            el.style.textAlign = 'left';
+                            
+                            // Watch for any direction changes and fix them immediately
+                            const observer = new MutationObserver((mutations) => {
+                              if (el.style.direction !== 'ltr' || el.getAttribute('dir') !== 'ltr') {
+                                el.style.direction = 'ltr';
+                                el.style.unicodeBidi = 'embed';
+                                el.setAttribute('dir', 'ltr');
+                                el.style.textAlign = 'left';
+                              }
+                            });
+                            
+                            observer.observe(el, {
+                              attributes: true,
+                              attributeFilter: ['dir', 'style'],
+                              subtree: true
+                            });
+                            
+                            // Store observer for cleanup
+                            if (!el._directionObserver) {
+                              el._directionObserver = observer;
+                            }
                           }
                         }}
                         contentEditable
@@ -641,13 +704,41 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           const textColor = settings.bodyTextColor || '#000000';
                           e.target.style.caretColor = textColor;
                           e.target.style.color = textColor;
-                          // Force LTR
+                          // Aggressively force LTR
                           e.target.style.direction = 'ltr';
                           e.target.style.unicodeBidi = 'embed';
+                          e.target.style.textAlign = 'left';
                           e.target.setAttribute('dir', 'ltr');
+                          
+                          // Use requestAnimationFrame to ensure it sticks
+                          requestAnimationFrame(() => {
+                            e.target.style.direction = 'ltr';
+                            e.target.style.unicodeBidi = 'embed';
+                            e.target.style.textAlign = 'left';
+                            e.target.setAttribute('dir', 'ltr');
+                          });
                         }}
-                        onMouseUp={(e) => handleSelectionChange(block.id)}
-                        onKeyUp={(e) => handleSelectionChange(block.id)}
+                        onKeyDown={(e) => {
+                          // Prevent RTL input methods
+                          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                            // Allow normal arrow key behavior
+                            return;
+                          }
+                          // Force LTR on any key input
+                          const target = e.target;
+                          target.style.direction = 'ltr';
+                          target.style.unicodeBidi = 'embed';
+                          target.style.textAlign = 'left';
+                          target.setAttribute('dir', 'ltr');
+                        }}
+                        onMouseUp={(e) => {
+                          // Small delay to ensure selection is complete
+                          setTimeout(() => handleSelectionChange(block.id), 50);
+                        }}
+                        onKeyUp={(e) => {
+                          // Small delay to ensure selection is complete
+                          setTimeout(() => handleSelectionChange(block.id), 50);
+                        }}
                         className="min-h-[50px] focus:outline-none rounded px-2 py-1 -mx-2 -my-1"
                         style={{
                           direction: 'ltr',
@@ -723,11 +814,12 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
               {/* Formatting Toolbar */}
               {showFormatToolbar && activeBlockId && (
                 <div
-                  className="absolute z-50 bg-white border border-gray-300 rounded-lg shadow-xl p-2 flex items-center gap-2"
+                  className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-xl p-2 flex items-center gap-2"
                   style={{
                     top: `${toolbarPosition.top}px`,
                     left: `${toolbarPosition.left}px`,
-                    minWidth: '300px'
+                    minWidth: '300px',
+                    transform: 'translateX(-50%)' // Center on selection
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
