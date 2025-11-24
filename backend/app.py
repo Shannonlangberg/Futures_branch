@@ -14779,11 +14779,77 @@ def delete_person(person_id):
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
-        # Delete engagement profile first (cascade should handle this, but being explicit)
+        logger.info(f"Starting deletion of person {person_id} and all related records...")
+        
+        # Delete all related records in proper order to avoid foreign key constraint violations
+        
+        # 1. Delete engagement profile
         if person.engagement_profile:
             db.session.delete(person.engagement_profile)
+            logger.info(f"Deleted engagement profile for person {person_id}")
         
-        # Delete the person
+        # 2. Delete pathway progress and step completions
+        from models import PersonPathwayProgress, PersonPathwayStepCompletion
+        pathway_progresses = PersonPathwayProgress.query.filter_by(person_id=person_id).all()
+        for progress in pathway_progresses:
+            # Delete step completions first
+            PersonPathwayStepCompletion.query.filter_by(person_pathway_progress_id=progress.id).delete()
+            db.session.delete(progress)
+        logger.info(f"Deleted pathway progress records for person {person_id}")
+        
+        # 3. Delete connect group related records
+        from models import ConnectGroupAttendance, ConnectGroupMessage, ConnectGroup
+        ConnectGroupAttendance.query.filter_by(person_id=person_id).delete()
+        ConnectGroupMessage.query.filter_by(person_id=person_id).delete()
+        # Update connect groups where person is leader (set to null or delete group)
+        ConnectGroup.query.filter_by(leader_id=person_id).update({'leader_id': None})
+        ConnectGroup.query.filter_by(co_leader_id=person_id).update({'co_leader_id': None})
+        logger.info(f"Deleted connect group records for person {person_id}")
+        
+        # 4. Delete event related records
+        from models import EventRegistration, EventTeamAssignment
+        EventRegistration.query.filter_by(person_id=person_id).delete()
+        EventTeamAssignment.query.filter_by(person_id=person_id).delete()
+        logger.info(f"Deleted event records for person {person_id}")
+        
+        # 5. Delete heartbeat related records
+        from models import (
+            AttendanceEvent, ConnectAttendance, ServingAssignment, 
+            GivingSummary, GivingTransaction, DiscipleshipStep,
+            CareCase, CareTouchpoint, PastoralCareAppointment,
+            HeartbeatSnapshot, AppSession, TVUserEpisodeProgress
+        )
+        AttendanceEvent.query.filter_by(person_id=person_id).delete()
+        ConnectAttendance.query.filter_by(person_id=person_id).delete()
+        ServingAssignment.query.filter_by(person_id=person_id).delete()
+        GivingSummary.query.filter_by(person_id=person_id).delete()
+        GivingTransaction.query.filter_by(person_id=person_id).delete()
+        DiscipleshipStep.query.filter_by(person_id=person_id).delete()
+        CareCase.query.filter_by(person_id=person_id).delete()
+        CareTouchpoint.query.filter_by(person_id=person_id).delete()
+        # For appointments, handle both person_id and pastor_id
+        PastoralCareAppointment.query.filter_by(person_id=person_id).delete()
+        PastoralCareAppointment.query.filter_by(pastor_id=person_id).update({'pastor_id': None})
+        HeartbeatSnapshot.query.filter_by(person_id=person_id).delete()
+        AppSession.query.filter_by(person_id=person_id).delete()
+        TVUserEpisodeProgress.query.filter_by(person_id=person_id).delete()
+        logger.info(f"Deleted heartbeat records for person {person_id}")
+        
+        # 6. Delete prayer related records
+        from models import PrayerSubmission
+        # Handle person_id, pastor_id, requested_by_person_id, created_by_person_id
+        PrayerSubmission.query.filter_by(person_id=person_id).delete()
+        PrayerSubmission.query.filter_by(pastor_id=person_id).update({'pastor_id': None})
+        PrayerSubmission.query.filter_by(requested_by_person_id=person_id).update({'requested_by_person_id': None})
+        PrayerSubmission.query.filter_by(created_by_person_id=person_id).update({'created_by_person_id': None})
+        logger.info(f"Deleted prayer records for person {person_id}")
+        
+        # 7. Delete push notification tokens
+        from models import PushNotificationToken
+        PushNotificationToken.query.filter_by(person_id=person_id).delete()
+        logger.info(f"Deleted push notification tokens for person {person_id}")
+        
+        # 8. Finally, delete the person
         db.session.delete(person)
         db.session.commit()
         
@@ -14794,8 +14860,8 @@ def delete_person(person_id):
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error deleting person {person_id}: {e}")
-        return jsonify({'error': 'Failed to delete person'}), 500
+        logger.error(f"Error deleting person {person_id}: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to delete person: {str(e)}'}), 500
 
 
 @app.route('/api/persons/import_pco', methods=['POST'])
