@@ -60,13 +60,13 @@ class SendGridService:
                 "errors": []
             }
             
-            # Create base mail object
+            # Create base mail object (content will be added per recipient)
             mail = Mail(
                 from_email=Email(self.from_email, self.from_name),
                 subject=campaign_data.get('subject_line', 'Message from Futures Church')
             )
             
-            # Set content
+            # Base content (will be overridden by personalized content if available)
             if campaign_data.get('content'):
                 mail.add_content(HtmlContent(campaign_data['content']))
             
