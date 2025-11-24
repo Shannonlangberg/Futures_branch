@@ -54,24 +54,45 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
   const settings = { ...defaultDesignSettings, ...designSettings };
 
   useEffect(() => {
-    if (value) {
-      parseHTMLToBlocks(value);
-    } else {
+    try {
+      if (value) {
+        parseHTMLToBlocks(value);
+      } else {
+        setBlocks([{ id: Date.now(), type: 'text', content: '<p>Start typing your email content here...</p>' }]);
+      }
+    } catch (error) {
+      console.error('Error initializing blocks:', error);
+      // Fallback to empty block
       setBlocks([{ id: Date.now(), type: 'text', content: '<p>Start typing your email content here...</p>' }]);
     }
   }, []);
 
   useEffect(() => {
-    const html = blocksToHTML(blocks);
-    onChange(html);
+    try {
+      const html = blocksToHTML(blocks);
+      onChange(html);
+    } catch (error) {
+      console.error('Error converting blocks to HTML:', error);
+      // Don't call onChange with invalid HTML
+    }
   }, [blocks]);
 
   const parseHTMLToBlocks = (html) => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const body = doc.body;
-    const blockArray = [];
-    let blockId = Date.now();
+    try {
+      if (!html || typeof html !== 'string') {
+        return [{ id: Date.now(), type: 'text', content: '<p>Start typing your email content here...</p>' }];
+      }
+      
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const body = doc.body;
+      
+      if (!body) {
+        return [{ id: Date.now(), type: 'text', content: '<p>Start typing your email content here...</p>' }];
+      }
+      
+      const blockArray = [];
+      let blockId = Date.now();
 
     // Check for header image first
     const headerImg = body.querySelector('img[data-type="header"]');
@@ -106,15 +127,20 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       }
     });
 
-    if (blockArray.length === 0) {
-      blockArray.push({
-        id: blockId++,
-        type: 'text',
-        content: '<p>Start typing your email content here...</p>'
-      });
-    }
+      if (blockArray.length === 0) {
+        blockArray.push({
+          id: blockId++,
+          type: 'text',
+          content: '<p>Start typing your email content here...</p>'
+        });
+      }
 
-    setBlocks(blockArray);
+      setBlocks(blockArray);
+    } catch (error) {
+      console.error('Error parsing HTML to blocks:', error);
+      // Fallback to empty block
+      setBlocks([{ id: Date.now(), type: 'text', content: '<p>Start typing your email content here...</p>' }]);
+    }
   };
 
   const blocksToHTML = (blocksArray) => {
@@ -323,31 +349,54 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
 
   const handleTextInput = (blockId, e) => {
     // Fix backwards text - maintain proper text direction
-    const element = e.target;
-    const selection = window.getSelection();
-    const range = selection.getRangeAt(0);
-    const cursorPos = range.startOffset;
-    
-    // Update content
-    updateBlockContent(blockId, element.innerHTML);
-    
-    // Restore cursor position
-    requestAnimationFrame(() => {
-      try {
-        const textNode = element.childNodes[0] || element;
-        if (textNode.nodeType === Node.TEXT_NODE) {
-          const maxOffset = textNode.textContent.length;
-          const safeOffset = Math.min(cursorPos, maxOffset);
-          const newRange = document.createRange();
-          newRange.setStart(textNode, safeOffset);
-          newRange.setEnd(textNode, safeOffset);
-          selection.removeAllRanges();
-          selection.addRange(newRange);
-        }
-      } catch (err) {
-        // Ignore cursor restoration errors
+    try {
+      const element = e.target;
+      
+      // Safe check for selection API (may not be available on all mobile browsers)
+      if (typeof window === 'undefined' || !window.getSelection) {
+        updateBlockContent(blockId, element.innerHTML);
+        return;
       }
-    });
+      
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        updateBlockContent(blockId, element.innerHTML);
+        return;
+      }
+      
+      const range = selection.getRangeAt(0);
+      const cursorPos = range.startOffset;
+      
+      // Update content
+      updateBlockContent(blockId, element.innerHTML);
+      
+      // Restore cursor position
+      requestAnimationFrame(() => {
+        try {
+          if (typeof document === 'undefined' || !document.createRange) {
+            return;
+          }
+          
+          const textNode = element.childNodes[0] || element;
+          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+            const maxOffset = textNode.textContent ? textNode.textContent.length : 0;
+            const safeOffset = Math.min(cursorPos, maxOffset);
+            const newRange = document.createRange();
+            newRange.setStart(textNode, safeOffset);
+            newRange.setEnd(textNode, safeOffset);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }
+        } catch (err) {
+          // Ignore cursor restoration errors - not critical
+          console.debug('Cursor restoration failed:', err);
+        }
+      });
+    } catch (error) {
+      // Fallback: just update content without cursor restoration
+      console.debug('Text input error:', error);
+      updateBlockContent(blockId, e.target.innerHTML);
+    }
   };
 
   return (
