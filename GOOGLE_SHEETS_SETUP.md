@@ -92,22 +92,23 @@ D: Total People in Campus
 E: Total Attendance
 F: First Time
 G: Visitors
-H: Info Gathered
-I: First Time Christians
-J: Rededications
-K: Youth Attendance
-L: Youth Salvations
-M: Youth New People
-N: Youth Leaders
-O: Kids Total
-P: Kids Leaders
-Q: New Kids
-R: New Kids Salvations
-S: Connect Groups
-T: Dream Team
-U: Tithe
-V: Baptisms
-W: Child Dedications
+H: Hands up
+I: Info Gathered
+J: First Time Christians
+K: Rededications
+L: Youth Attendance
+M: Youth Salvations
+N: Youth New People
+O: Youth Leaders
+P: Kids Total
+Q: Kids Leaders
+R: New Kids
+S: New Kids Salvations
+T: Connect Groups
+U: Dream Team
+V: Tithe
+W: Baptisms
+X: Child Dedications
 ```
 
 ### Tab 2: Tithe

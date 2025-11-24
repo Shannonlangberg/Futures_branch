@@ -28,6 +28,7 @@ const LogStats = () => {
     'Cards Returned': '',
     'First Time': '',
     'Visitors': '',
+    'Hands up': '',
     'First Time Decision': '',
     'Rededication': '',
     'Salvation Cards Returned': '',
@@ -157,6 +158,7 @@ const LogStats = () => {
       'Cards Back': 'Cards Returned',
       'First Time Visitors': 'First Time',
       'Visitors': 'Visitors',
+      'Hands up': 'Hands up',
       'First Time Christians': 'First Time Decision',
       'Rededications': 'Rededication',
       'Salvation Cards Returned': 'Salvation Cards Returned',
@@ -235,6 +237,7 @@ const LogStats = () => {
         'Cards Returned': 'Cards Back',
         'First Time': 'First Time Visitors',
         'Visitors': 'Visitors',
+        'Hands up': 'Hands up',
         'First Time Decision': 'First Time Christians',
         'Rededication': 'Rededications',
         'Salvation Cards Returned': 'Salvation Cards Returned',
@@ -328,6 +331,7 @@ const LogStats = () => {
           'Cards Returned': '',
           'First Time': '',
           'Visitors': '',
+          'Hands up': '',
           'First Time Decision': '',
           'Rededication': '',
           'Youth Total': '',
@@ -711,6 +715,23 @@ const LogStats = () => {
                         onChange={(e) => setQuickInputStats(prev => ({
                           ...prev,
                           'Visitors': e.target.value
+                        }))}
+                        placeholder="0"
+                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                        style={{ color: '#ffffff' }}
+                      />
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <label className="text-white font-semibold text-sm sm:text-base sm:min-w-[150px]">
+                        Hands up:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={quickInputStats['Hands up']}
+                        onChange={(e) => setQuickInputStats(prev => ({
+                          ...prev,
+                          'Hands up': e.target.value
                         }))}
                         placeholder="0"
                         className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-right w-full sm:w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
