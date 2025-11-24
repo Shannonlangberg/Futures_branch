@@ -38,7 +38,10 @@ const RoleManager = () => {
     { key: 'prayer', label: 'Prayer & Praise', icon: '🙏' },
     { key: 'resources', label: 'Resources', icon: '📚' },
     { key: 'pulse_tv', label: 'Pulse TV', icon: '📺' },
-    { key: 'events', label: 'Events', icon: '📅' }
+    { key: 'events', label: 'Events', icon: '📅' },
+    { key: 'serving', label: 'Serving', icon: '🤝' },
+    { key: 'communication', label: 'Communications', icon: '📧' },
+    { key: 'devotions', label: 'Devotions', icon: '📖' }
   ];
 
   const settingsFeatures = [
@@ -49,7 +52,8 @@ const RoleManager = () => {
     { key: 'pathway_manager', label: 'Journey Manager', icon: '🛤️' },
     { key: 'resource_manager', label: 'Resource Manager', icon: '📦' },
     { key: 'tv_manager', label: 'TV Manager', icon: '🎬' },
-    { key: 'events_manager', label: 'Events Manager', icon: '🎪' }
+    { key: 'events_manager', label: 'Events Manager', icon: '🎪' },
+    { key: 'notifications', label: 'Push Notifications', icon: '🔔' }
   ];
 
   const allFeatures = [...pageFeatures, ...settingsFeatures];
@@ -59,90 +63,101 @@ const RoleManager = () => {
     'admin': {
       home: true, dashboard: true, input: true, finance: true, giving: true,
       people: true, heartbeat: true, connect_groups: true, prayer: true,
-      resources: true, pulse_tv: true, events: true,
+      resources: true, pulse_tv: true, events: true, serving: true,
+      communication: true, devotions: true,
       data_export: true, user_management: true, campus_management: true,
       beacon_management: true, pathway_manager: true, resource_manager: true,
-      tv_manager: true, events_manager: true
+      tv_manager: true, events_manager: true, notifications: true
     },
     'senior_leadership': {
       home: true, dashboard: true, input: true, finance: true, giving: true,
       people: true, heartbeat: true, connect_groups: true, prayer: true,
-      resources: true, pulse_tv: true, events: true,
+      resources: true, pulse_tv: true, events: true, serving: true,
+      communication: true, devotions: true,
       data_export: true, user_management: true, campus_management: true,
       beacon_management: true, pathway_manager: true, resource_manager: true,
-      tv_manager: true, events_manager: true
+      tv_manager: true, events_manager: true, notifications: true
     },
     'senior_leader': {
       home: true, dashboard: true, input: true, finance: true, giving: true,
       people: true, heartbeat: true, connect_groups: true, prayer: true,
-      resources: true, pulse_tv: true, events: true,
+      resources: true, pulse_tv: true, events: true, serving: true,
+      communication: true, devotions: true,
       data_export: true, user_management: true, campus_management: true,
       beacon_management: true, pathway_manager: true, resource_manager: true,
-      tv_manager: true, events_manager: true
+      tv_manager: true, events_manager: true, notifications: true
     },
     'senior_pastor': {
       home: true, dashboard: true, input: true, finance: true, giving: true,
       people: true, heartbeat: true, connect_groups: true, prayer: true,
-      resources: true, pulse_tv: true, events: true,
+      resources: true, pulse_tv: true, events: true, serving: true,
+      communication: true, devotions: true,
       data_export: true, user_management: true, campus_management: true,
       beacon_management: true, pathway_manager: true, resource_manager: true,
-      tv_manager: true, events_manager: true
+      tv_manager: true, events_manager: true, notifications: true
     },
     'lead_pastor': {
       home: true, dashboard: true, input: true, finance: true, giving: true,
       people: true, heartbeat: true, connect_groups: true, prayer: true,
-      resources: true, pulse_tv: true, events: true,
+      resources: true, pulse_tv: true, events: true, serving: true,
+      communication: true, devotions: true,
       data_export: true, user_management: true, campus_management: true,
       beacon_management: true, pathway_manager: true, resource_manager: true,
-      tv_manager: true, events_manager: true
+      tv_manager: true, events_manager: true, notifications: true
     },
     'campus_pastor': {
       home: true, dashboard: true, input: true, finance: false, giving: false,
       people: true, heartbeat: true, connect_groups: true, prayer: true,
-      resources: false, pulse_tv: true, events: true,
+      resources: false, pulse_tv: true, events: true, serving: true,
+      communication: true, devotions: true,
       data_export: false, user_management: false, campus_management: false,
       beacon_management: false, pathway_manager: false, resource_manager: false,
-      tv_manager: false, events_manager: false
+      tv_manager: false, events_manager: false, notifications: false
     },
     'pastor': {
       home: true, dashboard: true, input: true, finance: false, giving: false,
       people: false, heartbeat: false, connect_groups: false, prayer: true,
-      resources: false, pulse_tv: true, events: true,
+      resources: false, pulse_tv: true, events: true, serving: true,
+      communication: false, devotions: true,
       data_export: false, user_management: false, campus_management: false,
       beacon_management: false, pathway_manager: false, resource_manager: false,
-      tv_manager: false, events_manager: false
+      tv_manager: false, events_manager: false, notifications: false
     },
     'finance': {
       home: false, dashboard: false, input: false, finance: true, giving: true,
       people: false, heartbeat: false, connect_groups: false, prayer: false,
-      resources: false, pulse_tv: true, events: false,
+      resources: false, pulse_tv: true, events: false, serving: false,
+      communication: false, devotions: false,
       data_export: false, user_management: false, campus_management: false,
       beacon_management: false, pathway_manager: false, resource_manager: false,
-      tv_manager: false, events_manager: false
+      tv_manager: false, events_manager: false, notifications: false
     },
     'staff': {
       home: true, dashboard: true, input: true, finance: false, giving: false,
       people: true, heartbeat: true, connect_groups: true, prayer: true,
-      resources: false, pulse_tv: true, events: true,
+      resources: false, pulse_tv: true, events: true, serving: true,
+      communication: false, devotions: true,
       data_export: false, user_management: false, campus_management: false,
       beacon_management: false, pathway_manager: false, resource_manager: false,
-      tv_manager: false, events_manager: false
+      tv_manager: false, events_manager: false, notifications: false
     },
     'connect_group_leader': {
       home: true, dashboard: false, input: false, finance: false, giving: false,
       people: false, heartbeat: false, connect_groups: true, prayer: false,
-      resources: false, pulse_tv: true, events: true,
+      resources: false, pulse_tv: true, events: true, serving: false,
+      communication: false, devotions: false,
       data_export: false, user_management: false, campus_management: false,
       beacon_management: false, pathway_manager: false, resource_manager: false,
-      tv_manager: false, events_manager: false
+      tv_manager: false, events_manager: false, notifications: false
     },
     'member': {
       home: true, dashboard: true, input: true, finance: false, giving: false,
       people: false, heartbeat: false, connect_groups: false, prayer: false,
-      resources: false, pulse_tv: true, events: true,
+      resources: false, pulse_tv: true, events: true, serving: false,
+      communication: false, devotions: true,
       data_export: false, user_management: false, campus_management: false,
       beacon_management: false, pathway_manager: false, resource_manager: false,
-      tv_manager: false, events_manager: false
+      tv_manager: false, events_manager: false, notifications: false
     }
   };
 
@@ -412,30 +427,30 @@ const RoleManager = () => {
       <div className="max-w-[95vw] mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2 flex items-center">
-                <ShieldCheckIcon className="w-10 h-10 mr-3 text-blue-500" />
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 flex items-center">
+                <ShieldCheckIcon className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 mr-2 sm:mr-3 text-blue-500" />
                 Role Manager
               </h1>
-              <p className="text-slate-400">
+              <p className="text-slate-400 text-sm sm:text-base">
                 Manage custom permissions for each user. Toggle features on/off to override role defaults.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3 flex-wrap">
               {hasChanges && (
                 <button
                   onClick={resetChanges}
-                  className="flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  className="flex items-center px-3 sm:px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm sm:text-base"
                 >
-                  <ArrowPathIcon className="w-5 h-5 mr-2" />
+                  <ArrowPathIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
                   Reset
                 </button>
               )}
               <button
                 onClick={savePermissions}
                 disabled={!hasChanges || saving}
-                className={`flex items-center px-6 py-2 rounded-lg transition-colors ${
+                className={`flex items-center px-4 sm:px-6 py-2 rounded-lg transition-colors text-sm sm:text-base ${
                   hasChanges && !saving
                     ? 'bg-blue-600 hover:bg-blue-700 text-white'
                     : 'bg-slate-700 text-slate-400 cursor-not-allowed'

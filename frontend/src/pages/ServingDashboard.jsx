@@ -83,7 +83,7 @@ const ServingDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 text-white p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="animate-pulse">
             <div className="h-8 bg-slate-700 rounded w-1/4 mb-6"></div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -101,7 +101,7 @@ const ServingDashboard = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-900 text-white p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-6">
             <h2 className="text-xl font-semibold text-red-400 mb-2">Error Loading Dashboard</h2>
             <p className="text-red-300">{error}</p>
@@ -398,7 +398,7 @@ const ServingDashboard = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
             {userRole === 'admin' || userRole === 'senior_leader' || userRole === 'campus_pastor' || userRole === 'team_leader' 
               ? 'Serving Leader Dashboard' 
               : 'Serving Dashboard'

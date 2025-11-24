@@ -149,10 +149,10 @@ const DevotionsAdmin = () => {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center space-x-3 mb-2">
-            <BookOpenIcon className="h-10 w-10 text-blue-400" />
-            <h1 className="text-4xl font-bold text-white">Devotions</h1>
+            <BookOpenIcon className="h-8 w-8 sm:h-10 sm:w-10 text-blue-400" />
+            <h1 className="text-3xl sm:text-4xl font-bold text-white">Devotions</h1>
           </div>
-          <p className="text-lg text-white/60">
+          <p className="text-base sm:text-lg text-white/60">
             Create and manage devotional plans for your community
           </p>
         </div>
@@ -166,14 +166,15 @@ const DevotionsAdmin = () => {
         )}
 
         {/* Action Bar */}
-        <div className="mb-6 flex justify-between items-center">
+        <div className="mb-6 flex justify-between items-center flex-wrap gap-4">
           <div className="flex space-x-3">
             <button
               onClick={() => setShowCreateForm(true)}
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-blue-500/25 hover:scale-105 transition-all duration-300"
+              className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-blue-500/25 hover:scale-105 transition-all duration-300 text-sm sm:text-base"
             >
-              <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-              Create New Plan
+              <PlusIcon className="-ml-1 mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="hidden sm:inline">Create New Plan</span>
+              <span className="sm:hidden">New Plan</span>
             </button>
           </div>
         </div>

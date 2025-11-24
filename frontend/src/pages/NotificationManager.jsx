@@ -299,8 +299,8 @@ const NotificationManager = () => {
             <BellIcon className="h-6 w-6 text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Push Notifications</h1>
-            <p className="text-white/60 text-sm">Send and schedule push notifications to app users</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Push Notifications</h1>
+            <p className="text-white/60 text-sm sm:text-base">Send and schedule push notifications to app users</p>
           </div>
         </div>
       </div>
