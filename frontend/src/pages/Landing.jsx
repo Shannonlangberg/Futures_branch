@@ -42,7 +42,14 @@ const Landing = () => {
     const fetchSession = async () => {
       setSessionLoading(true);
       try {
-        const response = await fetch('/api/session', { credentials: 'include' });
+        const response = await fetch('/api/session', { 
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          }
+        });
         if (!response.ok) {
           throw new Error('Session fetch failed');
         }

@@ -97,7 +97,14 @@ const Dashboard = () => {
 
   const fetchUserSession = async () => {
     try {
-      const response = await fetch('/api/session');
+      const response = await fetch('/api/session', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+        credentials: 'include'
+      });
       const data = await response.json();
       if (data.authenticated) {
         setCurrentUser({

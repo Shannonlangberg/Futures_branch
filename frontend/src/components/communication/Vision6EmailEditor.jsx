@@ -14,6 +14,7 @@ import {
   MinusIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
+// Note: Bold, Italic, Underline icons may not exist in heroicons, using SVG instead
 
 const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsChange }) => {
   const [blocks, setBlocks] = useState([]);
@@ -26,9 +27,35 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
   const [videoUrl, setVideoUrl] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
+  const [showFormatToolbar, setShowFormatToolbar] = useState(false);
+  const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 });
+  const [activeBlockId, setActiveBlockId] = useState(null);
   const fileInputRef = useRef(null);
   const headerImageInputRef = useRef(null);
   const textBlockRefs = useRef({});
+
+  // Available fonts for the editor
+  const availableFonts = [
+    { name: 'Arial', value: 'Arial, sans-serif' },
+    { name: 'Helvetica', value: 'Helvetica, Arial, sans-serif' },
+    { name: 'Times New Roman', value: 'Times New Roman, serif' },
+    { name: 'Georgia', value: 'Georgia, serif' },
+    { name: 'Verdana', value: 'Verdana, sans-serif' },
+    { name: 'Roboto', value: 'Roboto, sans-serif' },
+    { name: 'Open Sans', value: 'Open Sans, sans-serif' },
+    { name: 'Lato', value: 'Lato, sans-serif' },
+    { name: 'Montserrat', value: 'Montserrat, sans-serif' },
+    { name: 'Poppins', value: 'Poppins, sans-serif' },
+    { name: 'Playfair Display', value: 'Playfair Display, serif' },
+    { name: 'Merriweather', value: 'Merriweather, serif' },
+    { name: 'Source Sans Pro', value: 'Source Sans Pro, sans-serif' },
+    { name: 'Raleway', value: 'Raleway, sans-serif' },
+    { name: 'Oswald', value: 'Oswald, sans-serif' },
+    { name: 'Lora', value: 'Lora, serif' },
+    { name: 'PT Serif', value: 'PT Serif, serif' },
+    { name: 'Crimson Text', value: 'Crimson Text, serif' },
+    { name: 'Libre Baskerville', value: 'Libre Baskerville, serif' }
+  ];
 
   const defaultDesignSettings = {
     emailWidth: 567,
@@ -353,56 +380,63 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     }
   };
 
-  const handleTextInput = (blockId, e) => {
-    // Fix backwards text - maintain proper text direction
-    try {
-      const element = e.target;
-      
-      // Safe check for selection API (may not be available on all mobile browsers)
-      if (typeof window === 'undefined' || !window.getSelection) {
-        updateBlockContent(blockId, element.innerHTML);
-        return;
-      }
-      
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) {
-        updateBlockContent(blockId, element.innerHTML);
-        return;
-      }
-      
-      const range = selection.getRangeAt(0);
-      const cursorPos = range.startOffset;
-      
-      // Update content
-      updateBlockContent(blockId, element.innerHTML);
-      
-      // Restore cursor position
-      requestAnimationFrame(() => {
-        try {
-          if (typeof document === 'undefined' || !document.createRange) {
-            return;
-          }
-          
-          const textNode = element.childNodes[0] || element;
-          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-            const maxOffset = textNode.textContent ? textNode.textContent.length : 0;
-            const safeOffset = Math.min(cursorPos, maxOffset);
-            const newRange = document.createRange();
-            newRange.setStart(textNode, safeOffset);
-            newRange.setEnd(textNode, safeOffset);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
-          }
-        } catch (err) {
-          // Ignore cursor restoration errors - not critical
-          console.debug('Cursor restoration failed:', err);
-        }
-      });
-    } catch (error) {
-      // Fallback: just update content without cursor restoration
-      console.debug('Text input error:', error);
-      updateBlockContent(blockId, e.target.innerHTML);
+  // Formatting functions
+  const execCommand = (command, value = null) => {
+    document.execCommand(command, false, value);
+    // Update the block content after formatting
+    if (activeBlockId && textBlockRefs.current[activeBlockId]) {
+      const element = textBlockRefs.current[activeBlockId];
+      updateBlockContent(activeBlockId, element.innerHTML);
     }
+  };
+
+  const handleFormat = (command, value = null) => {
+    if (activeBlockId && textBlockRefs.current[activeBlockId]) {
+      const element = textBlockRefs.current[activeBlockId];
+      element.focus();
+      execCommand(command, value);
+    }
+  };
+
+  const handleSelectionChange = (blockId) => {
+    if (typeof window === 'undefined' || !window.getSelection) return;
+    
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      setActiveBlockId(blockId);
+      setShowFormatToolbar(true);
+      
+      // Position toolbar above selection
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const editorRect = document.querySelector('.email-editor-container')?.getBoundingClientRect();
+      
+      if (editorRect) {
+        setToolbarPosition({
+          top: rect.top - editorRect.top - 50,
+          left: rect.left - editorRect.left + (rect.width / 2) - 150
+        });
+      }
+    } else {
+      setShowFormatToolbar(false);
+    }
+  };
+
+  const handleTextInput = (blockId, e) => {
+    // Fix backwards text - ensure proper direction
+    const element = e.target;
+    
+    // Force LTR direction
+    if (element.style.direction !== 'ltr') {
+      element.style.direction = 'ltr';
+      element.style.unicodeBidi = 'embed';
+    }
+    
+    // Update content
+    updateBlockContent(blockId, element.innerHTML);
+    
+    // Check for selection to show toolbar
+    handleSelectionChange(blockId);
   };
 
   return (
@@ -545,7 +579,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         </div>
 
         {/* Email Preview/Editor */}
-        <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-100 p-8">
+        <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-100 p-8 email-editor-container">
           <div className="max-w-5xl mx-auto relative">
             <div 
               style={{
@@ -584,17 +618,36 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                   <div className="p-6 pr-14">
                     {block.type === 'text' || block.type === 'heading' ? (
                       <div
-                        ref={el => textBlockRefs.current[block.id] = el}
+                        ref={el => {
+                          textBlockRefs.current[block.id] = el;
+                          // Force LTR direction on mount and update
+                          if (el) {
+                            el.style.direction = 'ltr';
+                            el.style.unicodeBidi = 'embed';
+                            el.setAttribute('dir', 'ltr');
+                          }
+                        }}
                         contentEditable
                         suppressContentEditableWarning
+                        dir="ltr"
                         onInput={(e) => handleTextInput(block.id, e)}
-                        onBlur={(e) => updateBlockContent(block.id, e.target.innerHTML)}
+                        onBlur={(e) => {
+                          updateBlockContent(block.id, e.target.innerHTML);
+                          setShowFormatToolbar(false);
+                        }}
                         onFocus={(e) => {
+                          setActiveBlockId(block.id);
                           // Ensure cursor is visible when focused
                           const textColor = settings.bodyTextColor || '#000000';
                           e.target.style.caretColor = textColor;
                           e.target.style.color = textColor;
+                          // Force LTR
+                          e.target.style.direction = 'ltr';
+                          e.target.style.unicodeBidi = 'embed';
+                          e.target.setAttribute('dir', 'ltr');
                         }}
+                        onMouseUp={(e) => handleSelectionChange(block.id)}
+                        onKeyUp={(e) => handleSelectionChange(block.id)}
                         className="min-h-[50px] focus:outline-none rounded px-2 py-1 -mx-2 -my-1"
                         style={{
                           direction: 'ltr',
@@ -664,6 +717,74 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                   </div>
                   <p className="text-lg font-medium text-gray-500">Start building your email</p>
                   <p className="text-sm text-gray-400 mt-2">Drag content blocks from the sidebar to get started</p>
+                </div>
+              )}
+
+              {/* Formatting Toolbar */}
+              {showFormatToolbar && activeBlockId && (
+                <div
+                  className="absolute z-50 bg-white border border-gray-300 rounded-lg shadow-xl p-2 flex items-center gap-2"
+                  style={{
+                    top: `${toolbarPosition.top}px`,
+                    left: `${toolbarPosition.left}px`,
+                    minWidth: '300px'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Bold */}
+                  <button
+                    onClick={() => handleFormat('bold')}
+                    className="p-2 hover:bg-gray-100 rounded transition-colors font-bold"
+                    title="Bold"
+                  >
+                    <span className="text-gray-700 text-sm">B</span>
+                  </button>
+
+                  {/* Italic */}
+                  <button
+                    onClick={() => handleFormat('italic')}
+                    className="p-2 hover:bg-gray-100 rounded transition-colors italic"
+                    title="Italic"
+                  >
+                    <span className="text-gray-700 text-sm">I</span>
+                  </button>
+
+                  {/* Underline */}
+                  <button
+                    onClick={() => handleFormat('underline')}
+                    className="p-2 hover:bg-gray-100 rounded transition-colors underline"
+                    title="Underline"
+                  >
+                    <span className="text-gray-700 text-sm">U</span>
+                  </button>
+
+                  <div className="w-px h-6 bg-gray-300 mx-1"></div>
+
+                  {/* Font Family */}
+                  <select
+                    onChange={(e) => handleFormat('fontName', e.target.value)}
+                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title="Font Family"
+                  >
+                    {availableFonts.map(font => (
+                      <option key={font.value} value={font.value}>{font.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Font Size */}
+                  <select
+                    onChange={(e) => handleFormat('fontSize', e.target.value)}
+                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title="Font Size"
+                  >
+                    <option value="1">8px</option>
+                    <option value="2">10px</option>
+                    <option value="3">12px</option>
+                    <option value="4">14px</option>
+                    <option value="5">18px</option>
+                    <option value="6">24px</option>
+                    <option value="7">36px</option>
+                  </select>
                 </div>
               )}
             </div>

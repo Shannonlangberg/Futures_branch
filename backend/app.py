@@ -8816,7 +8816,7 @@ def session_info():
             # Admin users need Drive auth if not authenticated or token expired
             needs_drive_auth = not (drive_authenticated and token_valid)
         
-        return jsonify({
+        response = jsonify({
             "authenticated": True,
             "user": current_user.username,
             "email": getattr(current_user, 'email', current_user.username),
@@ -8831,8 +8831,13 @@ def session_info():
             "railway_branch": railway_branch,  # Branch/environment info
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+        # Prevent caching of session data - critical for permission updates
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     else:
-        return jsonify({
+        response = jsonify({
             "authenticated": False,
             "user": None,
             "role": None,
@@ -8842,6 +8847,11 @@ def session_info():
             "railway_branch": railway_branch,  # Branch/environment info
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+        # Prevent caching of session data
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
 
 @app.route('/api/stats')
 @login_required

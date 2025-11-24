@@ -42,7 +42,15 @@ const MainLayout = ({ children }) => {
   useEffect(() => {
     const fetchSessionData = async () => {
       try {
-        const response = await fetch('/api/session');
+        // Add cache-busting timestamp and no-cache headers
+        const response = await fetch('/api/session', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+          credentials: 'include'
+        });
         const data = await response.json();
         if (data.authenticated) {
           setUserRole(data.role || 'user');

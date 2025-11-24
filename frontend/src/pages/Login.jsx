@@ -25,7 +25,14 @@ const Login = ({ onLogin }) => {
       sessionStorage.removeItem('google_oauth_in_progress');
       
       // Check if user is authenticated, then redirect to dashboard
-      fetch('/api/session', { credentials: 'include' })
+      fetch('/api/session', { 
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        }
+      })
         .then(res => res.json())
         .then((sessionData) => {
           if (sessionData && sessionData.authenticated) {

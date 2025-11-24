@@ -24,7 +24,12 @@ const MyProfile = () => {
   const loadProfile = async () => {
     try {
       const response = await fetch('/api/session', {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        }
       });
       
       if (response.ok) {
