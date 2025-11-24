@@ -1259,7 +1259,7 @@ def get_template_gallery():
         template_list = [template.to_dict() for template in templates]
         
         # Add some default templates if none exist
-        if len(template_list) === 0:
+        if len(template_list) == 0:
             template_list = [
                 {
                     'id': 'default-1',
