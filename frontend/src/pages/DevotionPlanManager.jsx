@@ -32,13 +32,14 @@ const DevotionPlanManager = () => {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedMedia, setUploadedMedia] = useState([]);
+  const [campuses, setCampuses] = useState([]);
 
   // Plan creation form
   const [newPlan, setNewPlan] = useState({
     title: '',
     description: '',
     total_days: 30,
-    campus: '',
+    campus: 'all_campuses',
     status: 'draft'
   });
 
@@ -72,10 +73,23 @@ const DevotionPlanManager = () => {
 
   useEffect(() => {
     fetchPlans();
+    fetchCampuses();
     if (planId) {
       fetchPlanDetails(planId);
     }
   }, [planId]);
+
+  const fetchCampuses = async () => {
+    try {
+      const response = await fetch('/api/campuses/public');
+      if (response.ok) {
+        const data = await response.json();
+        setCampuses(data.campuses || []);
+      }
+    } catch (error) {
+      console.error('Error fetching campuses:', error);
+    }
+  };
 
   const fetchPlans = async () => {
     try {
@@ -143,7 +157,7 @@ const DevotionPlanManager = () => {
         const data = await response.json();
         await fetchPlans();
         setShowCreatePlan(false);
-        setNewPlan({ title: '', description: '', total_days: 30, campus: '', status: 'draft' });
+        setNewPlan({ title: '', description: '', total_days: 30, campus: 'all_campuses', status: 'draft' });
         
         // Navigate to the new plan
         navigate(`/devotions/plans/${data.plan.id}`);
@@ -500,13 +514,20 @@ const DevotionPlanManager = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-white/80 mb-2">Campus</label>
-                    <input
-                      type="text"
+                    <select
                       value={newPlan.campus}
                       onChange={(e) => setNewPlan({...newPlan, campus: e.target.value})}
-                      className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="All Campuses"
-                    />
+                      className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all_campuses">All Campuses</option>
+                      {campuses
+                        .filter(campus => campus.active !== false && campus.id !== 'all_campuses')
+                        .map(campus => (
+                          <option key={campus.id} value={campus.id || campus.campus_id}>
+                            {campus.display_name || campus.name}
+                          </option>
+                        ))}
+                    </select>
                   </div>
                 </div>
               </div>

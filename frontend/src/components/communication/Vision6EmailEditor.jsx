@@ -489,13 +489,13 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       </div>
 
       {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Toolbar */}
-        <div className="bg-slate-700 border-b border-white/10 p-2 flex items-center gap-2">
-          <button className="p-2 hover:bg-white/10 rounded text-white/60">
+        <div className="bg-slate-700 border-b border-white/10 p-2 flex items-center gap-2 flex-shrink-0 overflow-x-auto">
+          <button className="p-2 hover:bg-white/10 rounded text-white/60 flex-shrink-0" title="Undo">
             ↶
           </button>
-          <button className="p-2 hover:bg-white/10 rounded text-white/60">
+          <button className="p-2 hover:bg-white/10 rounded text-white/60 flex-shrink-0" title="Redo">
             ↷
           </button>
           <div className="flex-1"></div>
@@ -504,15 +504,16 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
               setImageType('header');
               headerImageInputRef.current?.click();
             }}
-            className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm"
+            className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm whitespace-nowrap flex-shrink-0"
+            title="Add Header Image"
           >
             Add Header Image
           </button>
         </div>
 
         {/* Email Preview/Editor */}
-        <div className="flex-1 overflow-y-auto bg-slate-600 p-2 md:p-8">
-          <div className="max-w-4xl mx-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-600 p-2 md:p-8">
+          <div className="max-w-4xl mx-auto relative">
             <div 
               style={{
                 width: `${settings.emailWidth}px`,
@@ -520,7 +521,8 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                 margin: '0 auto',
                 backgroundColor: settings.backgroundColor,
                 border: `${settings.borderWidth}px solid ${settings.borderColor}`,
-                minHeight: '400px'
+                minHeight: '400px',
+                position: 'relative'
               }}
               className="bg-white shadow-lg"
             >
@@ -537,13 +539,13 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                     selectedBlock === block.id ? 'border-blue-500' : ''
                   } ${draggedBlock === block.id ? 'opacity-50' : ''}`}
                 >
-                  {/* Drag Handle */}
-                  <div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Bars3Icon className="w-5 h-5 text-white" />
+                  {/* Drag Handle - positioned inside to avoid overflow */}
+                  <div className="absolute left-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <Bars3Icon className="w-5 h-5 text-blue-500 bg-white/90 rounded p-1 shadow-md" />
                   </div>
 
                   {/* Block Content */}
-                  <div className="p-4">
+                  <div className="p-4 pr-12">
                     {block.type === 'text' ? (
                       <div
                         ref={el => textBlockRefs.current[block.id] = el}
@@ -567,15 +569,16 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                     )}
                   </div>
 
-                  {/* Delete Button */}
+                  {/* Delete Button - positioned inside to avoid overflow */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteBlock(block.id);
                     }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-red-500/20 hover:bg-red-500/40 rounded"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-500 hover:bg-red-600 rounded shadow-md z-10"
+                    title="Delete block"
                   >
-                    <TrashIcon className="w-4 h-4 text-red-400" />
+                    <TrashIcon className="w-4 h-4 text-white" />
                   </button>
                 </div>
               ))}
