@@ -14975,7 +14975,13 @@ def delete_person(person_id):
                 raise
         
         try:
-            ServingAssignment.query.filter_by(person_id=person_id).delete()
+            # Use raw SQL to avoid triggering relationship checks that might reference team_members
+            from sqlalchemy import text
+            db.session.execute(
+                text("DELETE FROM heartbeat_serving_assignments WHERE person_id = :person_id"),
+                {'person_id': person_id}
+            )
+            logger.info(f"Deleted serving assignments for person {person_id} using raw SQL")
         except OperationalError as e:
             error_str = str(e).lower()
             if 'no such table' in error_str or 'team_members' in error_str:
