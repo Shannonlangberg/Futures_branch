@@ -14881,10 +14881,19 @@ def delete_person(person_id):
         
         # Delete all related records in proper order to avoid foreign key constraint violations
         
-        # 1. Delete engagement profile
-        if person.engagement_profile:
-            db.session.delete(person.engagement_profile)
-            logger.info(f"Deleted engagement profile for person {person_id}")
+        # 1. Delete engagement profile using raw SQL to avoid relationship checks
+        from sqlalchemy import text
+        try:
+            db.session.execute(
+                text("DELETE FROM engagement_profiles WHERE person_id = :person_id"),
+                {'person_id': person_id}
+            )
+            logger.info(f"Deleted engagement profile for person {person_id} using raw SQL")
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'engagement_profiles' doesn't exist, skipping")
+            else:
+                raise
         
         # 2. Delete pathway progress and step completions
         from models import PersonPathwayProgress, PersonPathwayStepCompletion
@@ -15098,9 +15107,19 @@ def delete_person(person_id):
             else:
                 raise
         
-        # 8. Finally, delete the person
-        db.session.delete(person)
-        db.session.commit()
+        # 8. Finally, delete the person using raw SQL to avoid relationship checks
+        from sqlalchemy import text
+        try:
+            # Delete person using raw SQL to avoid triggering relationship checks
+            db.session.execute(
+                text("DELETE FROM persons WHERE id = :person_id"),
+                {'person_id': person_id}
+            )
+            db.session.commit()
+            logger.info(f"Person {person_id} deleted using raw SQL")
+        except Exception as e:
+            db.session.rollback()
+            raise
         
         logger.info(f"Person {person_id} permanently deleted by user {current_user.id}")
         return jsonify({
