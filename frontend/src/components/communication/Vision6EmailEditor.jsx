@@ -402,7 +402,8 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     if (typeof window === 'undefined' || !window.getSelection) return;
     
     const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+    // Only show toolbar if there's a meaningful selection (not just a cursor)
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed && selection.toString().trim().length > 0) {
       setActiveBlockId(blockId);
       
       // Position toolbar above selection using viewport coordinates (for fixed positioning)
@@ -410,7 +411,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       const rect = range.getBoundingClientRect();
       
       // Use viewport coordinates for fixed positioning
-      const toolbarWidth = 300;
+      const toolbarWidth = 320;
       const toolbarHeight = 50;
       const padding = 10;
       
@@ -433,30 +434,47 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         left: left
       });
       
-      setShowFormatToolbar(true);
+      // Use a small delay to prevent flashing
+      clearTimeout(window._toolbarTimeout);
+      window._toolbarTimeout = setTimeout(() => {
+        setShowFormatToolbar(true);
+      }, 100);
     } else {
-      setShowFormatToolbar(false);
+      // Hide with a small delay to prevent flashing
+      clearTimeout(window._toolbarTimeout);
+      window._toolbarTimeout = setTimeout(() => {
+        setShowFormatToolbar(false);
+      }, 200);
     }
   };
 
   const handleTextInput = (blockId, e) => {
     const element = e.target;
     
-    // Aggressively force LTR direction on every input - use requestAnimationFrame for smoothness
+    // IMMEDIATELY force LTR direction - don't wait for animation frame
+    element.setAttribute('dir', 'ltr');
+    element.style.direction = 'ltr';
+    element.style.unicodeBidi = 'embed';
+    element.style.textAlign = 'left';
+    element.style.writingMode = 'horizontal-tb';
+    
+    // Fix all child elements too
+    const allElements = element.querySelectorAll('*');
+    allElements.forEach(el => {
+      el.setAttribute('dir', 'ltr');
+      el.style.direction = 'ltr';
+      el.style.unicodeBidi = 'embed';
+      el.style.textAlign = 'left';
+      el.style.writingMode = 'horizontal-tb';
+    });
+    
+    // Also force it in the next frame to catch any browser changes
     requestAnimationFrame(() => {
       element.setAttribute('dir', 'ltr');
       element.style.direction = 'ltr';
       element.style.unicodeBidi = 'embed';
       element.style.textAlign = 'left';
-      
-      // Fix all child elements too
-      const allElements = element.querySelectorAll('*');
-      allElements.forEach(el => {
-        el.setAttribute('dir', 'ltr');
-        el.style.direction = 'ltr';
-        el.style.unicodeBidi = 'embed';
-        el.style.textAlign = 'left';
-      });
+      element.style.writingMode = 'horizontal-tb';
     });
     
     // Update content (debounced to reduce clunkiness)
@@ -469,7 +487,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     clearTimeout(element._selectionTimeout);
     element._selectionTimeout = setTimeout(() => {
       handleSelectionChange(blockId);
-    }, 150);
+    }, 200);
   };
 
   return (
@@ -481,12 +499,14 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
           direction: ltr !important;
           unicode-bidi: embed !important;
           text-align: left !important;
+          writing-mode: horizontal-tb !important;
           caret-color: #000000 !important;
         }
         [contenteditable="true"]:focus {
           direction: ltr !important;
           unicode-bidi: embed !important;
           text-align: left !important;
+          writing-mode: horizontal-tb !important;
           caret-color: #000000 !important;
           background-color: rgba(59, 130, 246, 0.08) !important;
         }
@@ -503,6 +523,16 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         [contenteditable="true"] * {
           direction: ltr !important;
           unicode-bidi: embed !important;
+          writing-mode: horizontal-tb !important;
+        }
+        /* Fix select styling in toolbar */
+        .format-toolbar select {
+          color: #111827 !important;
+          background-color: white !important;
+        }
+        .format-toolbar select option {
+          color: #111827 !important;
+          background-color: white !important;
         }
       `}</style>
       {/* Content Blocks Sidebar */}
@@ -693,10 +723,36 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                         contentEditable
                         suppressContentEditableWarning
                         dir="ltr"
+                        onBeforeInput={(e) => {
+                          // Intercept before input to force LTR
+                          const target = e.target;
+                          target.setAttribute('dir', 'ltr');
+                          target.style.direction = 'ltr';
+                          target.style.unicodeBidi = 'embed';
+                          target.style.textAlign = 'left';
+                          target.style.writingMode = 'horizontal-tb';
+                        }}
+                        onCompositionStart={(e) => {
+                          // Force LTR when IME starts
+                          const target = e.target;
+                          target.setAttribute('dir', 'ltr');
+                          target.style.direction = 'ltr';
+                          target.style.unicodeBidi = 'embed';
+                          target.style.textAlign = 'left';
+                        }}
+                        onCompositionUpdate={(e) => {
+                          // Force LTR during IME composition
+                          const target = e.target;
+                          target.setAttribute('dir', 'ltr');
+                          target.style.direction = 'ltr';
+                          target.style.unicodeBidi = 'embed';
+                          target.style.textAlign = 'left';
+                        }}
                         onInput={(e) => handleTextInput(block.id, e)}
                         onBlur={(e) => {
                           updateBlockContent(block.id, e.target.innerHTML);
-                          setShowFormatToolbar(false);
+                          // Hide toolbar with delay to prevent flashing
+                          setTimeout(() => setShowFormatToolbar(false), 300);
                         }}
                         onFocus={(e) => {
                           setActiveBlockId(block.id);
@@ -708,6 +764,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           e.target.style.direction = 'ltr';
                           e.target.style.unicodeBidi = 'embed';
                           e.target.style.textAlign = 'left';
+                          e.target.style.writingMode = 'horizontal-tb';
                           e.target.setAttribute('dir', 'ltr');
                           
                           // Use requestAnimationFrame to ensure it sticks
@@ -715,29 +772,26 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                             e.target.style.direction = 'ltr';
                             e.target.style.unicodeBidi = 'embed';
                             e.target.style.textAlign = 'left';
+                            e.target.style.writingMode = 'horizontal-tb';
                             e.target.setAttribute('dir', 'ltr');
                           });
                         }}
                         onKeyDown={(e) => {
-                          // Prevent RTL input methods
-                          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                            // Allow normal arrow key behavior
-                            return;
-                          }
                           // Force LTR on any key input
                           const target = e.target;
+                          target.setAttribute('dir', 'ltr');
                           target.style.direction = 'ltr';
                           target.style.unicodeBidi = 'embed';
                           target.style.textAlign = 'left';
-                          target.setAttribute('dir', 'ltr');
+                          target.style.writingMode = 'horizontal-tb';
                         }}
                         onMouseUp={(e) => {
                           // Small delay to ensure selection is complete
-                          setTimeout(() => handleSelectionChange(block.id), 50);
+                          setTimeout(() => handleSelectionChange(block.id), 100);
                         }}
                         onKeyUp={(e) => {
                           // Small delay to ensure selection is complete
-                          setTimeout(() => handleSelectionChange(block.id), 50);
+                          setTimeout(() => handleSelectionChange(block.id), 100);
                         }}
                         className="min-h-[50px] focus:outline-none rounded px-2 py-1 -mx-2 -my-1"
                         style={{
@@ -814,14 +868,18 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
               {/* Formatting Toolbar */}
               {showFormatToolbar && activeBlockId && (
                 <div
-                  className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-xl p-2 flex items-center gap-2"
+                  className="format-toolbar fixed z-50 bg-white border border-gray-300 rounded-lg shadow-xl p-2 flex items-center gap-2"
                   style={{
                     top: `${toolbarPosition.top}px`,
                     left: `${toolbarPosition.left}px`,
-                    minWidth: '300px',
+                    minWidth: '320px',
                     transform: 'translateX(-50%)' // Center on selection
                   }}
                   onClick={(e) => e.stopPropagation()}
+                  onMouseEnter={() => {
+                    // Keep toolbar visible when hovering
+                    clearTimeout(window._toolbarTimeout);
+                  }}
                 >
                   {/* Bold */}
                   <button
@@ -855,27 +913,29 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                   {/* Font Family */}
                   <select
                     onChange={(e) => handleFormat('fontName', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                    style={{ color: '#111827' }}
                     title="Font Family"
                   >
                     {availableFonts.map(font => (
-                      <option key={font.value} value={font.value}>{font.name}</option>
+                      <option key={font.value} value={font.value} style={{ color: '#111827' }}>{font.name}</option>
                     ))}
                   </select>
 
                   {/* Font Size */}
                   <select
                     onChange={(e) => handleFormat('fontSize', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                    style={{ color: '#111827' }}
                     title="Font Size"
                   >
-                    <option value="1">8px</option>
-                    <option value="2">10px</option>
-                    <option value="3">12px</option>
-                    <option value="4">14px</option>
-                    <option value="5">18px</option>
-                    <option value="6">24px</option>
-                    <option value="7">36px</option>
+                    <option value="1" style={{ color: '#111827' }}>8px</option>
+                    <option value="2" style={{ color: '#111827' }}>10px</option>
+                    <option value="3" style={{ color: '#111827' }}>12px</option>
+                    <option value="4" style={{ color: '#111827' }}>14px</option>
+                    <option value="5" style={{ color: '#111827' }}>18px</option>
+                    <option value="6" style={{ color: '#111827' }}>24px</option>
+                    <option value="7" style={{ color: '#111827' }}>36px</option>
                   </select>
                 </div>
               )}
