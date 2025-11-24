@@ -118,6 +118,12 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
           type: 'video',
           content: child.outerHTML
         });
+      } else if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(child.tagName)) {
+        blockArray.push({
+          id: blockId++,
+          type: 'heading',
+          content: child.outerHTML
+        });
       } else if (child.innerHTML.trim()) {
         blockArray.push({
           id: blockId++,
@@ -401,6 +407,29 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
 
   return (
     <div className="flex h-full bg-slate-700">
+      {/* Global styles for better text editing */}
+      <style>{`
+        /* Better text selection visibility */
+        [contenteditable="true"]::selection {
+          background-color: rgba(59, 130, 246, 0.3) !important;
+          color: inherit !important;
+        }
+        [contenteditable="true"]::-moz-selection {
+          background-color: rgba(59, 130, 246, 0.3) !important;
+          color: inherit !important;
+        }
+        /* Ensure cursor is always visible */
+        [contenteditable="true"] {
+          caret-color: #000000 !important;
+        }
+        [contenteditable="true"]:focus {
+          caret-color: #000000 !important;
+        }
+        /* Better focus state */
+        [contenteditable="true"]:focus {
+          background-color: rgba(59, 130, 246, 0.08) !important;
+        }
+      `}</style>
       {/* Content Blocks Sidebar */}
       <div className="w-72 bg-slate-800 border-r border-white/10 p-4 overflow-y-auto flex-shrink-0">
         <div className="mb-6">
@@ -553,21 +582,57 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
 
                   {/* Block Content */}
                   <div className="p-6 pr-14">
-                    {block.type === 'text' ? (
+                    {block.type === 'text' || block.type === 'heading' ? (
                       <div
                         ref={el => textBlockRefs.current[block.id] = el}
                         contentEditable
                         suppressContentEditableWarning
                         onInput={(e) => handleTextInput(block.id, e)}
                         onBlur={(e) => updateBlockContent(block.id, e.target.innerHTML)}
-                        className="min-h-[50px] focus:outline-none"
+                        onFocus={(e) => {
+                          // Ensure cursor is visible when focused
+                          const textColor = settings.bodyTextColor || '#000000';
+                          e.target.style.caretColor = textColor;
+                          e.target.style.color = textColor;
+                        }}
+                        className="min-h-[50px] focus:outline-none rounded px-2 py-1 -mx-2 -my-1"
                         style={{
                           direction: 'ltr',
                           unicodeBidi: 'embed',
                           fontFamily: settings.bodyFont,
-                          fontSize: `${settings.bodyFontSize}px`,
+                          fontSize: block.type === 'heading' ? '24px' : `${settings.bodyFontSize}px`,
                           lineHeight: settings.lineHeight,
-                          color: settings.bodyTextColor
+                          fontWeight: block.type === 'heading' ? 'bold' : 'normal',
+                          color: settings.bodyTextColor || '#000000',
+                          caretColor: settings.bodyTextColor || '#000000',
+                          backgroundColor: 'transparent',
+                          outline: 'none',
+                          // Better text selection styling
+                          WebkitUserSelect: 'text',
+                          MozUserSelect: 'text',
+                          msUserSelect: 'text',
+                          userSelect: 'text',
+                          // Ensure text is readable
+                          textShadow: 'none',
+                          // Better spacing for editing
+                          padding: '6px 10px',
+                          margin: '4px 0',
+                          borderRadius: '4px',
+                          transition: 'background-color 0.15s ease',
+                          // Ensure minimum contrast
+                          minHeight: '1.5em',
+                          // Better cursor visibility
+                          cursor: 'text'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (document.activeElement !== e.target) {
+                            e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.08)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (document.activeElement !== e.target) {
+                            e.target.style.backgroundColor = 'transparent';
+                          }
                         }}
                         dangerouslySetInnerHTML={{ __html: block.content }}
                       />
