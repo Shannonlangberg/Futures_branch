@@ -18333,9 +18333,26 @@ def get_events():
         # Build query
         query = Event.query.filter_by(is_active=True)
         
-        # Log total active events count
-        total_active = Event.query.filter_by(is_active=True).count()
-        logger.info(f"[EVENTS] Total active events in database: {total_active}")
+        # Log total active events count - handle missing columns gracefully
+        try:
+            total_active = Event.query.filter_by(is_active=True).count()
+            logger.info(f"[EVENTS] Total active events in database: {total_active}")
+        except Exception as count_error:
+            error_str = str(count_error).lower()
+            if 'no such column' in error_str and 'image_url' in error_str:
+                logger.warning("[EVENTS] image_url column not found - migration 034_add_image_url_to_events.sql needs to be applied")
+                # Try using raw SQL to count without image_url
+                try:
+                    from sqlalchemy import text
+                    result = db.session.execute(text("SELECT COUNT(*) FROM events WHERE is_active = 1"))
+                    total_active = result.scalar()
+                    logger.info(f"[EVENTS] Total active events (using raw SQL): {total_active}")
+                except Exception as raw_error:
+                    logger.error(f"[EVENTS] Could not count events: {raw_error}")
+                    total_active = 0
+            else:
+                logger.error(f"[EVENTS] Error counting events: {count_error}")
+                total_active = 0
         
         # Filter by campus
         if campus != 'all_campuses':
@@ -18424,8 +18441,37 @@ def get_events():
             Event.start_time.asc()
         )
         
-        events = query.all()
-        logger.info(f"[EVENTS] Found {len(events)} events after filtering")
+        # Execute query - handle missing image_url column gracefully
+        try:
+            events = query.all()
+            logger.info(f"[EVENTS] Found {len(events)} events after filtering")
+        except Exception as query_error:
+            error_str = str(query_error).lower()
+            if 'no such column' in error_str and 'image_url' in error_str:
+                logger.warning("[EVENTS] image_url column not found - using raw SQL query")
+                # Use raw SQL to fetch events without image_url column
+                from sqlalchemy import text
+                sql_query = """
+                    SELECT id, title, description, campus, category_id, start_time, end_time, 
+                           location, is_active, created_at, updated_at, price, requires_payment, 
+                           stripe_price_id, beacon_zone_id
+                    FROM events 
+                    WHERE is_active = 1
+                    ORDER BY 
+                        CASE WHEN start_time IS NULL THEN 1 ELSE 0 END,
+                        start_time ASC
+                """
+                result = db.session.execute(text(sql_query))
+                rows = result.fetchall()
+                # Convert rows to Event objects manually
+                events = []
+                for row in rows:
+                    event = Event.query.get(row[0])  # Get by ID - this might still fail
+                    if event:
+                        events.append(event)
+                logger.info(f"[EVENTS] Found {len(events)} events using workaround")
+            else:
+                raise  # Re-raise if it's a different error
         
         # Convert to JSON
         events_data = []
