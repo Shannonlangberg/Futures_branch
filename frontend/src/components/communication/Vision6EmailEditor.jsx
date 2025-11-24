@@ -251,15 +251,15 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
 
       const data = await response.json();
       if (data.success) {
-        // Use full URL for images
-        const fullImageUrl = window.location.origin + data.image_url;
+        // Use the image URL from API (already includes /api/communication/uploads/...)
+        const imageUrl = data.image_url;
         const imgStyle = imageType === 'header' 
           ? `width: 100%; max-width: ${settings.emailWidth}px; height: auto; display: block; margin: 0 auto;`
           : 'max-width: 100%; height: auto;';
         
         const imgTag = imageType === 'header'
-          ? `<img src="${fullImageUrl}" alt="Header image" style="${imgStyle}" data-type="header" />`
-          : `<div style="text-align: center; margin: 20px 0;"><img src="${fullImageUrl}" alt="Image" style="${imgStyle}" /></div>`;
+          ? `<img src="${imageUrl}" alt="Header image" style="${imgStyle}" data-type="header" />`
+          : `<div style="text-align: center; margin: 20px 0;"><img src="${imageUrl}" alt="Image" style="${imgStyle}" /></div>`;
         
         const newBlock = {
           id: Date.now(),

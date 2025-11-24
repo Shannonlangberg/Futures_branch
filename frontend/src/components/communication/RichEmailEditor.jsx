@@ -57,7 +57,9 @@ const RichEmailEditor = ({ value, onChange, onPreview }) => {
 
       const data = await response.json();
       if (data.success) {
-        const imgTag = `<img src="${data.image_url}" alt="Uploaded image" style="max-width: 100%; height: auto;" />`;
+        // Use the image URL from API
+        const imageUrl = data.image_url;
+        const imgTag = `<div style="text-align: center; margin: 20px 0;"><img src="${imageUrl}" alt="Uploaded image" style="max-width: 100%; height: auto;" /></div>`;
         execCommand('insertHTML', imgTag);
         setShowImageUpload(false);
         setImageUrl('');

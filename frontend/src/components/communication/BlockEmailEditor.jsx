@@ -197,13 +197,15 @@ const BlockEmailEditor = ({ value, onChange }) => {
 
       const data = await response.json();
       if (data.success) {
+        // Use the image URL from API
+        const imageUrl = data.image_url;
         const imgStyle = imageType === 'header' 
           ? 'width: 100%; max-width: 600px; height: auto; display: block; margin: 0 auto;'
           : 'max-width: 100%; height: auto;';
         
         const imgTag = imageType === 'header'
-          ? `<img src="${data.image_url}" alt="Header image" style="${imgStyle}" data-type="header" />`
-          : `<img src="${data.image_url}" alt="Image" style="${imgStyle}" />`;
+          ? `<img src="${imageUrl}" alt="Header image" style="${imgStyle}" data-type="header" />`
+          : `<div style="text-align: center; margin: 20px 0;"><img src="${imageUrl}" alt="Image" style="${imgStyle}" /></div>`;
         
         const newBlock = {
           id: Date.now(),
