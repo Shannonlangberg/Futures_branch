@@ -83,20 +83,20 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
 
             {/* Grid Width */}
             <div>
-              <label className="block text-white/60 text-xs mb-1">Grid Width</label>
+              <label className="block text-gray-700 text-xs font-medium mb-2">Grid Width</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   value={settings.gridWidth}
                   onChange={(e) => updateSetting('gridWidth', parseInt(e.target.value) || 25)}
-                  className="flex-1 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <label className="flex items-center gap-1 text-white/60 text-xs">
+                <label className="flex items-center gap-2 text-gray-700 text-xs cursor-pointer">
                   <input
                     type="checkbox"
                     checked={settings.useGrid}
                     onChange={(e) => updateSetting('useGrid', e.target.checked)}
-                    className="w-4 h-4"
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   Use Grid
                 </label>
@@ -105,59 +105,59 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
 
             {/* Border */}
             <div>
-              <label className="block text-white/60 text-xs mb-1">Border</label>
+              <label className="block text-gray-700 text-xs font-medium mb-2">Border</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
                   value={settings.borderColor}
                   onChange={(e) => updateSetting('borderColor', e.target.value)}
-                  className="w-10 h-8 rounded border border-white/20 cursor-pointer"
+                  className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
                   type="text"
                   value={settings.borderColor}
                   onChange={(e) => updateSetting('borderColor', e.target.value)}
-                  className="flex-1 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <input
                   type="number"
                   value={settings.borderWidth}
                   onChange={(e) => updateSetting('borderWidth', parseInt(e.target.value) || 0)}
-                  className="w-16 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-20 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             {/* Background Colour */}
             <div>
-              <label className="block text-white/60 text-xs mb-1 flex items-center gap-1">
+              <label className="block text-gray-700 text-xs font-medium mb-2 flex items-center gap-1">
                 Background Colour
-                <span className="text-white/40">?</span>
+                <span className="text-gray-400 cursor-help" title="Background color for the email">?</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
                   value={settings.backgroundColor}
                   onChange={(e) => updateSetting('backgroundColor', e.target.value)}
-                  className="w-10 h-8 rounded border border-white/20 cursor-pointer"
+                  className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
                   type="text"
                   value={settings.backgroundColor}
                   onChange={(e) => updateSetting('backgroundColor', e.target.value)}
-                  className="flex-1 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             {/* Full height background */}
             <div>
-              <label className="flex items-center gap-2 text-white/60 text-xs">
+              <label className="flex items-center gap-2 text-gray-700 text-xs cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.fullHeightBackground}
                   onChange={(e) => updateSetting('fullHeightBackground', e.target.checked)}
-                  className="w-4 h-4"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
                 Full height background colour
               </label>
@@ -165,16 +165,16 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
 
             {/* Background Image */}
             <div>
-              <label className="block text-white/60 text-xs mb-1 flex items-center gap-1">
+              <label className="block text-gray-700 text-xs font-medium mb-2 flex items-center gap-1">
                 Background Image
-                <span className="text-white/40">?</span>
+                <span className="text-gray-400 cursor-help" title="Background image for the email">?</span>
               </label>
               <input
                 type="text"
                 value={settings.backgroundImage || ''}
                 onChange={(e) => updateSetting('backgroundImage', e.target.value)}
                 placeholder="Select Image"
-                className="w-full px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -230,46 +230,58 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
 
             {/* Line Height */}
             <div>
-              <label className="block text-white/60 text-xs mb-1">Line Height</label>
+              <label className="block text-gray-700 text-xs font-medium mb-2">Line Height</label>
               <select
                 value={settings.lineHeight}
                 onChange={(e) => updateSetting('lineHeight', parseFloat(e.target.value))}
-                className="w-full px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="1" className="bg-slate-800">1</option>
-                <option value="1.25" className="bg-slate-800">1.25</option>
-                <option value="1.5" className="bg-slate-800">1.5</option>
-                <option value="1.75" className="bg-slate-800">1.75</option>
-                <option value="2" className="bg-slate-800">2</option>
+                <option value="1">1</option>
+                <option value="1.25">1.25</option>
+                <option value="1.5">1.5</option>
+                <option value="1.75">1.75</option>
+                <option value="2">2</option>
               </select>
             </div>
 
             {/* Links */}
             <div>
-              <label className="block text-white/60 text-xs mb-1">Links</label>
+              <label className="block text-gray-700 text-xs font-medium mb-2">Links</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
                   value={settings.linkColor || '#000000'}
                   onChange={(e) => updateSetting('linkColor', e.target.value)}
-                  className="w-10 h-8 rounded border border-white/20 cursor-pointer"
+                  className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
                 />
                 <div className="flex gap-1">
                   <button
                     onClick={() => updateSetting('linkBold', !settings.linkBold)}
-                    className={`px-2 py-1 rounded text-xs ${settings.linkBold ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/60'}`}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                      settings.linkBold 
+                        ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                    }`}
                   >
                     B
                   </button>
                   <button
                     onClick={() => updateSetting('linkItalic', !settings.linkItalic)}
-                    className={`px-2 py-1 rounded text-xs ${settings.linkItalic ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/60'}`}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                      settings.linkItalic 
+                        ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                    }`}
                   >
                     I
                   </button>
                   <button
                     onClick={() => updateSetting('linkUnderline', !settings.linkUnderline)}
-                    className={`px-2 py-1 rounded text-xs ${settings.linkUnderline ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/60'}`}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                      settings.linkUnderline 
+                        ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                    }`}
                   >
                     U
                   </button>
@@ -279,23 +291,23 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
 
             {/* Heading 1 + Header component */}
             <div>
-              <label className="block text-white/60 text-xs mb-1">Heading 1 + Header component</label>
+              <label className="block text-gray-700 text-xs font-medium mb-2">Heading 1 + Header component</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
                   value={settings.headingColor || settings.bodyTextColor}
                   onChange={(e) => updateSetting('headingColor', e.target.value)}
-                  className="w-10 h-8 rounded border border-white/20 cursor-pointer"
+                  className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
                 />
                 <select
                   value={settings.headingFont || settings.bodyFont}
                   onChange={(e) => updateSetting('headingFont', e.target.value)}
-                  className="flex-1 px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="Arial" className="bg-slate-800">Arial</option>
-                  <option value="Helvetica" className="bg-slate-800">Helvetica</option>
-                  <option value="Georgia" className="bg-slate-800">Georgia</option>
-                  <option value="Times New Roman" className="bg-slate-800">Times New Roman</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Helvetica">Helvetica</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Times New Roman">Times New Roman</option>
                 </select>
               </div>
             </div>
