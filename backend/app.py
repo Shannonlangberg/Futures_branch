@@ -14878,26 +14878,74 @@ def delete_person(person_id):
         
         # 2. Delete pathway progress and step completions
         from models import PersonPathwayProgress, PersonPathwayStepCompletion
-        pathway_progresses = PersonPathwayProgress.query.filter_by(person_id=person_id).all()
-        for progress in pathway_progresses:
-            # Delete step completions first
-            PersonPathwayStepCompletion.query.filter_by(person_pathway_progress_id=progress.id).delete()
-            db.session.delete(progress)
-        logger.info(f"Deleted pathway progress records for person {person_id}")
+        from sqlalchemy.exc import OperationalError
+        try:
+            pathway_progresses = PersonPathwayProgress.query.filter_by(person_id=person_id).all()
+            for progress in pathway_progresses:
+                # Delete step completions first
+                try:
+                    PersonPathwayStepCompletion.query.filter_by(person_pathway_progress_id=progress.id).delete()
+                except OperationalError as e:
+                    if 'no such table' in str(e).lower():
+                        logger.warning(f"Table 'person_pathway_step_completion' doesn't exist, skipping")
+                    else:
+                        raise
+                db.session.delete(progress)
+            logger.info(f"Deleted pathway progress records for person {person_id}")
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'person_pathway_progress' doesn't exist, skipping")
+            else:
+                raise
         
         # 3. Delete connect group related records
         from models import ConnectGroupAttendance, ConnectGroupMessage, ConnectGroup
-        ConnectGroupAttendance.query.filter_by(person_id=person_id).delete()
-        ConnectGroupMessage.query.filter_by(person_id=person_id).delete()
+        try:
+            ConnectGroupAttendance.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'connect_group_attendance' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            ConnectGroupMessage.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'connect_group_messages' doesn't exist, skipping")
+            else:
+                raise
+        
         # Update connect groups where person is leader (set to null or delete group)
-        ConnectGroup.query.filter_by(leader_id=person_id).update({'leader_id': None})
-        ConnectGroup.query.filter_by(co_leader_id=person_id).update({'co_leader_id': None})
+        try:
+            ConnectGroup.query.filter_by(leader_id=person_id).update({'leader_id': None})
+            ConnectGroup.query.filter_by(co_leader_id=person_id).update({'co_leader_id': None})
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'connect_groups' doesn't exist, skipping")
+            else:
+                raise
+        
         logger.info(f"Deleted connect group records for person {person_id}")
         
         # 4. Delete event related records
         from models import EventRegistration, EventTeamAssignment
-        EventRegistration.query.filter_by(person_id=person_id).delete()
-        EventTeamAssignment.query.filter_by(person_id=person_id).delete()
+        try:
+            EventRegistration.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'event_registrations' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            EventTeamAssignment.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'event_team_assignments' doesn't exist, skipping")
+            else:
+                raise
+        
         logger.info(f"Deleted event records for person {person_id}")
         
         # 5. Delete heartbeat related records
@@ -14907,32 +14955,132 @@ def delete_person(person_id):
             CareCase, CareTouchpoint, PastoralCareAppointment,
             HeartbeatSnapshot, AppSession, TVUserEpisodeProgress
         )
-        AttendanceEvent.query.filter_by(person_id=person_id).delete()
-        ConnectAttendance.query.filter_by(person_id=person_id).delete()
-        ServingAssignment.query.filter_by(person_id=person_id).delete()
-        GivingSummary.query.filter_by(person_id=person_id).delete()
-        GivingTransaction.query.filter_by(person_id=person_id).delete()
-        DiscipleshipStep.query.filter_by(person_id=person_id).delete()
-        CareCase.query.filter_by(person_id=person_id).delete()
-        CareTouchpoint.query.filter_by(person_id=person_id).delete()
+        from sqlalchemy.exc import OperationalError
+        
+        # Delete each type with error handling in case tables don't exist
+        try:
+            AttendanceEvent.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'heartbeat_attendance_events' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            ConnectAttendance.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'heartbeat_connect_attendance' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            ServingAssignment.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            error_str = str(e).lower()
+            if 'no such table' in error_str or 'team_members' in error_str:
+                logger.warning(f"Table 'heartbeat_serving_assignments' or related table doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            GivingSummary.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'heartbeat_giving_summaries' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            GivingTransaction.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'giving_transactions' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            DiscipleshipStep.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'heartbeat_discipleship_steps' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            CareCase.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'heartbeat_care_cases' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            CareTouchpoint.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'heartbeat_care_touchpoints' doesn't exist, skipping")
+            else:
+                raise
+        
         # For appointments, handle both person_id and pastor_id
-        PastoralCareAppointment.query.filter_by(person_id=person_id).delete()
-        PastoralCareAppointment.query.filter_by(pastor_id=person_id).update({'pastor_id': None})
-        HeartbeatSnapshot.query.filter_by(person_id=person_id).delete()
-        AppSession.query.filter_by(person_id=person_id).delete()
-        TVUserEpisodeProgress.query.filter_by(person_id=person_id).delete()
+        try:
+            PastoralCareAppointment.query.filter_by(person_id=person_id).delete()
+            PastoralCareAppointment.query.filter_by(pastor_id=person_id).update({'pastor_id': None})
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'pastoral_care_appointments' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            HeartbeatSnapshot.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'heartbeat_snapshots' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            AppSession.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'app_sessions' doesn't exist, skipping")
+            else:
+                raise
+        
+        try:
+            TVUserEpisodeProgress.query.filter_by(person_id=person_id).delete()
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'tv_user_episode_progress' doesn't exist, skipping")
+            else:
+                raise
+        
         logger.info(f"Deleted heartbeat records for person {person_id}")
         
         # 6. Delete prayer related records
         from models import PrayerSubmission
-        # PrayerSubmission only has person_id (no pastor_id, requested_by_person_id, or created_by_person_id)
-        PrayerSubmission.query.filter_by(person_id=person_id).delete()
-        logger.info(f"Deleted prayer records for person {person_id}")
+        try:
+            # PrayerSubmission only has person_id (no pastor_id, requested_by_person_id, or created_by_person_id)
+            PrayerSubmission.query.filter_by(person_id=person_id).delete()
+            logger.info(f"Deleted prayer records for person {person_id}")
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'prayer_submissions' doesn't exist, skipping")
+            else:
+                raise
         
         # 7. Delete push notification tokens
         from models import PushNotificationToken
-        PushNotificationToken.query.filter_by(person_id=person_id).delete()
-        logger.info(f"Deleted push notification tokens for person {person_id}")
+        try:
+            PushNotificationToken.query.filter_by(person_id=person_id).delete()
+            logger.info(f"Deleted push notification tokens for person {person_id}")
+        except OperationalError as e:
+            if 'no such table' in str(e).lower():
+                logger.warning(f"Table 'push_notification_tokens' doesn't exist, skipping")
+            else:
+                raise
         
         # 8. Finally, delete the person
         db.session.delete(person)
