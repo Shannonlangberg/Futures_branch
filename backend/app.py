@@ -10768,6 +10768,38 @@ def get_recent_entries():
         logger.error(f"Recent entries error: {e}")
         return jsonify({"entries": []}), 200
 
+def ensure_google_sheets_columns(required_headers):
+    """Ensure Google Sheets has all required columns, adding missing ones"""
+    try:
+        if not sheet:
+            return False
+        
+        # Get current headers
+        all_records = safe_sheets_request(sheet.get_all_records)
+        current_headers = list(all_records[0].keys()) if all_records else []
+        
+        # Find missing headers
+        missing_headers = [h for h in required_headers if h not in current_headers]
+        
+        if not missing_headers:
+            return True  # All headers exist
+        
+        # Get the header row (row 1)
+        header_row = sheet.row_values(1) if sheet.row_values(1) else []
+        
+        # Add missing headers at the end
+        for header in missing_headers:
+            header_row.append(header)
+        
+        # Update the header row
+        sheet.update('A1', [header_row], value_input_option='USER_ENTERED')
+        logger.info(f"Added missing columns to Google Sheets: {missing_headers}")
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error ensuring Google Sheets columns: {e}")
+        return False
+
 @app.route('/api/quick_input', methods=['POST'])
 @login_required
 def quick_input():
@@ -10812,27 +10844,22 @@ def quick_input():
                     return ''
                 return safe_int(val)
             
+            # Get service times dynamically for this campus
+            campus_service_times = get_campus_service_times(campus)
+            logger.info(f"[DYNAMIC_SERVICE_TIMES] Campus '{campus}' has service times: {campus_service_times}")
+            
             # Use Adelaide timezone for Australian campuses
             from zoneinfo import ZoneInfo
             adelaide_tz = ZoneInfo('Australia/Adelaide')
             now_adelaide = datetime.now(adelaide_tz)
             
+            # Build base row_data with fixed fields
             row_data = {
                 'Timestamp': now_adelaide.strftime('%Y-%m-%d %H:%M:%S'),
                 'Date': date_str,
                 'Campus': campus,
                 'Total People in Campus': safe_value('Total People in Campus'),
                 'Total Attendance': safe_value('Total Attendance'),
-                '9:00 AM': safe_value('9:00 AM'),
-                '10:00 AM': safe_value('10:00 AM'),
-                '11:00 AM': safe_value('11:00 AM'),
-                '5:00 PM': safe_value('5:00 PM'),
-                '5:30 PM': safe_value('5:30 PM'),
-                'Kids 9:00 AM': safe_value('Kids 9:00 AM'),
-                'Kids 10:00 AM': safe_value('Kids 10:00 AM'),
-                'Kids 11:00 AM': safe_value('Kids 11:00 AM'),
-                'Kids 5:00 PM': safe_value('Kids 5:00 PM'),
-                'Kids 5:30 PM': safe_value('Kids 5:30 PM'),
                 'Kids Attendance': safe_value('Kids Attendance'),
                 'Kids Leaders': safe_value('Kids Leaders'),
                 'New Kids': safe_value('New Kids'),
@@ -10854,6 +10881,21 @@ def quick_input():
                 'Baptisms': safe_value('Baptisms'),
                 'Child Dedications': safe_value('Child Dedications')
             }
+            
+            # Dynamically add service times (adult and kids)
+            for service_time in campus_service_times:
+                row_data[service_time] = safe_value(service_time)
+                row_data[f'Kids {service_time}'] = safe_value(f'Kids {service_time}')
+            
+            # Build list of all required headers
+            required_headers = list(row_data.keys())
+            
+            # Ensure Google Sheets has all required columns
+            ensure_google_sheets_columns(required_headers)
+            
+            # Re-fetch headers after potentially adding new columns
+            all_records = safe_sheets_request(sheet.get_all_records)
+            headers = list(all_records[0].keys()) if all_records else []
             
             print(f"[DEBUG] Row data prepared: {row_data}")
             
@@ -11105,6 +11147,25 @@ def quick_input_update():
                 'Baptisms': safe_value('Baptisms'),
                 'Child Dedications': safe_value('Child Dedications')
             }
+            
+            # Get service times dynamically for this campus
+            campus_service_times = get_campus_service_times(campus)
+            logger.info(f"[DYNAMIC_SERVICE_TIMES] Campus '{campus}' has service times: {campus_service_times}")
+            
+            # Dynamically add service times (adult and kids)
+            for service_time in campus_service_times:
+                row_data[service_time] = safe_value(service_time)
+                row_data[f'Kids {service_time}'] = safe_value(f'Kids {service_time}')
+            
+            # Build list of all required headers
+            required_headers = list(row_data.keys())
+            
+            # Ensure Google Sheets has all required columns
+            ensure_google_sheets_columns(required_headers)
+            
+            # Re-fetch headers after potentially adding new columns
+            all_records = safe_sheets_request(sheet.get_all_records)
+            headers = list(all_records[0].keys()) if all_records else []
             
             # Add any missing headers with default values
             for header in headers:
