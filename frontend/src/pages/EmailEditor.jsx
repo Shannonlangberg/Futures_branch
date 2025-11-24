@@ -420,77 +420,19 @@ const EmailEditor = () => {
 
         {/* Main Editor Area - Full Width */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '700px' }}>
-          {useVision6Editor ? (
-            <div className="flex h-full overflow-hidden">
-              <Vision6EmailEditor
-                value={formData.content}
-                onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                designSettings={designSettings}
-                onDesignSettingsChange={setDesignSettings}
-              />
-              <DesignSettingsPanel
-                settings={designSettings}
-                onChange={setDesignSettings}
-              />
-            </div>
-          ) : (
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-white/80 text-sm font-semibold">
-                      Email Content *
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setUseVision6Editor(true)}
-                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
-                      >
-                        Use Vision 6 Editor
-                      </button>
-                    </div>
-                  </div>
-                  {useBlockEditor ? (
-                    <BlockEmailEditor
-                      value={formData.content}
-                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                    />
-                  ) : (
-                    <RichEmailEditor
-                      value={formData.content}
-                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-white/80 text-sm font-semibold">
-                      Email Content *
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setUseVision6Editor(true)}
-                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
-                      >
-                        Use Vision 6 Editor
-                      </button>
-                    </div>
-                  </div>
-                  {useBlockEditor ? (
-                    <BlockEmailEditor
-                      value={formData.content}
-                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                    />
-                  ) : (
-                    <RichEmailEditor
-                      value={formData.content}
-                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
+          <div className="flex h-full overflow-hidden">
+            <Vision6EmailEditor
+              value={formData.content}
+              onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+              designSettings={designSettings}
+              onDesignSettingsChange={setDesignSettings}
+            />
+            <DesignSettingsPanel
+              settings={designSettings}
+              onChange={setDesignSettings}
+            />
+          </div>
+        </div>
 
         {/* Bottom Section - Settings & Plain Text */}
         <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
