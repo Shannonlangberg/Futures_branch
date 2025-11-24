@@ -419,19 +419,23 @@ const EmailEditor = () => {
             </div>
 
             {/* Email Editor */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden" style={{ height: '600px' }}>
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden" style={{ minHeight: '600px', height: 'auto' }}>
               {useVision6Editor ? (
-                <div className="flex h-full">
-                  <Vision6EmailEditor
-                    value={formData.content}
-                    onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                    designSettings={designSettings}
-                    onDesignSettingsChange={setDesignSettings}
-                  />
-                  <DesignSettingsPanel
-                    settings={designSettings}
-                    onChange={setDesignSettings}
-                  />
+                <div className="flex flex-col md:flex-row h-full">
+                  <div className="flex-1 min-h-[400px]">
+                    <Vision6EmailEditor
+                      value={formData.content}
+                      onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                      designSettings={designSettings}
+                      onDesignSettingsChange={setDesignSettings}
+                    />
+                  </div>
+                  <div className="hidden md:block">
+                    <DesignSettingsPanel
+                      settings={designSettings}
+                      onChange={setDesignSettings}
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="p-6">

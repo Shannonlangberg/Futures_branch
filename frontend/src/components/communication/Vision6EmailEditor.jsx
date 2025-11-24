@@ -400,9 +400,9 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col md:flex-row h-full">
       {/* Content Blocks Sidebar */}
-      <div className="w-64 bg-slate-800 border-r border-white/10 p-4 overflow-y-auto">
+      <div className="w-full md:w-64 bg-slate-800 border-r border-white/10 p-2 md:p-4 overflow-y-auto flex-shrink-0">
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-white font-semibold text-sm">Content</span>
@@ -410,7 +410,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
           </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-4 md:grid-cols-2 gap-2">
           <button
             onClick={() => addBlock('header')}
             className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
@@ -489,7 +489,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       </div>
 
       {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* Toolbar */}
         <div className="bg-slate-700 border-b border-white/10 p-2 flex items-center gap-2">
           <button className="p-2 hover:bg-white/10 rounded text-white/60">
@@ -511,7 +511,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         </div>
 
         {/* Email Preview/Editor */}
-        <div className="flex-1 overflow-y-auto bg-slate-600 p-8">
+        <div className="flex-1 overflow-y-auto bg-slate-600 p-2 md:p-8">
           <div className="max-w-4xl mx-auto">
             <div 
               style={{
