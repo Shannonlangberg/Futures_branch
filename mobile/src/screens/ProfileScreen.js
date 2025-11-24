@@ -80,26 +80,38 @@ export default function ProfileScreen() {
 
         if (finalStatus === 'granted') {
           // Get push token and save it
+          // Project ID is optional - Expo Go and development builds can work without it
           const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
-          if (!projectId || projectId === 'your-project-id') {
+          
+          let token;
+          try {
+            // Try with project ID if available, otherwise without (works in Expo Go)
+            token = await Notifications.getExpoPushTokenAsync(
+              projectId && projectId !== 'your-project-id' ? { projectId } : undefined
+            );
+          } catch (error) {
+            console.error('Error getting push token:', error);
             Alert.alert(
-              'Notifications',
-              'Push notifications are not configured for this app. Please contact support.'
+              'Error',
+              'Failed to get push notification token. Make sure you\'re running on Expo Go or a development build.'
             );
             setNotificationsEnabled(false);
             return;
           }
 
-          const token = await Notifications.getExpoPushTokenAsync(
-            projectId ? { projectId } : undefined
-          );
-
-          if (token && user) {
+          if (token && token.data && user) {
             const platform = Platform.OS;
             const appVersion = Constants?.expoConfig?.version || '1.0.0';
             await NotificationService.savePushToken(user.email, token.data, platform, null, appVersion);
             setNotificationsEnabled(true);
+            console.log('📱 Push Token:', token.data);
             Alert.alert('Success', 'Push notifications enabled! You will now receive notifications from Futures Church.');
+          } else if (!token || !token.data) {
+            Alert.alert(
+              'Error',
+              'Failed to get push notification token. Make sure you\'re running on Expo Go or a development build.'
+            );
+            setNotificationsEnabled(false);
           }
         } else {
           Alert.alert(

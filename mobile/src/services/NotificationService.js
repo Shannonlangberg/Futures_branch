@@ -24,11 +24,12 @@ export const NotificationService = {
       return null;
     }
 
-    // Get projectId from Expo constants (set automatically by Expo)
+    // Get projectId from Expo constants (optional - works without it in Expo Go)
     const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
     
+    // Project ID is optional - Expo Go and development builds can work without it
     const token = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined
+      projectId && projectId !== 'your-project-id' ? { projectId } : undefined
     );
 
     if (Platform.OS === 'android') {
@@ -45,17 +46,17 @@ export const NotificationService = {
 
   async getPushToken() {
     try {
-      // Get projectId from Expo constants (set automatically by Expo)
+      // Get projectId from Expo constants (optional - works without it in Expo Go)
       const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
       
-      // Only include projectId if it's set (not required in development)
+      // Project ID is optional - Expo Go and development builds can work without it
       const token = await Notifications.getExpoPushTokenAsync(
-        projectId ? { projectId } : undefined
+        projectId && projectId !== 'your-project-id' ? { projectId } : undefined
       );
       return token.data;
     } catch (error) {
       // Silently handle - push notifications not configured yet (expected in development)
-      console.log('Push notifications not configured - skipping');
+      console.log('Push notifications not configured - skipping:', error.message);
       return null;
     }
   },

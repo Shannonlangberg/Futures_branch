@@ -14,6 +14,7 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import RichEmailEditor from '../components/communication/RichEmailEditor';
+import BlockEmailEditor from '../components/communication/BlockEmailEditor';
 
 const EmailEditor = () => {
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ const EmailEditor = () => {
   const [csvData, setCsvData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [useBlockEditor, setUseBlockEditor] = useState(true);
 
   useEffect(() => {
     fetchCampuses();
@@ -382,13 +384,30 @@ const EmailEditor = () => {
 
             {/* Email Editor */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <label className="block text-white/80 text-sm font-semibold mb-4">
-                Email Content *
-              </label>
-              <RichEmailEditor
-                value={formData.content}
-                onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-              />
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-white/80 text-sm font-semibold">
+                  Email Content *
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setUseBlockEditor(!useBlockEditor)}
+                    className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white text-sm rounded-lg transition-colors"
+                  >
+                    {useBlockEditor ? 'Switch to Classic Editor' : 'Switch to Block Editor'}
+                  </button>
+                </div>
+              </div>
+              {useBlockEditor ? (
+                <BlockEmailEditor
+                  value={formData.content}
+                  onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                />
+              ) : (
+                <RichEmailEditor
+                  value={formData.content}
+                  onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                />
+              )}
             </div>
 
             {/* Plain Text Version */}
@@ -706,4 +725,5 @@ const EmailEditor = () => {
 };
 
 export default EmailEditor;
+
 

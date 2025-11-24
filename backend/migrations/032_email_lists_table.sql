@@ -27,3 +27,4 @@ BEGIN
     UPDATE email_lists SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 
+
