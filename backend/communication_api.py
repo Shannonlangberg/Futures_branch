@@ -1284,6 +1284,112 @@ def get_template_gallery():
         logger.error(f"Error getting template gallery: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+@communication_bp.route('/view-email/<token>', methods=['GET'])
+def view_email_online(token):
+    """
+    View email online - requires login
+    """
+    try:
+        from flask_login import login_required, current_user
+        from flask import redirect, url_for, render_template_string
+        from communication_models import EmailViewToken, Campaign, CampaignRecipient
+        
+        # Check if token exists and is valid
+        view_token = EmailViewToken.query.filter_by(token=token).first()
+        
+        if not view_token:
+            return jsonify({"error": "Invalid or expired link"}), 404
+        
+        if not view_token.is_valid():
+            return jsonify({"error": "This link has expired"}), 410
+        
+        # Get campaign
+        campaign = Campaign.query.get(view_token.campaign_id)
+        if not campaign:
+            return jsonify({"error": "Campaign not found"}), 404
+        
+        # Check if user is logged in
+        if not current_user.is_authenticated:
+            # Store the token in session and redirect to login
+            from flask import session
+            session['email_view_token'] = token
+            session['email_view_return_url'] = f'/view-email/{token}'
+            return redirect('/login?redirect=/view-email/' + token)
+        
+        # Verify user has access (they should be the recipient or have admin access)
+        recipient = CampaignRecipient.query.get(view_token.recipient_id)
+        if recipient:
+            from models import Person
+            person = Person.query.get(recipient.person_id) if recipient.person_id else None
+            
+            # Check if current user matches the recipient or is admin
+            user_email = getattr(current_user, 'email', None) or getattr(current_user, 'username', None)
+            user_role = getattr(current_user, 'role', None)
+            
+            if user_role != 'admin' and person and person.email and person.email.lower() != user_email.lower():
+                return jsonify({"error": "You don't have permission to view this email"}), 403
+        
+        # Mark as viewed
+        view_token.mark_viewed()
+        db.session.commit()
+        
+        # Render email content
+        email_html = f'''
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{campaign.subject_line or 'Email from Futures Church'}</title>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9fafb;
+                }}
+                .email-container {{
+                    background: white;
+                    border-radius: 8px;
+                    padding: 30px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                }}
+                .header {{
+                    border-bottom: 2px solid #e5e7eb;
+                    padding-bottom: 20px;
+                    margin-bottom: 20px;
+                }}
+                .header h1 {{
+                    margin: 0;
+                    color: #1f2937;
+                    font-size: 24px;
+                }}
+                .content {{
+                    color: #374151;
+                    line-height: 1.6;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="email-container">
+                <div class="header">
+                    <h1>{campaign.subject_line or 'Message from Futures Church'}</h1>
+                </div>
+                <div class="content">
+                    {campaign.content}
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        return render_template_string(email_html)
+        
+    except Exception as e:
+        logger.error(f"Error viewing email online: {str(e)}")
+        return jsonify({"error": "Error loading email"}), 500
+
 @communication_bp.route('/templates/save', methods=['POST'])
 @login_required
 def save_template():

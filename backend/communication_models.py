@@ -159,6 +159,47 @@ class CampaignTemplate(db.Model):
             'updated_at': self.updated_at.isoformat()
         }
 
+class EmailViewToken(db.Model):
+    """
+    Secure tokens for viewing emails online (requires login)
+    """
+    __tablename__ = 'email_view_tokens'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    campaign_id = db.Column(db.String(36), db.ForeignKey('campaigns.id'), nullable=False)
+    recipient_id = db.Column(db.String(36), db.ForeignKey('campaign_recipients.id'), nullable=False)
+    person_id = db.Column(db.String(36), nullable=True)
+    token = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    viewed_at = db.Column(db.DateTime, nullable=True)
+    view_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<EmailViewToken {self.token[:8]}...>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'recipient_id': self.recipient_id,
+            'person_id': self.person_id,
+            'token': self.token,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'viewed_at': self.viewed_at.isoformat() if self.viewed_at else None,
+            'view_count': self.view_count,
+            'created_at': self.created_at.isoformat()
+        }
+    
+    def is_valid(self):
+        """Check if token is still valid"""
+        return datetime.utcnow() < self.expires_at
+    
+    def mark_viewed(self):
+        """Mark token as viewed"""
+        self.viewed_at = datetime.utcnow()
+        self.view_count += 1
+
 class CampaignRecipient(db.Model):
     """
     Individual recipients for campaigns with engagement tracking

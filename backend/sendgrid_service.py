@@ -103,10 +103,20 @@ class SendGridService:
                     personalization = Personalization()
                     personalization.add_to(To(recipient['email'], recipient.get('name', recipient['email'])))
                     
+                    # Use personalized content if available (for view online links)
+                    recipient_content = recipient.get('content') or campaign_data.get('content')
+                    if recipient_content and recipient_content != campaign_data.get('content'):
+                        # Use personalized HTML content for this recipient
+                        personalization.add_content(HtmlContent(recipient_content))
+                    
                     # Add custom fields for tracking
                     personalization.add_custom_arg("campaign_id", campaign_data.get('id', ''))
                     personalization.add_custom_arg("recipient_id", recipient.get('id', ''))
                     personalization.add_custom_arg("person_id", recipient.get('person_id', ''))
+                    
+                    # Add view token if available
+                    if recipient.get('view_token'):
+                        personalization.add_custom_arg("view_token", recipient['view_token'])
                     
                     # Add personalization variables
                     for key, value in recipient.get('personalization', {}).items():

@@ -10,11 +10,13 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 from sqlalchemy import and_, or_, func
 import json
+import secrets
+import hashlib
 
 from models import db, Person
 from communication_models import (
     Campaign, CampaignRecipient, EngagementEvent, CommunicationPreferences,
-    CampaignType, CampaignStatus, EngagementType
+    CampaignType, CampaignStatus, EngagementType, EmailViewToken
 )
 from sendgrid_service import SendGridService
 from twilio_service import TwilioService
@@ -285,6 +287,75 @@ class CampaignManager:
             logger.error(f"Error sending campaign {campaign_id}: {str(e)}")
             return {"success": False, "error": str(e)}
     
+    def _generate_view_token(self, campaign_id: str, recipient_id: str, person_id: str = None) -> str:
+        """
+        Generate a secure token for viewing email online
+        
+        Args:
+            campaign_id: Campaign ID
+            recipient_id: Recipient ID
+            person_id: Person ID (optional)
+        
+        Returns:
+            Secure token string
+        """
+        # Generate a secure random token
+        token = secrets.token_urlsafe(32)
+        
+        # Create token record (expires in 90 days)
+        expires_at = datetime.utcnow() + timedelta(days=90)
+        
+        view_token = EmailViewToken(
+            campaign_id=campaign_id,
+            recipient_id=recipient_id,
+            person_id=person_id,
+            token=token,
+            expires_at=expires_at
+        )
+        
+        db.session.add(view_token)
+        db.session.commit()
+        
+        return token
+    
+    def _add_view_online_link(self, html_content: str, token: str, base_url: str = None) -> str:
+        """
+        Add a "View Online" link to email content
+        
+        Args:
+            html_content: Original HTML content
+            token: Secure view token
+            base_url: Base URL for the application
+        
+        Returns:
+            HTML content with view online link
+        """
+        if not base_url:
+            base_url = os.getenv('BASE_URL', 'https://ranch-production.up.railway.app')
+        
+        view_url = f"{base_url}/view-email/{token}"
+        
+        # Add view online link at the top of the email
+        view_online_html = f'''
+        <div style="background-color: #f3f4f6; padding: 15px; text-align: center; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+            <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                Having trouble viewing this email? 
+                <a href="{view_url}" style="color: #3b82f6; text-decoration: none; font-weight: 600;">View it in your browser</a>
+            </p>
+        </div>
+        '''
+        
+        # Insert view online link at the beginning of the body
+        if '<body' in html_content:
+            html_content = html_content.replace('<body', f'{view_online_html}<body', 1)
+        elif '<html' in html_content:
+            html_content = html_content.replace('<html>', f'<html>{view_online_html}', 1)
+        else:
+            # If no body tag, prepend to content
+            html_content = view_online_html + html_content
+        
+        return html_content
+    
     def _send_email_campaign(self, campaign: Campaign, recipients: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Send email campaign using SendGrid
@@ -297,6 +368,9 @@ class CampaignManager:
             Dictionary with sending results
         """
         try:
+            # Generate view tokens for each recipient and add view online links
+            base_url = os.getenv('BASE_URL', 'https://ranch-production.up.railway.app')
+            
             # Prepare campaign data for SendGrid
             campaign_data = {
                 'id': campaign.id,
@@ -305,8 +379,46 @@ class CampaignManager:
                 'content_text': campaign.content_text
             }
             
-            # Send campaign
-            result = self.sendgrid_service.send_campaign_email(campaign_data, recipients)
+            # Generate tokens and add view online links for each recipient
+            for recipient in recipients:
+                # Get or create recipient record
+                recipient_record = CampaignRecipient.query.filter_by(
+                    campaign_id=campaign.id,
+                    person_id=recipient.get('person_id')
+                ).first()
+                
+                if recipient_record:
+                    # Generate view token
+                    token = self._generate_view_token(
+                        campaign.id,
+                        recipient_record.id,
+                        recipient.get('person_id')
+                    )
+                    
+                    # Add view online link to content for this recipient
+                    recipient['view_token'] = token
+                    recipient['html_content'] = self._add_view_online_link(
+                        campaign.content,
+                        token,
+                        base_url
+                    )
+                else:
+                    # Fallback: use original content
+                    recipient['html_content'] = campaign.content
+            
+            # Update campaign data with view online links
+            # Note: We'll send personalized content per recipient
+            modified_recipients = []
+            for recipient in recipients:
+                if 'html_content' in recipient:
+                    modified_recipient = recipient.copy()
+                    modified_recipient['content'] = recipient['html_content']
+                    modified_recipients.append(modified_recipient)
+                else:
+                    modified_recipients.append(recipient)
+            
+            # Send campaign with modified recipients
+            result = self.sendgrid_service.send_campaign_email(campaign_data, modified_recipients)
             
             if result.get('success'):
                 # Update recipient records with message IDs
