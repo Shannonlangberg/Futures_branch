@@ -19113,9 +19113,22 @@ def create_event():
         if data.get('beacon_zone_id'):
             event_kwargs['beacon_zone_id'] = int(data['beacon_zone_id'])
         
-        # Add image_url if provided
+        # Add image_url if provided - check if column exists first
         if data.get('image_url'):
-            event_kwargs['image_url'] = data['image_url']
+            # Check if image_url column exists in database by trying to query it
+            try:
+                # Quick check: try to see if column exists by checking table schema
+                from sqlalchemy import inspect
+                inspector = inspect(db.engine)
+                columns = [col['name'] for col in inspector.get_columns('events')]
+                if 'image_url' in columns:
+                    event_kwargs['image_url'] = data['image_url']
+                else:
+                    logger.warning("image_url column not found in events table - migration may not have run yet")
+            except Exception as schema_check_error:
+                # If we can't check, try to set it anyway and let the commit fail gracefully
+                logger.warning(f"Could not check if image_url column exists: {schema_check_error}")
+                event_kwargs['image_url'] = data['image_url']
         
         # Only add fields that exist in the model (check using hasattr on a sample Event)
         # Create a temporary event to check which attributes exist
@@ -19157,8 +19170,32 @@ def create_event():
             # Check if it's a column error (migration might not have run)
             error_str = str(db_error).lower()
             if 'no such column' in error_str or 'unknown column' in error_str:
+                # Check if it's specifically the image_url column
+                if 'image_url' in error_str:
+                    # Try again without image_url
+                    if 'image_url' in event_kwargs:
+                        del event_kwargs['image_url']
+                        new_event = Event(**event_kwargs)
+                        db.session.add(new_event)
+                        try:
+                            db.session.commit()
+                            logger.warning("Event created without image_url - migration 034_add_image_url_to_events.sql needs to be applied")
+                            return jsonify({
+                                'message': 'Event created successfully (image_url column not available - migration pending)',
+                                'event': {
+                                    'id': new_event.id,
+                                    'title': new_event.title,
+                                    'warning': 'image_url column not found - please apply migration 034_add_image_url_to_events.sql'
+                                }
+                            }), 201
+                        except Exception as retry_error:
+                            db.session.rollback()
+                            return jsonify({
+                                'error': 'Database schema is missing required columns. Please check logs and ensure migration 034_add_image_url_to_events.sql has been applied.',
+                                'details': str(retry_error)
+                            }), 500
                 return jsonify({
-                    'error': 'Database schema is missing required columns. The migration may have failed. Please check logs and run migration 028_enhanced_events_module.sql manually.',
+                    'error': 'Database schema is missing required columns. The migration may have failed. Please check logs and run the appropriate migration manually.',
                     'details': str(db_error)
                 }), 500
             raise
