@@ -1290,8 +1290,7 @@ def view_email_online(token):
     View email online - requires login
     """
     try:
-        from flask_login import login_required, current_user
-        from flask import redirect, url_for, render_template_string
+        from flask import redirect, url_for, render_template_string, session
         from communication_models import EmailViewToken, Campaign, CampaignRecipient
         
         # Check if token exists and is valid
@@ -1311,10 +1310,12 @@ def view_email_online(token):
         # Check if user is logged in
         if not current_user.is_authenticated:
             # Store the token in session and redirect to login
-            from flask import session
             session['email_view_token'] = token
             session['email_view_return_url'] = f'/view-email/{token}'
-            return redirect('/login?redirect=/view-email/' + token)
+            # Return a redirect response
+            from flask import make_response
+            response = make_response(redirect('/login?redirect=/view-email/' + token))
+            return response
         
         # Verify user has access (they should be the recipient or have admin access)
         recipient = CampaignRecipient.query.get(view_token.recipient_id)

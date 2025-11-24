@@ -348,6 +348,9 @@ function App() {
         {/* Public Give Page - No auth required */}
         <Route path="/give" element={<Give />} />
         
+        {/* View Email - Can be accessed without auth (will redirect to login) */}
+        <Route path="/view-email/:token" element={<ViewEmail />} />
+        
         <Route
           path="/*"
           element={
@@ -395,7 +398,6 @@ function App() {
                   <Route path="/communication/sms-activity" element={<SMSActivity />} />
                   <Route path="/communication/email-editor" element={<EmailEditor />} />
                   <Route path="/communication/email-editor/:campaignId" element={<EmailEditor />} />
-                  <Route path="/view-email/:token" element={<ViewEmail />} />
                   <Route path="/devotions" element={<DevotionsAdmin />} />
                   <Route path="/devotions/plans" element={<DevotionPlanManager />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
