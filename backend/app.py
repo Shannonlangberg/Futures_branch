@@ -14837,11 +14837,8 @@ def delete_person(person_id):
         
         # 6. Delete prayer related records
         from models import PrayerSubmission
-        # Handle person_id, pastor_id, requested_by_person_id, created_by_person_id
+        # PrayerSubmission only has person_id (no pastor_id, requested_by_person_id, or created_by_person_id)
         PrayerSubmission.query.filter_by(person_id=person_id).delete()
-        PrayerSubmission.query.filter_by(pastor_id=person_id).update({'pastor_id': None})
-        PrayerSubmission.query.filter_by(requested_by_person_id=person_id).update({'requested_by_person_id': None})
-        PrayerSubmission.query.filter_by(created_by_person_id=person_id).update({'created_by_person_id': None})
         logger.info(f"Deleted prayer records for person {person_id}")
         
         # 7. Delete push notification tokens
