@@ -1219,7 +1219,7 @@ init_db(app)
 # IMPORTANT: Run migrations AFTER init_db but before any queries that need step_actions column
 logger.info("🔄 Running database migrations after database initialization...")
 try:
-run_migrations()
+    run_migrations()
     logger.info("✅ Migrations completed successfully")
 except Exception as e:
     logger.error(f"❌ Migration error: {e}", exc_info=True)
