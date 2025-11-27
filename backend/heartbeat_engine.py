@@ -52,9 +52,38 @@ class HeartbeatEngine:
         Returns:
             HeartbeatSnapshot object
         """
-        person = Person.query.get(person_id)
-        if not person:
-            raise ValueError(f"Person {person_id} not found")
+        # Check if new Person columns exist before using ORM
+        from sqlalchemy import text
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
+        
+        # Get person - use raw SQL if columns don't exist
+        if not has_new_columns:
+            base_columns = [
+                'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+            ]
+            sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE id = :person_id"
+            row = db.session.execute(text(sql), {'person_id': person_id}).fetchone()
+            
+            if not row:
+                raise ValueError(f"Person {person_id} not found")
+            
+            person_dict = dict(zip(base_columns, row))
+            person = Person()
+            for key, value in person_dict.items():
+                setattr(person, key, value)
+        else:
+            person = Person.query.get(person_id)
+            if not person:
+                raise ValueError(f"Person {person_id} not found")
         
         # Default to last 12 weeks if no range provided
         if date_range_end is None:
