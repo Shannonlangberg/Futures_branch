@@ -581,12 +581,18 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     <div className="flex h-full bg-slate-700">
       {/* Global styles for better text editing */}
       <style>{`
-        /* Force LTR direction globally for all contentEditable */
-        [contenteditable="true"] {
+        /* Force LTR direction globally for all contentEditable - ULTRA AGGRESSIVE */
+        [contenteditable="true"],
+        [contenteditable="true"] *,
+        [contenteditable="true"] *::before,
+        [contenteditable="true"] *::after {
           direction: ltr !important;
           unicode-bidi: embed !important;
           text-align: left !important;
           writing-mode: horizontal-tb !important;
+          text-orientation: mixed !important;
+        }
+        [contenteditable="true"] {
           caret-color: #000000 !important;
         }
         [contenteditable="true"]:focus {
@@ -601,13 +607,23 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         [contenteditable="true"]::selection {
           background-color: rgba(59, 130, 246, 0.3) !important;
           color: inherit !important;
+          direction: ltr !important;
         }
         [contenteditable="true"]::-moz-selection {
           background-color: rgba(59, 130, 246, 0.3) !important;
           color: inherit !important;
+          direction: ltr !important;
         }
-        /* Prevent RTL at the CSS level */
-        [contenteditable="true"] * {
+        /* Prevent RTL at the CSS level - ALL elements */
+        [contenteditable="true"] span,
+        [contenteditable="true"] div,
+        [contenteditable="true"] p,
+        [contenteditable="true"] h1,
+        [contenteditable="true"] h2,
+        [contenteditable="true"] h3,
+        [contenteditable="true"] strong,
+        [contenteditable="true"] em,
+        [contenteditable="true"] u {
           direction: ltr !important;
           unicode-bidi: embed !important;
           writing-mode: horizontal-tb !important;
@@ -790,59 +806,144 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           textBlockRefs.current[block.id] = el;
                           // Force LTR direction on mount and update
                           if (el) {
-                            el.style.direction = 'ltr';
-                            el.style.unicodeBidi = 'embed';
-                            el.setAttribute('dir', 'ltr');
-                            el.style.textAlign = 'left';
+                            // IMMEDIATE aggressive LTR enforcement
+                            const forceLTR = () => {
+                              el.setAttribute('dir', 'ltr');
+                              el.style.direction = 'ltr';
+                              el.style.unicodeBidi = 'embed';
+                              el.style.textAlign = 'left';
+                              el.style.writingMode = 'horizontal-tb';
+                              
+                              // Force LTR on ALL descendants
+                              const allNodes = el.querySelectorAll('*');
+                              allNodes.forEach(node => {
+                                node.setAttribute('dir', 'ltr');
+                                node.style.direction = 'ltr';
+                                node.style.unicodeBidi = 'embed';
+                                node.style.textAlign = 'left';
+                                node.style.writingMode = 'horizontal-tb';
+                              });
+                              
+                              // Check computed style and override if needed
+                              const computed = window.getComputedStyle(el);
+                              if (computed.direction !== 'ltr') {
+                                el.style.setProperty('direction', 'ltr', 'important');
+                              }
+                            };
                             
-                            // Watch for any direction changes and fix them immediately
+                            forceLTR();
+                            
+                            // Watch for ANY changes - text, attributes, child nodes
                             const observer = new MutationObserver((mutations) => {
-                              if (el.style.direction !== 'ltr' || el.getAttribute('dir') !== 'ltr') {
-                                el.style.direction = 'ltr';
-                                el.style.unicodeBidi = 'embed';
-                                el.setAttribute('dir', 'ltr');
-                                el.style.textAlign = 'left';
+                              let needsFix = false;
+                              
+                              mutations.forEach(mutation => {
+                                // Check if direction attribute changed
+                                if (mutation.type === 'attributes' && 
+                                    (mutation.attributeName === 'dir' || mutation.attributeName === 'style')) {
+                                  if (el.getAttribute('dir') !== 'ltr' || 
+                                      el.style.direction !== 'ltr') {
+                                    needsFix = true;
+                                  }
+                                }
+                                
+                                // Check if text was added/changed
+                                if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                                  needsFix = true;
+                                }
+                              });
+                              
+                              if (needsFix) {
+                                // Use requestAnimationFrame for immediate fix
+                                requestAnimationFrame(() => {
+                                  forceLTR();
+                                  
+                                  // Also check all text nodes
+                                  const walker = document.createTreeWalker(
+                                    el,
+                                    NodeFilter.SHOW_TEXT,
+                                    null
+                                  );
+                                  let textNode;
+                                  while (textNode = walker.nextNode()) {
+                                    const parent = textNode.parentElement;
+                                    if (parent) {
+                                      parent.setAttribute('dir', 'ltr');
+                                      parent.style.direction = 'ltr';
+                                      parent.style.unicodeBidi = 'embed';
+                                      parent.style.textAlign = 'left';
+                                      parent.style.writingMode = 'horizontal-tb';
+                                    }
+                                  }
+                                });
                               }
                             });
                             
                             observer.observe(el, {
                               attributes: true,
                               attributeFilter: ['dir', 'style'],
-                              subtree: true
+                              childList: true,
+                              subtree: true,
+                              characterData: true
                             });
                             
-                            // Store observer for cleanup
-                            if (!el._directionObserver) {
-                              el._directionObserver = observer;
+                            // Also use a periodic check as backup
+                            const intervalId = setInterval(() => {
+                              const computed = window.getComputedStyle(el);
+                              if (computed.direction !== 'ltr') {
+                                forceLTR();
+                              }
+                            }, 100);
+                            
+                            // Clean up old observer/interval if they exist
+                            if (el._directionObserver) {
+                              el._directionObserver.disconnect();
                             }
+                            if (el._directionInterval) {
+                              clearInterval(el._directionInterval);
+                            }
+                            
+                            // Store observer and interval for cleanup
+                            el._directionObserver = observer;
+                            el._directionInterval = intervalId;
                           }
                         }}
                         contentEditable
                         suppressContentEditableWarning
                         dir="ltr"
                         onBeforeInput={(e) => {
-                          // Intercept before input to force LTR
+                          // Intercept before input to force LTR - PREVENT default if RTL detected
                           const target = e.target;
                           target.setAttribute('dir', 'ltr');
-                          target.style.direction = 'ltr';
-                          target.style.unicodeBidi = 'embed';
-                          target.style.textAlign = 'left';
-                          target.style.writingMode = 'horizontal-tb';
+                          target.style.setProperty('direction', 'ltr', 'important');
+                          target.style.setProperty('unicode-bidi', 'embed', 'important');
+                          target.style.setProperty('text-align', 'left', 'important');
+                          target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
                           
-                          // If data is being inserted, ensure it's LTR
-                          if (e.data) {
-                            // Force the input to be treated as LTR
-                            const selection = window.getSelection();
-                            if (selection && selection.rangeCount > 0) {
-                              const range = selection.getRangeAt(0);
-                              const textNode = range.startContainer;
-                              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                          // Check computed style BEFORE allowing input
+                          const computed = window.getComputedStyle(target);
+                          if (computed.direction !== 'ltr') {
+                            e.preventDefault();
+                            target.style.setProperty('direction', 'ltr', 'important');
+                            // Re-insert the text manually with LTR
+                            if (e.data) {
+                              const selection = window.getSelection();
+                              if (selection && selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                const textNode = document.createTextNode(e.data);
+                                range.deleteContents();
+                                range.insertNode(textNode);
+                                range.setStartAfter(textNode);
+                                range.collapse(true);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                                
+                                // Ensure parent is LTR
                                 const parent = textNode.parentElement;
                                 if (parent) {
                                   parent.setAttribute('dir', 'ltr');
-                                  parent.style.direction = 'ltr';
-                                  parent.style.unicodeBidi = 'embed';
-                                  parent.style.textAlign = 'left';
+                                  parent.style.setProperty('direction', 'ltr', 'important');
+                                  parent.style.setProperty('unicode-bidi', 'embed', 'important');
                                 }
                               }
                             }
@@ -864,7 +965,81 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           target.style.unicodeBidi = 'embed';
                           target.style.textAlign = 'left';
                         }}
-                        onInput={(e) => handleTextInput(block.id, e)}
+                        onPaste={(e) => {
+                          // Intercept paste to ensure LTR
+                          e.preventDefault();
+                          const target = e.target;
+                          const text = e.clipboardData.getData('text/plain');
+                          
+                          // Insert text with explicit LTR
+                          const selection = window.getSelection();
+                          if (selection && selection.rangeCount > 0) {
+                            const range = selection.getRangeAt(0);
+                            range.deleteContents();
+                            
+                            // Create a span with explicit LTR direction
+                            const span = document.createElement('span');
+                            span.setAttribute('dir', 'ltr');
+                            span.style.direction = 'ltr';
+                            span.style.unicodeBidi = 'embed';
+                            span.textContent = text;
+                            
+                            range.insertNode(span);
+                            range.setStartAfter(span);
+                            range.collapse(true);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            
+                            // Force LTR on target
+                            target.setAttribute('dir', 'ltr');
+                            target.style.setProperty('direction', 'ltr', 'important');
+                            target.style.setProperty('unicode-bidi', 'embed', 'important');
+                            
+                            // Update content
+                            setTimeout(() => {
+                              updateBlockContent(block.id, target.innerHTML);
+                            }, 0);
+                          }
+                        }}
+                        onInput={(e) => {
+                          // IMMEDIATELY check and fix direction before processing
+                          const target = e.target;
+                          const computed = window.getComputedStyle(target);
+                          
+                          if (computed.direction !== 'ltr') {
+                            // Emergency fix - rewrite the content with LTR
+                            const content = target.innerHTML;
+                            target.innerHTML = '';
+                            target.setAttribute('dir', 'ltr');
+                            target.style.setProperty('direction', 'ltr', 'important');
+                            target.style.setProperty('unicode-bidi', 'embed', 'important');
+                            target.style.setProperty('text-align', 'left', 'important');
+                            
+                            // Re-insert content wrapped in LTR spans
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = content;
+                            const allText = tempDiv.textContent || tempDiv.innerText || '';
+                            
+                            const span = document.createElement('span');
+                            span.setAttribute('dir', 'ltr');
+                            span.style.direction = 'ltr';
+                            span.style.unicodeBidi = 'embed';
+                            span.innerHTML = allText;
+                            target.appendChild(span);
+                            
+                            // Restore cursor position
+                            const selection = window.getSelection();
+                            if (selection && selection.rangeCount > 0) {
+                              const range = selection.getRangeAt(0);
+                              range.selectNodeContents(span);
+                              range.collapse(false);
+                              selection.removeAllRanges();
+                              selection.addRange(range);
+                            }
+                          }
+                          
+                          handleTextInput(block.id, e);
+                        }}
                         onBlur={(e) => {
                           // Don't hide toolbar if clicking on toolbar buttons
                           const relatedTarget = e.relatedTarget;

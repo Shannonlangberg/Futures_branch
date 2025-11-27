@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   CalendarIcon, 
   MapPinIcon, 
@@ -6,7 +7,10 @@ import {
   MagnifyingGlassIcon,
   FunnelIcon,
   ChevronDownIcon,
-  XMarkIcon
+  XMarkIcon,
+  PlusIcon,
+  ArchiveBoxIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -38,6 +42,7 @@ const EventsWrapper = () => {
 const Events = () => {
   const stripe = useStripe();
   const elements = useElements();
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,6 +54,9 @@ const Events = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [showArchiveDeleteModal, setShowArchiveDeleteModal] = useState(false);
+  const [eventToManage, setEventToManage] = useState(null);
+  const [userRole, setUserRole] = useState('user');
   const [registrationData, setRegistrationData] = useState({
     email: '',
     name: '',
@@ -59,9 +67,26 @@ const Events = () => {
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   useEffect(() => {
+    fetchUserSession();
     fetchCampuses();
     fetchEvents();
   }, [campusFilter, categoryFilter]);
+
+  const fetchUserSession = async () => {
+    try {
+      const response = await fetch('/api/session', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.authenticated) {
+          setUserRole(data.role || 'user');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user session:', error);
+    }
+  };
 
   const fetchCampuses = async () => {
     try {
@@ -137,6 +162,15 @@ const Events = () => {
               <h1 className="text-4xl font-bold text-white mb-2">Events</h1>
               <p className="text-white/80">Upcoming church events and gatherings</p>
             </div>
+            {(userRole === 'admin' || userRole === 'senior_leadership' || userRole === 'senior_leader' || userRole === 'senior_pastor' || userRole === 'lead_pastor') && (
+              <button
+                onClick={() => navigate('/events/manage')}
+                className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:scale-105"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Create Events
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -268,16 +302,32 @@ const Events = () => {
                     </p>
                   )}
 
-                  {/* View Details Button */}
-                  <button
-                    onClick={() => {
-                      setSelectedEvent(event);
-                      setShowEventModal(true);
-                    }}
-                    className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
-                  >
-                    View Details
-                  </button>
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedEvent(event);
+                        setShowEventModal(true);
+                      }}
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
+                    >
+                      View Details
+                    </button>
+                    {(userRole === 'admin' || userRole === 'senior_leadership' || userRole === 'senior_leader' || userRole === 'senior_pastor' || userRole === 'lead_pastor') && (
+                      <button
+                        onClick={() => {
+                          setEventToManage(event);
+                          setShowArchiveDeleteModal(true);
+                        }}
+                        className="px-4 py-3 bg-slate-700/50 hover:bg-slate-600/50 text-white rounded-xl transition-all duration-200"
+                        title="Archive or Delete Event"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -706,6 +756,110 @@ const Events = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Archive/Delete Modal */}
+      {showArchiveDeleteModal && eventToManage && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full border border-white/10 shadow-2xl">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white mb-2">Manage Event</h2>
+                <p className="text-slate-400 text-sm">{eventToManage.title}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowArchiveDeleteModal(false);
+                  setEventToManage(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <XMarkIcon className="w-6 h-6 text-white/60" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <p className="text-slate-300">
+                What would you like to do with this event?
+              </p>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10">
+                <p className="text-slate-400 text-sm mb-2">
+                  <strong className="text-white">Archive:</strong> Hide the event from public view but keep it for historical records and attendance tracking.
+                </p>
+                <p className="text-slate-400 text-sm">
+                  <strong className="text-white">Delete:</strong> Permanently remove the event (cannot be undone).
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t border-white/10">
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(`/api/events/${eventToManage.id}`, {
+                      method: 'DELETE',
+                      credentials: 'include'
+                    });
+                    if (response.ok) {
+                      alert('Event archived successfully');
+                      setShowArchiveDeleteModal(false);
+                      setEventToManage(null);
+                      fetchEvents();
+                    } else {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to archive event');
+                    }
+                  } catch (error) {
+                    console.error('Archive error:', error);
+                    alert(error.message || 'Failed to archive event. Please try again.');
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 py-3 rounded-xl font-semibold transition-all duration-200 border border-blue-500/30"
+              >
+                <ArchiveBoxIcon className="h-5 w-5" />
+                Archive
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm(`Are you sure you want to permanently delete "${eventToManage.title}"? This action cannot be undone.`)) {
+                    return;
+                  }
+                  try {
+                    const response = await fetch(`/api/events/${eventToManage.id}`, {
+                      method: 'DELETE',
+                      credentials: 'include'
+                    });
+                    if (response.ok) {
+                      alert('Event deleted successfully');
+                      setShowArchiveDeleteModal(false);
+                      setEventToManage(null);
+                      fetchEvents();
+                    } else {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to delete event');
+                    }
+                  } catch (error) {
+                    console.error('Delete error:', error);
+                    alert(error.message || 'Failed to delete event. Please try again.');
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 py-3 rounded-xl font-semibold transition-all duration-200 border border-red-500/30"
+              >
+                <TrashIcon className="h-5 w-5" />
+                Delete
+              </button>
+              <button
+                onClick={() => {
+                  setShowArchiveDeleteModal(false);
+                  setEventToManage(null);
+                }}
+                className="px-6 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
