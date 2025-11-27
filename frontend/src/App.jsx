@@ -16,7 +16,6 @@ import Resources from './pages/Resources';
 import ResourceManager from './pages/ResourceManager';
 import Heartbeat from './pages/Heartbeat';
 import People from './pages/People';
-import PeopleLayout from './components/PeopleLayout';
 import PeopleMain from './pages/people/PeopleMain';
 import Families from './pages/people/Families';
 import PeopleHeartbeat from './pages/people/PeopleHeartbeat';
@@ -386,15 +385,13 @@ function App() {
                   <Route path="/resources" element={<Resources />} />
                   <Route path="/resources/manage" element={<ResourceManager />} />
                   <Route path="/heartbeat" element={<Heartbeat />} />
-                  <Route path="/people" element={<PeopleLayout />}>
-                    <Route index element={<PeopleMain />} />
-                    <Route path="families" element={<Families />} />
-                    <Route path="heartbeat" element={<PeopleHeartbeat />} />
-                    <Route path="pastoral-care" element={<PastoralCare />} />
-                    <Route path="new-people" element={<NewPeople />} />
-                    <Route path="new-christians" element={<NewChristians />} />
-                    <Route path="attendance" element={<Attendance />} />
-                  </Route>
+                  <Route path="/people" element={<PeopleMain />} />
+                  <Route path="/people/families" element={<Families />} />
+                  <Route path="/people/heartbeat" element={<PeopleHeartbeat />} />
+                  <Route path="/people/pastoral-care" element={<PastoralCare />} />
+                  <Route path="/people/new-people" element={<NewPeople />} />
+                  <Route path="/people/new-christians" element={<NewChristians />} />
+                  <Route path="/people/attendance" element={<Attendance />} />
                   <Route path="/lists" element={<Lists />} />
                   <Route path="/connect-groups" element={<ConnectGroups />} />
                   <Route path="/persons/:personId" element={<PersonHealthReport />} />

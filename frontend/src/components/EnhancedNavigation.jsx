@@ -27,7 +27,12 @@ import {
   ListBulletIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
-  Squares2X2Icon
+  Squares2X2Icon,
+  UsersIcon,
+  HandRaisedIcon,
+  SparklesIcon,
+  UserPlusIcon,
+  StarIcon
 } from '@heroicons/react/24/outline';
 
 // Navigation groups for better organization
@@ -45,7 +50,23 @@ const NAVIGATION_GROUPS = {
     name: 'Engagement',
     icon: HeartIcon,
     items: [
-      { name: 'People', href: '/people', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
+      { 
+        name: 'People', 
+        href: '/people', 
+        icon: UserGroupIcon, 
+        roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], 
+        featureKey: 'people',
+        subItems: [
+          { name: 'People', href: '/people', icon: UserGroupIcon },
+          { name: 'Families', href: '/people/families', icon: UsersIcon },
+          { name: 'Heartbeat', href: '/people/heartbeat', icon: HeartIcon },
+          { name: 'Pastoral Care', href: '/people/pastoral-care', icon: HandRaisedIcon },
+          { name: 'New People', href: '/people/new-people', icon: UserPlusIcon },
+          { name: 'New Christians', href: '/people/new-christians', icon: SparklesIcon },
+          { name: 'Attendance', href: '/people/attendance', icon: CalendarIcon },
+          { name: 'Groups', href: '/connect-groups', icon: UserGroupIcon }
+        ]
+      },
       { name: 'Heartbeat', href: '/heartbeat', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'heartbeat' },
       { name: 'Connect Groups', href: '/connect-groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff', 'connect_group_leader'], featureKey: 'connect_groups' },
       { name: 'Prayer & Praise', href: '/prayer', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'staff'], featureKey: 'prayer' },
@@ -92,6 +113,7 @@ const EnhancedNavigation = ({
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [expandedItems, setExpandedItems] = useState({});
   const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'flat'
 
   // Filter and get navigation items
@@ -160,6 +182,13 @@ const EnhancedNavigation = ({
     setExpandedGroups(prev => ({
       ...prev,
       [groupName]: !prev[groupName]
+    }));
+  };
+
+  const toggleItem = (itemName) => {
+    setExpandedItems(prev => ({
+      ...prev,
+      [itemName]: !prev[itemName]
     }));
   };
 
@@ -324,7 +353,59 @@ const EnhancedNavigation = ({
                     {isExpanded && (
                       <div className="mt-1 space-y-1">
                         {items.map((item) => {
-                          const isActive = location.pathname === item.href;
+                          const hasSubItems = item.subItems && item.subItems.length > 0;
+                          const isItemExpanded = expandedItems[item.name] !== false; // Default to expanded
+                          const isActive = location.pathname === item.href || (hasSubItems && item.subItems.some(sub => location.pathname === sub.href || location.pathname.startsWith(sub.href + '/')));
+                          
+                          if (hasSubItems) {
+                            return (
+                              <div key={item.name}>
+                                <button
+                                  onClick={() => toggleItem(item.name)}
+                                  className={`
+                                    w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                                    ${isActive 
+                                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30' 
+                                      : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                                    }
+                                  `}
+                                >
+                                  <div className="flex items-center">
+                                    <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-blue-400' : 'text-slate-400'}`} />
+                                    {item.name}
+                                  </div>
+                                  <ChevronDownIcon className={`h-4 w-4 transition-transform ${isItemExpanded ? '' : '-rotate-90'}`} />
+                                </button>
+                                
+                                {isItemExpanded && (
+                                  <div className="mt-1 ml-4 space-y-1 border-l border-slate-700/50 pl-2">
+                                    {item.subItems.map((subItem) => {
+                                      const isSubActive = location.pathname === subItem.href || location.pathname.startsWith(subItem.href + '/');
+                                      return (
+                                        <Link
+                                          key={subItem.name}
+                                          to={subItem.href}
+                                          className={`
+                                            flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200
+                                            ${isSubActive 
+                                              ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30' 
+                                              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                                            }
+                                          `}
+                                          onClick={() => setSidebarOpen(false)}
+                                        >
+                                          <subItem.icon className={`mr-2 h-4 w-4 ${isSubActive ? 'text-blue-400' : 'text-slate-500'}`} />
+                                          {subItem.name}
+                                        </Link>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          
+                          // Regular item without sub-items
                           return (
                             <Link
                               key={item.name}
@@ -350,26 +431,80 @@ const EnhancedNavigation = ({
               })
             ) : (
               // Flat View
-              filteredItems.map((item) => {
-                const isActive = location.pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`
-                      flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
-                      ${isActive 
-                        ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/20' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                      }
-                    `}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-blue-400' : 'text-slate-400'}`} />
-                    {item.name}
-                  </Link>
-                );
-              })
+              <>
+                {filteredItems.map((item) => {
+                  const hasSubItems = item.subItems && item.subItems.length > 0;
+                  const isItemExpanded = expandedItems[item.name] !== false;
+                  const isActive = location.pathname === item.href || (hasSubItems && item.subItems.some(sub => location.pathname === sub.href || location.pathname.startsWith(sub.href + '/')));
+                  
+                  if (hasSubItems) {
+                    return (
+                      <div key={item.name}>
+                        <button
+                          onClick={() => toggleItem(item.name)}
+                          className={`
+                            w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                            ${isActive 
+                              ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30' 
+                              : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                            }
+                          `}
+                        >
+                          <div className="flex items-center">
+                            <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-blue-400' : 'text-slate-400'}`} />
+                            {item.name}
+                          </div>
+                          <ChevronDownIcon className={`h-4 w-4 transition-transform ${isItemExpanded ? '' : '-rotate-90'}`} />
+                        </button>
+                        
+                        {isItemExpanded && (
+                          <div className="mt-1 ml-4 space-y-1">
+                            {item.subItems.map((subItem) => {
+                              const isSubActive = location.pathname === subItem.href || location.pathname.startsWith(subItem.href + '/');
+                              return (
+                                <Link
+                                  key={subItem.name}
+                                  to={subItem.href}
+                                  className={`
+                                    flex items-center px-4 py-2.5 pl-8 text-sm font-medium rounded-lg transition-all duration-200
+                                    ${isSubActive 
+                                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/20' 
+                                      : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                                    }
+                                  `}
+                                  onClick={() => setSidebarOpen(false)}
+                                >
+                                  <subItem.icon className={`mr-3 h-5 w-5 ${isSubActive ? 'text-blue-400' : 'text-slate-400'}`} />
+                                  {subItem.name}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  // Regular item without sub-items
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={`
+                        flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                        ${isActive 
+                          ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/20' 
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                        }
+                      `}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-blue-400' : 'text-slate-400'}`} />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </>
             )}
 
             {/* Settings Dropdown */}
