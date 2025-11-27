@@ -745,7 +745,7 @@ def get_person_heartbeat(person_id):
                 'connect_groups': [
                     (c._enriched_dict if hasattr(c, '_enriched_dict') else c.to_dict()) 
                     for c in recent_connect
-                ],
+                ] if recent_connect else [],
                 'serving': [s.to_dict() for s in recent_serving] if recent_serving else [],
                 'giving': [g.to_dict() for g in recent_giving] if recent_giving else [],
                 'discipleship_steps': all_discipleship_steps if all_discipleship_steps else [],
