@@ -885,10 +885,10 @@ const People = () => {
               </select>
             </div>
 
-            {/* Pulse Status Filter */}
+            {/* Heartbeat Status Filter */}
             <div className="min-w-[150px]">
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Pulse Status
+                Heartbeat Status
               </label>
               <select
                 value={pulseFilter}
@@ -896,9 +896,10 @@ const People = () => {
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               >
                 <option value="all">All Statuses</option>
-                <option value="green">Active</option>
-                <option value="amber">At Risk</option>
-                <option value="red">Critical</option>
+                <option value="healthy">Healthy</option>
+                <option value="watch">Watch</option>
+                <option value="at_risk">At Risk</option>
+                <option value="critical">Critical</option>
               </select>
             </div>
 
