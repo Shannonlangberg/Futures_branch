@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XMarkIcon, CalendarIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon, PencilIcon, UserGroupIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import ScheduleCatchUpModal from '../components/ScheduleCatchUpModal';
 
 // Status badge component matching Heartbeat dashboard
@@ -149,6 +149,13 @@ const PersonHealthReport = () => {
   const [watchedEpisodes, setWatchedEpisodes] = useState([]);
   const [loadingWatched, setLoadingWatched] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [familyData, setFamilyData] = useState(null);
+  const [loadingFamily, setLoadingFamily] = useState(false);
+  const [showFamilyModal, setShowFamilyModal] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   const fetchWatchedEpisodes = async () => {
     try {
@@ -172,7 +179,118 @@ const PersonHealthReport = () => {
     fetchPersonData();
     fetchPathways();
     fetchWatchedEpisodes();
+    fetchFamilyData();
   }, [personId]);
+
+  const fetchFamilyData = async () => {
+    try {
+      setLoadingFamily(true);
+      const response = await fetch(`/api/person/${personId}/family`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFamilyData(data);
+      }
+    } catch (err) {
+      console.error('Error loading family:', err);
+    } finally {
+      setLoadingFamily(false);
+    }
+  };
+
+  const handleCreateFamily = async () => {
+    try {
+      const response = await fetch(`/api/person/${personId}/family/create`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (response.ok) {
+        await fetchFamilyData();
+        setShowFamilyModal(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to create family');
+      }
+    } catch (err) {
+      console.error('Error creating family:', err);
+      alert('Failed to create family');
+    }
+  };
+
+  const handleAddMember = async (memberId) => {
+    try {
+      const response = await fetch(`/api/person/${personId}/family/add-member`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ member_person_id: memberId })
+      });
+      if (response.ok) {
+        await fetchFamilyData();
+        setShowAddMemberModal(false);
+        setSearchTerm('');
+        setSearchResults([]);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to add member');
+      }
+    } catch (err) {
+      console.error('Error adding member:', err);
+      alert('Failed to add member');
+    }
+  };
+
+  const handleRemoveFromFamily = async () => {
+    if (!confirm('Remove this person from their family?')) return;
+    try {
+      const response = await fetch(`/api/person/${personId}/family/remove`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (response.ok) {
+        await fetchFamilyData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to remove from family');
+      }
+    } catch (err) {
+      console.error('Error removing from family:', err);
+      alert('Failed to remove from family');
+    }
+  };
+
+  const searchForMembers = async (term) => {
+    if (term.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      setSearching(true);
+      const response = await fetch(`/api/person/${personId}/family/search-members?search=${encodeURIComponent(term)}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.persons || []);
+      }
+    } catch (err) {
+      console.error('Error searching:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm) {
+        searchForMembers(searchTerm);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   useEffect(() => {
     // Fetch AI suggestion when pathway data is available

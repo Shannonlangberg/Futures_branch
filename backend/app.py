@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, make_response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase, HeartbeatSnapshot, AttendanceEvent, ServingAssignment, GivingTransaction, CareCase
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -20991,10 +20991,7 @@ def get_families():
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        from models import (
-            HeartbeatSnapshot, AttendanceEvent, ConnectAttendance, 
-            ServingAssignment, GivingTransaction, CareCase, ConnectGroup
-        )
+        # Models are now imported at module level
         from datetime import datetime, timedelta, date
         from sqlalchemy import text
         
@@ -21367,6 +21364,180 @@ def get_families():
     except Exception as e:
         logger.error(f"Error fetching families: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch families'}), 500
+
+
+@app.route('/api/person/<person_id>/family', methods=['GET'])
+@login_required
+def get_person_family(person_id):
+    """Get family members for a person"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.get(person_id)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        family_id = getattr(person, 'family_id', None)
+        if not family_id:
+            return jsonify({
+                'person_id': person_id,
+                'family_id': None,
+                'members': [person.to_dict()],
+                'has_family': False
+            })
+        
+        # Get all family members
+        family_members = Person.query.filter_by(family_id=family_id, is_active=True).all()
+        
+        return jsonify({
+            'person_id': person_id,
+            'family_id': family_id,
+            'members': [m.to_dict() for m in family_members],
+            'has_family': True
+        })
+    except Exception as e:
+        logger.error(f"Error fetching person family: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch family'}), 500
+
+
+@app.route('/api/person/<person_id>/family/create', methods=['POST'])
+@login_required
+def create_family_for_person(person_id):
+    """Create a new family and assign person to it"""
+    try:
+        if not current_user.has_permission('edit_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.get(person_id)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Generate unique family_id
+        import uuid
+        family_id = f"family_{uuid.uuid4().hex[:12]}"
+        
+        # Assign person to family
+        person.family_id = family_id
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'family_id': family_id,
+            'message': 'Family created successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error creating family: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create family'}), 500
+
+
+@app.route('/api/person/<person_id>/family/add-member', methods=['POST'])
+@login_required
+def add_family_member(person_id):
+    """Add another person to the same family"""
+    try:
+        if not current_user.has_permission('edit_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        member_person_id = data.get('member_person_id')
+        
+        if not member_person_id:
+            return jsonify({'error': 'member_person_id is required'}), 400
+        
+        person = Person.query.get(person_id)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        family_id = getattr(person, 'family_id', None)
+        if not family_id:
+            return jsonify({'error': 'Person does not have a family. Create one first.'}), 400
+        
+        member = Person.query.get(member_person_id)
+        if not member:
+            return jsonify({'error': 'Member person not found'}), 404
+        
+        # Add member to family
+        member.family_id = family_id
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Member added to family successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error adding family member: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to add family member'}), 500
+
+
+@app.route('/api/person/<person_id>/family/remove', methods=['POST'])
+@login_required
+def remove_from_family(person_id):
+    """Remove person from their family"""
+    try:
+        if not current_user.has_permission('edit_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        person = Person.query.get(person_id)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        person.family_id = None
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Removed from family successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error removing from family: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to remove from family'}), 500
+
+
+@app.route('/api/person/<person_id>/family/search-members', methods=['GET'])
+@login_required
+def search_family_members(person_id):
+    """Search for people to add to family"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        search_term = request.args.get('search', '').strip()
+        if not search_term or len(search_term) < 2:
+            return jsonify({'persons': []})
+        
+        person = Person.query.get(person_id)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Get current family members
+        family_id = getattr(person, 'family_id', None)
+        exclude_ids = [person_id]
+        if family_id:
+            family_members = Person.query.filter_by(family_id=family_id).all()
+            exclude_ids.extend([m.id for m in family_members])
+        
+        # Search for people not already in this family
+        search_pattern = f"%{search_term}%"
+        results = Person.query.filter(
+            Person.id.notin_(exclude_ids),
+            Person.is_active == True,
+            db.or_(
+                Person.full_name.ilike(search_pattern),
+                Person.preferred_name.ilike(search_pattern),
+                Person.email.ilike(search_pattern)
+            )
+        ).limit(20).all()
+        
+        return jsonify({
+            'persons': [p.to_dict() for p in results]
+        })
+    except Exception as e:
+        logger.error(f"Error searching family members: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to search'}), 500
 
 
 @app.route('/api/heartbeat/dashboard', methods=['GET'])
