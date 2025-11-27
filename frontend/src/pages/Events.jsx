@@ -105,7 +105,8 @@ const Events = () => {
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      let url = `/api/events?upcoming=true`;
+      // Use 'all' to show all events, not just upcoming ones
+      let url = `/api/events?upcoming=all`;
       if (campusFilter !== 'all_campuses') {
         url += `&campus=${campusFilter}`;
       }
