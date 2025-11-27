@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, make_response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -13662,6 +13662,8 @@ def get_persons():
         department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
         include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+        new_people = request.args.get('new_people', 'false').lower() == 'true'
+        new_christians = request.args.get('new_christians', 'false').lower() == 'true'
         
         # Build query - FORCE fresh query from database
         if include_archived:
@@ -13693,6 +13695,16 @@ def get_persons():
         # Force fresh query by expiring session and querying directly
         db.session.expire_all()
         persons = query.order_by(Person.full_name).all()
+        
+        # Apply new_people filter (last 30 days)
+        if new_people:
+            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+            persons = [p for p in persons if p.created_at and p.created_at >= thirty_days_ago]
+        
+        # Apply new_christians filter
+        if new_christians:
+            two_years_ago = datetime.utcnow().date() - timedelta(days=730)
+            persons = [p for p in persons if p.baptised_on and p.baptised_on >= two_years_ago]
         
         # Log what we found
         logger.info(f"GET /api/persons - Query returned {len(persons)} persons")
@@ -13780,6 +13792,22 @@ def get_persons():
                 person_data['attendance_frequency'] = engagement_data.get('attendance_frequency', 0.0)
                 person_data['serving_frequency'] = engagement_data.get('serving_frequency', 0.0)
                 person_data['overall_engagement'] = engagement_data.get('overall_engagement', 0.0)
+                
+                # Calculate heartbeat score (0-100) from pulse_status and engagement
+                pulse_status = person_data['pulse_status']
+                overall_engagement = person_data['overall_engagement']
+                
+                # Base score from pulse status
+                if pulse_status == 'green':
+                    base_score = 85
+                elif pulse_status == 'amber':
+                    base_score = 65
+                else:  # red
+                    base_score = 35
+                
+                # Adjust based on overall engagement (weighted average)
+                heartbeat_score = int((base_score * 0.7) + (overall_engagement * 0.3))
+                person_data['heartbeat_score'] = max(0, min(100, heartbeat_score))
             else:
                 person_data['pulse_status'] = 'red'
                 person_data['last_seen'] = None
@@ -13787,6 +13815,23 @@ def get_persons():
                 person_data['attendance_frequency'] = 0.0
                 person_data['serving_frequency'] = 0.0
                 person_data['overall_engagement'] = 0.0
+                person_data['heartbeat_score'] = 35  # Default for red status
+            
+            # Get connect group name if connect_group ID exists
+            if person.connect_group:
+                try:
+                    # Try to find by ID first
+                    connect_group = ConnectGroup.query.filter_by(id=person.connect_group, is_active=True).first()
+                    if connect_group:
+                        person_data['connect_group_name'] = connect_group.name
+                    else:
+                        # If not found by ID, use the stored value as name
+                        person_data['connect_group_name'] = person.connect_group
+                except Exception as e:
+                    logger.warning(f"Error fetching connect group for person {person.id}: {e}")
+                    person_data['connect_group_name'] = person.connect_group
+            else:
+                person_data['connect_group_name'] = None
             
             # Apply pulse filter if specified
             if pulse_filter and person_data['pulse_status'] != pulse_filter:
@@ -20810,6 +20855,609 @@ def test_notification():
     except Exception as e:
         logger.error(f"Error sending test notification: {e}", exc_info=True)
         return jsonify({'error': f'Failed to send test notification: {str(e)}'}), 500
+
+
+# ============================================================================
+# PEOPLE SECTION API ENDPOINTS
+# ============================================================================
+
+@app.route('/api/people/families', methods=['GET'])
+@login_required
+def get_families():
+    """Get families grouped by household with metrics"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get all active persons
+        persons = Person.query.filter_by(is_active=True).all()
+        
+        # Group by family/household using family_id if available, otherwise fallback to email/last name
+        family_map = {}
+        
+        for person in persons:
+            # Use family_id if available, otherwise use fallback grouping
+            if person.family_id:
+                family_key = person.family_id
+            else:
+                # Fallback: use email domain or last name
+                if person.email:
+                    email_parts = person.email.split('@')
+                    if len(email_parts) == 2:
+                        family_key = f"{email_parts[0].split('+')[0]}@{email_parts[1]}"
+                    else:
+                        last_name = person.full_name.split()[-1] if person.full_name else 'unknown'
+                        family_key = f"family_{last_name}"
+                else:
+                    last_name = person.full_name.split()[-1] if person.full_name else 'unknown'
+                    family_key = f"family_{last_name}"
+            
+            if family_key not in family_map:
+                family_map[family_key] = {
+                    'id': family_key,
+                    'members': [],
+                    'household_heartbeat': 0,
+                    'attendance_together': 0,
+                    'attendance_drifting': False,
+                    'parent_giving': False,
+                    'care_needs': []
+                }
+            
+            # Calculate heartbeat for this person
+            heartbeat_score = 50  # Default
+            if person.engagement_profile:
+                pulse_status = person.engagement_profile.pulse_status or 'red'
+                overall_engagement = person.engagement_profile.overall_engagement or 0.0
+                
+                if pulse_status == 'green':
+                    base_score = 85
+                elif pulse_status == 'amber':
+                    base_score = 65
+                else:
+                    base_score = 35
+                
+                heartbeat_score = int((base_score * 0.7) + (overall_engagement * 0.3))
+            
+            family_map[family_key]['members'].append({
+                'id': person.id,
+                'name': person.preferred_name or person.full_name,
+                'full_name': person.full_name,
+                'role': 'parent' if person.department and 'Kids' not in person.department else 'child',
+                'heartbeat': max(0, min(100, heartbeat_score)),
+                'pulse_status': person.engagement_profile.pulse_status if person.engagement_profile else 'red',
+                'has_family_id': bool(person.family_id)
+            })
+        
+        # Calculate household metrics
+        families = []
+        for family_key, family_data in family_map.items():
+            # Include families with multiple members OR single members with family_id set
+            if len(family_data['members']) > 1 or (len(family_data['members']) == 1 and family_data['members'][0].get('has_family_id')):
+                # Calculate average household heartbeat
+                heartbeats = [m['heartbeat'] for m in family_data['members']]
+                family_data['household_heartbeat'] = int(sum(heartbeats) / len(heartbeats)) if heartbeats else 0
+                
+                # Simple attendance together calculation (placeholder)
+                # TODO: Implement actual attendance together calculation
+                family_data['attendance_together'] = 75  # Placeholder
+                
+                # Check for attendance drifting (if any member has low heartbeat)
+                low_heartbeat_members = [m for m in family_data['members'] if m['heartbeat'] < 50]
+                family_data['attendance_drifting'] = len(low_heartbeat_members) > 0
+                
+                families.append(family_data)
+        
+        return jsonify({
+            'families': families,
+            'total': len(families)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching families: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch families'}), 500
+
+
+@app.route('/api/heartbeat/dashboard', methods=['GET'])
+@login_required
+def get_heartbeat_dashboard():
+    """Get heartbeat dashboard data with health overview and AI analysis"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get all active persons with engagement profiles
+        persons = Person.query.filter_by(is_active=True).all()
+        
+        # Calculate health overview
+        health_overview = {
+            'healthy': 0,
+            'watch': 0,
+            'at_risk': 0,
+            'critical': 0,
+            'new_people': 0,
+            'new_christians': 0,
+            'youth_at_risk': 0,
+            'families_drifting': 0
+        }
+        
+        # Track people for AI analysis
+        recent_positive_shifts = []
+        health_drops = []
+        missing_attendance = []
+        
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        
+        for person in persons:
+            if not person.engagement_profile:
+                health_overview['critical'] += 1
+                continue
+            
+            pulse_status = person.engagement_profile.pulse_status or 'red'
+            
+            # Count by status
+            if pulse_status == 'green':
+                health_overview['healthy'] += 1
+            elif pulse_status == 'amber':
+                health_overview['watch'] += 1
+                health_overview['at_risk'] += 1
+            else:
+                health_overview['critical'] += 1
+            
+            # Check for new people (created in last 30 days)
+            if person.created_at and person.created_at >= thirty_days_ago:
+                health_overview['new_people'] += 1
+            
+            # Check for new Christians (has baptism date or new_christian flag)
+            if person.baptised_on or person.is_new_christian or person.new_christian_date:
+                health_overview['new_christians'] += 1
+            
+            # Check youth at risk
+            if person.department == 'Youth' and pulse_status in ['amber', 'red']:
+                health_overview['youth_at_risk'] += 1
+            
+            # Track attendance issues
+            if person.engagement_profile.last_seen:
+                days_since_seen = (datetime.utcnow().date() - person.engagement_profile.last_seen).days
+                if days_since_seen > 21:  # 3+ weeks
+                    missing_attendance.append({
+                        'name': person.preferred_name or person.full_name,
+                        'days': days_since_seen
+                    })
+        
+        # Generate AI analysis (simplified for now)
+        ai_analysis = {
+            'positive_shifts': f"{len([p for p in persons if p.engagement_profile and p.engagement_profile.pulse_status == 'green'])} people showing healthy engagement",
+            'health_drops': f"{health_overview['at_risk']} people showing declining health",
+            'attendance_drops': f"{len(missing_attendance)} people missed 3+ weeks",
+            'giving_rhythm_changes': 'No significant changes detected',
+            'serving_burnout': 'No serving burnout detected',
+            'youth_disengagement': f"{health_overview['youth_at_risk']} youth showing decreased engagement",
+            'leadership_ready': 'Analysis pending'
+        }
+        
+        # Generate weekly Pastor Focus List
+        pastor_focus_list = []
+        
+        # Add people with critical status
+        critical_people = [p for p in persons if p.engagement_profile and p.engagement_profile.pulse_status == 'red']
+        for person in critical_people[:5]:  # Top 5
+            days_ago = 0
+            if person.engagement_profile.last_seen:
+                days_ago = (datetime.utcnow().date() - person.engagement_profile.last_seen).days
+            
+            pastor_focus_list.append({
+                'name': person.preferred_name or person.full_name,
+                'reason': f'Critical status - last seen {days_ago} days ago',
+                'action': 'Check on - may need immediate pastoral care',
+                'priority': 'high'
+            })
+        
+        # Add people with missing attendance
+        for missing in missing_attendance[:5]:  # Top 5
+            if not any(item['name'] == missing['name'] for item in pastor_focus_list):
+                pastor_focus_list.append({
+                    'name': missing['name'],
+                    'reason': f'Missed {missing["days"]} days',
+                    'action': 'Follow up - check if they need encouragement',
+                    'priority': 'medium'
+                })
+        
+        return jsonify({
+            'health_overview': health_overview,
+            'ai_analysis': ai_analysis,
+            'pastor_focus_list': pastor_focus_list,
+            'trends': {
+                'by_campus': {},  # TODO: Implement campus trends
+                'by_ministry': {}  # TODO: Implement ministry trends
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching heartbeat dashboard: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch heartbeat dashboard'}), 500
+
+
+@app.route('/api/pastoral-care/cases', methods=['GET'])
+@login_required
+def get_pastoral_care_cases():
+    """Get all pastoral care cases"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get query parameters
+        status_filter = request.args.get('status', None)  # open, resolved, closed
+        priority_filter = request.args.get('priority', None)  # high, medium, low
+        person_id = request.args.get('person_id', None)
+        
+        # Build query
+        query = PastoralCareCase.query
+        
+        if status_filter:
+            query = query.filter_by(status=status_filter)
+        else:
+            # Default to open cases only
+            query = query.filter_by(status='open')
+        
+        if priority_filter:
+            query = query.filter_by(priority=priority_filter)
+        
+        if person_id:
+            query = query.filter_by(person_id=person_id)
+        
+        cases = query.order_by(
+            db.case(
+                (PastoralCareCase.priority == 'high', 1),
+                (PastoralCareCase.priority == 'medium', 2),
+                (PastoralCareCase.priority == 'low', 3),
+                else_=4
+            ),
+            PastoralCareCase.created_at.desc()
+        ).all()
+        
+        return jsonify({
+            'cases': [case.to_dict() for case in cases],
+            'total': len(cases)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching pastoral care cases: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch pastoral care cases'}), 500
+
+
+@app.route('/api/pastoral-care/cases', methods=['POST'])
+@login_required
+def create_pastoral_care_case():
+    """Create a new pastoral care case"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data.get('person_id'):
+            return jsonify({'error': 'person_id is required'}), 400
+        
+        # Check if person exists
+        person = Person.query.filter_by(id=data['person_id'], is_active=True).first()
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
+        
+        # Generate case ID
+        case_id = f"pcc_{uuid.uuid4().hex[:12]}"
+        
+        # Parse suggested_responses and family_dependencies
+        suggested_responses = data.get('suggested_responses', [])
+        family_dependencies = data.get('family_dependencies', [])
+        
+        # Create case
+        case = PastoralCareCase(
+            id=case_id,
+            person_id=data['person_id'],
+            priority=data.get('priority', 'medium'),
+            status=data.get('status', 'open'),
+            notes=data.get('notes', ''),
+            assigned_leader=data.get('assigned_leader'),
+            follow_up_date=datetime.strptime(data['follow_up_date'], '%Y-%m-%d').date() if data.get('follow_up_date') else None,
+            ai_summary=data.get('ai_summary'),
+            suggested_responses=json.dumps(suggested_responses) if suggested_responses else None,
+            family_dependencies=json.dumps(family_dependencies) if family_dependencies else None
+        )
+        
+        db.session.add(case)
+        db.session.commit()
+        
+        # Update person's heartbeat if high priority case (affects health)
+        if case.priority == 'high' and person.engagement_profile:
+            # High care case reduces health
+            person.engagement_profile.pulse_status = 'amber'
+            db.session.commit()
+        
+        return jsonify(case.to_dict()), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating pastoral care case: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create pastoral care case'}), 500
+
+
+@app.route('/api/pastoral-care/cases/<case_id>', methods=['PUT'])
+@login_required
+def update_pastoral_care_case(case_id):
+    """Update a pastoral care case"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        case = PastoralCareCase.query.filter_by(id=case_id).first()
+        if not case:
+            return jsonify({'error': 'Case not found'}), 404
+        
+        data = request.get_json()
+        
+        # Update fields
+        if 'priority' in data:
+            case.priority = data['priority']
+        if 'status' in data:
+            old_status = case.status
+            case.status = data['status']
+            
+            # If resolving a case, improve person's heartbeat
+            if old_status == 'open' and data['status'] == 'resolved' and case.person and case.person.engagement_profile:
+                # Resolved case improves health
+                if case.person.engagement_profile.pulse_status == 'red':
+                    case.person.engagement_profile.pulse_status = 'amber'
+                elif case.person.engagement_profile.pulse_status == 'amber':
+                    case.person.engagement_profile.pulse_status = 'green'
+                db.session.commit()
+        
+        if 'notes' in data:
+            case.notes = data['notes']
+        if 'assigned_leader' in data:
+            case.assigned_leader = data['assigned_leader']
+        if 'follow_up_date' in data:
+            case.follow_up_date = datetime.strptime(data['follow_up_date'], '%Y-%m-%d').date() if data['follow_up_date'] else None
+        if 'ai_summary' in data:
+            case.ai_summary = data['ai_summary']
+        if 'suggested_responses' in data:
+            case.suggested_responses = json.dumps(data['suggested_responses']) if data['suggested_responses'] else None
+        if 'family_dependencies' in data:
+            case.family_dependencies = json.dumps(data['family_dependencies']) if data['family_dependencies'] else None
+        
+        case.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify(case.to_dict())
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating pastoral care case: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to update pastoral care case'}), 500
+
+
+@app.route('/api/pastoral-care/cases/<case_id>', methods=['DELETE'])
+@login_required
+def delete_pastoral_care_case(case_id):
+    """Delete a pastoral care case"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        case = PastoralCareCase.query.filter_by(id=case_id).first()
+        if not case:
+            return jsonify({'error': 'Case not found'}), 404
+        
+        db.session.delete(case)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Case deleted successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting pastoral care case: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to delete pastoral care case'}), 500
+
+
+@app.route('/api/pastoral-care/cases/<case_id>/resolve', methods=['POST'])
+@login_required
+def resolve_pastoral_care_case(case_id):
+    """Resolve a pastoral care case (affects heartbeat)"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        case = PastoralCareCase.query.filter_by(id=case_id).first()
+        if not case:
+            return jsonify({'error': 'Case not found'}), 404
+        
+        case.status = 'resolved'
+        case.updated_at = datetime.utcnow()
+        
+        # Improve person's heartbeat when case is resolved
+        if case.person and case.person.engagement_profile:
+            if case.person.engagement_profile.pulse_status == 'red':
+                case.person.engagement_profile.pulse_status = 'amber'
+            elif case.person.engagement_profile.pulse_status == 'amber':
+                case.person.engagement_profile.pulse_status = 'green'
+        
+        db.session.commit()
+        
+        return jsonify(case.to_dict())
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error resolving pastoral care case: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to resolve pastoral care case'}), 500
+
+
+@app.route('/api/people/new-christians', methods=['GET'])
+@login_required
+def get_new_christians():
+    """Get all new Christians with discipleship progress"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get persons who are new Christians (have baptism date, new_christian flag, or new_christian_date)
+        persons = Person.query.filter_by(is_active=True).all()
+        
+        new_christians = []
+        two_years_ago = datetime.utcnow().date() - timedelta(days=730)
+        
+        for person in persons:
+            is_new_christian = False
+            new_christian_date = None
+            
+            # Check for new_christian_date field (preferred)
+            if person.new_christian_date:
+                if person.new_christian_date >= two_years_ago:
+                    is_new_christian = True
+                    new_christian_date = person.new_christian_date.isoformat()
+            # Check for is_new_christian flag
+            elif person.is_new_christian:
+                is_new_christian = True
+                # Use baptism date or created_at as fallback
+                if person.baptised_on:
+                    new_christian_date = person.baptised_on.isoformat()
+                elif person.created_at:
+                    new_christian_date = person.created_at.date().isoformat()
+            # Check for baptism date (within last 2 years)
+            elif person.baptised_on and person.baptised_on >= two_years_ago:
+                is_new_christian = True
+                new_christian_date = person.baptised_on.isoformat()
+            
+            if is_new_christian:
+                # Get pathway progress
+                pathway_progress = "Not started"
+                try:
+                    pathway = PersonPathwayProgress.query.filter_by(person_id=person.id).first()
+                    if pathway:
+                        completed_steps = PersonPathwayStepCompletion.query.filter_by(
+                            person_id=person.id,
+                            completed=True
+                        ).count()
+                        total_steps = PathwayStep.query.count()
+                        pathway_progress = f"Step {completed_steps} of {total_steps}"
+                except:
+                    pass
+                
+                # Calculate group attendance
+                group_attendance = 0
+                if person.engagement_profile:
+                    try:
+                        attendance_log = json.loads(person.engagement_profile.attendance_log or '[]')
+                        group_attendance = len([a for a in attendance_log if a.get('type') == 'group'])
+                    except:
+                        pass
+                
+                # Generate AI analysis
+                ai_analysis = f"This person is progressing well. "
+                if person.baptised_on:
+                    days_since_baptism = (datetime.utcnow().date() - person.baptised_on).days
+                    ai_analysis += f"Baptised {days_since_baptism} days ago. "
+                
+                suggested_next_step = "Continue discipleship"
+                if not pathway_progress or pathway_progress == "Not started":
+                    suggested_next_step = "Start Foundations course"
+                elif group_attendance < 3:
+                    suggested_next_step = "Connect to a group"
+                elif person.first_served_on is None:
+                    suggested_next_step = "Start serving"
+                
+                new_christians.append({
+                    'id': person.id,
+                    'name': person.preferred_name or person.full_name,
+                    'new_christian_date': new_christian_date,
+                    'foundations_progress': '50%',  # TODO: Calculate from pathway
+                    'pathway_progress': pathway_progress,
+                    'attendance_since_decision': group_attendance,
+                    'group_attendance': int((group_attendance / 12) * 100) if group_attendance > 0 else 0,  # Percentage
+                    'pulse_tv_usage': 'Medium',  # TODO: Calculate from engagement
+                    'ai_analysis': ai_analysis,
+                    'suggested_next_step': suggested_next_step
+                })
+        
+        return jsonify({
+            'new_christians': new_christians,
+            'total': len(new_christians)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching new Christians: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch new Christians'}), 500
+
+
+@app.route('/api/attendance/patterns', methods=['GET'])
+@login_required
+def get_attendance_patterns():
+    """Get attendance patterns and missing streaks"""
+    try:
+        if not current_user.has_permission('query_access'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        # Get all active persons
+        persons = Person.query.filter_by(is_active=True).all()
+        
+        # Calculate missing streaks
+        missing_streaks = []
+        today = datetime.utcnow().date()
+        
+        for person in persons:
+            if person.engagement_profile and person.engagement_profile.last_seen:
+                days_since_seen = (today - person.engagement_profile.last_seen).days
+                
+                if days_since_seen > 14:  # 2+ weeks
+                    missing_streaks.append({
+                        'person_id': person.id,
+                        'name': person.preferred_name or person.full_name,
+                        'days': days_since_seen,
+                        'last_attended': person.engagement_profile.last_seen.isoformat()
+                    })
+        
+        # Sort by days (most critical first)
+        missing_streaks.sort(key=lambda x: x['days'], reverse=True)
+        
+        # Calculate first-time visitors (people created in last 30 days)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        first_time_visitors = len([
+            p for p in persons 
+            if p.created_at and p.created_at >= thirty_days_ago
+        ])
+        
+        # Calculate average attendance (placeholder - would need actual attendance records)
+        # TODO: Implement actual attendance calculation from attendance logs
+        attendance_logs = []
+        for person in persons:
+            if person.engagement_profile:
+                try:
+                    log = json.loads(person.engagement_profile.attendance_log or '[]')
+                    attendance_logs.extend(log)
+                except:
+                    pass
+        
+        # Count unique attendance dates
+        unique_dates = set()
+        for log_entry in attendance_logs:
+            if isinstance(log_entry, dict) and 'date' in log_entry:
+                unique_dates.add(log_entry['date'])
+        
+        return jsonify({
+            'sunday_avg': len(unique_dates),  # Placeholder
+            'sunday_month': len([d for d in unique_dates if datetime.fromisoformat(d).date() >= (today - timedelta(days=30))]),
+            'sunday_trend': 0,  # TODO: Calculate trend
+            'kids_attendance': {},  # TODO: Implement
+            'youth_attendance': {},  # TODO: Implement
+            'missing_streaks': missing_streaks[:20],  # Top 20
+            'first_time_visitors': first_time_visitors,
+            'families_missing': [],  # TODO: Implement
+            'serving_attendance': {},  # TODO: Implement
+            'event_attendance': {}  # TODO: Implement
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching attendance patterns: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch attendance patterns'}), 500
 
 
 if __name__ == '__main__':

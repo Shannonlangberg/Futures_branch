@@ -34,6 +34,13 @@ class Person(db.Model):
     rise_attended = db.Column(db.Date)
     first_served_on = db.Column(db.Date)
     
+    # Family and new Christian tracking
+    family_id = db.Column(db.String(50))  # For family grouping
+    is_new_christian = db.Column(db.Boolean, default=False)
+    new_christian_date = db.Column(db.Date)  # Date of decision (may differ from baptism)
+    follow_up_status = db.Column(db.String(50))  # 'contacted', 'connected', 'joined_events', 'needed'
+    service_attended = db.Column(db.String(100))  # Service time attended
+    
     # Relationship to engagement profile
     engagement_profile = db.relationship('EngagementProfile', backref='person', uselist=False, cascade='all, delete-orphan')
     
@@ -78,6 +85,67 @@ class Person(db.Model):
             'filled_holy_spirit': safe_date_serialize(self.filled_holy_spirit),
             'rise_attended': safe_date_serialize(self.rise_attended),
             'first_served_on': safe_date_serialize(self.first_served_on),
+            'family_id': self.family_id,
+            'is_new_christian': self.is_new_christian,
+            'new_christian_date': safe_date_serialize(self.new_christian_date),
+            'follow_up_status': self.follow_up_status,
+            'service_attended': self.service_attended,
+        }
+
+
+class PastoralCareCase(db.Model):
+    """Pastoral care case tracking"""
+    __tablename__ = 'pastoral_care_cases'
+    
+    id = db.Column(db.String(50), primary_key=True)
+    person_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=False)
+    priority = db.Column(db.String(20), default='medium')  # high, medium, low
+    status = db.Column(db.String(20), default='open')  # open, resolved, closed
+    notes = db.Column(db.Text)
+    assigned_leader = db.Column(db.String(200))
+    follow_up_date = db.Column(db.Date)
+    ai_summary = db.Column(db.Text)
+    suggested_responses = db.Column(db.Text)  # JSON array stored as text
+    family_dependencies = db.Column(db.Text)  # JSON array stored as text
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationship
+    person = db.relationship('Person', backref='pastoral_care_cases')
+    
+    def to_dict(self):
+        """Convert case to dictionary"""
+        try:
+            suggested_responses = json.loads(self.suggested_responses) if self.suggested_responses else []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            suggested_responses = []
+        
+        try:
+            family_dependencies = json.loads(self.family_dependencies) if self.family_dependencies else []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            family_dependencies = []
+        
+        def safe_date_serialize(date_val):
+            if date_val is None:
+                return None
+            if isinstance(date_val, str):
+                return date_val
+            return date_val.isoformat()
+        
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'person_name': self.person.preferred_name or self.person.full_name if self.person else 'Unknown',
+            'priority': self.priority,
+            'status': self.status,
+            'notes': self.notes,
+            'assigned_leader': self.assigned_leader,
+            'follow_up_date': safe_date_serialize(self.follow_up_date),
+            'ai_summary': self.ai_summary,
+            'suggested_responses': suggested_responses,
+            'family_dependencies': family_dependencies,
+            'created_at': safe_date_serialize(self.created_at),
+            'updated_at': safe_date_serialize(self.updated_at)
         }
 
 

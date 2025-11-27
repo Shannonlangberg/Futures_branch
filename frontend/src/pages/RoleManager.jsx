@@ -25,24 +25,52 @@ const RoleManager = () => {
   const [campuses, setCampuses] = useState([]);
   const [expandedUsers, setExpandedUsers] = useState({}); // { userId: true/false } for campus selection
 
-  // Define all features grouped by category
-  const pageFeatures = [
-    { key: 'home', label: 'Home', icon: '🏠' },
-    { key: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { key: 'input', label: 'Input/Stats', icon: '✍️' },
-    { key: 'finance', label: 'Finance', icon: '💰' },
-    { key: 'giving', label: 'Giving Analytics', icon: '📈' },
-    { key: 'people', label: 'People', icon: '👥' },
-    { key: 'heartbeat', label: 'Heartbeat', icon: '💓' },
-    { key: 'connect_groups', label: 'Connect Groups', icon: '👨‍👩‍👧‍👦' },
-    { key: 'prayer', label: 'Prayer & Praise', icon: '🙏' },
-    { key: 'resources', label: 'Resources', icon: '📚' },
-    { key: 'pulse_tv', label: 'Pulse TV', icon: '📺' },
-    { key: 'events', label: 'Events', icon: '📅' },
-    { key: 'serving', label: 'Serving', icon: '🤝' },
-    { key: 'communication', label: 'Communications', icon: '📧' },
-    { key: 'devotions', label: 'Devotions', icon: '📖' }
-  ];
+  // Define all features grouped by category (matching EnhancedNavigation groups)
+  const pageFeatures = {
+    core: {
+      name: 'Core',
+      items: [
+        { key: 'home', label: 'Home', icon: '🏠' },
+        { key: 'dashboard', label: 'Dashboard', icon: '📊' },
+        { key: 'input', label: 'Input/Stats', icon: '✍️' },
+      ]
+    },
+    engagement: {
+      name: 'Engagement',
+      items: [
+        { key: 'people', label: 'People', icon: '👥' },
+        { key: 'heartbeat', label: 'Heartbeat', icon: '💓' },
+        { key: 'connect_groups', label: 'Connect Groups', icon: '👨‍👩‍👧‍👦' },
+        { key: 'prayer', label: 'Prayer & Praise', icon: '🙏' },
+        { key: 'serving', label: 'Serving', icon: '🤝' },
+      ]
+    },
+    content: {
+      name: 'Content',
+      items: [
+        { key: 'pulse_tv', label: 'Pulse TV', icon: '📺' },
+        { key: 'events', label: 'Events', icon: '📅' },
+        { key: 'resources', label: 'Resources', icon: '📚' },
+        { key: 'devotions', label: 'Devotions', icon: '📖' }
+      ]
+    },
+    finance: {
+      name: 'Finance',
+      items: [
+        { key: 'finance', label: 'Finance', icon: '💰' },
+        { key: 'giving', label: 'Giving Analytics', icon: '📈' },
+      ]
+    },
+    communications: {
+      name: 'Communications',
+      items: [
+        { key: 'communication', label: 'Communications', icon: '📧' },
+      ]
+    }
+  };
+
+  // Flatten for backward compatibility
+  const allPageFeatures = Object.values(pageFeatures).flatMap(group => group.items);
 
   const settingsFeatures = [
     { key: 'data_export', label: 'Data Export', icon: '📥' },
@@ -56,7 +84,7 @@ const RoleManager = () => {
     { key: 'notifications', label: 'Push Notifications', icon: '🔔' }
   ];
 
-  const allFeatures = [...pageFeatures, ...settingsFeatures];
+  const allFeatures = [...allPageFeatures, ...settingsFeatures];
 
   // Role default permissions mapping (based on MainLayout navigation roles)
   const roleDefaults = {
@@ -472,7 +500,7 @@ const RoleManager = () => {
                     const roleUsers = users.filter(u => u.role === role);
                     if (roleUsers.length > 0) {
                       if (confirm(`Enable all page features for all ${role} users?`)) {
-                        bulkEnableForRole(role, pageFeatures.map(f => f.key));
+                        bulkEnableForRole(role, allPageFeatures.map(f => f.key));
                       }
                     }
                   }
@@ -542,13 +570,16 @@ const RoleManager = () => {
                   <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300 sticky left-0 bg-slate-700/50 z-20 min-w-[200px]">
                     User
                   </th>
-                  {/* Page Features Header */}
-                  <th 
-                    colSpan={pageFeatures.length} 
-                    className="px-4 py-3 text-center text-xs font-semibold text-slate-400 bg-slate-700/70 border-l border-r border-slate-600"
-                  >
-                    📄 Pages
-                  </th>
+                  {/* Page Features Headers by Group */}
+                  {Object.entries(pageFeatures).map(([groupKey, group]) => (
+                    <th 
+                      key={groupKey}
+                      colSpan={group.items.length} 
+                      className="px-4 py-3 text-center text-xs font-semibold text-slate-400 bg-slate-700/70 border-l border-r border-slate-600"
+                    >
+                      {group.name}
+                    </th>
+                  ))}
                   {/* Settings Features Header */}
                   <th 
                     colSpan={settingsFeatures.length} 
