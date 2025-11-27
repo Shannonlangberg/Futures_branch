@@ -342,9 +342,25 @@ def get_person_heartbeat(person_id):
                 db.session.rollback()
                 # Continue with existing snapshot or None
                 if not snapshot:
+                    # Safely get person dict
+                    try:
+                        person_dict = person.to_dict()
+                    except Exception as e:
+                        logger.warning(f"Error calling person.to_dict(), using manual dict: {e}")
+                        # Fallback: create dict manually
+                        person_dict = {
+                            'id': getattr(person, 'id', None),
+                            'full_name': getattr(person, 'full_name', ''),
+                            'preferred_name': getattr(person, 'preferred_name', None),
+                            'email': getattr(person, 'email', None),
+                            'phone': getattr(person, 'phone', None),
+                            'campus': getattr(person, 'campus', None),
+                            'department': getattr(person, 'department', None),
+                            'connect_group': getattr(person, 'connect_group', None),
+                        }
                     return jsonify({
                         'person_id': person_id,
-                        'person': person.to_dict(),
+                        'person': person_dict,
                         'heartbeat': None,
                         'message': 'No heartbeat snapshot found. Run recalculation to generate one.'
                     }), 200
