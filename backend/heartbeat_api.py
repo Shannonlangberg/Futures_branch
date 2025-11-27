@@ -40,13 +40,50 @@ def get_campus_people(campus_id):
         status_filter = request.args.get('status')
         department_filter = request.args.get('department')
         
+        # Check if new Person columns exist
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
+        
         # Handle "all_campuses" special case
         if campus_id == 'all_campuses' or campus_id == 'all':
             # Get all active people from all campuses
-            query = Person.query.filter_by(is_active=True)
-            if department_filter:
-                query = query.filter_by(department=department_filter)
-            people = query.all()
+            if not has_new_columns:
+                # Use raw SQL to select only existing columns
+                base_columns = [
+                    'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                    'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                    'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                    'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+                ]
+                
+                where_clauses = ["is_active = 1"]
+                params = {}
+                
+                if department_filter:
+                    where_clauses.append("department = :department")
+                    params['department'] = department_filter
+                
+                sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE {' AND '.join(where_clauses)}"
+                rows = db.session.execute(text(sql), params).fetchall()
+                
+                # Convert rows to Person objects
+                people = []
+                for row in rows:
+                    person_dict = dict(zip(base_columns, row))
+                    person = Person()
+                    for key, value in person_dict.items():
+                        setattr(person, key, value)
+                    people.append(person)
+            else:
+                query = Person.query.filter_by(is_active=True)
+                if department_filter:
+                    query = query.filter_by(department=department_filter)
+                people = query.all()
             campus_name = 'All Campuses'
             campus_id_display = 'all_campuses'
         else:
@@ -77,20 +114,85 @@ def get_campus_people(campus_id):
             # Get people for this campus
             # Try multiple matching strategies
             # 1. Exact match with campus.name
-            query = Person.query.filter_by(
-                campus=campus.name,
-                is_active=True
-            )
-            
-            # Apply department filter if provided
-            if department_filter:
-                query = query.filter_by(department=department_filter)
-            
-            people = query.all()
+            if not has_new_columns:
+                # Use raw SQL to select only existing columns
+                base_columns = [
+                    'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                    'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                    'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                    'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+                ]
+                
+                where_clauses = ["is_active = 1", "campus = :campus"]
+                params = {'campus': campus.name}
+                
+                if department_filter:
+                    where_clauses.append("department = :department")
+                    params['department'] = department_filter
+                
+                sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE {' AND '.join(where_clauses)}"
+                rows = db.session.execute(text(sql), params).fetchall()
+                
+                # Convert rows to Person objects
+                people = []
+                for row in rows:
+                    person_dict = dict(zip(base_columns, row))
+                    person = Person()
+                    for key, value in person_dict.items():
+                        setattr(person, key, value)
+                    people.append(person)
+            else:
+                query = Person.query.filter_by(
+                    campus=campus.name,
+                    is_active=True
+                )
+                
+                # Apply department filter if provided
+                if department_filter:
+                    query = query.filter_by(department=department_filter)
+                
+                people = query.all()
             
             # 2. If no results, try normalized name variations
-            if not people:
-                # Try common variations
+            if not people and not has_new_columns:
+                # Try common variations using raw SQL
+                variations = [
+                    campus.name,
+                    campus.id.replace('_', ' ').title(),  # copper_coast -> Copper Coast
+                    campus.id.replace('_', ' '),  # copper_coast -> copper coast
+                    campus.name.lower(),
+                    campus.name.upper()
+                ]
+                for variation in variations:
+                    base_columns = [
+                        'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                        'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                        'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                        'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+                    ]
+                    
+                    where_clauses = ["is_active = 1", "campus = :campus"]
+                    params = {'campus': variation}
+                    
+                    if department_filter:
+                        where_clauses.append("department = :department")
+                        params['department'] = department_filter
+                    
+                    sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE {' AND '.join(where_clauses)}"
+                    rows = db.session.execute(text(sql), params).fetchall()
+                    
+                    if rows:
+                        people = []
+                        for row in rows:
+                            person_dict = dict(zip(base_columns, row))
+                            person = Person()
+                            for key, value in person_dict.items():
+                                setattr(person, key, value)
+                            people.append(person)
+                        logger.info(f"Found {len(people)} people using campus variation: {variation}")
+                        break
+            elif not people:
+                # Try common variations using ORM
                 variations = [
                     campus.name,
                     campus.id.replace('_', ' ').title(),  # copper_coast -> Copper Coast
@@ -579,10 +681,38 @@ def recalculate_campus(campus_id):
         Summary of processed people and any errors
     """
     try:
+        # Check if new Person columns exist
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
+        
         # Handle "all_campuses" special case
         if campus_id == 'all_campuses' or campus_id == 'all':
             # Get all active people from all campuses
-            all_people = Person.query.filter_by(is_active=True).all()
+            if not has_new_columns:
+                # Use raw SQL
+                base_columns = [
+                    'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                    'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                    'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                    'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+                ]
+                sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE is_active = 1"
+                rows = db.session.execute(text(sql)).fetchall()
+                
+                all_people = []
+                for row in rows:
+                    person_dict = dict(zip(base_columns, row))
+                    person = Person()
+                    for key, value in person_dict.items():
+                        setattr(person, key, value)
+                    all_people.append(person)
+            else:
+                all_people = Person.query.filter_by(is_active=True).all()
             processed = 0
             errors = 0
             
@@ -699,14 +829,55 @@ def get_next_steps():
         campus_filter = request.args.get('campus_id')
         department_filter = request.args.get('department')
         
-        # Build base query
-        query = Person.query.filter_by(is_active=True)
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter_by(campus=campus_filter)
-        if department_filter:
-            query = query.filter_by(department=department_filter)
+        # Check if new Person columns exist
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
         
-        people = query.all()
+        # Build base query
+        if not has_new_columns:
+            # Use raw SQL to select only existing columns
+            base_columns = [
+                'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+            ]
+            
+            where_clauses = ["is_active = 1"]
+            params = {}
+            
+            if campus_filter and campus_filter != 'all_campuses':
+                where_clauses.append("campus = :campus")
+                params['campus'] = campus_filter
+            
+            if department_filter:
+                where_clauses.append("department = :department")
+                params['department'] = department_filter
+            
+            sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE {' AND '.join(where_clauses)}"
+            rows = db.session.execute(text(sql), params).fetchall()
+            
+            # Convert rows to Person objects
+            people = []
+            for row in rows:
+                person_dict = dict(zip(base_columns, row))
+                person = Person()
+                for key, value in person_dict.items():
+                    setattr(person, key, value)
+                people.append(person)
+        else:
+            query = Person.query.filter_by(is_active=True)
+            if campus_filter and campus_filter != 'all_campuses':
+                query = query.filter_by(campus=campus_filter)
+            if department_filter:
+                query = query.filter_by(department=department_filter)
+            
+            people = query.all()
         
         results = []
         for person in people:
@@ -876,12 +1047,40 @@ def get_campus_overview():
         campuses = Campus.query.filter_by(is_active=True).all()
         
         results = []
+        # Check if new Person columns exist
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
+        
         for campus in campuses:
             # Get people for this campus
-            people = Person.query.filter_by(
-                campus=campus.name,
-                is_active=True
-            ).all()
+            if not has_new_columns:
+                # Use raw SQL
+                base_columns = [
+                    'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                    'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                    'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                    'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+                ]
+                sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE campus = :campus AND is_active = 1"
+                rows = db.session.execute(text(sql), {'campus': campus.name}).fetchall()
+                
+                people = []
+                for row in rows:
+                    person_dict = dict(zip(base_columns, row))
+                    person = Person()
+                    for key, value in person_dict.items():
+                        setattr(person, key, value)
+                    people.append(person)
+            else:
+                people = Person.query.filter_by(
+                    campus=campus.name,
+                    is_active=True
+                ).all()
             
             stats = {
                 'total': len(people),
@@ -941,17 +1140,53 @@ def get_department_overview():
         
         departments = ['Kids', 'Youth', 'Young Adults', 'Families', 'Adults', 'Seniors']
         
+        # Check if new Person columns exist (reuse from above if already checked)
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
+        
         results = []
         for dept in departments:
-            query = Person.query.filter_by(
-                department=dept,
-                is_active=True
-            )
-            
-            if campus_filter and campus_filter != 'all_campuses':
-                query = query.filter_by(campus=campus_filter)
-            
-            people = query.all()
+            if not has_new_columns:
+                # Use raw SQL
+                base_columns = [
+                    'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                    'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                    'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                    'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+                ]
+                
+                where_clauses = ["department = :department", "is_active = 1"]
+                params = {'department': dept}
+                
+                if campus_filter and campus_filter != 'all_campuses':
+                    where_clauses.append("campus = :campus")
+                    params['campus'] = campus_filter
+                
+                sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE {' AND '.join(where_clauses)}"
+                rows = db.session.execute(text(sql), params).fetchall()
+                
+                people = []
+                for row in rows:
+                    person_dict = dict(zip(base_columns, row))
+                    person = Person()
+                    for key, value in person_dict.items():
+                        setattr(person, key, value)
+                    people.append(person)
+            else:
+                query = Person.query.filter_by(
+                    department=dept,
+                    is_active=True
+                )
+                
+                if campus_filter and campus_filter != 'all_campuses':
+                    query = query.filter_by(campus=campus_filter)
+                
+                people = query.all()
             
             stats = {
                 'total': len(people),
