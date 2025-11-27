@@ -13912,9 +13912,52 @@ def get_persons():
             else:
                 person_data['connect_group_name'] = None
             
-            # Apply pulse filter if specified
-            if pulse_filter and person_data['pulse_status'] != pulse_filter:
-                continue
+            # Get heartbeat status from HeartbeatSnapshot if available
+            heartbeat_status = None
+            heartbeat_score = person_data.get('heartbeat_score', 0)
+            try:
+                from models import HeartbeatSnapshot
+                snapshot = HeartbeatSnapshot.query.filter_by(
+                    person_id=person.id
+                ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                if snapshot:
+                    heartbeat_status = snapshot.status  # 'healthy', 'watch', 'at_risk', 'critical'
+                    heartbeat_score = snapshot.total_score
+                    person_data['heartbeat_score'] = heartbeat_score
+                    person_data['heartbeat_status'] = heartbeat_status
+            except Exception as e:
+                logger.warning(f"Error fetching heartbeat snapshot for {person.id}: {e}")
+            
+            # If no heartbeat snapshot, infer status from pulse_status and score
+            if not heartbeat_status:
+                if heartbeat_score >= 80:
+                    heartbeat_status = 'healthy'
+                elif heartbeat_score >= 60:
+                    heartbeat_status = 'watch'
+                elif heartbeat_score >= 40:
+                    heartbeat_status = 'at_risk'
+                else:
+                    heartbeat_status = 'critical'
+                person_data['heartbeat_status'] = heartbeat_status
+            
+            # Apply pulse filter if specified (map heartbeat status to pulse_status for backward compatibility)
+            if pulse_filter:
+                # Map heartbeat status to pulse_status for filtering
+                status_mapping = {
+                    'healthy': 'green',
+                    'watch': 'amber',
+                    'at_risk': 'amber',
+                    'critical': 'red'
+                }
+                mapped_pulse = status_mapping.get(heartbeat_status, person_data.get('pulse_status', 'red'))
+                
+                # Also support direct heartbeat status filtering
+                if pulse_filter in ['healthy', 'watch', 'at_risk', 'critical']:
+                    if heartbeat_status != pulse_filter:
+                        continue
+                elif pulse_filter in ['green', 'amber', 'red']:
+                    if mapped_pulse != pulse_filter and person_data.get('pulse_status') != pulse_filter:
+                        continue
             
             result.append(person_data)
         
