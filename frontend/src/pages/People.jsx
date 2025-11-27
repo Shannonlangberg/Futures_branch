@@ -61,11 +61,13 @@ const People = () => {
   // Sync statusFilterTab with pulseFilter for API calls
   useEffect(() => {
     if (statusFilterTab === 'healthy') {
-      setPulseFilter('green');
-    } else if (statusFilterTab === 'watch' || statusFilterTab === 'at_risk') {
-      setPulseFilter('amber');
+      setPulseFilter('healthy'); // Use heartbeat status directly
+    } else if (statusFilterTab === 'watch') {
+      setPulseFilter('watch'); // Use heartbeat status directly
+    } else if (statusFilterTab === 'at_risk') {
+      setPulseFilter('at_risk'); // Use heartbeat status directly
     } else if (statusFilterTab === 'critical') {
-      setPulseFilter('red');
+      setPulseFilter('critical'); // Use heartbeat status directly
     } else if (statusFilterTab === 'all') {
       setPulseFilter('all');
     } else if (statusFilterTab === 'new_people' || statusFilterTab === 'new_christians' || statusFilterTab === 'in_groups') {
@@ -443,13 +445,13 @@ const People = () => {
         }
       });
     } else if (statusFilterTab === 'healthy') {
-      filtered = filtered.filter(p => p.pulse_status === 'green');
+      filtered = filtered.filter(p => p.heartbeat_status === 'healthy' || (p.heartbeat_score >= 80 && !p.heartbeat_status));
     } else if (statusFilterTab === 'watch') {
-      filtered = filtered.filter(p => p.pulse_status === 'amber');
+      filtered = filtered.filter(p => p.heartbeat_status === 'watch' || (p.heartbeat_score >= 60 && p.heartbeat_score < 80 && !p.heartbeat_status));
     } else if (statusFilterTab === 'at_risk') {
-      filtered = filtered.filter(p => p.pulse_status === 'amber');
+      filtered = filtered.filter(p => p.heartbeat_status === 'at_risk' || (p.heartbeat_score >= 40 && p.heartbeat_score < 60 && !p.heartbeat_status));
     } else if (statusFilterTab === 'critical') {
-      filtered = filtered.filter(p => p.pulse_status === 'red');
+      filtered = filtered.filter(p => p.heartbeat_status === 'critical' || (p.heartbeat_score < 40 && !p.heartbeat_status));
     }
     
     return filtered;
