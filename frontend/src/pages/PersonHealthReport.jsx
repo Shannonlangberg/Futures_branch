@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XMarkIcon, CalendarIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon, PencilIcon, UserGroupIcon, PlusIcon, MagnifyingGlassIcon, TrashIcon } from '@heroicons/react/24/outline';
 import ScheduleCatchUpModal from '../components/ScheduleCatchUpModal';
 
 // Status badge component matching Heartbeat dashboard
@@ -145,6 +145,11 @@ const PersonHealthReport = () => {
   const [connectGroups, setConnectGroups] = useState([]);
   const [loadingConnectGroups, setLoadingConnectGroups] = useState(false);
   const [stepToAssign, setStepToAssign] = useState(null);
+  const [familyData, setFamilyData] = useState(null);
+  const [showFamilyModal, setShowFamilyModal] = useState(false);
+  const [familySearchTerm, setFamilySearchTerm] = useState('');
+  const [familySearchResults, setFamilySearchResults] = useState([]);
+  const [loadingFamilySearch, setLoadingFamilySearch] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [watchedEpisodes, setWatchedEpisodes] = useState([]);
   const [loadingWatched, setLoadingWatched] = useState(false);
@@ -528,6 +533,9 @@ const PersonHealthReport = () => {
           console.log(`🔄 GATHER score updated: ${oldGather} → ${newGather}`);
         }
       }
+      
+      // Fetch family data
+      await fetchFamilyData();
       
       } catch (err) {
       console.error('Person heartbeat load error:', err);
@@ -1493,6 +1501,133 @@ const PersonHealthReport = () => {
                     {isEditingCompletion ? 'Update Date' : 'Mark Complete'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Family Management Modal */}
+        {showFamilyModal && familyData?.has_family && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-2xl w-full max-h-[90vh] flex flex-col">
+              <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <UserGroupIcon className="w-6 h-6" />
+                  Add Family Member
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowFamilyModal(false);
+                    setFamilySearchTerm('');
+                    setFamilySearchResults([]);
+                  }}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="mb-4">
+                  <div className="relative">
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={familySearchTerm}
+                      onChange={async (e) => {
+                        const term = e.target.value;
+                        setFamilySearchTerm(term);
+                        if (term.length >= 2) {
+                          setLoadingFamilySearch(true);
+                          try {
+                            const response = await fetch(`/api/persons/${personId}/family/search-members?search=${encodeURIComponent(term)}`, {
+                              credentials: 'include'
+                            });
+                            if (response.ok) {
+                              const data = await response.json();
+                              setFamilySearchResults(data.persons || []);
+                            }
+                          } catch (err) {
+                            console.error('Error searching:', err);
+                          } finally {
+                            setLoadingFamilySearch(false);
+                          }
+                        } else {
+                          setFamilySearchResults([]);
+                        }
+                      }}
+                      placeholder="Search by name or email..."
+                      className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                    />
+                  </div>
+                </div>
+
+                {loadingFamilySearch && (
+                  <div className="text-center py-8 text-slate-400">Searching...</div>
+                )}
+
+                {!loadingFamilySearch && familySearchResults.length > 0 && (
+                  <div className="space-y-2">
+                    {familySearchResults.map((person) => (
+                      <div
+                        key={person.id}
+                        className="bg-slate-700/50 rounded-lg p-4 flex items-center justify-between border border-slate-600/50 hover:bg-slate-700 transition-colors"
+                      >
+                        <div>
+                          <div className="text-white font-medium">{person.full_name}</div>
+                          {person.email && (
+                            <div className="text-sm text-slate-400">{person.email}</div>
+                          )}
+                          {person.campus && (
+                            <div className="text-xs text-slate-500 mt-1">📍 {person.campus}</div>
+                          )}
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(`/api/persons/${personId}/family/add-member`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json'
+                                },
+                                credentials: 'include',
+                                body: JSON.stringify({
+                                  member_person_id: person.id
+                                })
+                              });
+                              if (response.ok) {
+                                await fetchFamilyData();
+                                setFamilySearchTerm('');
+                                setFamilySearchResults([]);
+                                setShowFamilyModal(false);
+                                alert(`${person.full_name} added to family!`);
+                              } else {
+                                const error = await response.json();
+                                alert(error.error || 'Failed to add member');
+                              }
+                            } catch (err) {
+                              console.error('Error adding member:', err);
+                              alert('Failed to add member');
+                            }
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!loadingFamilySearch && familySearchTerm.length >= 2 && familySearchResults.length === 0 && (
+                  <div className="text-center py-8 text-slate-400">No results found</div>
+                )}
+
+                {familySearchTerm.length < 2 && (
+                  <div className="text-center py-8 text-slate-400">
+                    Type at least 2 characters to search for people
+                  </div>
+                )}
               </div>
             </div>
           </div>
