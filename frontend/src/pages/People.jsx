@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   UserGroupIcon, 
@@ -12,7 +12,9 @@ import {
   TrashIcon,
   ArrowPathIcon,
   CheckCircleIcon,
-  ListBulletIcon
+  ListBulletIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 
 const People = () => {
@@ -39,6 +41,9 @@ const People = () => {
   const [editingDepartment, setEditingDepartment] = useState(null);
   const [tempDepartment, setTempDepartment] = useState('');
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [statusFilterTab, setStatusFilterTab] = useState('all'); // 'all', 'healthy', 'watch', 'at_risk', 'critical', 'new_people', 'new_christians', 'in_groups'
   const [formData, setFormData] = useState({
     full_name: '',
     preferred_name: '',
@@ -57,6 +62,27 @@ const People = () => {
     loadCampuses();
     loadPersons();
   }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
+  
+  // Sync statusFilterTab with pulseFilter for API calls
+  useEffect(() => {
+    if (statusFilterTab === 'healthy') {
+      setPulseFilter('green');
+      loadPersons();
+    } else if (statusFilterTab === 'watch' || statusFilterTab === 'at_risk') {
+      setPulseFilter('amber');
+      loadPersons();
+    } else if (statusFilterTab === 'critical') {
+      setPulseFilter('red');
+      loadPersons();
+    } else if (statusFilterTab === 'all') {
+      setPulseFilter('all');
+      loadPersons();
+    } else if (statusFilterTab === 'new_people' || statusFilterTab === 'new_christians' || statusFilterTab === 'in_groups') {
+      // These filters are handled client-side, but we still need to load all persons
+      setPulseFilter('all');
+      loadPersons();
+    }
+  }, [statusFilterTab]);
 
   // Refresh data when window regains focus (in case mobile app updated data)
   useEffect(() => {
@@ -310,11 +336,139 @@ const People = () => {
     if (!dateString) return 'Never';
     try {
       const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now - date);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return '1 day ago';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) {
+        const weeks = Math.floor(diffDays / 7);
+        return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+      }
+      if (diffDays < 365) {
+        const months = Math.floor(diffDays / 30);
+        return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+      }
       return date.toLocaleDateString();
     } catch {
       return 'Never';
     }
   };
+  
+  // Get initials for avatar
+  const getInitials = (name) => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+  
+  // Get heartbeat score color
+  const getHeartbeatColor = (score) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 60) return 'text-yellow-400';
+    if (score >= 40) return 'text-orange-400';
+    return 'text-red-400';
+  };
+  
+  // Get heartbeat score from person
+  const getHeartbeatScore = (person) => {
+    // Use heartbeat_score from API if available
+    if (person.heartbeat_score !== undefined) {
+      return person.heartbeat_score;
+    }
+    // Fallback calculation from pulse_status
+    if (person.pulse_status === 'green') return 85;
+    if (person.pulse_status === 'amber') return 65;
+    if (person.pulse_status === 'red') return 35;
+    return 50;
+  };
+  
+  // Get serving roles from person
+  const getServingRoles = (person) => {
+    try {
+      if (person.dream_team_roles) {
+        const roles = typeof person.dream_team_roles === 'string' 
+          ? JSON.parse(person.dream_team_roles) 
+          : person.dream_team_roles;
+        if (Array.isArray(roles) && roles.length > 0) {
+          return roles.join(', ');
+        }
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+    return 'No Group';
+  };
+  
+  // Get connect group name
+  const getConnectGroupName = (person) => {
+    if (person.connect_group_name) return person.connect_group_name;
+    if (person.connect_group) return person.connect_group;
+    return 'No Group';
+  };
+  
+  // Filter persons based on statusFilterTab
+  const filteredPersons = useMemo(() => {
+    let filtered = persons;
+    
+    if (statusFilterTab === 'new_people') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      filtered = filtered.filter(p => {
+        if (!p.created_at) return false;
+        const created = new Date(p.created_at);
+        return created >= thirtyDaysAgo;
+      });
+    } else if (statusFilterTab === 'new_christians') {
+      const twoYearsAgo = new Date();
+      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+      filtered = filtered.filter(p => {
+        if (p.is_new_christian) return true;
+        if (p.baptised_on) {
+          const baptised = new Date(p.baptised_on);
+          return baptised >= twoYearsAgo;
+        }
+        return false;
+      });
+    } else if (statusFilterTab === 'in_groups') {
+      filtered = filtered.filter(p => {
+        if (p.connect_group) return true;
+        try {
+          const roles = typeof p.dream_team_roles === 'string' 
+            ? JSON.parse(p.dream_team_roles || '[]') 
+            : (p.dream_team_roles || []);
+          return Array.isArray(roles) && roles.length > 0;
+        } catch {
+          return false;
+        }
+      });
+    } else if (statusFilterTab === 'healthy') {
+      filtered = filtered.filter(p => p.pulse_status === 'green');
+    } else if (statusFilterTab === 'watch') {
+      filtered = filtered.filter(p => p.pulse_status === 'amber');
+    } else if (statusFilterTab === 'at_risk') {
+      filtered = filtered.filter(p => p.pulse_status === 'amber');
+    } else if (statusFilterTab === 'critical') {
+      filtered = filtered.filter(p => p.pulse_status === 'red');
+    }
+    
+    return filtered;
+  }, [persons, statusFilterTab]);
+  
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilterTab, campusFilter, departmentFilter, searchTerm]);
+  
+  const totalPages = Math.ceil(filteredPersons.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedFilteredPersons = filteredPersons.slice(startIndex, endIndex);
 
   const handleViewPerson = (personId) => {
     navigate(`/persons/${personId}`);
@@ -498,40 +652,192 @@ const People = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="mb-6">
+          <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2 flex items-center">
-                <UserGroupIcon className="w-10 h-10 mr-3 text-blue-500" />
-                People
-              </h1>
-              <p className="text-slate-400">Manage church members and track engagement</p>
+              <h1 className="text-3xl font-bold text-white mb-1">People</h1>
+              <p className="text-slate-400 text-sm">Manage church members and track engagement</p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => navigate('/lists')}
-                className="flex items-center px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                className="flex items-center px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg transition-colors text-sm"
               >
-                <ListBulletIcon className="w-5 h-5 mr-2" />
+                <ListBulletIcon className="w-4 h-4 mr-2" />
                 Lists
               </button>
               <button
                 onClick={() => setShowImportModal(true)}
-                className="flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                className="flex items-center px-4 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-300 border border-green-500/30 rounded-lg transition-colors text-sm"
               >
-                <ArrowPathIcon className="w-5 h-5 mr-2" />
+                <ArrowPathIcon className="w-4 h-4 mr-2" />
                 Import CSV
               </button>
               <button
                 onClick={() => handleOpenModal()}
-                className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg transition-all text-sm font-medium"
               >
-                <PlusIcon className="w-5 h-5 mr-2" />
+                <PlusIcon className="w-4 h-4 mr-2" />
                 Add Person
               </button>
+            </div>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="mb-4">
+            <div className="relative">
+              <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search people, families..."
+                className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+              />
+            </div>
+          </div>
+          
+          {/* Filter Tabs */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setStatusFilterTab('all')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'all'
+                  ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setStatusFilterTab('healthy')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'healthy'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              Healthy
+            </button>
+            <button
+              onClick={() => setStatusFilterTab('watch')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'watch'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              Watch
+            </button>
+            <button
+              onClick={() => setStatusFilterTab('at_risk')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'at_risk'
+                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              At Risk
+            </button>
+            <button
+              onClick={() => setStatusFilterTab('critical')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'critical'
+                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              Critical
+            </button>
+            <button
+              onClick={() => setStatusFilterTab('new_people')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'new_people'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              New People
+            </button>
+            <button
+              onClick={() => setStatusFilterTab('new_christians')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'new_christians'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              New Christians
+            </button>
+            <button
+              onClick={() => setStatusFilterTab('in_groups')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                statusFilterTab === 'in_groups'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-700/50 hover:bg-slate-700/50'
+              }`}
+            >
+              In Groups
+            </button>
+          </div>
+          
+          {/* Advanced Filters (Collapsible) */}
+          <div className="mb-4 bg-slate-800/30 border border-slate-700/50 rounded-xl p-4">
+            <div className="flex flex-wrap gap-4 items-end">
+              {/* Campus Filter */}
+              <div className="min-w-[180px]">
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Campus
+                </label>
+                <select
+                  value={campusFilter}
+                  onChange={(e) => setCampusFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500/50"
+                >
+                  <option value="all_campuses">All Campuses</option>
+                  {campuses.map(campus => (
+                    <option key={campus.id} value={campus.id}>
+                      {campus.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Department Filter */}
+              <div className="min-w-[150px]">
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Department
+                </label>
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500/50"
+                >
+                  <option value="all">All Departments</option>
+                  <option value="Kids">Kids</option>
+                  <option value="Youth">Youth</option>
+                  <option value="Young Adults">Young Adults</option>
+                  <option value="Families">Families</option>
+                  <option value="Adults">Adults</option>
+                  <option value="Seniors">Seniors</option>
+                </select>
+              </div>
+
+              {/* Include Archived Toggle */}
+              <div className="min-w-[180px]">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeArchived}
+                    onChange={(e) => setIncludeArchived(e.target.checked)}
+                    className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs font-medium text-slate-300">Include Archived</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -634,186 +940,214 @@ const People = () => {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="text-slate-400 text-sm mb-1">Total People</div>
-            <div className="text-3xl font-bold text-white">{stats.total}</div>
-          </div>
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="text-slate-400 text-sm mb-1">Active</div>
-            <div className="text-3xl font-bold text-green-400">{stats.green}</div>
-          </div>
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="text-slate-400 text-sm mb-1">At Risk</div>
-            <div className="text-3xl font-bold text-yellow-400">{stats.amber}</div>
-          </div>
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
-            <div className="text-slate-400 text-sm mb-1">Critical</div>
-            <div className="text-3xl font-bold text-red-400">{stats.red}</div>
-          </div>
-        </div>
-
         {/* People Table */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl overflow-hidden">
+        <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-700/50">
+              <thead className="bg-slate-700/30">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Name</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Email</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Campus</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Department</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Pulse Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Last Seen</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Connect Group</th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-slate-300">Actions</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Heartbeat</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Group</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Serving</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Campus</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50">
-                {persons.length === 0 ? (
+              <tbody className="divide-y divide-slate-700/30">
+                {loading ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-12 text-center text-slate-400">
-                      {loading ? 'Loading...' : 'No people found'}
+                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                      Loading...
+                    </td>
+                  </tr>
+                ) : paginatedFilteredPersons.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                      No people found matching your filters
                     </td>
                   </tr>
                 ) : (
-                  persons.map((person) => (
-                    <tr 
-                      key={person.id} 
-                      className={`hover:bg-slate-700/30 transition-colors cursor-pointer ${
-                        !person.is_active ? 'opacity-60' : ''
-                      }`}
-                      onClick={() => handleOpenModal(person)}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="text-white font-medium">
-                          {person.preferred_name || person.full_name}
-                        </div>
-                        {person.preferred_name && (
-                          <div className="text-slate-400 text-sm">{person.full_name}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-slate-300">{person.email}</td>
-                      <td className="px-6 py-4 text-slate-300">
-                        {person.campus === 'all_campuses' ? 'All Campuses' : person.campus}
-                      </td>
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                        {editingDepartment === person.id ? (
+                  paginatedFilteredPersons.map((person) => {
+                    const heartbeatScore = getHeartbeatScore(person);
+                    const servingRoles = getServingRoles(person);
+                    const groupName = getConnectGroupName(person);
+                    const initials = getInitials(person.preferred_name || person.full_name);
+                    
+                    return (
+                      <tr 
+                        key={person.id} 
+                        className={`hover:bg-slate-700/20 transition-colors ${
+                          !person.is_active ? 'opacity-60' : ''
+                        }`}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {/* Avatar */}
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                              {initials}
+                            </div>
+                            <div>
+                              <div className="text-white font-medium">
+                                {person.preferred_name || person.full_name}
+                              </div>
+                              {person.preferred_name && person.full_name && (
+                                <div className="text-slate-400 text-xs">{person.full_name}</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <select
-                              value={tempDepartment}
-                              onChange={(e) => setTempDepartment(e.target.value)}
-                              onBlur={() => {
-                                if (!isSavingDepartment) {
-                                  handleDepartmentSave(person);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleDepartmentSave(person);
-                                } else if (e.key === 'Escape') {
-                                  handleDepartmentCancel();
-                                }
-                              }}
-                              autoFocus
-                              className="px-2 py-1 bg-slate-700 border border-blue-500 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                              <option value="">No Department</option>
-                              <option value="Kids">Kids</option>
-                              <option value="Youth">Youth</option>
-                              <option value="Young Adults">Young Adults</option>
-                              <option value="Families">Families</option>
-                              <option value="Adults">Adults</option>
-                              <option value="Seniors">Seniors</option>
-                            </select>
-                            <button
-                              onClick={() => handleDepartmentSave(person)}
-                              className="p-1 text-green-400 hover:text-green-300"
-                              title="Save"
-                            >
-                              <CheckCircleIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={handleDepartmentCancel}
-                              className="p-1 text-red-400 hover:text-red-300"
-                              title="Cancel"
-                            >
-                              <XMarkIcon className="w-4 h-4" />
-                            </button>
+                            {/* Circular Heartbeat Score */}
+                            <div className="relative w-12 h-12">
+                              <svg className="w-12 h-12 transform -rotate-90">
+                                <circle
+                                  cx="24"
+                                  cy="24"
+                                  r="20"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  fill="none"
+                                  className="text-slate-700"
+                                />
+                                <circle
+                                  cx="24"
+                                  cy="24"
+                                  r="20"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  fill="none"
+                                  strokeDasharray={`${2 * Math.PI * 20}`}
+                                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - heartbeatScore / 100)}`}
+                                  className={getHeartbeatColor(heartbeatScore)}
+                                  strokeLinecap="round"
+                                />
+                              </svg>
+                              <div className={`absolute inset-0 flex items-center justify-center text-xs font-bold ${getHeartbeatColor(heartbeatScore)}`}>
+                                {Math.round(heartbeatScore)}
+                              </div>
+                            </div>
                           </div>
-                        ) : (
-                          <div
-                            onClick={() => handleDepartmentEdit(person)}
-                            className="text-slate-300 hover:text-blue-400 cursor-pointer hover:bg-slate-700/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                            title="Click to edit department"
-                          >
-                            {person.department || '—'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-slate-300 text-sm">
+                            {groupName === 'No Group' ? (
+                              <span className="text-slate-500 italic">{formatDate(person.last_seen)}</span>
+                            ) : (
+                              groupName
+                            )}
                           </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getPulseStatusColor(person.pulse_status)}`}>
-                            <HeartIcon className="w-3 h-3 mr-1" />
-                            {getPulseStatusLabel(person.pulse_status)}
-                          </span>
-                          {!person.is_active && (
-                            <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium border bg-slate-500/20 text-slate-400 border-slate-500/30">
-                              Archived
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-300 text-sm">
-                        {formatDate(person.last_seen)}
-                      </td>
-                      <td className="px-6 py-4 text-slate-300">
-                        {person.connect_group || '—'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-slate-300 text-sm">
+                            {servingRoles}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
                           <button
-                            onClick={() => handleOpenModal(person)}
-                            title="Edit Person"
-                            className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            onClick={() => handleViewPerson(person.id)}
+                            className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-medium transition-colors"
                           >
-                            <PencilIcon className="w-5 h-5" />
+                            View Profile
                           </button>
-                          {person.is_active ? (
-                            <>
-                              <button
-                                onClick={() => setShowArchiveConfirm(person)}
-                                title="Archive Person"
-                                className="p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-lg transition-colors"
-                              >
-                                <ArchiveBoxIcon className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => setShowDeleteConfirm(person)}
-                                title="Delete Person"
-                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                              >
-                                <TrashIcon className="w-5 h-5" />
-                              </button>
-                            </>
-                          ) : (
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => handleRestore(person)}
-                              title="Restore Person"
-                              className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors"
+                              onClick={() => handleOpenModal(person)}
+                              title="Edit Person"
+                              className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
                             >
-                              <ArrowPathIcon className="w-5 h-5" />
+                              <PencilIcon className="w-4 h-4" />
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            {person.is_active ? (
+                              <>
+                                <button
+                                  onClick={() => setShowArchiveConfirm(person)}
+                                  title="Archive Person"
+                                  className="p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-lg transition-colors"
+                                >
+                                  <ArchiveBoxIcon className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setShowDeleteConfirm(person)}
+                                  title="Delete Person"
+                                  className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleRestore(person)}
+                                title="Restore Person"
+                                className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors"
+                              >
+                                <ArrowPathIcon className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination */}
+          {filteredPersons.length > itemsPerPage && (
+            <div className="px-6 py-4 border-t border-slate-700/50 flex items-center justify-between">
+              <div className="text-sm text-slate-400">
+                Showing {startIndex + 1} to {Math.min(endIndex, filteredPersons.length)} of {filteredPersons.length} people
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg bg-slate-700/50 border border-slate-600/50 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeftIcon className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                            : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg bg-slate-700/50 border border-slate-600/50 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRightIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
