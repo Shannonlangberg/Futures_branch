@@ -420,7 +420,16 @@ def get_person_heartbeat(person_id):
             logger.warning(f"Error reading attendance_log from engagement profile: {e}")
         
         # Combine both sources and sort by date (newest first)
-        all_attendance = [a.to_dict() for a in recent_attendance_events] + attendance_from_log
+        # Safely convert attendance events to dicts
+        attendance_dicts = []
+        for a in recent_attendance_events:
+            try:
+                attendance_dicts.append(a.to_dict())
+            except Exception as e:
+                logger.warning(f"Error converting attendance event to dict: {e}")
+                # Skip this event if it fails
+                continue
+        all_attendance = attendance_dicts + attendance_from_log
         all_attendance.sort(key=lambda x: x.get('created_at', ''), reverse=True)
         recent_attendance = all_attendance[:10]  # Limit to 10 most recent
         
@@ -432,14 +441,27 @@ def get_person_heartbeat(person_id):
         
         # Enrich with group names
         for att in recent_connect:
-            if att.connect_group:
-                att_dict = att.to_dict()
-                att_dict['connect_group'] = {
-                    'id': att.connect_group.id,
-                    'name': att.connect_group.name
-                }
-                # Replace the to_dict result with enriched version
-                att._enriched_dict = att_dict
+            try:
+                if att.connect_group:
+                    att_dict = att.to_dict()
+                    att_dict['connect_group'] = {
+                        'id': att.connect_group.id,
+                        'name': att.connect_group.name
+                    }
+                    # Replace the to_dict result with enriched version
+                    att._enriched_dict = att_dict
+            except Exception as e:
+                logger.warning(f"Error enriching connect attendance: {e}")
+                # Try to create a basic dict if to_dict fails
+                try:
+                    att._enriched_dict = {
+                        'id': getattr(att, 'id', None),
+                        'person_id': getattr(att, 'person_id', None),
+                        'date': safe_date_isoformat(getattr(att, 'date', None)),
+                        'connect_group': None
+                    }
+                except:
+                    att._enriched_dict = None
         
         # Recent serving
         recent_serving = ServingAssignment.query.filter(
@@ -651,7 +673,16 @@ def get_person_heartbeat(person_id):
                 logger.warning(f"Error refreshing pathway step completions: {e}")
         
         # Combine DiscipleshipStep records with Person milestones and pathway steps
-        all_discipleship_steps = [d.to_dict() for d in recent_steps] + person_milestones + pathway_step_events
+        # Safely convert discipleship steps to dicts
+        discipleship_dicts = []
+        for d in recent_steps:
+            try:
+                discipleship_dicts.append(d.to_dict())
+            except Exception as e:
+                logger.warning(f"Error converting discipleship step to dict: {e}")
+                # Skip this step if it fails
+                continue
+        all_discipleship_steps = discipleship_dicts + person_milestones + pathway_step_events
         
         # Debug: Log what we're returning
         logger.info(f"DEBUG: Returning {len(all_discipleship_steps)} total discipleship steps:")
@@ -779,11 +810,23 @@ def get_person_heartbeat(person_id):
         }), 200
         
     except Exception as e:
-        logger.error(f"Error getting person heartbeat: {e}", exc_info=True)
+        logger.error(f"Error getting person heartbeat for {person_id}: {e}", exc_info=True)
         import traceback
         error_details = traceback.format_exc()
-        logger.error(f"Full traceback: {error_details}")
-        return jsonify({'error': str(e), 'details': 'Check server logs for more information'}), 500
+        logger.error(f"Full traceback for person {person_id}: {error_details}")
+        # Return more detailed error in development, but still log full details
+        error_message = str(e)
+        if 'isoformat' in error_message.lower():
+            error_message = f"Date serialization error: {error_message}"
+        elif 'no such column' in error_message.lower():
+            error_message = f"Database schema error: {error_message}"
+        elif 'attribute' in error_message.lower():
+            error_message = f"Attribute access error: {error_message}"
+        return jsonify({
+            'error': error_message,
+            'person_id': person_id,
+            'details': 'Check server logs for more information'
+        }), 500
 
 
 @heartbeat_bp.route('/recalculate/<campus_id>', methods=['POST'])
