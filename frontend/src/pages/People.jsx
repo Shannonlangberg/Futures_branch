@@ -75,7 +75,7 @@ const People = () => {
       setPulseFilter('all');
     }
   }, [statusFilterTab]);
-  
+
   useEffect(() => {
     loadCampuses();
     loadPersons();
@@ -973,28 +973,28 @@ const People = () => {
                     const initials = getInitials(person.preferred_name || person.full_name);
                     
                     return (
-                      <tr 
-                        key={person.id} 
+                    <tr 
+                      key={person.id} 
                         className={`hover:bg-slate-700/20 transition-colors ${
-                          !person.is_active ? 'opacity-60' : ''
-                        }`}
-                      >
-                        <td className="px-6 py-4">
+                        !person.is_active ? 'opacity-60' : ''
+                      }`}
+                    >
+                      <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             {/* Avatar */}
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                               {initials}
                             </div>
                             <div>
-                              <div className="text-white font-medium">
-                                {person.preferred_name || person.full_name}
-                              </div>
+                        <div className="text-white font-medium">
+                          {person.preferred_name || person.full_name}
+                        </div>
                               {person.preferred_name && person.full_name && (
                                 <div className="text-slate-400 text-xs">{person.full_name}</div>
-                              )}
+                        )}
                             </div>
                           </div>
-                        </td>
+                      </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             {/* Circular Heartbeat Score */}
@@ -1024,24 +1024,24 @@ const People = () => {
                               </svg>
                               <div className={`absolute inset-0 flex items-center justify-center text-xs font-bold ${getHeartbeatColor(heartbeatScore)}`}>
                                 {Math.round(heartbeatScore)}
-                              </div>
-                            </div>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
+                          </div>
+                          </div>
+                      </td>
+                      <td className="px-6 py-4">
                           <div className="text-slate-300 text-sm">
                             {groupName === 'No Group' ? (
                               <span className="text-slate-500 italic">{formatDate(person.last_seen)}</span>
                             ) : (
                               groupName
-                            )}
-                          </div>
-                        </td>
+                          )}
+                        </div>
+                      </td>
                         <td className="px-6 py-4">
                           <div className="text-slate-300 text-sm">
                             {servingRoles}
                           </div>
-                        </td>
+                      </td>
                         <td className="px-6 py-4">
                           <button
                             onClick={() => handleViewPerson(person.id)}
@@ -1049,45 +1049,45 @@ const People = () => {
                           >
                             View Profile
                           </button>
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                      </td>
+                      <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleOpenModal(person)}
-                              title="Edit Person"
-                              className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
-                            >
+                          <button
+                            onClick={() => handleOpenModal(person)}
+                            title="Edit Person"
+                            className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
+                          >
                               <PencilIcon className="w-4 h-4" />
-                            </button>
-                            {person.is_active ? (
-                              <>
-                                <button
-                                  onClick={() => setShowArchiveConfirm(person)}
-                                  title="Archive Person"
-                                  className="p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-lg transition-colors"
-                                >
-                                  <ArchiveBoxIcon className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => setShowDeleteConfirm(person)}
-                                  title="Delete Person"
-                                  className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                                >
-                                  <TrashIcon className="w-4 h-4" />
-                                </button>
-                              </>
-                            ) : (
+                          </button>
+                          {person.is_active ? (
+                            <>
                               <button
-                                onClick={() => handleRestore(person)}
-                                title="Restore Person"
-                                className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors"
+                                onClick={() => setShowArchiveConfirm(person)}
+                                title="Archive Person"
+                                className="p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-lg transition-colors"
                               >
-                                <ArrowPathIcon className="w-4 h-4" />
+                                  <ArchiveBoxIcon className="w-4 h-4" />
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                              <button
+                                onClick={() => setShowDeleteConfirm(person)}
+                                title="Delete Person"
+                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                              >
+                                  <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleRestore(person)}
+                              title="Restore Person"
+                              className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors"
+                            >
+                                <ArrowPathIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                     );
                   })
                 )}

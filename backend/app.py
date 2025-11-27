@@ -13773,7 +13773,7 @@ def get_persons():
                 persons.append(person)
         else:
             # New columns exist, use normal query
-            persons = query.order_by(Person.full_name).all()
+        persons = query.order_by(Person.full_name).all()
         
         # Apply new_people filter (last 30 days)
         if new_people:
@@ -13957,7 +13957,7 @@ def get_persons():
                         continue
                 elif pulse_filter in ['green', 'amber', 'red']:
                     if mapped_pulse != pulse_filter and person_data.get('pulse_status') != pulse_filter:
-                        continue
+                continue
             
             result.append(person_data)
         
@@ -20991,7 +20991,6 @@ def get_families():
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        # Models are now imported at module level
         from datetime import datetime, timedelta, date
         from sqlalchemy import text
         
@@ -21023,109 +21022,134 @@ def get_families():
         person_id_to_family = {}
         
         for person in persons:
-            # Use family_id if available, otherwise use fallback grouping
-            if getattr(person, 'family_id', None):
-                family_key = person.family_id
-            else:
-                # Fallback: use email domain or last name
-                if person.email:
-                    email_parts = person.email.split('@')
-                    if len(email_parts) == 2:
-                        family_key = f"{email_parts[0].split('+')[0]}@{email_parts[1]}"
+            try:
+                # Use family_id if available, otherwise use fallback grouping
+                family_id = getattr(person, 'family_id', None)
+                if family_id:
+                    family_key = family_id
+                else:
+                    # Fallback: use email domain or last name
+                    if person.email:
+                        email_parts = person.email.split('@')
+                        if len(email_parts) == 2:
+                            family_key = f"{email_parts[0].split('+')[0]}@{email_parts[1]}"
+                        else:
+                            last_name = person.full_name.split()[-1] if person.full_name else 'unknown'
+                            family_key = f"family_{last_name}"
                     else:
                         last_name = person.full_name.split()[-1] if person.full_name else 'unknown'
                         family_key = f"family_{last_name}"
-                else:
-                    last_name = person.full_name.split()[-1] if person.full_name else 'unknown'
-                    family_key = f"family_{last_name}"
-            
-            person_id_to_family[person.id] = family_key
-            
-            if family_key not in family_map:
-                family_map[family_key] = {
-                    'id': family_key,
-                    'family_name': None,  # Will be set from member names
-                    'members': [],
-                    'household_heartbeat': 0,
-                    'heartbeat_status': 'critical',
-                    'attendance_together': 0,
-                    'attendance_timeline': [],
-                    'attendance_drifting': False,
-                    'groups_involvement': [],
-                    'serving_patterns': [],
-                    'giving_rhythm': 'none',  # none, occasional, regular
-                    'parent_giving': False,
-                    'new_people_count': 0,
-                    'new_christians_count': 0,
-                    'care_cases': [],
-                    'pastoral_notes': [],
-                    'ai_summary': None,
-                    'next_steps': [],
-                    'assigned_leader': None,
-                    'campus': None,
-                    'last_attended_together': None
-                }
-            
-            # Get heartbeat from snapshot
-            heartbeat_score = 50
-            heartbeat_status = 'critical'
-            try:
-                snapshot = HeartbeatSnapshot.query.filter_by(
-                    person_id=person.id
-                ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
-                if snapshot:
-                    heartbeat_score = snapshot.total_score
-                    heartbeat_status = snapshot.status
-            except:
-                pass
-            
-            # Determine role
-            department = getattr(person, 'department', '')
-            if department:
-                if 'Kids' in department or 'Youth' in department:
-                    role = 'child'
-                elif 'Youth' in department:
-                    role = 'youth'
-                else:
-                    role = 'parent'
-            else:
-                # Infer from age if birthday available
-                role = 'parent'  # Default
-            
-            # Get connect group info
-            connect_group_name = None
-            if person.connect_group:
+                
+                person_id_to_family[person.id] = family_key
+                
+                if family_key not in family_map:
+                    family_map[family_key] = {
+                        'id': family_key,
+                        'family_name': None,  # Will be set from member names
+                        'members': [],
+                        'household_heartbeat': 0,
+                        'heartbeat_status': 'critical',
+                        'attendance_together': 0,
+                        'attendance_timeline': [],
+                        'attendance_drifting': False,
+                        'groups_involvement': [],
+                        'serving_patterns': [],
+                        'giving_rhythm': 'none',  # none, occasional, regular
+                        'parent_giving': False,
+                        'new_people_count': 0,
+                        'new_christians_count': 0,
+                        'care_cases': [],
+                        'pastoral_notes': [],
+                        'ai_summary': None,
+                        'next_steps': [],
+                        'assigned_leader': None,
+                        'campus': None,
+                        'last_attended_together': None
+                    }
+                
+                # Get heartbeat from snapshot
+                heartbeat_score = 50
+                heartbeat_status = 'critical'
                 try:
-                    group = ConnectGroup.query.filter_by(id=person.connect_group, is_active=True).first()
-                    if group:
-                        connect_group_name = group.name
-                except:
-                    pass
-            
-            member_data = {
-                'id': person.id,
-                'name': person.preferred_name or person.full_name,
-                'full_name': person.full_name,
-                'email': person.email,
-                'phone': person.phone,
-                'role': role,
-                'department': department,
-                'heartbeat_score': max(0, min(100, heartbeat_score)),
-                'heartbeat_status': heartbeat_status,
-                'pulse_status': person.engagement_profile.pulse_status if person.engagement_profile else 'red',
-                'connect_group': connect_group_name or person.connect_group,
-                'is_new_christian': getattr(person, 'is_new_christian', False),
-                'new_christian_date': person.new_christian_date.isoformat() if getattr(person, 'new_christian_date', None) else None,
-                'baptised_on': person.baptised_on.isoformat() if person.baptised_on else None,
-                'created_at': person.created_at.isoformat() if person.created_at else None,
-                'has_family_id': bool(getattr(person, 'family_id', None))
-            }
-            
-            family_map[family_key]['members'].append(member_data)
-            
-            # Set campus from first member
-            if not family_map[family_key]['campus']:
-                family_map[family_key]['campus'] = person.campus
+                    snapshot = HeartbeatSnapshot.query.filter_by(
+                        person_id=person.id
+                    ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                    if snapshot:
+                        heartbeat_score = snapshot.total_score
+                        heartbeat_status = snapshot.status
+                except Exception as e:
+                    logger.warning(f"Error getting heartbeat snapshot for {person.id}: {e}")
+                
+                # Determine role
+                department = getattr(person, 'department', '') or ''
+                if department:
+                    if 'Kids' in department:
+                        role = 'child'
+                    elif 'Youth' in department:
+                        role = 'youth'
+                    else:
+                        role = 'parent'
+                else:
+                    # Infer from age if birthday available
+                    role = 'parent'  # Default
+                
+                # Get connect group info
+                connect_group_name = None
+                person_connect_group = getattr(person, 'connect_group', None)
+                if person_connect_group:
+                    try:
+                        group = ConnectGroup.query.filter_by(id=person_connect_group, is_active=True).first()
+                        if group:
+                            connect_group_name = group.name
+                    except Exception as e:
+                        logger.warning(f"Error getting connect group for {person.id}: {e}")
+                
+                # Safely get engagement profile pulse_status
+                pulse_status = 'red'
+                try:
+                    if hasattr(person, 'engagement_profile') and person.engagement_profile:
+                        pulse_status = person.engagement_profile.pulse_status or 'red'
+                except Exception as e:
+                    logger.warning(f"Error getting engagement profile for {person.id}: {e}")
+                
+                # Safely serialize dates
+                def safe_date_iso(date_val):
+                    if not date_val:
+                        return None
+                    if isinstance(date_val, str):
+                        return date_val
+                    try:
+                        return date_val.isoformat()
+                    except:
+                        return None
+                
+                member_data = {
+                    'id': person.id,
+                    'name': person.preferred_name or person.full_name,
+                    'full_name': person.full_name,
+                    'email': person.email,
+                    'phone': person.phone,
+                    'role': role,
+                    'department': department,
+                    'heartbeat_score': max(0, min(100, heartbeat_score)),
+                    'heartbeat_status': heartbeat_status,
+                    'pulse_status': pulse_status,
+                    'connect_group': connect_group_name or person_connect_group,
+                    'is_new_christian': getattr(person, 'is_new_christian', False),
+                    'new_christian_date': safe_date_iso(getattr(person, 'new_christian_date', None)),
+                    'baptised_on': safe_date_iso(getattr(person, 'baptised_on', None)),
+                    'created_at': safe_date_iso(getattr(person, 'created_at', None)),
+                    'has_family_id': bool(family_id)
+                }
+                
+                family_map[family_key]['members'].append(member_data)
+                
+                # Set campus from first member
+                if not family_map[family_key]['campus']:
+                    family_map[family_key]['campus'] = getattr(person, 'campus', None)
+            except Exception as e:
+                logger.warning(f"Error processing person {person.id} for families: {e}")
+                continue
         
         # Calculate comprehensive household metrics
         families = []
@@ -21363,10 +21387,13 @@ def get_families():
         
     except Exception as e:
         logger.error(f"Error fetching families: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to fetch families'}), 500
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Full traceback: {error_details}")
+        return jsonify({'error': 'Failed to fetch families', 'details': str(e)}), 500
 
 
-@app.route('/api/person/<person_id>/family', methods=['GET'])
+@app.route('/api/persons/<person_id>/family', methods=['GET'])
 @login_required
 def get_person_family(person_id):
     """Get family members for a person"""
@@ -21383,7 +21410,7 @@ def get_person_family(person_id):
             return jsonify({
                 'person_id': person_id,
                 'family_id': None,
-                'members': [person.to_dict()],
+                'members': [],
                 'has_family': False
             })
         
@@ -21401,7 +21428,7 @@ def get_person_family(person_id):
         return jsonify({'error': 'Failed to fetch family'}), 500
 
 
-@app.route('/api/person/<person_id>/family/create', methods=['POST'])
+@app.route('/api/persons/<person_id>/family/create', methods=['POST'])
 @login_required
 def create_family_for_person(person_id):
     """Create a new family and assign person to it"""
@@ -21432,7 +21459,7 @@ def create_family_for_person(person_id):
         return jsonify({'error': 'Failed to create family'}), 500
 
 
-@app.route('/api/person/<person_id>/family/add-member', methods=['POST'])
+@app.route('/api/persons/<person_id>/family/add-member', methods=['POST'])
 @login_required
 def add_family_member(person_id):
     """Add another person to the same family"""
@@ -21472,7 +21499,7 @@ def add_family_member(person_id):
         return jsonify({'error': 'Failed to add family member'}), 500
 
 
-@app.route('/api/person/<person_id>/family/remove', methods=['POST'])
+@app.route('/api/persons/<person_id>/family/remove', methods=['POST'])
 @login_required
 def remove_from_family(person_id):
     """Remove person from their family"""
@@ -21497,7 +21524,7 @@ def remove_from_family(person_id):
         return jsonify({'error': 'Failed to remove from family'}), 500
 
 
-@app.route('/api/person/<person_id>/family/search-members', methods=['GET'])
+@app.route('/api/persons/<person_id>/family/search-members', methods=['GET'])
 @login_required
 def search_family_members(person_id):
     """Search for people to add to family"""

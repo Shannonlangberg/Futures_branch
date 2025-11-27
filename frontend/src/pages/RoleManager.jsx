@@ -30,26 +30,26 @@ const RoleManager = () => {
     core: {
       name: 'Core',
       items: [
-        { key: 'home', label: 'Home', icon: '🏠' },
-        { key: 'dashboard', label: 'Dashboard', icon: '📊' },
-        { key: 'input', label: 'Input/Stats', icon: '✍️' },
+    { key: 'home', label: 'Home', icon: '🏠' },
+    { key: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { key: 'input', label: 'Input/Stats', icon: '✍️' },
       ]
     },
     engagement: {
       name: 'Engagement',
       items: [
-        { key: 'people', label: 'People', icon: '👥' },
-        { key: 'heartbeat', label: 'Heartbeat', icon: '💓' },
-        { key: 'connect_groups', label: 'Connect Groups', icon: '👨‍👩‍👧‍👦' },
-        { key: 'prayer', label: 'Prayer & Praise', icon: '🙏' },
+    { key: 'people', label: 'People', icon: '👥' },
+    { key: 'heartbeat', label: 'Heartbeat', icon: '💓' },
+    { key: 'connect_groups', label: 'Connect Groups', icon: '👨‍👩‍👧‍👦' },
+    { key: 'prayer', label: 'Prayer & Praise', icon: '🙏' },
         { key: 'serving', label: 'Serving', icon: '🤝' },
       ]
     },
     content: {
       name: 'Content',
       items: [
-        { key: 'pulse_tv', label: 'Pulse TV', icon: '📺' },
-        { key: 'events', label: 'Events', icon: '📅' },
+    { key: 'pulse_tv', label: 'Pulse TV', icon: '📺' },
+    { key: 'events', label: 'Events', icon: '📅' },
         { key: 'resources', label: 'Resources', icon: '📚' },
         { key: 'devotions', label: 'Devotions', icon: '📖' }
       ]
@@ -64,7 +64,7 @@ const RoleManager = () => {
     communications: {
       name: 'Communications',
       items: [
-        { key: 'communication', label: 'Communications', icon: '📧' },
+    { key: 'communication', label: 'Communications', icon: '📧' },
       ]
     }
   };
@@ -572,13 +572,13 @@ const RoleManager = () => {
                   </th>
                   {/* Page Features Headers by Group */}
                   {Object.entries(pageFeatures).map(([groupKey, group]) => (
-                    <th 
+                  <th 
                       key={groupKey}
                       colSpan={group.items.length} 
-                      className="px-4 py-3 text-center text-xs font-semibold text-slate-400 bg-slate-700/70 border-l border-r border-slate-600"
-                    >
+                    className="px-4 py-3 text-center text-xs font-semibold text-slate-400 bg-slate-700/70 border-l border-r border-slate-600"
+                  >
                       {group.name}
-                    </th>
+                  </th>
                   ))}
                   {/* Settings Features Header */}
                   <th 
