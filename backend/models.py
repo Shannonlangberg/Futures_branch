@@ -317,10 +317,10 @@ class EngagementProfile(db.Model):
         
         # Recalculate heartbeat (wrap in try/catch to prevent failures)
         try:
-        old_engagement = self.overall_engagement
-        old_pulse = self.pulse_status
-        self.recalculate_heartbeat()
-        logger.info(f"Heartbeat recalculated - engagement: {old_engagement} -> {self.overall_engagement}, pulse: {old_pulse} -> {self.pulse_status}")
+            old_engagement = self.overall_engagement
+            old_pulse = self.pulse_status
+            self.recalculate_heartbeat()
+            logger.info(f"Heartbeat recalculated - engagement: {old_engagement} -> {self.overall_engagement}, pulse: {old_pulse} -> {self.pulse_status}")
         except Exception as e:
             logger.error(f"Error recalculating heartbeat for person {self.person_id}: {e}", exc_info=True)
             # Don't fail the attendance update if heartbeat recalculation fails
@@ -776,7 +776,7 @@ class DiscipleshipPathway(db.Model):
         """Convert pathway to dictionary"""
         # Try to load steps - handle gracefully if step_actions column doesn't exist yet
         try:
-        steps_list = [s.to_dict() for s in self.steps.order_by(PathwayStep.step_order).all()]
+            steps_list = [s.to_dict() for s in self.steps.order_by(PathwayStep.step_order).all()]
         except Exception as e:
             # If column doesn't exist (e.g., step_actions), try loading without it
             error_str = str(e).lower()
@@ -919,7 +919,7 @@ class PersonPathwayProgress(db.Model):
         
         # Handle missing step_actions column
         try:
-        total_steps = self.pathway.steps.count()
+            total_steps = self.pathway.steps.count()
         except Exception as e:
             error_str = str(e).lower()
             if 'no such column' in error_str and 'step_actions' in error_str:
@@ -957,7 +957,7 @@ class PersonPathwayProgress(db.Model):
         
         # Handle missing step_actions column gracefully
         try:
-        all_steps = self.pathway.steps.order_by(PathwayStep.step_order).all()
+            all_steps = self.pathway.steps.order_by(PathwayStep.step_order).all()
         except Exception as e:
             error_str = str(e).lower()
             if 'no such column' in error_str and 'step_actions' in error_str:
