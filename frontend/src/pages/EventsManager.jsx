@@ -50,6 +50,7 @@ const EventsManager = () => {
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = React.useRef(null);
 
   useEffect(() => {
     fetchEvents();
@@ -674,24 +675,41 @@ const EventsManager = () => {
                       </div>
                       <p className="text-white/80 mb-2">
                         Drag & drop an image here, or{' '}
-                        <label className="text-purple-400 hover:text-purple-300 cursor-pointer underline">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            console.log('Browse button clicked');
+                            if (fileInputRef.current) {
+                              fileInputRef.current.click();
+                            } else {
+                              console.error('File input ref is null');
+                            }
+                          }}
+                          className="text-purple-400 hover:text-purple-300 cursor-pointer underline bg-transparent border-none p-0"
+                          disabled={uploadingImage}
+                        >
                           browse
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              console.log('File input changed:', e.target.files);
+                        </button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            console.log('File input changed:', e.target.files);
+                            if (e.target.files && e.target.files.length > 0) {
                               handleImageUpload(e);
-                            }}
-                            onClick={(e) => {
-                              console.log('File input clicked');
-                              // Reset value to allow re-uploading same file
-                              e.target.value = '';
-                            }}
-                            className="hidden"
-                            disabled={uploadingImage}
-                          />
-                        </label>
+                            } else {
+                              console.log('No file selected in onChange');
+                            }
+                          }}
+                          onClick={(e) => {
+                            console.log('File input clicked');
+                            // Reset value to allow re-uploading same file
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
                       </p>
                       <p className="text-xs text-white/50">
                         PNG, JPG, GIF or WEBP (max 5MB)
