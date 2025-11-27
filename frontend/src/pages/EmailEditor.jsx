@@ -51,6 +51,7 @@ const EmailEditor = () => {
   const [saving, setSaving] = useState(false);
   const [useBlockEditor, setUseBlockEditor] = useState(true);
   const [useVision6Editor, setUseVision6Editor] = useState(true);
+  const [hasTextSelection, setHasTextSelection] = useState(false);
   const [designSettings, setDesignSettings] = useState({
     emailWidth: 567,
     evenColumns: true,
@@ -426,10 +427,19 @@ const EmailEditor = () => {
               onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
               designSettings={designSettings}
               onDesignSettingsChange={setDesignSettings}
+              onSelectionChange={setHasTextSelection}
             />
             <DesignSettingsPanel
               settings={designSettings}
               onChange={setDesignSettings}
+              onFormat={(command, value) => {
+                // Format the selected text
+                const selection = window.getSelection();
+                if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+                  document.execCommand(command, false, value);
+                }
+              }}
+              hasSelection={hasTextSelection}
             />
           </div>
         </div>

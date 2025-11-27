@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 // Note: Bold, Italic, Underline icons may not exist in heroicons, using SVG instead
 
-const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsChange }) => {
+const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsChange, onSelectionChange }) => {
   const [blocks, setBlocks] = useState([]);
   const [draggedBlock, setDraggedBlock] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(null);
@@ -550,6 +550,11 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       // Show toolbar immediately (no delay for better UX)
       clearTimeout(window._toolbarTimeout);
       setShowFormatToolbar(true);
+      
+      // Notify parent component about selection
+      if (onSelectionChange) {
+        onSelectionChange(true);
+      }
     } else {
       // Only hide if we're sure there's no selection
       clearTimeout(window._toolbarTimeout);
@@ -561,6 +566,11 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
             currentSelection.isCollapsed || 
             currentSelection.toString().trim().length === 0) {
           setShowFormatToolbar(false);
+          
+          // Notify parent component
+          if (onSelectionChange) {
+            onSelectionChange(false);
+          }
         }
       }, 300);
     }
@@ -708,12 +718,6 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       `}</style>
       {/* Content Blocks Sidebar */}
       <div className="w-72 bg-slate-800 border-r border-white/10 p-4 overflow-y-auto flex-shrink-0">
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-1">
-            <span className="text-white font-semibold text-sm">Content</span>
-            <span className="text-white/30 text-xs">Design</span>
-          </div>
-        </div>
         
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -1184,7 +1188,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                                 e.preventDefault();
                                 e.stopPropagation();
                                 
-                                // Force parent and all ancestors to LTR
+                                // Force parent and all ancestors to LTR BEFORE insertion
                                 let current = parent;
                                 while (current && current !== target) {
                                   current.setAttribute('dir', 'ltr');
@@ -1202,57 +1206,60 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                                 target.style.setProperty('text-align', 'left', 'important');
                                 target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
                                 
-                                // Create a span wrapper with explicit LTR to prevent any RTL detection
-                                const span = document.createElement('span');
-                                span.setAttribute('dir', 'ltr');
-                                span.style.setProperty('direction', 'ltr', 'important');
-                                span.style.setProperty('unicode-bidi', 'embed', 'important');
-                                span.style.setProperty('text-align', 'left', 'important');
-                                span.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-                                span.style.setProperty('display', 'inline', 'important');
-                                span.textContent = key;
-                                
-                                // Insert the wrapped text
-                                range.deleteContents();
-                                range.insertNode(span);
-                                
-                                // Move cursor after the inserted span
-                                range.setStartAfter(span);
-                                range.collapse(true);
+                                // Use execCommand insertText which respects direction better
+                                target.focus();
                                 selection.removeAllRanges();
                                 selection.addRange(range);
                                 
-                                // Force LTR again immediately after insertion
-                                requestAnimationFrame(() => {
+                                // Insert using execCommand which should respect the element's direction
+                                const success = document.execCommand('insertText', false, key);
+                                
+                                if (!success) {
+                                  // Fallback: manual insertion with LTR span
+                                  const span = document.createElement('span');
                                   span.setAttribute('dir', 'ltr');
                                   span.style.setProperty('direction', 'ltr', 'important');
                                   span.style.setProperty('unicode-bidi', 'embed', 'important');
+                                  span.style.setProperty('text-align', 'left', 'important');
+                                  span.style.setProperty('writing-mode', 'horizontal-tb', 'important');
+                                  span.style.setProperty('display', 'inline', 'important');
+                                  span.textContent = key;
+                                  
+                                  range.deleteContents();
+                                  range.insertNode(span);
+                                  range.setStartAfter(span);
+                                  range.collapse(true);
+                                }
+                                
+                                // Restore selection
+                                const newRange = selection.getRangeAt(0);
+                                selection.removeAllRanges();
+                                selection.addRange(newRange);
+                                
+                                // Force LTR again immediately after insertion
+                                requestAnimationFrame(() => {
+                                  // Check all text nodes and ensure LTR
+                                  const walker = document.createTreeWalker(
+                                    target,
+                                    NodeFilter.SHOW_TEXT,
+                                    null
+                                  );
+                                  
+                                  let textNode;
+                                  while (textNode = walker.nextNode()) {
+                                    const parent = textNode.parentElement;
+                                    if (parent) {
+                                      const computed = window.getComputedStyle(parent);
+                                      if (computed.direction !== 'ltr') {
+                                        parent.setAttribute('dir', 'ltr');
+                                        parent.style.setProperty('direction', 'ltr', 'important');
+                                        parent.style.setProperty('unicode-bidi', 'embed', 'important');
+                                      }
+                                    }
+                                  }
                                   
                                   // Update content
                                   updateBlockContent(block.id, target.innerHTML);
-                                  
-                                  // Check and fix if text appears backwards
-                                  const textContent = span.textContent;
-                                  if (textContent && textContent.length > 0) {
-                                    // If the text node's parent has RTL, fix it
-                                    const computed = window.getComputedStyle(span);
-                                    if (computed.direction !== 'ltr') {
-                                      // Emergency fix - recreate the span
-                                      const newSpan = document.createElement('span');
-                                      newSpan.setAttribute('dir', 'ltr');
-                                      newSpan.style.setProperty('direction', 'ltr', 'important');
-                                      newSpan.style.setProperty('unicode-bidi', 'embed', 'important');
-                                      newSpan.textContent = textContent;
-                                      span.parentNode?.replaceChild(newSpan, span);
-                                      
-                                      // Restore cursor
-                                      const newRange = document.createRange();
-                                      newRange.setStartAfter(newSpan);
-                                      newRange.collapse(true);
-                                      selection.removeAllRanges();
-                                      selection.addRange(newRange);
-                                    }
-                                  }
                                 });
                                 
                                 return;
@@ -1353,113 +1360,6 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                 </div>
               )}
 
-              {/* Formatting Toolbar */}
-              {showFormatToolbar && activeBlockId && (
-                <div
-                  className="format-toolbar fixed z-50 bg-white border border-gray-300 rounded-lg shadow-xl p-2 flex items-center gap-2"
-                  style={{
-                    top: `${toolbarPosition.top}px`,
-                    left: `${toolbarPosition.left}px`,
-                    minWidth: '320px',
-                    transform: 'translateX(-50%)' // Center on selection
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                  }}
-                  onMouseDown={(e) => {
-                    // Prevent blur when clicking toolbar buttons
-                    e.stopPropagation();
-                    e.preventDefault();
-                  }}
-                  onMouseEnter={() => {
-                    // Keep toolbar visible when hovering
-                    clearTimeout(window._toolbarTimeout);
-                    setShowFormatToolbar(true);
-                  }}
-                >
-                  {/* Bold */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleFormat('bold');
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded transition-colors font-bold"
-                    title="Bold"
-                  >
-                    <span className="text-gray-700 text-sm">B</span>
-                  </button>
-
-                  {/* Italic */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleFormat('italic');
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded transition-colors italic"
-                    title="Italic"
-                  >
-                    <span className="text-gray-700 text-sm">I</span>
-                  </button>
-
-                  {/* Underline */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleFormat('underline');
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded transition-colors underline"
-                    title="Underline"
-                  >
-                    <span className="text-gray-700 text-sm">U</span>
-                  </button>
-
-                  <div className="w-px h-6 bg-gray-300 mx-1"></div>
-
-                  {/* Font Family */}
-                  <select
-                    onChange={(e) => handleFormat('fontName', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                    style={{ color: '#111827' }}
-                    title="Font Family"
-                  >
-                    {availableFonts.map(font => (
-                      <option key={font.value} value={font.value} style={{ color: '#111827' }}>{font.name}</option>
-                    ))}
-                  </select>
-
-                  {/* Font Size */}
-                  <select
-                    onChange={(e) => handleFormat('fontSize', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                    style={{ color: '#111827' }}
-                    title="Font Size"
-                  >
-                    <option value="1" style={{ color: '#111827' }}>8px</option>
-                    <option value="2" style={{ color: '#111827' }}>10px</option>
-                    <option value="3" style={{ color: '#111827' }}>12px</option>
-                    <option value="4" style={{ color: '#111827' }}>14px</option>
-                    <option value="5" style={{ color: '#111827' }}>18px</option>
-                    <option value="6" style={{ color: '#111827' }}>24px</option>
-                    <option value="7" style={{ color: '#111827' }}>36px</option>
-                  </select>
-                </div>
-              )}
             </div>
           </div>
         </div>

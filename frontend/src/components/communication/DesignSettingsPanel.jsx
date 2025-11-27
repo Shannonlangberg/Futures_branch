@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 
-const DesignSettingsPanel = ({ settings, onChange }) => {
+const DesignSettingsPanel = ({ settings, onChange, onFormat, hasSelection }) => {
   const [expandedSections, setExpandedSections] = useState({
     emailBody: true,
     fonts: true
@@ -243,6 +243,53 @@ const DesignSettingsPanel = ({ settings, onChange }) => {
                 <option value="2">2</option>
               </select>
             </div>
+
+            {/* Text Formatting - Always visible when text is selected */}
+            {onFormat && (
+              <div>
+                <label className="block text-gray-700 text-xs font-medium mb-2">
+                  Text Formatting {hasSelection ? '(Text Selected)' : '(Select text to format)'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onFormat('bold')}
+                    disabled={!hasSelection}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${
+                      hasSelection
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300' 
+                        : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                    }`}
+                    title="Bold"
+                  >
+                    B
+                  </button>
+                  <button
+                    onClick={() => onFormat('italic')}
+                    disabled={!hasSelection}
+                    className={`px-3 py-1.5 rounded text-xs italic transition-colors ${
+                      hasSelection
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300' 
+                        : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                    }`}
+                    title="Italic"
+                  >
+                    I
+                  </button>
+                  <button
+                    onClick={() => onFormat('underline')}
+                    disabled={!hasSelection}
+                    className={`px-3 py-1.5 rounded text-xs underline transition-colors ${
+                      hasSelection
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300' 
+                        : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                    }`}
+                    title="Underline"
+                  >
+                    U
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Links */}
             <div>
