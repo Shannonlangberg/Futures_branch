@@ -725,25 +725,34 @@ def get_person_heartbeat(person_id):
                 'is_active': getattr(person, 'is_active', True),
             }
         
+        # Safely get pathway progress dict
+        pathway_dict = None
+        if pathway_progress:
+            try:
+                pathway_dict = pathway_progress.to_dict()
+            except Exception as e:
+                logger.warning(f"Error calling pathway_progress.to_dict() for person {person_id}: {e}")
+                pathway_dict = None
+        
         return jsonify({
             'person_id': person_id,
             'person': person_dict,
             'heartbeat': heartbeat_dict,
-            'journey': pathway_progress.to_dict() if pathway_progress else None,
-            'pathway': pathway_progress.to_dict() if pathway_progress else None,  # Keep for backward compatibility
+            'journey': pathway_dict,
+            'pathway': pathway_dict,  # Keep for backward compatibility
             'recent_activity': {
                 'attendance': recent_attendance if recent_attendance and isinstance(recent_attendance[0], dict) else ([a.to_dict() for a in recent_attendance] if recent_attendance else []),
                 'connect_groups': [
                     (c._enriched_dict if hasattr(c, '_enriched_dict') else c.to_dict()) 
                     for c in recent_connect
                 ],
-                'serving': [s.to_dict() for s in recent_serving],
-                'giving': [g.to_dict() for g in recent_giving],
-                'discipleship_steps': all_discipleship_steps,
-                'open_care_cases': [c.to_dict() for c in open_cases],
-                'app_opens': [a.to_dict() for a in recent_app_opens],
-                'tv_completions': [t.to_dict() for t in recent_tv],
-                'prayer_submissions': [p.to_dict() for p in recent_prayers]
+                'serving': [s.to_dict() for s in recent_serving] if recent_serving else [],
+                'giving': [g.to_dict() for g in recent_giving] if recent_giving else [],
+                'discipleship_steps': all_discipleship_steps if all_discipleship_steps else [],
+                'open_care_cases': [c.to_dict() for c in open_cases] if open_cases else [],
+                'app_opens': [a.to_dict() for a in recent_app_opens] if recent_app_opens else [],
+                'tv_completions': [t.to_dict() for t in recent_tv] if recent_tv else [],
+                'prayer_submissions': [p.to_dict() for p in recent_prayers] if recent_prayers else []
             }
         }), 200
         
