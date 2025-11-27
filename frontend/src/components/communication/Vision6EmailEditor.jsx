@@ -989,6 +989,10 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                         contentEditable
                         suppressContentEditableWarning
                         dir="ltr"
+                        lang="en"
+                        spellCheck="false"
+                        autoCorrect="off"
+                        autoCapitalize="off"
                         onBeforeInput={(e) => {
                           // Intercept before input to force LTR - PREVENT default if RTL detected
                           const target = e.target;
@@ -1080,83 +1084,17 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           }
                         }}
                         onInput={(e) => {
+                          // Input should be minimal now since we're handling everything in onBeforeInput
+                          // Just ensure LTR and update content
                           const target = e.target;
                           
-                          // CRITICAL: Check if text was inserted backwards and fix it
-                          const selection = window.getSelection();
-                          if (selection && selection.rangeCount > 0) {
-                            const range = selection.getRangeAt(0);
-                            const textNode = range.startContainer;
-                            
-                            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                              const fullText = textNode.textContent || '';
-                              const cursorPos = range.startOffset;
-                              
-                              // Check if the last character was inserted at the wrong position
-                              // If cursor is at position 0 but we just typed, text is backwards
-                              if (cursorPos === 0 && fullText.length > 0) {
-                                // Text was inserted at the beginning - reverse it
-                                const reversed = fullText.split('').reverse().join('');
-                                textNode.textContent = reversed;
-                                
-                                // Move cursor to end
-                                range.setStart(textNode, reversed.length);
-                                range.collapse(true);
-                                selection.removeAllRanges();
-                                selection.addRange(range);
-                              }
-                              
-                              // Force LTR on parent
-                              const parent = textNode.parentElement;
-                              if (parent) {
-                                parent.setAttribute('dir', 'ltr');
-                                parent.setAttribute('lang', 'en');
-                                parent.style.setProperty('direction', 'ltr', 'important');
-                                parent.style.setProperty('unicode-bidi', 'embed', 'important');
-                              }
-                            }
-                          }
+                          // Force LTR
+                          target.setAttribute('dir', 'ltr');
+                          target.setAttribute('lang', 'en');
+                          target.style.setProperty('direction', 'ltr', 'important');
+                          target.style.setProperty('unicode-bidi', 'embed', 'important');
                           
-                          // IMMEDIATELY check and fix ALL text nodes to ensure LTR
-                          const walker = document.createTreeWalker(
-                            target,
-                            NodeFilter.SHOW_TEXT,
-                            null
-                          );
-                          
-                          let textNode;
-                          const nodesToFix = [];
-                          while (textNode = walker.nextNode()) {
-                            const parent = textNode.parentElement;
-                            if (parent) {
-                              const computed = window.getComputedStyle(parent);
-                              if (computed.direction !== 'ltr') {
-                                nodesToFix.push({ textNode, parent });
-                              }
-                            }
-                          }
-                          
-                          // Fix any nodes with wrong direction
-                          nodesToFix.forEach(({ textNode, parent }) => {
-                            parent.setAttribute('dir', 'ltr');
-                            parent.setAttribute('lang', 'en');
-                            parent.style.setProperty('direction', 'ltr', 'important');
-                            parent.style.setProperty('unicode-bidi', 'embed', 'important');
-                            parent.style.setProperty('text-align', 'left', 'important');
-                            parent.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-                          });
-                          
-                          // Also check the target itself
-                          const computed = window.getComputedStyle(target);
-                          if (computed.direction !== 'ltr') {
-                            target.setAttribute('dir', 'ltr');
-                            target.setAttribute('lang', 'en');
-                            target.style.setProperty('direction', 'ltr', 'important');
-                            target.style.setProperty('unicode-bidi', 'embed', 'important');
-                            target.style.setProperty('text-align', 'left', 'important');
-                            target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-                          }
-                          
+                          // Update content
                           handleTextInput(block.id, e);
                         }}
                         onBlur={(e) => {
@@ -1198,12 +1136,16 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           });
                         }}
                         onBeforeInput={(e) => {
-                          // ULTIMATE INTERCEPTION - catch input before it happens
+                          // COMPLETE INTERCEPTION - prevent ALL default input
+                          e.preventDefault();
+                          e.stopPropagation();
+                          
                           const target = e.target;
                           
                           // Force LTR on everything
                           target.setAttribute('dir', 'ltr');
                           target.setAttribute('lang', 'en');
+                          target.setAttribute('spellcheck', 'false');
                           target.style.setProperty('direction', 'ltr', 'important');
                           target.style.setProperty('unicode-bidi', 'embed', 'important');
                           target.style.setProperty('text-align', 'left', 'important');
@@ -1218,28 +1160,29 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                             current = current.parentElement;
                           }
                           
-                          // If we have input data, intercept it
+                          // Handle text insertion
                           if (e.inputType === 'insertText' && e.data) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
                             const selection = window.getSelection();
                             if (selection && selection.rangeCount > 0) {
                               const range = selection.getRangeAt(0);
                               
-                              // Get text before cursor to check if we need to reverse
-                              const textBefore = range.startContainer.textContent?.substring(0, range.startOffset) || '';
-                              const textAfter = range.startContainer.textContent?.substring(range.startOffset) || '';
-                              
-                              // Insert character at the correct position
+                              // Get current text and cursor position
                               const textNode = range.startContainer;
-                              if (textNode.nodeType === Node.TEXT_NODE) {
-                                // Insert at the correct position in the text node
+                              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                                const currentText = textNode.textContent || '';
+                                const cursorPos = range.startOffset;
+                                
+                                // Build new text: before cursor + new char + after cursor
+                                const textBefore = currentText.substring(0, cursorPos);
+                                const textAfter = currentText.substring(cursorPos);
                                 const newText = textBefore + e.data + textAfter;
+                                
+                                // Update text node
                                 textNode.textContent = newText;
                                 
                                 // Move cursor to after inserted character
-                                range.setStart(textNode, textBefore.length + 1);
+                                const newCursorPos = cursorPos + 1;
+                                range.setStart(textNode, newCursorPos);
                                 range.collapse(true);
                                 selection.removeAllRanges();
                                 selection.addRange(range);
@@ -1258,13 +1201,12 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                                   updateBlockContent(block.id, target.innerHTML);
                                 });
                               } else {
-                                // Fallback: use execCommand
+                                // Fallback for non-text nodes
                                 target.focus();
                                 selection.removeAllRanges();
                                 selection.addRange(range);
                                 document.execCommand('insertText', false, e.data);
                                 
-                                // Force LTR again
                                 requestAnimationFrame(() => {
                                   const allNodes = target.querySelectorAll('*');
                                   allNodes.forEach(node => {
@@ -1276,7 +1218,34 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                                 });
                               }
                             }
-                            return;
+                          } else if (e.inputType === 'deleteContentBackward') {
+                            // Handle backspace
+                            const selection = window.getSelection();
+                            if (selection && selection.rangeCount > 0) {
+                              const range = selection.getRangeAt(0);
+                              const textNode = range.startContainer;
+                              
+                              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                                const currentText = textNode.textContent || '';
+                                const cursorPos = range.startOffset;
+                                
+                                if (cursorPos > 0) {
+                                  // Delete character before cursor
+                                  const newText = currentText.substring(0, cursorPos - 1) + currentText.substring(cursorPos);
+                                  textNode.textContent = newText;
+                                  
+                                  // Move cursor back
+                                  range.setStart(textNode, cursorPos - 1);
+                                  range.collapse(true);
+                                  selection.removeAllRanges();
+                                  selection.addRange(range);
+                                  
+                                  requestAnimationFrame(() => {
+                                    updateBlockContent(block.id, target.innerHTML);
+                                  });
+                                }
+                              }
+                            }
                           }
                         }}
                         onKeyDown={(e) => {
