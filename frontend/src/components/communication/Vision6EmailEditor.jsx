@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 // Note: Bold, Italic, Underline icons may not exist in heroicons, using SVG instead
 
-const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsChange, onSelectionChange }) => {
+const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsChange, onSelectionChange, onFormatHandlerChange }) => {
   const [blocks, setBlocks] = useState([]);
   const [draggedBlock, setDraggedBlock] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(null);
@@ -33,6 +33,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
   const fileInputRef = useRef(null);
   const headerImageInputRef = useRef(null);
   const textBlockRefs = useRef({});
+  const selectionRangeRef = useRef(null);
   const caretPositionsRef = useRef({});
   const getCaretOffset = (element) => {
     if (typeof window === 'undefined' || !window.getSelection) return null;
@@ -148,6 +149,17 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       // Don't call onChange with invalid HTML
     }
   }, [blocks]);
+
+  useEffect(() => {
+    if (activeBlockId && caretPositionsRef.current[activeBlockId] != null) {
+      const element = textBlockRefs.current[activeBlockId];
+      if (element) {
+        requestAnimationFrame(() => {
+          setCaretOffset(element, caretPositionsRef.current[activeBlockId]);
+        });
+      }
+    }
+  }, [blocks, activeBlockId]);
 
   useEffect(() => {
     if (activeBlockId && caretPositionsRef.current[activeBlockId] != null) {
@@ -561,6 +573,39 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     }
   };
 
+  const applyExternalFormat = (command, value = null) => {
+    if (!activeBlockId || !textBlockRefs.current[activeBlockId]) return;
+    const element = textBlockRefs.current[activeBlockId];
+    element.focus({ preventScroll: true });
+
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      if (selectionRangeRef.current) {
+        selection.addRange(selectionRangeRef.current);
+      } else {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        range.collapse(false);
+        selection.addRange(range);
+      }
+    }
+
+    document.execCommand(command, false, value);
+    updateBlockContent(activeBlockId, element.innerHTML);
+
+    if (selection && selection.rangeCount > 0) {
+      selectionRangeRef.current = selection.getRangeAt(0).cloneRange();
+    }
+    handleSelectionChange(activeBlockId);
+  };
+
+  useEffect(() => {
+    if (typeof onFormatHandlerChange === 'function') {
+      onFormatHandlerChange(applyExternalFormat);
+    }
+  }, [applyExternalFormat, onFormatHandlerChange]);
+
   const handleSelectionChange = (blockId) => {
     if (typeof window === 'undefined' || !window.getSelection) return;
     
@@ -577,6 +622,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       
       // Position toolbar above selection using viewport coordinates (for fixed positioning)
       const range = selection.getRangeAt(0);
+      selectionRangeRef.current = range.cloneRange();
       const rect = range.getBoundingClientRect();
       
       // Use viewport coordinates for fixed positioning
@@ -622,6 +668,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
             currentSelection.isCollapsed || 
             currentSelection.toString().trim().length === 0) {
           setShowFormatToolbar(false);
+          selectionRangeRef.current = null;
           
           // Notify parent component
           if (onSelectionChange) {
@@ -1196,17 +1243,6 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                             e.target.style.writingMode = 'horizontal-tb';
                             e.target.setAttribute('dir', 'ltr');
                           });
-                        }}
-                        onBeforeInput={(e) => {
-                          const target = e.target;
-                          
-                          // Force LTR on everything BEFORE allowing input
-                          target.setAttribute('dir', 'ltr');
-                          target.setAttribute('lang', 'en');
-                          target.style.setProperty('direction', 'ltr', 'important');
-                          target.style.setProperty('unicode-bidi', 'embed', 'important');
-                          target.style.setProperty('text-align', 'left', 'important');
-                          target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
                         }}
                         onKeyDown={(e) => {
                           const target = e.target;

@@ -73,6 +73,14 @@ const EmailEditor = () => {
     linkUnderline: false
   });
 
+  const formatHandlerRef = useRef(() => {});
+
+  const handleFormatRequest = (command, value) => {
+    if (typeof formatHandlerRef.current === 'function') {
+      formatHandlerRef.current(command, value);
+    }
+  };
+
   useEffect(() => {
     fetchCampuses();
     fetchDepartments();
@@ -428,17 +436,14 @@ const EmailEditor = () => {
               designSettings={designSettings}
               onDesignSettingsChange={setDesignSettings}
               onSelectionChange={setHasTextSelection}
+              onFormatHandlerChange={(handler) => {
+                formatHandlerRef.current = handler;
+              }}
             />
             <DesignSettingsPanel
               settings={designSettings}
               onChange={setDesignSettings}
-              onFormat={(command, value) => {
-                // Format the selected text
-                const selection = window.getSelection();
-                if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
-                  document.execCommand(command, false, value);
-                }
-              }}
+              onFormat={handleFormatRequest}
               hasSelection={hasTextSelection}
             />
           </div>

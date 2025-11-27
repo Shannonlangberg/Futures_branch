@@ -252,7 +252,11 @@ const DesignSettingsPanel = ({ settings, onChange, onFormat, hasSelection }) => 
                 </label>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => onFormat('bold')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onFormat && onFormat('bold');
+                    }}
                     disabled={!hasSelection}
                     className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${
                       hasSelection
@@ -264,7 +268,11 @@ const DesignSettingsPanel = ({ settings, onChange, onFormat, hasSelection }) => 
                     B
                   </button>
                   <button
-                    onClick={() => onFormat('italic')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onFormat && onFormat('italic');
+                    }}
                     disabled={!hasSelection}
                     className={`px-3 py-1.5 rounded text-xs italic transition-colors ${
                       hasSelection
@@ -276,7 +284,11 @@ const DesignSettingsPanel = ({ settings, onChange, onFormat, hasSelection }) => 
                     I
                   </button>
                   <button
-                    onClick={() => onFormat('underline')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onFormat && onFormat('underline');
+                    }}
                     disabled={!hasSelection}
                     className={`px-3 py-1.5 rounded text-xs underline transition-colors ${
                       hasSelection
