@@ -358,8 +358,12 @@ const EventsManager = () => {
         price: formData.price ? parseFloat(formData.price) : null,
         max_capacity: formData.max_capacity ? parseInt(formData.max_capacity) : null,
         category_id: parseInt(formData.category_id) || null,
-        beacon_zone_id: formData.beacon_zone_id ? parseInt(formData.beacon_zone_id) : null
+        beacon_zone_id: formData.beacon_zone_id ? parseInt(formData.beacon_zone_id) : null,
+        image_url: formData.image_url || null  // Explicitly include image_url
       };
+
+      console.log('Submitting event with payload:', payload);
+      console.log('Image URL being sent:', payload.image_url);
 
       const response = await fetch(url, {
         method,
@@ -656,7 +660,14 @@ const EventsManager = () => {
                         src={imagePreview}
                         alt="Event preview"
                         className="max-h-64 mx-auto rounded-lg object-cover"
-                        onError={() => setImagePreview(null)}
+                        onError={(e) => {
+                          console.error('Failed to load image preview:', imagePreview, e);
+                          alert(`Failed to load image: ${imagePreview}. Please check if the image file exists.`);
+                          setImagePreview(null);
+                        }}
+                        onLoad={() => {
+                          console.log('Image preview loaded successfully:', imagePreview);
+                        }}
                       />
                       <button
                         type="button"

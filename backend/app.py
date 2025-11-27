@@ -19159,9 +19159,20 @@ def serve_event_image(filename):
     """Serve uploaded event images"""
     try:
         upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'events')
+        filepath = os.path.join(upload_dir, filename)
+        
+        # Log for debugging
+        logger.debug(f"[IMAGE] Serving image: {filename} from {upload_dir}")
+        logger.debug(f"[IMAGE] Full path: {filepath}, exists: {os.path.exists(filepath)}")
+        
+        if not os.path.exists(filepath):
+            logger.error(f"[IMAGE] File not found: {filepath}")
+            return jsonify({'error': 'Image not found'}), 404
+        
         return send_from_directory(upload_dir, filename)
-    except FileNotFoundError:
-        return jsonify({'error': 'Image not found'}), 404
+    except Exception as e:
+        logger.error(f"[IMAGE] Error serving image {filename}: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to serve image: {str(e)}'}), 500
 
 @app.route('/api/events', methods=['POST'])
 @admin_required
