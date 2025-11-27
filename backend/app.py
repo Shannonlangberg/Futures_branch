@@ -19190,9 +19190,9 @@ def create_event():
             'stripe_price_id': stripe_price_id,
         }
         
-        # Check which columns exist in the database before adding optional fields
-        # This prevents errors if migrations haven't run yet
-        from sqlalchemy import inspect
+        # Check which columns exist in the database before building INSERT
+        # Use raw SQL to have full control over which columns are included
+        from sqlalchemy import inspect, text
         inspector = inspect(db.engine)
         try:
             columns = [col['name'] for col in inspector.get_columns('events')]
@@ -19200,103 +19200,77 @@ def create_event():
             logger.warning(f"Could not check events table schema: {schema_check_error}")
             columns = []  # If we can't check, assume columns don't exist to be safe
         
-        # Add beacon_zone_id if provided and column exists
-        if data.get('beacon_zone_id'):
-            if 'beacon_zone_id' in columns:
-                event_kwargs['beacon_zone_id'] = int(data['beacon_zone_id'])
-            else:
-                logger.warning("beacon_zone_id column not found in events table - migration 029_add_beacon_to_events.sql may not have run yet")
+        # Build the INSERT statement dynamically based on what columns exist
+        # Required columns that should always exist
+        insert_columns = ['title', 'description', 'campus', 'category_id', 'start_time', 'end_time', 
+                         'location', 'is_active', 'created_at', 'updated_at', 'price', 'requires_payment', 'stripe_price_id']
+        insert_values = [
+            data['title'],
+            data.get('description') or '',
+            data.get('campus', 'all_campuses'),
+            data['category_id'],
+            start_datetime,
+            end_datetime,
+            data.get('location') or '',
+            1,  # is_active
+            datetime.utcnow(),
+            datetime.utcnow(),
+            price,
+            1 if requires_payment else 0,
+            stripe_price_id
+        ]
         
-        # Add image_url if provided and column exists
-        if data.get('image_url'):
-            if 'image_url' in columns:
-                event_kwargs['image_url'] = data['image_url']
-            else:
-                logger.warning("image_url column not found in events table - migration 034_add_image_url_to_events.sql may not have run yet")
+        # Add optional columns only if they exist in the database
+        if 'beacon_zone_id' in columns and data.get('beacon_zone_id'):
+            insert_columns.append('beacon_zone_id')
+            insert_values.append(int(data['beacon_zone_id']))
+        elif data.get('beacon_zone_id'):
+            logger.warning("beacon_zone_id column not found in events table - migration 029_add_beacon_to_events.sql may not have run yet")
         
-        # Only add fields that exist in the model (check using hasattr on a sample Event)
-        # Create a temporary event to check which attributes exist
-        temp_event = Event.__new__(Event)
+        if 'image_url' in columns and data.get('image_url'):
+            insert_columns.append('image_url')
+            insert_values.append(data['image_url'])
+        elif data.get('image_url'):
+            logger.warning("image_url column not found in events table - migration 034_add_image_url_to_events.sql may not have run yet")
         
-        # Add optional fields only if they exist in the model
-        if hasattr(Event, 'ministry'):
-            event_kwargs['ministry'] = data.get('ministry')
-        if hasattr(Event, 'is_all_day'):
-            event_kwargs['is_all_day'] = data.get('is_all_day', False)
-        if hasattr(Event, 'recurrence_rule'):
-            event_kwargs['recurrence_rule'] = data.get('recurrence_rule')
-        if hasattr(Event, 'status'):
-            event_kwargs['status'] = data.get('status', 'draft')
-        if hasattr(Event, 'visibility'):
-            event_kwargs['visibility'] = data.get('visibility', 'public')
-        if hasattr(Event, 'capacity'):
-            event_kwargs['capacity'] = data.get('capacity')
-        if hasattr(Event, 'registration_required'):
-            event_kwargs['registration_required'] = data.get('registration_required', False)
-        if hasattr(Event, 'registration_form_id'):
-            event_kwargs['registration_form_id'] = data.get('registration_form_id')
-        if hasattr(Event, 'tags'):
-            event_kwargs['tags'] = tags_json
-        if hasattr(Event, 'created_by_user_id'):
-            event_kwargs['created_by_user_id'] = current_user_id
-        if hasattr(Event, 'updated_by_user_id'):
-            event_kwargs['updated_by_user_id'] = current_user_id
-        # Note: location_id is not in the model, so we skip it
+        # Build and execute raw SQL INSERT
+        columns_str = ', '.join(insert_columns)
+        placeholders = ', '.join(['?' for _ in insert_columns])
         
-        new_event = Event(**event_kwargs)
+        sql = f"""
+            INSERT INTO events ({columns_str})
+            VALUES ({placeholders})
+        """
         
-        db.session.add(new_event)
         try:
+            result = db.session.execute(text(sql), insert_values)
             db.session.commit()
+            event_id = result.lastrowid
+            
+            # Fetch the created event to return it
+            new_event = Event.query.get(event_id)
+            if not new_event:
+                # If ORM can't fetch it (due to missing columns), construct response manually
+                return jsonify({
+                    'message': 'Event created successfully',
+                    'event': {
+                        'id': event_id,
+                        'title': data['title']
+                    }
+                }), 201
+            
+            return jsonify({
+                'message': 'Event created successfully',
+                'event': {
+                    'id': new_event.id,
+                    'title': new_event.title
+                }
+            }), 201
         except Exception as db_error:
             db.session.rollback()
             logger.error(f"Database error creating event: {db_error}", exc_info=True)
-            # Check if it's a column error (migration might not have run)
             error_str = str(db_error).lower()
             if 'no such column' in error_str or 'unknown column' in error_str:
-                # Try to identify which column is missing and retry without it
-                missing_columns = []
-                if 'image_url' in error_str:
-                    missing_columns.append('image_url')
-                if 'beacon_zone_id' in error_str:
-                    missing_columns.append('beacon_zone_id')
-                
-                # Remove missing columns and retry
-                if missing_columns:
-                    for col in missing_columns:
-                        if col in event_kwargs:
-                            del event_kwargs[col]
-                            logger.warning(f"Removed {col} from event_kwargs due to missing column")
-                    
-                    # Try again without the missing columns
-                    new_event = Event(**event_kwargs)
-                    db.session.add(new_event)
-                    try:
-                        db.session.commit()
-                        migration_warnings = []
-                        if 'image_url' in missing_columns:
-                            migration_warnings.append('image_url (migration 034_add_image_url_to_events.sql)')
-                        if 'beacon_zone_id' in missing_columns:
-                            migration_warnings.append('beacon_zone_id (migration 029_add_beacon_to_events.sql)')
-                        
-                        logger.warning(f"Event created without {', '.join(missing_columns)} - migrations need to be applied")
-                        return jsonify({
-                            'message': f'Event created successfully (some columns not available - migrations pending)',
-                            'event': {
-                                'id': new_event.id,
-                                'title': new_event.title,
-                                'warning': f'Missing columns: {", ".join(migration_warnings)}. Please apply the migrations.'
-                            }
-                        }), 201
-                    except Exception as retry_error:
-                        db.session.rollback()
-                        return jsonify({
-                            'error': 'Database schema is missing required columns. Please check logs and ensure migrations have been applied.',
-                            'details': str(retry_error),
-                            'missing_columns': missing_columns
-                        }), 500
-                
-                # Generic column error
                 return jsonify({
                     'error': 'Database schema is missing required columns. The migration may have failed. Please check logs and run the appropriate migration manually.',
                     'details': str(db_error)

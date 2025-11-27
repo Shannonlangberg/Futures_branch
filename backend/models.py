@@ -1586,7 +1586,14 @@ class Event(db.Model):
     stripe_price_id = db.Column(db.String(200), nullable=True)  # Stripe Price ID for checkout
     
     # Image/thumbnail
-    image_url = db.Column(db.String(500), nullable=True)  # URL to event thumbnail/image
+    # Note: image_url column commented out until migration 034_add_image_url_to_events.sql runs
+    # Uncomment after migration is applied
+    # image_url = db.Column(db.String(500), nullable=True)  # URL to event thumbnail/image
+    
+    # Beacon zone for attendance tracking
+    # Note: beacon_zone_id column commented out until migration 029_add_beacon_to_events.sql runs
+    # Uncomment after migration is applied
+    # beacon_zone_id = db.Column(db.Integer, db.ForeignKey('beacon_zones.id'), nullable=True)
     
     # Enhanced event fields
     # Note: The following columns don't exist in the database yet - commented out to prevent errors
@@ -1640,6 +1647,7 @@ class Event(db.Model):
             'requires_payment': self.requires_payment if self.requires_payment else False,
             'stripe_price_id': self.stripe_price_id,
             'image_url': self.image_url if hasattr(self, 'image_url') else None,
+            'beacon_zone_id': self.beacon_zone_id if hasattr(self, 'beacon_zone_id') else None,
             # 'ministry': self.ministry if hasattr(self, 'ministry') else None,  # Commented out until migration runs
             # Note: Removed fields that don't exist in database
             # 'is_all_day': self.is_all_day,
