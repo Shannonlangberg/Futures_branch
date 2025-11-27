@@ -67,9 +67,15 @@ const EventsManager = () => {
         const data = await response.json();
         // API returns 'zones' not 'beacon_zones'
         setBeaconZones(data.zones || data.beacon_zones || []);
+      } else if (response.status === 403) {
+        // Permission denied - just log and continue without beacon zones
+        console.log('Beacon zones not available (permission denied)');
+        setBeaconZones([]);
       }
     } catch (error) {
-      console.error('Error fetching beacon zones:', error);
+      // Silently fail - beacon zones are optional
+      console.log('Beacon zones not available');
+      setBeaconZones([]);
     }
   };
 

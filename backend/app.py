@@ -17756,7 +17756,13 @@ def get_pulse_status(person_id):
 def get_beacon_zones():
     """Get all beacon zones (admin only)"""
     try:
-        if not current_user.has_permission('pulse', 'read'):
+        # Check for beacons permission or admin role
+        has_permission = (
+            current_user.has_permission('beacons', 'read') or
+            current_user.has_permission('beacons', '*') or
+            current_user.role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor']
+        )
+        if not has_permission:
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         campus_filter = request.args.get('campus', None)
