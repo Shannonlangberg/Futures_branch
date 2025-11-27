@@ -104,6 +104,63 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     }
   }, [blocks]);
 
+  // Global selection change listener to catch all selection changes
+  useEffect(() => {
+    const handleGlobalSelectionChange = () => {
+      // Check if selection is within any of our text blocks
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+        const range = selection.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        const element = container.nodeType === Node.TEXT_NODE 
+          ? container.parentElement 
+          : container;
+        
+        // Find which block this element belongs to
+        for (const [blockId, ref] of Object.entries(textBlockRefs.current)) {
+          if (ref && (ref === element || ref.contains(element))) {
+            // Call handleSelectionChange logic inline to avoid dependency issues
+            const selectedText = selection.toString().trim();
+            if (selectedText.length > 0) {
+              setActiveBlockId(blockId);
+              
+              const rect = range.getBoundingClientRect();
+              const toolbarWidth = 320;
+              const toolbarHeight = 50;
+              const padding = 10;
+              
+              let top = rect.top - toolbarHeight - padding;
+              let left = rect.left + (rect.width / 2);
+              
+              if (top < padding) {
+                top = rect.bottom + padding;
+              }
+              if (left < toolbarWidth / 2) {
+                left = toolbarWidth / 2;
+              }
+              if (left > window.innerWidth - toolbarWidth / 2) {
+                left = window.innerWidth - toolbarWidth / 2;
+              }
+              
+              setToolbarPosition({
+                top: Math.max(padding, top),
+                left: left
+              });
+              
+              setShowFormatToolbar(true);
+            }
+            break;
+          }
+        }
+      }
+    };
+
+    document.addEventListener('selectionchange', handleGlobalSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleGlobalSelectionChange);
+    };
+  }, [blocks]);
+
   const parseHTMLToBlocks = (html) => {
     try {
       if (!html || typeof html !== 'string') {
@@ -452,8 +509,14 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     if (typeof window === 'undefined' || !window.getSelection) return;
     
     const selection = window.getSelection();
-    // Only show toolbar if there's a meaningful selection (not just a cursor)
-    if (selection && selection.rangeCount > 0 && !selection.isCollapsed && selection.toString().trim().length > 0) {
+    
+    // Check if there's a selection with actual text
+    const hasSelection = selection && 
+                        selection.rangeCount > 0 && 
+                        !selection.isCollapsed && 
+                        selection.toString().trim().length > 0;
+    
+    if (hasSelection) {
       setActiveBlockId(blockId);
       
       // Position toolbar above selection using viewport coordinates (for fixed positioning)
@@ -484,17 +547,22 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         left: left
       });
       
-      // Use a small delay to prevent flashing
+      // Show toolbar immediately (no delay for better UX)
       clearTimeout(window._toolbarTimeout);
-      window._toolbarTimeout = setTimeout(() => {
-        setShowFormatToolbar(true);
-      }, 100);
+      setShowFormatToolbar(true);
     } else {
-      // Hide with a small delay to prevent flashing
+      // Only hide if we're sure there's no selection
       clearTimeout(window._toolbarTimeout);
       window._toolbarTimeout = setTimeout(() => {
-        setShowFormatToolbar(false);
-      }, 200);
+        // Double-check selection is still empty
+        const currentSelection = window.getSelection();
+        if (!currentSelection || 
+            currentSelection.rangeCount === 0 || 
+            currentSelection.isCollapsed || 
+            currentSelection.toString().trim().length === 0) {
+          setShowFormatToolbar(false);
+        }
+      }, 300);
     }
   };
 
@@ -1079,21 +1147,94 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           });
                         }}
                         onKeyDown={(e) => {
-                          // Force LTR on any key input
                           const target = e.target;
+                          
+                          // IMMEDIATELY force LTR before any key processing
                           target.setAttribute('dir', 'ltr');
-                          target.style.direction = 'ltr';
-                          target.style.unicodeBidi = 'embed';
-                          target.style.textAlign = 'left';
-                          target.style.writingMode = 'horizontal-tb';
+                          target.style.setProperty('direction', 'ltr', 'important');
+                          target.style.setProperty('unicode-bidi', 'embed', 'important');
+                          target.style.setProperty('text-align', 'left', 'important');
+                          target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
+                          
+                          // For printable characters, intercept and manually insert with LTR
+                          // This ensures characters are always inserted left-to-right
+                          if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+                            const key = e.key;
+                            
+                            // Intercept ALL printable characters to ensure LTR insertion
+                            const selection = window.getSelection();
+                            if (selection && selection.rangeCount > 0) {
+                              const range = selection.getRangeAt(0);
+                              
+                              // Get the container element
+                              const container = range.commonAncestorContainer;
+                              const parent = container.nodeType === Node.TEXT_NODE 
+                                ? container.parentElement 
+                                : container;
+                              
+                              if (parent) {
+                                // ALWAYS check and force LTR before inserting
+                                const computed = window.getComputedStyle(parent);
+                                
+                                // If direction is not LTR, or if we want to be extra safe, intercept
+                                if (computed.direction !== 'ltr' || true) { // Always intercept for safety
+                                  e.preventDefault();
+                                  
+                                  // Force parent and all ancestors to LTR
+                                  let current = parent;
+                                  while (current && current !== target) {
+                                    current.setAttribute('dir', 'ltr');
+                                    current.style.setProperty('direction', 'ltr', 'important');
+                                    current.style.setProperty('unicode-bidi', 'embed', 'important');
+                                    current.style.setProperty('text-align', 'left', 'important');
+                                    current = current.parentElement;
+                                  }
+                                  
+                                  // Also force target
+                                  target.setAttribute('dir', 'ltr');
+                                  target.style.setProperty('direction', 'ltr', 'important');
+                                  target.style.setProperty('unicode-bidi', 'embed', 'important');
+                                  
+                                  // Insert text node manually
+                                  const textNode = document.createTextNode(key);
+                                  range.deleteContents();
+                                  range.insertNode(textNode);
+                                  range.setStartAfter(textNode);
+                                  range.collapse(true);
+                                  selection.removeAllRanges();
+                                  selection.addRange(range);
+                                  
+                                  // Update content immediately
+                                  requestAnimationFrame(() => {
+                                    updateBlockContent(block.id, target.innerHTML);
+                                  });
+                                  
+                                  return;
+                                }
+                              }
+                            }
+                          }
+                          
+                          // For all other keys, just ensure LTR
+                          requestAnimationFrame(() => {
+                            target.setAttribute('dir', 'ltr');
+                            target.style.setProperty('direction', 'ltr', 'important');
+                            target.style.setProperty('unicode-bidi', 'embed', 'important');
+                          });
                         }}
                         onMouseUp={(e) => {
-                          // Small delay to ensure selection is complete
-                          setTimeout(() => handleSelectionChange(block.id), 100);
+                          // Check selection immediately and with a small delay
+                          handleSelectionChange(block.id);
+                          setTimeout(() => handleSelectionChange(block.id), 50);
                         }}
                         onKeyUp={(e) => {
-                          // Small delay to ensure selection is complete
-                          setTimeout(() => handleSelectionChange(block.id), 100);
+                          // Check selection immediately and with a small delay
+                          handleSelectionChange(block.id);
+                          setTimeout(() => handleSelectionChange(block.id), 50);
+                        }}
+                        onSelect={(e) => {
+                          // Also check on select event
+                          handleSelectionChange(block.id);
                         }}
                         className="min-h-[50px] focus:outline-none rounded px-2 py-1 -mx-2 -my-1"
                         style={{
