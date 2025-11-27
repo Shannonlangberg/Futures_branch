@@ -33,6 +33,51 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
   const fileInputRef = useRef(null);
   const headerImageInputRef = useRef(null);
   const textBlockRefs = useRef({});
+  const caretPositionsRef = useRef({});
+  const getCaretOffset = (element) => {
+    if (typeof window === 'undefined' || !window.getSelection) return null;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    if (!element.contains(range.startContainer)) return null;
+
+    const preRange = range.cloneRange();
+    preRange.selectNodeContents(element);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const offset = preRange.toString().length;
+    return offset;
+  };
+
+  const setCaretOffset = (element, offset) => {
+    if (typeof window === 'undefined' || !window.getSelection) return;
+    const selection = window.getSelection();
+    const range = document.createRange();
+
+    let currentOffset = 0;
+    const traverse = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textLength = node.textContent?.length || 0;
+        if (currentOffset + textLength >= offset) {
+          const newOffset = offset - currentOffset;
+          range.setStart(node, newOffset);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return true;
+        }
+        currentOffset += textLength;
+      } else {
+        for (let i = 0; i < node.childNodes.length; i++) {
+          if (traverse(node.childNodes[i])) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    traverse(element);
+  };
 
   // Available fonts for the editor
   const availableFonts = [
@@ -103,6 +148,17 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       // Don't call onChange with invalid HTML
     }
   }, [blocks]);
+
+  useEffect(() => {
+    if (activeBlockId && caretPositionsRef.current[activeBlockId] != null) {
+      const element = textBlockRefs.current[activeBlockId];
+      if (element) {
+        requestAnimationFrame(() => {
+          setCaretOffset(element, caretPositionsRef.current[activeBlockId]);
+        });
+      }
+    }
+  }, [blocks, activeBlockId]);
 
   // Global selection change listener to catch all selection changes
   useEffect(() => {
@@ -642,6 +698,12 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       }
     });
     
+    // Store caret position before updating content (to restore after re-render)
+    const caretOffset = getCaretOffset(element);
+    if (caretOffset !== null) {
+      caretPositionsRef.current[blockId] = caretOffset;
+    }
+
     // Update content (debounced to reduce clunkiness)
     clearTimeout(element._updateTimeout);
     element._updateTimeout = setTimeout(() => {
@@ -1145,67 +1207,6 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           target.style.setProperty('unicode-bidi', 'embed', 'important');
                           target.style.setProperty('text-align', 'left', 'important');
                           target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-                          
-                          // Force all ancestors
-                          let current = target.parentElement;
-                          while (current) {
-                            current.setAttribute('dir', 'ltr');
-                            current.setAttribute('lang', 'en');
-                            current.style.setProperty('direction', 'ltr', 'important');
-                            current = current.parentElement;
-                          }
-                          
-                          // Only intercept if we detect potential RTL issues
-                          if (e.inputType === 'insertText' && e.data) {
-                            const selection = window.getSelection();
-                            if (selection && selection.rangeCount > 0) {
-                              const range = selection.getRangeAt(0);
-                              const textNode = range.startContainer;
-                              
-                              // Check if we're in a text node and can manually control
-                              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                                const computed = window.getComputedStyle(textNode.parentElement || target);
-                                
-                                // Only prevent default if direction is wrong
-                                if (computed.direction !== 'ltr') {
-                                  e.preventDefault();
-                                  
-                                  const currentText = textNode.textContent || '';
-                                  const cursorPos = range.startOffset;
-                                  
-                                  // Build new text: before cursor + new char + after cursor
-                                  const textBefore = currentText.substring(0, cursorPos);
-                                  const textAfter = currentText.substring(cursorPos);
-                                  const newText = textBefore + e.data + textAfter;
-                                  
-                                  // Update text node
-                                  textNode.textContent = newText;
-                                  
-                                  // Move cursor to after inserted character
-                                  const newCursorPos = cursorPos + 1;
-                                  range.setStart(textNode, newCursorPos);
-                                  range.collapse(true);
-                                  selection.removeAllRanges();
-                                  selection.addRange(range);
-                                  
-                                  // Force LTR on parent
-                                  const parent = textNode.parentElement;
-                                  if (parent) {
-                                    parent.setAttribute('dir', 'ltr');
-                                    parent.setAttribute('lang', 'en');
-                                    parent.style.setProperty('direction', 'ltr', 'important');
-                                    parent.style.setProperty('unicode-bidi', 'embed', 'important');
-                                  }
-                                  
-                                  // Update content
-                                  requestAnimationFrame(() => {
-                                    updateBlockContent(block.id, target.innerHTML);
-                                  });
-                                }
-                                // Otherwise let default behavior happen (but we've forced LTR above)
-                              }
-                            }
-                          }
                         }}
                         onKeyDown={(e) => {
                           const target = e.target;

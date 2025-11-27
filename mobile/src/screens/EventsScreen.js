@@ -217,7 +217,7 @@ export default function EventsScreen({ route }) {
         paymentData.payment_intent_id
       );
 
-      Alert.alert(
+    Alert.alert(
         'Registration Successful!',
         `You're registered for ${event.title}!\n\n` +
         `Amount paid: $${paymentData.amount.toFixed(2)}\n\n` +
@@ -232,11 +232,11 @@ export default function EventsScreen({ route }) {
                           'Failed to register. Please try again.';
       const errorDetails = error.details || error.response?.data?.details;
       
-      Alert.alert(
+            Alert.alert(
         'Registration Error',
         errorDetails ? `${errorMessage}\n\n${errorDetails}` : errorMessage,
         [{ text: 'OK' }]
-      );
+            );
     } finally {
       setProcessingPayment(false);
     }
@@ -317,7 +317,7 @@ export default function EventsScreen({ route }) {
                       {processingPayment ? (
                         <ActivityIndicator size="small" color="#ffffff" />
                       ) : (
-                        <Text style={styles.actionButtonText}>Register & Pay ${event.price}</Text>
+                      <Text style={styles.actionButtonText}>Register & Pay ${event.price}</Text>
                       )}
                     </TouchableOpacity>
                   ) : (

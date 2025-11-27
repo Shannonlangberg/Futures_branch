@@ -840,19 +840,19 @@ if not database_url or database_url.startswith('sqlite:///'):
         
         # Local development - use absolute path
         if database_url.startswith('sqlite:///'):
-            relative_path = database_url.replace('sqlite:///', '')
-            backend_dir = os.path.dirname(os.path.abspath(__file__))
-            
-            # Check if file exists in instance directory first (where it actually is)
-            instance_path = os.path.join(backend_dir, 'instance', relative_path)
-            if os.path.exists(instance_path):
-                database_url = f'sqlite:///{instance_path}'
-                logger.info(f"Using database file: {instance_path}")
-            else:
-                # Use absolute path in backend directory
-                abs_path = os.path.join(backend_dir, relative_path)
-                database_url = f'sqlite:///{abs_path}'
-                logger.info(f"Using database file: {abs_path}")
+        relative_path = database_url.replace('sqlite:///', '')
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Check if file exists in instance directory first (where it actually is)
+        instance_path = os.path.join(backend_dir, 'instance', relative_path)
+        if os.path.exists(instance_path):
+            database_url = f'sqlite:///{instance_path}'
+            logger.info(f"Using database file: {instance_path}")
+        else:
+            # Use absolute path in backend directory
+            abs_path = os.path.join(backend_dir, relative_path)
+            database_url = f'sqlite:///{abs_path}'
+            logger.info(f"Using database file: {abs_path}")
         
         if not volume_found:
             logger.warning("⚠️  No persistent volume detected! Database will be lost on deployment.")
@@ -920,7 +920,7 @@ def run_migrations():
             logger.info(f"Migration: Using database from app config: {database_url}")
         except:
             # Fall back to environment variable if app not initialized
-            database_url = os.getenv('DATABASE_URL', '').strip()
+        database_url = os.getenv('DATABASE_URL', '').strip()
             logger.info(f"Migration: Using database from env var: {database_url}")
         
         # Extract actual file path from SQLite URL
@@ -1147,7 +1147,7 @@ init_db(app)
 # IMPORTANT: Run migrations AFTER init_db but before any queries that need step_actions column
 logger.info("🔄 Running database migrations after database initialization...")
 try:
-    run_migrations()
+run_migrations()
     logger.info("✅ Migrations completed successfully")
 except Exception as e:
     logger.error(f"❌ Migration error: {e}", exc_info=True)
@@ -1513,11 +1513,11 @@ def load_user(user_id):
             ''', (user_id,))
         except Exception:
             # Fallback if custom_permissions column doesn't exist yet
-            cursor.execute('''
-                SELECT id, username, password_hash, full_name, email, role, campus, active
-                FROM users
-                WHERE id = ? AND active = 1
-            ''', (user_id,))
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active
+            FROM users
+            WHERE id = ? AND active = 1
+        ''', (user_id,))
         
         row = cursor.fetchone()
         conn.close()
@@ -1576,9 +1576,9 @@ def authenticate_user(username_or_email, password):
             error_msg = str(col_error).lower()
             if 'no such column' in error_msg or 'custom_permissions' in error_msg:
                 logger.info("custom_permissions column doesn't exist yet, using fallback query")
-                cursor.execute('''
-                    SELECT id, username, password_hash, full_name, email, role, campus, active
-                    FROM users
+        cursor.execute('''
+            SELECT id, username, password_hash, full_name, email, role, campus, active
+            FROM users
                     WHERE (LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)) AND active = 1
                 ''', (username_or_email.strip(), username_or_email.strip()))
             else:
@@ -7956,7 +7956,7 @@ def api_login():
             password = ''
         
         logger.info(f"Parsed - username/email: '{username}', password: {'***' if password else '(empty)'}")
-    
+        
         if not username or not password:
             logger.warning(f"Missing credentials - username='{username}', password={'present' if password else 'missing'}")
             return jsonify({"error": "Please enter both username and password."}), 400
@@ -9507,26 +9507,26 @@ def get_campuses():
             default_campus = "all_campuses" if len(allowed_campuses) > 1 else (allowed_campuses[0] if allowed_campuses else "all_campuses")
     else:
         # No custom restrictions, use role-based filtering
-        if current_user.role == 'admin' or current_user.role == 'senior_leader':
-            # Admin and senior leaders see all campuses
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
-        elif current_user.role == 'campus_pastor':
-            # Campus pastors only see their assigned campus
-            filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
-            default_campus = current_user.campus
-        elif current_user.role == 'finance':
-            # Finance users see all campuses (for logging purposes)
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
-        elif current_user.role == 'pastor':
-            # Pastors see all campuses (for logging purposes)
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
-        else:
-            # Default to all campuses for unknown roles
-            filtered_campuses = active_campuses
-            default_campus = "all_campuses"
+    if current_user.role == 'admin' or current_user.role == 'senior_leader':
+        # Admin and senior leaders see all campuses
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
+    elif current_user.role == 'campus_pastor':
+        # Campus pastors only see their assigned campus
+        filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
+        default_campus = current_user.campus
+    elif current_user.role == 'finance':
+        # Finance users see all campuses (for logging purposes)
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
+    elif current_user.role == 'pastor':
+        # Pastors see all campuses (for logging purposes)
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
+    else:
+        # Default to all campuses for unknown roles
+        filtered_campuses = active_campuses
+        default_campus = "all_campuses"
     
     return jsonify({
         "campuses": [{
@@ -13353,7 +13353,7 @@ def serve_react_app(path):
                 return send_from_directory(app.static_folder, safe_path)
             except FileNotFoundError:
                 logger.warning(f"File not found: {safe_path}")
-            return jsonify({"error": "Not found"}), 404
+                return jsonify({"error": "Not found"}), 404
     except Exception as e:
         logger.error(f"Error serving static file {path}: {e}", exc_info=True)
         # Return a proper error response
@@ -15115,7 +15115,7 @@ def delete_person(person_id):
                 text("DELETE FROM persons WHERE id = :person_id"),
                 {'person_id': person_id}
             )
-            db.session.commit()
+        db.session.commit()
             logger.info(f"Person {person_id} deleted using raw SQL")
         except Exception as e:
             db.session.rollback()
@@ -17633,9 +17633,9 @@ def submit_meeting_attendance(meeting_id):
                     except Exception as e:
                         logger.error(f"Error updating engagement profile for {person.full_name}: {e}", exc_info=True)
                         # Don't fail the whole operation if engagement profile update fails
-        
-        db.session.commit()
-        logger.info(f"Successfully committed attendance for meeting {meeting_id}")
+                
+                db.session.commit()
+                logger.info(f"Successfully committed attendance for meeting {meeting_id}")
         
         # Refresh engagement profiles and recalculate heartbeat for affected people
         recalculated_people = []
@@ -18376,8 +18376,8 @@ def get_events():
         
         # Log total active events count - handle missing columns gracefully
         try:
-            total_active = Event.query.filter_by(is_active=True).count()
-            logger.info(f"[EVENTS] Total active events in database: {total_active}")
+        total_active = Event.query.filter_by(is_active=True).count()
+        logger.info(f"[EVENTS] Total active events in database: {total_active}")
         except Exception as count_error:
             error_str = str(count_error).lower()
             if 'no such column' in error_str and 'image_url' in error_str:
@@ -18414,19 +18414,19 @@ def get_events():
             if hasattr(Event, 'status') and status in ['draft', 'published', 'cancelled', 'completed']:
                 query = query.filter(Event.status == status)
             elif status == 'upcoming':
-                query = query.filter(
-                    db.or_(
-                        Event.start_time > datetime.utcnow(),
-                        Event.start_time.is_(None)
-                    )
+            query = query.filter(
+                db.or_(
+                    Event.start_time > datetime.utcnow(),
+                    Event.start_time.is_(None)
                 )
+            )
         elif status == 'past':
-                query = query.filter(
-                    db.and_(
-                        Event.start_time.isnot(None),
-                        Event.start_time < datetime.utcnow()
-                    )
+            query = query.filter(
+                db.and_(
+                    Event.start_time.isnot(None),
+                    Event.start_time < datetime.utcnow()
                 )
+            )
         
         # Filter by upcoming/past
         # If upcoming='all', show all events (no date filtering)
@@ -18484,8 +18484,8 @@ def get_events():
         
         # Execute query - handle missing image_url column gracefully
         try:
-            events = query.all()
-            logger.info(f"[EVENTS] Found {len(events)} events after filtering")
+        events = query.all()
+        logger.info(f"[EVENTS] Found {len(events)} events after filtering")
         except Exception as query_error:
             error_str = str(query_error).lower()
             if 'no such column' in error_str and 'image_url' in error_str:
@@ -19001,12 +19001,12 @@ def google_oauth_callback():
                 }
                 
                 // Store success flag for the app to detect
-                    try {
-                        sessionStorage.setItem('google_oauth_success', 'true');
-                    } catch (e) {
-                        console.log('Could not set sessionStorage:', e);
-                    }
-                    
+                try {
+                    sessionStorage.setItem('google_oauth_success', 'true');
+                } catch (e) {
+                    console.log('Could not set sessionStorage:', e);
+                }
+                
                 // Redirect back to the app with success flag
                 const separator = redirectUrl.includes('?') ? '&' : '?';
                 window.location.href = redirectUrl + separator + 'oauth_success=true';
@@ -19293,7 +19293,7 @@ def create_event():
         
         try:
             result = db.session.execute(text(sql), insert_values)
-            db.session.commit()
+        db.session.commit()
             event_id = result.lastrowid
             
             # Fetch the created event to return it
