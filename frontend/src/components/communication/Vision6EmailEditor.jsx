@@ -1136,16 +1136,11 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           });
                         }}
                         onBeforeInput={(e) => {
-                          // COMPLETE INTERCEPTION - prevent ALL default input
-                          e.preventDefault();
-                          e.stopPropagation();
-                          
                           const target = e.target;
                           
-                          // Force LTR on everything
+                          // Force LTR on everything BEFORE allowing input
                           target.setAttribute('dir', 'ltr');
                           target.setAttribute('lang', 'en');
-                          target.setAttribute('spellcheck', 'false');
                           target.style.setProperty('direction', 'ltr', 'important');
                           target.style.setProperty('unicode-bidi', 'embed', 'important');
                           target.style.setProperty('text-align', 'left', 'important');
@@ -1160,90 +1155,54 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                             current = current.parentElement;
                           }
                           
-                          // Handle text insertion
+                          // Only intercept if we detect potential RTL issues
                           if (e.inputType === 'insertText' && e.data) {
                             const selection = window.getSelection();
                             if (selection && selection.rangeCount > 0) {
                               const range = selection.getRangeAt(0);
-                              
-                              // Get current text and cursor position
-                              const textNode = range.startContainer;
-                              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                                const currentText = textNode.textContent || '';
-                                const cursorPos = range.startOffset;
-                                
-                                // Build new text: before cursor + new char + after cursor
-                                const textBefore = currentText.substring(0, cursorPos);
-                                const textAfter = currentText.substring(cursorPos);
-                                const newText = textBefore + e.data + textAfter;
-                                
-                                // Update text node
-                                textNode.textContent = newText;
-                                
-                                // Move cursor to after inserted character
-                                const newCursorPos = cursorPos + 1;
-                                range.setStart(textNode, newCursorPos);
-                                range.collapse(true);
-                                selection.removeAllRanges();
-                                selection.addRange(range);
-                                
-                                // Force LTR on parent
-                                const parent = textNode.parentElement;
-                                if (parent) {
-                                  parent.setAttribute('dir', 'ltr');
-                                  parent.setAttribute('lang', 'en');
-                                  parent.style.setProperty('direction', 'ltr', 'important');
-                                  parent.style.setProperty('unicode-bidi', 'embed', 'important');
-                                }
-                                
-                                // Update content
-                                requestAnimationFrame(() => {
-                                  updateBlockContent(block.id, target.innerHTML);
-                                });
-                              } else {
-                                // Fallback for non-text nodes
-                                target.focus();
-                                selection.removeAllRanges();
-                                selection.addRange(range);
-                                document.execCommand('insertText', false, e.data);
-                                
-                                requestAnimationFrame(() => {
-                                  const allNodes = target.querySelectorAll('*');
-                                  allNodes.forEach(node => {
-                                    node.setAttribute('dir', 'ltr');
-                                    node.setAttribute('lang', 'en');
-                                    node.style.setProperty('direction', 'ltr', 'important');
-                                  });
-                                  updateBlockContent(block.id, target.innerHTML);
-                                });
-                              }
-                            }
-                          } else if (e.inputType === 'deleteContentBackward') {
-                            // Handle backspace
-                            const selection = window.getSelection();
-                            if (selection && selection.rangeCount > 0) {
-                              const range = selection.getRangeAt(0);
                               const textNode = range.startContainer;
                               
+                              // Check if we're in a text node and can manually control
                               if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                                const currentText = textNode.textContent || '';
-                                const cursorPos = range.startOffset;
+                                const computed = window.getComputedStyle(textNode.parentElement || target);
                                 
-                                if (cursorPos > 0) {
-                                  // Delete character before cursor
-                                  const newText = currentText.substring(0, cursorPos - 1) + currentText.substring(cursorPos);
+                                // Only prevent default if direction is wrong
+                                if (computed.direction !== 'ltr') {
+                                  e.preventDefault();
+                                  
+                                  const currentText = textNode.textContent || '';
+                                  const cursorPos = range.startOffset;
+                                  
+                                  // Build new text: before cursor + new char + after cursor
+                                  const textBefore = currentText.substring(0, cursorPos);
+                                  const textAfter = currentText.substring(cursorPos);
+                                  const newText = textBefore + e.data + textAfter;
+                                  
+                                  // Update text node
                                   textNode.textContent = newText;
                                   
-                                  // Move cursor back
-                                  range.setStart(textNode, cursorPos - 1);
+                                  // Move cursor to after inserted character
+                                  const newCursorPos = cursorPos + 1;
+                                  range.setStart(textNode, newCursorPos);
                                   range.collapse(true);
                                   selection.removeAllRanges();
                                   selection.addRange(range);
                                   
+                                  // Force LTR on parent
+                                  const parent = textNode.parentElement;
+                                  if (parent) {
+                                    parent.setAttribute('dir', 'ltr');
+                                    parent.setAttribute('lang', 'en');
+                                    parent.style.setProperty('direction', 'ltr', 'important');
+                                    parent.style.setProperty('unicode-bidi', 'embed', 'important');
+                                  }
+                                  
+                                  // Update content
                                   requestAnimationFrame(() => {
                                     updateBlockContent(block.id, target.innerHTML);
                                   });
                                 }
+                                // Otherwise let default behavior happen (but we've forced LTR above)
                               }
                             }
                           }
