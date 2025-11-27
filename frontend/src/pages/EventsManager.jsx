@@ -679,7 +679,15 @@ const EventsManager = () => {
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={handleImageUpload}
+                            onChange={(e) => {
+                              console.log('File input changed:', e.target.files);
+                              handleImageUpload(e);
+                            }}
+                            onClick={(e) => {
+                              console.log('File input clicked');
+                              // Reset value to allow re-uploading same file
+                              e.target.value = '';
+                            }}
                             className="hidden"
                             disabled={uploadingImage}
                           />
@@ -691,8 +699,13 @@ const EventsManager = () => {
                       {uploadingImage && (
                         <div className="mt-4">
                           <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
-                          <p className="text-sm text-white/60 mt-2">Uploading...</p>
+                          <p className="text-sm text-white/60 mt-2">Uploading image...</p>
                         </div>
+                      )}
+                      {!uploadingImage && !imagePreview && (
+                        <p className="text-xs text-white/40 mt-2">
+                          Click "browse" or drag an image here
+                        </p>
                       )}
                     </div>
                   )}
