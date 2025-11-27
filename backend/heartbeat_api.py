@@ -526,10 +526,11 @@ def get_person_heartbeat(person_id):
             
             # Get person's connect group name if they have one
             connect_group_name = None
-            if person.connect_group:
+            person_connect_group = getattr(person, 'connect_group', None)
+            if person_connect_group:
                 try:
                     from models import ConnectGroup
-                    connect_group = ConnectGroup.query.filter_by(id=person.connect_group).first()
+                    connect_group = ConnectGroup.query.filter_by(id=person_connect_group).first()
                     if connect_group:
                         connect_group_name = connect_group.name
                 except Exception as e:
