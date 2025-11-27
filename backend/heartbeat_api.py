@@ -460,6 +460,17 @@ def get_person_heartbeat(person_id):
         # Include ALL milestones regardless of date (not just last 12 weeks) since these are significant life events
         person_milestones = []
         
+        # Helper function to safely serialize dates (handles both date objects and strings)
+        def safe_date_isoformat(date_val):
+            """Safely convert date to ISO format string, handling both date objects and strings"""
+            if date_val is None:
+                return None
+            if isinstance(date_val, str):
+                return date_val  # Already a string
+            if hasattr(date_val, 'isoformat'):
+                return date_val.isoformat()
+            return str(date_val)  # Fallback to string conversion
+        
         # Debug: Log person milestone fields
         baptised_on = getattr(person, 'baptised_on', None)
         dna_completed = getattr(person, 'dna_completed', None)
@@ -475,8 +486,8 @@ def get_person_heartbeat(person_id):
                 'person_id': person_id,
                 'type': 'baptism',
                 'description': 'Baptism',
-                'date': baptised_on.isoformat() if baptised_on else None,
-                'created_at': baptised_on.isoformat() if baptised_on else None,
+                'date': safe_date_isoformat(baptised_on),
+                'created_at': safe_date_isoformat(baptised_on),
                 'is_person_milestone': True
             })
         
@@ -486,8 +497,8 @@ def get_person_heartbeat(person_id):
                 'person_id': person_id,
                 'type': 'dna_completed',
                 'description': 'DNA Completed',
-                'date': dna_completed.isoformat() if dna_completed else None,
-                'created_at': dna_completed.isoformat() if dna_completed else None,
+                'date': safe_date_isoformat(dna_completed),
+                'created_at': safe_date_isoformat(dna_completed),
                 'is_person_milestone': True
             })
         
@@ -497,8 +508,8 @@ def get_person_heartbeat(person_id):
                 'person_id': person_id,
                 'type': 'filled_holy_spirit',
                 'description': 'Filled with Holy Spirit',
-                'date': filled_holy_spirit.isoformat() if filled_holy_spirit else None,
-                'created_at': filled_holy_spirit.isoformat() if filled_holy_spirit else None,
+                'date': safe_date_isoformat(filled_holy_spirit),
+                'created_at': safe_date_isoformat(filled_holy_spirit),
                 'is_person_milestone': True
             })
         
@@ -508,8 +519,8 @@ def get_person_heartbeat(person_id):
                 'person_id': person_id,
                 'type': 'rise_attended',
                 'description': 'RISE Attended',
-                'date': rise_attended.isoformat() if rise_attended else None,
-                'created_at': rise_attended.isoformat() if rise_attended else None,
+                'date': safe_date_isoformat(rise_attended),
+                'created_at': safe_date_isoformat(rise_attended),
                 'is_person_milestone': True
             })
         
@@ -519,8 +530,8 @@ def get_person_heartbeat(person_id):
                 'person_id': person_id,
                 'type': 'first_served',
                 'description': 'First Time Serving',
-                'date': first_served_on.isoformat() if first_served_on else None,
-                'created_at': first_served_on.isoformat() if first_served_on else None,
+                'date': safe_date_isoformat(first_served_on),
+                'created_at': safe_date_isoformat(first_served_on),
                 'is_person_milestone': True
             })
         
@@ -607,13 +618,24 @@ def get_person_heartbeat(person_id):
                     if milestone_type == 'group_join' and connect_group_name:
                         description = f"{step.step_name}: {connect_group_name}"
                     
+                    # Safely serialize completed_at date
+                    completed_at_val = getattr(completion, 'completed_at', None)
+                    completed_at_str = None
+                    if completed_at_val:
+                        if isinstance(completed_at_val, str):
+                            completed_at_str = completed_at_val
+                        elif hasattr(completed_at_val, 'isoformat'):
+                            completed_at_str = completed_at_val.isoformat()
+                        else:
+                            completed_at_str = str(completed_at_val)
+                    
                     pathway_step_events.append({
                         'id': f'pathway_step_{completion.id}',
                         'person_id': person_id,
                         'type': step_type,
                         'description': description,
-                        'date': completion.completed_at.isoformat() if completion.completed_at else None,
-                        'created_at': completion.completed_at.isoformat() if completion.completed_at else None,
+                        'date': completed_at_str,
+                        'created_at': completed_at_str,
                         'is_person_milestone': False,
                         'is_pathway_step': True,
                         'step_order': step.step_order,
