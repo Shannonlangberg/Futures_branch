@@ -913,19 +913,19 @@ if not database_url or database_url.startswith('sqlite:///'):
         
         # Local development - use absolute path
         if database_url.startswith('sqlite:///'):
-            relative_path = database_url.replace('sqlite:///', '')
-            backend_dir = os.path.dirname(os.path.abspath(__file__))
-            
-            # Check if file exists in instance directory first (where it actually is)
-            instance_path = os.path.join(backend_dir, 'instance', relative_path)
-            if os.path.exists(instance_path):
-                database_url = f'sqlite:///{instance_path}'
-                logger.info(f"Using database file: {instance_path}")
-            else:
-                # Use absolute path in backend directory
-                abs_path = os.path.join(backend_dir, relative_path)
-                database_url = f'sqlite:///{abs_path}'
-                logger.info(f"Using database file: {abs_path}")
+        relative_path = database_url.replace('sqlite:///', '')
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Check if file exists in instance directory first (where it actually is)
+        instance_path = os.path.join(backend_dir, 'instance', relative_path)
+        if os.path.exists(instance_path):
+            database_url = f'sqlite:///{instance_path}'
+            logger.info(f"Using database file: {instance_path}")
+        else:
+            # Use absolute path in backend directory
+            abs_path = os.path.join(backend_dir, relative_path)
+            database_url = f'sqlite:///{abs_path}'
+            logger.info(f"Using database file: {abs_path}")
         
         if not volume_found:
             logger.warning("⚠️  No persistent volume detected! Database will be lost on deployment.")
@@ -993,7 +993,7 @@ def run_migrations():
             logger.info(f"Migration: Using database from app config: {database_url}")
         except:
             # Fall back to environment variable if app not initialized
-            database_url = os.getenv('DATABASE_URL', '').strip()
+        database_url = os.getenv('DATABASE_URL', '').strip()
             logger.info(f"Migration: Using database from env var: {database_url}")
         
         # Extract actual file path from SQLite URL
@@ -19373,7 +19373,7 @@ def create_event():
         
         try:
             result = db.session.execute(text(sql), insert_values)
-            db.session.commit()
+        db.session.commit()
             event_id = result.lastrowid
             
             if event_id and image_filename:
