@@ -382,18 +382,68 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
 
   // Formatting functions
   const execCommand = (command, value = null) => {
+    // Save current selection
+    const selection = window.getSelection();
+    let savedRange = null;
+    if (selection && selection.rangeCount > 0) {
+      savedRange = selection.getRangeAt(0).cloneRange();
+    }
+    
     document.execCommand(command, false, value);
-    // Update the block content after formatting
-    if (activeBlockId && textBlockRefs.current[activeBlockId]) {
+    
+    // Restore selection and keep toolbar visible
+    if (savedRange && activeBlockId && textBlockRefs.current[activeBlockId]) {
       const element = textBlockRefs.current[activeBlockId];
+      element.focus();
+      
+      // Restore selection
+      try {
+        selection.removeAllRanges();
+        selection.addRange(savedRange);
+      } catch (e) {
+        // If selection can't be restored, just keep focus
+      }
+      
+      // Force LTR after formatting
+      element.setAttribute('dir', 'ltr');
+      element.style.direction = 'ltr';
+      element.style.unicodeBidi = 'embed';
+      element.style.textAlign = 'left';
+      element.style.writingMode = 'horizontal-tb';
+      
+      // Update the block content after formatting
       updateBlockContent(activeBlockId, element.innerHTML);
+      
+      // Keep toolbar visible
+      setTimeout(() => {
+        handleSelectionChange(activeBlockId);
+      }, 50);
     }
   };
 
   const handleFormat = (command, value = null) => {
     if (activeBlockId && textBlockRefs.current[activeBlockId]) {
       const element = textBlockRefs.current[activeBlockId];
+      
+      // Save selection before focusing
+      const selection = window.getSelection();
+      let savedRange = null;
+      if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+        savedRange = selection.getRangeAt(0).cloneRange();
+      }
+      
       element.focus();
+      
+      // Restore selection if we had one
+      if (savedRange) {
+        try {
+          selection.removeAllRanges();
+          selection.addRange(savedRange);
+        } catch (e) {
+          // Selection might be invalid, continue anyway
+        }
+      }
+      
       execCommand(command, value);
     }
   };
@@ -458,6 +508,25 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
     element.style.textAlign = 'left';
     element.style.writingMode = 'horizontal-tb';
     
+    // Check if text was inserted in wrong direction and fix it
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const textNode = range.startContainer;
+      
+      // If we have a text node, check its direction
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const parent = textNode.parentElement;
+        if (parent) {
+          parent.setAttribute('dir', 'ltr');
+          parent.style.direction = 'ltr';
+          parent.style.unicodeBidi = 'embed';
+          parent.style.textAlign = 'left';
+          parent.style.writingMode = 'horizontal-tb';
+        }
+      }
+    }
+    
     // Fix all child elements too
     const allElements = element.querySelectorAll('*');
     allElements.forEach(el => {
@@ -475,6 +544,24 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
       element.style.unicodeBidi = 'embed';
       element.style.textAlign = 'left';
       element.style.writingMode = 'horizontal-tb';
+      
+      // Double-check all text nodes
+      const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+      let node;
+      while (node = walker.nextNode()) {
+        const parent = node.parentElement;
+        if (parent) {
+          parent.setAttribute('dir', 'ltr');
+          parent.style.direction = 'ltr';
+          parent.style.unicodeBidi = 'embed';
+          parent.style.textAlign = 'left';
+          parent.style.writingMode = 'horizontal-tb';
+        }
+      }
     });
     
     // Update content (debounced to reduce clunkiness)
@@ -668,19 +755,29 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
               {blocks.map((block, index) => (
                 <div
                   key={block.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, block.id)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, block.id)}
-                  onDragEnd={handleDragEnd}
                   onClick={() => setSelectedBlock(block.id)}
-                  className={`group relative border-2 border-transparent hover:border-blue-500/50 transition-all cursor-move ${
+                  className={`group relative border-2 border-transparent hover:border-blue-500/50 transition-all ${
                     selectedBlock === block.id ? 'border-blue-500' : ''
                   } ${draggedBlock === block.id ? 'opacity-50' : ''}`}
                 >
-                  {/* Drag Handle - positioned inside to avoid overflow */}
-                  <div className="absolute left-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <div className="bg-blue-500 text-white rounded p-1.5 shadow-lg cursor-move">
+                  {/* Drag Handle - only this is draggable, not the whole block */}
+                  <div 
+                    className="absolute left-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    draggable
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      handleDragStart(e, block.id);
+                    }}
+                    onDragEnd={handleDragEnd}
+                    onMouseDown={(e) => {
+                      // Prevent text selection when starting drag
+                      e.stopPropagation();
+                    }}
+                    style={{ cursor: 'grab' }}
+                  >
+                    <div className="bg-blue-500 text-white rounded p-1.5 shadow-lg cursor-grab active:cursor-grabbing">
                       <Bars3Icon className="w-4 h-4" />
                     </div>
                   </div>
@@ -731,6 +828,25 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           target.style.unicodeBidi = 'embed';
                           target.style.textAlign = 'left';
                           target.style.writingMode = 'horizontal-tb';
+                          
+                          // If data is being inserted, ensure it's LTR
+                          if (e.data) {
+                            // Force the input to be treated as LTR
+                            const selection = window.getSelection();
+                            if (selection && selection.rangeCount > 0) {
+                              const range = selection.getRangeAt(0);
+                              const textNode = range.startContainer;
+                              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                                const parent = textNode.parentElement;
+                                if (parent) {
+                                  parent.setAttribute('dir', 'ltr');
+                                  parent.style.direction = 'ltr';
+                                  parent.style.unicodeBidi = 'embed';
+                                  parent.style.textAlign = 'left';
+                                }
+                              }
+                            }
+                          }
                         }}
                         onCompositionStart={(e) => {
                           // Force LTR when IME starts
@@ -750,9 +866,20 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                         }}
                         onInput={(e) => handleTextInput(block.id, e)}
                         onBlur={(e) => {
+                          // Don't hide toolbar if clicking on toolbar buttons
+                          const relatedTarget = e.relatedTarget;
+                          if (relatedTarget && relatedTarget.closest('.format-toolbar')) {
+                            return;
+                          }
+                          
                           updateBlockContent(block.id, e.target.innerHTML);
                           // Hide toolbar with delay to prevent flashing
-                          setTimeout(() => setShowFormatToolbar(false), 300);
+                          setTimeout(() => {
+                            // Double-check we're not focusing on toolbar
+                            if (document.activeElement && !document.activeElement.closest('.format-toolbar')) {
+                              setShowFormatToolbar(false);
+                            }
+                          }, 300);
                         }}
                         onFocus={(e) => {
                           setActiveBlockId(block.id);
@@ -875,15 +1002,32 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                     minWidth: '320px',
                     transform: 'translateX(-50%)' // Center on selection
                   }}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
+                  onMouseDown={(e) => {
+                    // Prevent blur when clicking toolbar buttons
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
                   onMouseEnter={() => {
                     // Keep toolbar visible when hovering
                     clearTimeout(window._toolbarTimeout);
+                    setShowFormatToolbar(true);
                   }}
                 >
                   {/* Bold */}
                   <button
-                    onClick={() => handleFormat('bold')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleFormat('bold');
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
                     className="p-2 hover:bg-gray-100 rounded transition-colors font-bold"
                     title="Bold"
                   >
@@ -892,7 +1036,15 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
 
                   {/* Italic */}
                   <button
-                    onClick={() => handleFormat('italic')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleFormat('italic');
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
                     className="p-2 hover:bg-gray-100 rounded transition-colors italic"
                     title="Italic"
                   >
@@ -901,7 +1053,15 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
 
                   {/* Underline */}
                   <button
-                    onClick={() => handleFormat('underline')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleFormat('underline');
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
                     className="p-2 hover:bg-gray-100 rounded transition-colors underline"
                     title="Underline"
                   >
