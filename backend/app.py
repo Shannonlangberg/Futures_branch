@@ -20986,20 +20986,48 @@ def test_notification():
 @app.route('/api/people/families', methods=['GET'])
 @login_required
 def get_families():
-    """Get families grouped by household with metrics"""
+    """Get families grouped by household with comprehensive metrics"""
     try:
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
+        from models import (
+            HeartbeatSnapshot, AttendanceEvent, ConnectAttendance, 
+            ServingAssignment, GivingTransaction, CareCase, ConnectGroup
+        )
+        from datetime import datetime, timedelta, date
+        from sqlalchemy import text
+        
+        # Get query parameters
+        campus_filter = request.args.get('campus', None)
+        search = request.args.get('search', '').strip()
+        health_filter = request.args.get('health', None)  # healthy, watch, at_risk, critical
+        has_kids = request.args.get('has_kids', None)  # true/false
+        has_youth = request.args.get('has_youth', None)  # true/false
+        
         # Get all active persons
-        persons = Person.query.filter_by(is_active=True).all()
+        query = Person.query.filter_by(is_active=True)
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(Person.campus == campus_filter)
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Person.full_name.ilike(search_term),
+                    Person.email.ilike(search_term),
+                    Person.preferred_name.ilike(search_term)
+                )
+            )
+        
+        persons = query.all()
         
         # Group by family/household using family_id if available, otherwise fallback to email/last name
         family_map = {}
+        person_id_to_family = {}
         
         for person in persons:
             # Use family_id if available, otherwise use fallback grouping
-            if person.family_id:
+            if getattr(person, 'family_id', None):
                 family_key = person.family_id
             else:
                 # Fallback: use email domain or last name
@@ -21014,60 +21042,322 @@ def get_families():
                     last_name = person.full_name.split()[-1] if person.full_name else 'unknown'
                     family_key = f"family_{last_name}"
             
+            person_id_to_family[person.id] = family_key
+            
             if family_key not in family_map:
                 family_map[family_key] = {
                     'id': family_key,
+                    'family_name': None,  # Will be set from member names
                     'members': [],
                     'household_heartbeat': 0,
+                    'heartbeat_status': 'critical',
                     'attendance_together': 0,
+                    'attendance_timeline': [],
                     'attendance_drifting': False,
+                    'groups_involvement': [],
+                    'serving_patterns': [],
+                    'giving_rhythm': 'none',  # none, occasional, regular
                     'parent_giving': False,
-                    'care_needs': []
+                    'new_people_count': 0,
+                    'new_christians_count': 0,
+                    'care_cases': [],
+                    'pastoral_notes': [],
+                    'ai_summary': None,
+                    'next_steps': [],
+                    'assigned_leader': None,
+                    'campus': None,
+                    'last_attended_together': None
                 }
             
-            # Calculate heartbeat for this person
-            heartbeat_score = 50  # Default
-            if person.engagement_profile:
-                pulse_status = person.engagement_profile.pulse_status or 'red'
-                overall_engagement = person.engagement_profile.overall_engagement or 0.0
-                
-                if pulse_status == 'green':
-                    base_score = 85
-                elif pulse_status == 'amber':
-                    base_score = 65
-                else:
-                    base_score = 35
-                
-                heartbeat_score = int((base_score * 0.7) + (overall_engagement * 0.3))
+            # Get heartbeat from snapshot
+            heartbeat_score = 50
+            heartbeat_status = 'critical'
+            try:
+                snapshot = HeartbeatSnapshot.query.filter_by(
+                    person_id=person.id
+                ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                if snapshot:
+                    heartbeat_score = snapshot.total_score
+                    heartbeat_status = snapshot.status
+            except:
+                pass
             
-            family_map[family_key]['members'].append({
+            # Determine role
+            department = getattr(person, 'department', '')
+            if department:
+                if 'Kids' in department or 'Youth' in department:
+                    role = 'child'
+                elif 'Youth' in department:
+                    role = 'youth'
+                else:
+                    role = 'parent'
+            else:
+                # Infer from age if birthday available
+                role = 'parent'  # Default
+            
+            # Get connect group info
+            connect_group_name = None
+            if person.connect_group:
+                try:
+                    group = ConnectGroup.query.filter_by(id=person.connect_group, is_active=True).first()
+                    if group:
+                        connect_group_name = group.name
+                except:
+                    pass
+            
+            member_data = {
                 'id': person.id,
                 'name': person.preferred_name or person.full_name,
                 'full_name': person.full_name,
-                'role': 'parent' if person.department and 'Kids' not in person.department else 'child',
-                'heartbeat': max(0, min(100, heartbeat_score)),
+                'email': person.email,
+                'phone': person.phone,
+                'role': role,
+                'department': department,
+                'heartbeat_score': max(0, min(100, heartbeat_score)),
+                'heartbeat_status': heartbeat_status,
                 'pulse_status': person.engagement_profile.pulse_status if person.engagement_profile else 'red',
-                'has_family_id': bool(person.family_id)
-            })
+                'connect_group': connect_group_name or person.connect_group,
+                'is_new_christian': getattr(person, 'is_new_christian', False),
+                'new_christian_date': person.new_christian_date.isoformat() if getattr(person, 'new_christian_date', None) else None,
+                'baptised_on': person.baptised_on.isoformat() if person.baptised_on else None,
+                'created_at': person.created_at.isoformat() if person.created_at else None,
+                'has_family_id': bool(getattr(person, 'family_id', None))
+            }
+            
+            family_map[family_key]['members'].append(member_data)
+            
+            # Set campus from first member
+            if not family_map[family_key]['campus']:
+                family_map[family_key]['campus'] = person.campus
         
-        # Calculate household metrics
+        # Calculate comprehensive household metrics
         families = []
+        twelve_weeks_ago = date.today() - timedelta(weeks=12)
+        
         for family_key, family_data in family_map.items():
-            # Include families with multiple members OR single members with family_id set
+            # Only include families with multiple members OR single members with family_id set
             if len(family_data['members']) > 1 or (len(family_data['members']) == 1 and family_data['members'][0].get('has_family_id')):
+                # Set family name (use parents' names or all members)
+                parents = [m for m in family_data['members'] if m['role'] == 'parent']
+                if parents:
+                    family_data['family_name'] = ', '.join([p['name'] for p in parents])
+                else:
+                    family_data['family_name'] = ', '.join([m['name'] for m in family_data['members'][:2]])
+                
                 # Calculate average household heartbeat
-                heartbeats = [m['heartbeat'] for m in family_data['members']]
+                heartbeats = [m['heartbeat_score'] for m in family_data['members']]
                 family_data['household_heartbeat'] = int(sum(heartbeats) / len(heartbeats)) if heartbeats else 0
                 
-                # Simple attendance together calculation (placeholder)
-                # TODO: Implement actual attendance together calculation
-                family_data['attendance_together'] = 75  # Placeholder
+                # Determine overall heartbeat status
+                if family_data['household_heartbeat'] >= 80:
+                    family_data['heartbeat_status'] = 'healthy'
+                elif family_data['household_heartbeat'] >= 60:
+                    family_data['heartbeat_status'] = 'watch'
+                elif family_data['household_heartbeat'] >= 40:
+                    family_data['heartbeat_status'] = 'at_risk'
+                else:
+                    family_data['heartbeat_status'] = 'critical'
                 
-                # Check for attendance drifting (if any member has low heartbeat)
-                low_heartbeat_members = [m for m in family_data['members'] if m['heartbeat'] < 50]
-                family_data['attendance_drifting'] = len(low_heartbeat_members) > 0
+                # Get all family member IDs
+                family_member_ids = [m['id'] for m in family_data['members']]
+                
+                # Calculate attendance together
+                try:
+                    # Get attendance events for all family members in last 12 weeks
+                    attendance_events = AttendanceEvent.query.filter(
+                        AttendanceEvent.person_id.in_(family_member_ids),
+                        AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+                    ).order_by(AttendanceEvent.created_at.desc()).all()
+                    
+                    # Group by date
+                    attendance_by_date = {}
+                    for event in attendance_events:
+                        event_date = event.created_at.date()
+                        if event_date not in attendance_by_date:
+                            attendance_by_date[event_date] = set()
+                        attendance_by_date[event_date].add(event.person_id)
+                    
+                    # Calculate attendance together percentage
+                    total_services = len(attendance_by_date)
+                    together_count = sum(1 for attendees in attendance_by_date.values() if len(attendees) > 1)
+                    family_data['attendance_together'] = int((together_count / total_services * 100)) if total_services > 0 else 0
+                    
+                    # Build attendance timeline
+                    timeline = []
+                    for event_date, attendees in sorted(attendance_by_date.items(), reverse=True)[:20]:  # Last 20 services
+                        timeline.append({
+                            'date': event_date.isoformat(),
+                            'members_present': list(attendees),
+                            'count': len(attendees),
+                            'all_present': len(attendees) == len(family_member_ids)
+                        })
+                    family_data['attendance_timeline'] = timeline
+                    
+                    # Find last attended together
+                    for event_date, attendees in sorted(attendance_by_date.items(), reverse=True):
+                        if len(attendees) > 1:
+                            family_data['last_attended_together'] = event_date.isoformat()
+                            break
+                except Exception as e:
+                    logger.warning(f"Error calculating attendance for family {family_key}: {e}")
+                
+                # Get groups involvement
+                groups = set()
+                for member in family_data['members']:
+                    if member.get('connect_group'):
+                        groups.add(member['connect_group'])
+                family_data['groups_involvement'] = list(groups)
+                
+                # Get serving patterns
+                try:
+                    serving_assignments = ServingAssignment.query.filter(
+                        ServingAssignment.person_id.in_(family_member_ids),
+                        ServingAssignment.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+                    ).order_by(ServingAssignment.created_at.desc()).limit(20).all()
+                    
+                    serving_patterns = []
+                    for assignment in serving_assignments:
+                        serving_patterns.append({
+                            'person_id': assignment.person_id,
+                            'person_name': next((m['name'] for m in family_data['members'] if m['id'] == assignment.person_id), 'Unknown'),
+                            'role': assignment.role,
+                            'team_name': assignment.team_name,
+                            'date': assignment.created_at.isoformat() if assignment.created_at else None
+                        })
+                    family_data['serving_patterns'] = serving_patterns
+                except Exception as e:
+                    logger.warning(f"Error getting serving patterns for family {family_key}: {e}")
+                
+                # Get giving rhythm
+                try:
+                    giving_transactions = GivingTransaction.query.filter(
+                        GivingTransaction.person_id.in_(family_member_ids),
+                        GivingTransaction.status == 'completed',
+                        GivingTransaction.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+                    ).order_by(GivingTransaction.created_at.desc()).all()
+                    
+                    if len(giving_transactions) >= 8:
+                        family_data['giving_rhythm'] = 'regular'
+                        family_data['parent_giving'] = True
+                    elif len(giving_transactions) >= 3:
+                        family_data['giving_rhythm'] = 'occasional'
+                        family_data['parent_giving'] = True
+                    elif len(giving_transactions) > 0:
+                        family_data['giving_rhythm'] = 'occasional'
+                        family_data['parent_giving'] = True
+                    else:
+                        family_data['giving_rhythm'] = 'none'
+                        family_data['parent_giving'] = False
+                except Exception as e:
+                    logger.warning(f"Error getting giving data for family {family_key}: {e}")
+                
+                # Count new people and new Christians
+                thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+                two_years_ago = date.today() - timedelta(days=730)
+                
+                new_people = [m for m in family_data['members'] if m.get('created_at') and datetime.fromisoformat(m['created_at'].replace('Z', '+00:00')) >= thirty_days_ago]
+                new_christians = [m for m in family_data['members'] if (m.get('is_new_christian') or (m.get('baptised_on') and date.fromisoformat(m['baptised_on']) >= two_years_ago))]
+                
+                family_data['new_people_count'] = len(new_people)
+                family_data['new_christians_count'] = len(new_christians)
+                
+                # Get care cases
+                try:
+                    care_cases = CareCase.query.filter(
+                        CareCase.person_id.in_(family_member_ids),
+                        CareCase.status.in_(['open', 'in_progress'])
+                    ).all()
+                    
+                    family_data['care_cases'] = [{
+                        'id': case.id,
+                        'person_id': case.person_id,
+                        'person_name': next((m['name'] for m in family_data['members'] if m['id'] == case.person_id), 'Unknown'),
+                        'priority': case.priority,
+                        'status': case.status,
+                        'notes': case.notes[:100] if case.notes else None
+                    } for case in care_cases]
+                except Exception as e:
+                    logger.warning(f"Error getting care cases for family {family_key}: {e}")
+                
+                # Collect pastoral notes
+                pastoral_notes = []
+                for member in family_data['members']:
+                    person_obj = next((p for p in persons if p.id == member['id']), None)
+                    if person_obj and person_obj.pastoral_notes:
+                        pastoral_notes.append({
+                            'person_id': member['id'],
+                            'person_name': member['name'],
+                            'notes': person_obj.pastoral_notes[:200]  # Truncate for list view
+                        })
+                family_data['pastoral_notes'] = pastoral_notes
+                
+                # Generate AI summary (placeholder - can be enhanced later)
+                if family_data['household_heartbeat'] >= 80:
+                    family_data['ai_summary'] = f"The {family_data['family_name']} family is healthy and engaged. All members are active in church life."
+                elif family_data['household_heartbeat'] >= 60:
+                    family_data['ai_summary'] = f"The {family_data['family_name']} family is generally stable but may need some encouragement."
+                elif family_data['household_heartbeat'] >= 40:
+                    family_data['ai_summary'] = f"The {family_data['family_name']} family is showing signs of disengagement and may need pastoral follow-up."
+                else:
+                    family_data['ai_summary'] = f"The {family_data['family_name']} family requires immediate pastoral attention."
+                
+                # Generate next steps (placeholder - can be enhanced with AI)
+                next_steps = []
+                if family_data['new_people_count'] > 0:
+                    next_steps.append({
+                        'type': 'follow_up',
+                        'title': 'Follow up with new family members',
+                        'description': f"{family_data['new_people_count']} new member(s) joined in the last 30 days"
+                    })
+                if family_data['new_christians_count'] > 0:
+                    next_steps.append({
+                        'type': 'discipleship',
+                        'title': 'Support new Christians',
+                        'description': f"{family_data['new_christians_count']} new Christian(s) in family need discipleship"
+                    })
+                if family_data['attendance_together'] < 50:
+                    next_steps.append({
+                        'type': 'engagement',
+                        'title': 'Encourage family attendance',
+                        'description': 'Family members are not attending together regularly'
+                    })
+                if family_data['household_heartbeat'] < 50:
+                    next_steps.append({
+                        'type': 'care',
+                        'title': 'Pastoral check-in needed',
+                        'description': 'Family health score is low, consider reaching out'
+                    })
+                family_data['next_steps'] = next_steps
+                
+                # Check for attendance drifting
+                low_heartbeat_members = [m for m in family_data['members'] if m['heartbeat_score'] < 50]
+                family_data['attendance_drifting'] = len(low_heartbeat_members) > 0 or family_data['attendance_together'] < 30
+                
+                # Apply filters
+                if health_filter:
+                    if health_filter == 'healthy' and family_data['heartbeat_status'] != 'healthy':
+                        continue
+                    elif health_filter == 'watch' and family_data['heartbeat_status'] != 'watch':
+                        continue
+                    elif health_filter == 'at_risk' and family_data['heartbeat_status'] != 'at_risk':
+                        continue
+                    elif health_filter == 'critical' and family_data['heartbeat_status'] != 'critical':
+                        continue
+                
+                if has_kids == 'true':
+                    has_kids_members = any(m['role'] == 'child' or 'Kids' in (m.get('department') or '') for m in family_data['members'])
+                    if not has_kids_members:
+                        continue
+                
+                if has_youth == 'true':
+                    has_youth_members = any('Youth' in (m.get('department') or '') for m in family_data['members'])
+                    if not has_youth_members:
+                        continue
                 
                 families.append(family_data)
+        
+        # Sort by household heartbeat (highest first)
+        families.sort(key=lambda f: f['household_heartbeat'], reverse=True)
         
         return jsonify({
             'families': families,

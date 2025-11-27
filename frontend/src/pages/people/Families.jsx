@@ -1,56 +1,75 @@
-import React, { useState, useEffect } from 'react';
-import { UserGroupIcon, HeartIcon, CalendarIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  UserGroupIcon, 
+  HeartIcon, 
+  CalendarIcon, 
+  CurrencyDollarIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  ChatBubbleLeftRightIcon,
+  PencilIcon,
+  UserPlusIcon,
+  SparklesIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon
+} from '@heroicons/react/24/outline';
 
 const Families = () => {
   const [families, setFamilies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [campusFilter, setCampusFilter] = useState('all_campuses');
+  const [healthFilter, setHealthFilter] = useState('all');
+  const [hasKidsFilter, setHasKidsFilter] = useState('all');
+  const [hasYouthFilter, setHasYouthFilter] = useState('all');
+  const [campuses, setCampuses] = useState([]);
+  const [selectedFamily, setSelectedFamily] = useState(null);
+  const [showFamilyDetail, setShowFamilyDetail] = useState(false);
 
   useEffect(() => {
+    loadCampuses();
     loadFamilies();
-  }, []);
+  }, [campusFilter, healthFilter, hasKidsFilter, hasYouthFilter, searchTerm]);
+
+  const loadCampuses = async () => {
+    try {
+      const response = await fetch('/api/campuses/public');
+      if (response.ok) {
+        const data = await response.json();
+        setCampuses(data.campuses || []);
+      }
+    } catch (err) {
+      console.error('Error loading campuses:', err);
+    }
+  };
 
   const loadFamilies = async () => {
     try {
       setLoading(true);
-      // TODO: Implement family grouping API endpoint
-      const response = await fetch('/api/persons?group_by_family=true', {
+      const params = new URLSearchParams();
+      if (campusFilter && campusFilter !== 'all_campuses') {
+        params.append('campus', campusFilter);
+      }
+      if (healthFilter && healthFilter !== 'all') {
+        params.append('health', healthFilter);
+      }
+      if (hasKidsFilter === 'true') {
+        params.append('has_kids', 'true');
+      }
+      if (hasYouthFilter === 'true') {
+        params.append('has_youth', 'true');
+      }
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+      
+      const response = await fetch(`/api/people/families?${params.toString()}`, {
         credentials: 'include'
       });
       
       if (response.ok) {
         const data = await response.json();
-        // Group persons by household/family
-        const familyMap = {};
-        (data.persons || []).forEach(person => {
-          const familyKey = person.family_id || person.household || 'single';
-          if (!familyMap[familyKey]) {
-            familyMap[familyKey] = {
-              id: familyKey,
-              members: [],
-              household_heartbeat: 0,
-              attendance_together: 0,
-              attendance_drifting: false,
-              parent_giving: false,
-              care_needs: []
-            };
-          }
-          familyMap[familyKey].members.push(person);
-        });
-        
-        // Calculate household metrics
-        Object.values(familyMap).forEach(family => {
-          const heartbeats = family.members.map(m => {
-            if (m.pulse_status === 'green') return 85;
-            if (m.pulse_status === 'amber') return 65;
-            if (m.pulse_status === 'red') return 35;
-            return 50;
-          });
-          family.household_heartbeat = Math.round(
-            heartbeats.reduce((a, b) => a + b, 0) / heartbeats.length
-          );
-        });
-        
-        setFamilies(Object.values(familyMap));
+        setFamilies(data.families || []);
       }
     } catch (err) {
       console.error('Error loading families:', err);
@@ -59,6 +78,63 @@ const Families = () => {
     }
   };
 
+  const getHealthColor = (status) => {
+    const colors = {
+      healthy: 'text-emerald-400',
+      watch: 'text-amber-400',
+      at_risk: 'text-orange-400',
+      critical: 'text-red-400'
+    };
+    return colors[status] || 'text-slate-400';
+  };
+
+  const getHealthBgColor = (status) => {
+    const colors = {
+      healthy: 'bg-emerald-500/20 border-emerald-500/40',
+      watch: 'bg-amber-500/20 border-amber-500/40',
+      at_risk: 'bg-orange-500/20 border-orange-500/40',
+      critical: 'bg-red-500/20 border-red-500/40'
+    };
+    return colors[status] || 'bg-slate-500/20 border-slate-500/40';
+  };
+
+  const getHealthLabel = (status) => {
+    const labels = {
+      healthy: 'Healthy',
+      watch: 'Watch',
+      at_risk: 'At Risk',
+      critical: 'Critical'
+    };
+    return labels[status] || 'Unknown';
+  };
+
+  const filteredFamilies = useMemo(() => {
+    return families.filter(family => {
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesName = family.family_name?.toLowerCase().includes(searchLower);
+        const matchesMembers = family.members.some(m => 
+          m.name?.toLowerCase().includes(searchLower) || 
+          m.full_name?.toLowerCase().includes(searchLower)
+        );
+        return matchesName || matchesMembers;
+      }
+      return true;
+    });
+  }, [families, searchTerm]);
+
+  if (showFamilyDetail && selectedFamily) {
+    return (
+      <FamilyDetailView 
+        family={selectedFamily} 
+        onBack={() => {
+          setShowFamilyDetail(false);
+          setSelectedFamily(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div className="mb-6">
@@ -66,52 +142,166 @@ const Families = () => {
         <p className="text-white/60">Household behavior is the #1 pastoral predictor</p>
       </div>
 
+      {/* Search and Filters */}
+      <div className="mb-6 space-y-4">
+        <div className="relative">
+          <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search families, members..."
+            className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-4">
+          <select
+            value={campusFilter}
+            onChange={(e) => setCampusFilter(e.target.value)}
+            className="px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option value="all_campuses">All Campuses</option>
+            {campuses.map(campus => (
+              <option key={campus.id} value={campus.id}>{campus.name}</option>
+            ))}
+          </select>
+
+          <select
+            value={healthFilter}
+            onChange={(e) => setHealthFilter(e.target.value)}
+            className="px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option value="all">All Health Statuses</option>
+            <option value="healthy">Healthy</option>
+            <option value="watch">Watch</option>
+            <option value="at_risk">At Risk</option>
+            <option value="critical">Critical</option>
+          </select>
+
+          <select
+            value={hasKidsFilter}
+            onChange={(e) => setHasKidsFilter(e.target.value)}
+            className="px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option value="all">All Families</option>
+            <option value="true">Has Kids</option>
+          </select>
+
+          <select
+            value={hasYouthFilter}
+            onChange={(e) => setHasYouthFilter(e.target.value)}
+            className="px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option value="all">All Families</option>
+            <option value="true">Has Youth</option>
+          </select>
+        </div>
+      </div>
+
       {loading ? (
         <div className="text-center py-12 text-white/60">Loading families...</div>
+      ) : filteredFamilies.length === 0 ? (
+        <div className="text-center py-12 text-white/60">No families found matching your filters</div>
       ) : (
-        <div className="space-y-4">
-          {families.map((family) => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredFamilies.map((family) => (
             <div
               key={family.id}
-              className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6"
+              onClick={() => {
+                setSelectedFamily(family);
+                setShowFamilyDetail(true);
+              }}
+              className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-white mb-2">
-                    {family.members.map(m => m.preferred_name || m.full_name).join(', ')}
+              {/* Family Header */}
+              <div className="mb-4">
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="text-xl font-semibold text-white">
+                    {family.family_name || family.members.map(m => m.name).join(', ')}
                   </h3>
-                  <div className="flex items-center gap-4 text-sm text-white/60">
-                    <span>{family.members.length} {family.members.length === 1 ? 'member' : 'members'}</span>
-                    <span className="flex items-center gap-1">
-                      <HeartIcon className="h-4 w-4" />
-                      Household Heartbeat: {family.household_heartbeat}
-                    </span>
-                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getHealthBgColor(family.heartbeat_status)} ${getHealthColor(family.heartbeat_status)}`}>
+                    {getHealthLabel(family.heartbeat_status)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-white/60">
+                  <span>{family.members.length} {family.members.length === 1 ? 'member' : 'members'}</span>
+                  {family.campus && <span>{family.campus}</span>}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-white/60 text-sm mb-1">Attendance Together</div>
+              {/* Heartbeat Score - Big */}
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <HeartIcon className="h-5 w-5 text-red-400" />
+                  <span className="text-sm text-white/60">Household Heartbeat</span>
+                </div>
+                <div className="text-4xl font-bold text-white">
+                  {family.household_heartbeat}
+                </div>
+              </div>
+
+              {/* Key Metrics Grid */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-white/5 rounded-lg p-3">
+                  <div className="text-white/60 text-xs mb-1">Attendance Together</div>
                   <div className="text-white text-lg font-semibold">
                     {family.attendance_together}%
                   </div>
                 </div>
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-white/60 text-sm mb-1">Parent Giving</div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <div className="text-white/60 text-xs mb-1">Groups</div>
                   <div className="text-white text-lg font-semibold">
-                    {family.parent_giving ? 'Yes' : 'No'}
+                    {family.groups_involvement?.length || 0}
                   </div>
                 </div>
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-white/60 text-sm mb-1">Status</div>
-                  <div className={`text-lg font-semibold ${
-                    family.attendance_drifting ? 'text-orange-400' : 'text-green-400'
-                  }`}>
-                    {family.attendance_drifting ? 'Drifting' : 'Stable'}
+                <div className="bg-white/5 rounded-lg p-3">
+                  <div className="text-white/60 text-xs mb-1">Serving</div>
+                  <div className="text-white text-lg font-semibold">
+                    {family.serving_patterns?.length || 0}
+                  </div>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <div className="text-white/60 text-xs mb-1">Giving</div>
+                  <div className="text-white text-lg font-semibold capitalize">
+                    {family.giving_rhythm || 'none'}
                   </div>
                 </div>
               </div>
+
+              {/* Status Indicators */}
+              <div className="flex flex-wrap gap-2">
+                {family.new_people_count > 0 && (
+                  <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded border border-blue-500/30">
+                    {family.new_people_count} New
+                  </span>
+                )}
+                {family.new_christians_count > 0 && (
+                  <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded border border-purple-500/30">
+                    {family.new_christians_count} New Christian{family.new_christians_count > 1 ? 's' : ''}
+                  </span>
+                )}
+                {family.care_cases?.length > 0 && (
+                  <span className="px-2 py-1 bg-red-500/20 text-red-300 text-xs rounded border border-red-500/30">
+                    {family.care_cases.length} Care Case{family.care_cases.length > 1 ? 's' : ''}
+                  </span>
+                )}
+                {family.attendance_drifting && (
+                  <span className="px-2 py-1 bg-orange-500/20 text-orange-300 text-xs rounded border border-orange-500/30">
+                    Drifting
+                  </span>
+                )}
+              </div>
+
+              {/* AI Summary Preview */}
+              {family.ai_summary && (
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  <div className="flex items-start gap-2">
+                    <SparklesIcon className="h-4 w-4 text-purple-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-white/70 line-clamp-2">{family.ai_summary}</p>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -120,5 +310,264 @@ const Families = () => {
   );
 };
 
-export default Families;
+// Family Detail View Component
+const FamilyDetailView = ({ family, onBack }) => {
+  return (
+    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-y-auto">
+      <button
+        onClick={onBack}
+        className="mb-6 flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+      >
+        <span>←</span> Back to Families
+      </button>
 
+      {/* Family Header */}
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold text-white mb-2">{family.family_name}</h2>
+        <div className="flex items-center gap-4 text-white/60">
+          <span>{family.members.length} {family.members.length === 1 ? 'member' : 'members'}</span>
+          {family.campus && <span>{family.campus}</span>}
+        </div>
+      </div>
+
+      {/* Heartbeat Score - Large Display */}
+      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <HeartIcon className="h-6 w-6 text-red-400" />
+              <span className="text-white/60">Household Heartbeat</span>
+            </div>
+            <div className="text-6xl font-bold text-white mb-2">
+              {family.household_heartbeat}
+            </div>
+            <span className={`px-4 py-2 rounded-full text-sm font-semibold border inline-block ${
+              family.heartbeat_status === 'healthy' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' :
+              family.heartbeat_status === 'watch' ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' :
+              family.heartbeat_status === 'at_risk' ? 'bg-orange-500/20 border-orange-500/40 text-orange-300' :
+              'bg-red-500/20 border-red-500/40 text-red-300'
+            }`}>
+              {family.heartbeat_status === 'healthy' ? 'Healthy' :
+               family.heartbeat_status === 'watch' ? 'Watch' :
+               family.heartbeat_status === 'at_risk' ? 'At Risk' : 'Critical'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Members List */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">Family Members</h3>
+          <div className="space-y-3">
+            {family.members.map((member) => (
+              <div key={member.id} className="bg-white/5 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-white font-medium">{member.name}</div>
+                    <div className="text-sm text-white/60">{member.role} • {member.department || 'No department'}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white font-semibold">{member.heartbeat_score}</div>
+                    <div className="text-xs text-white/60">Heartbeat</div>
+                  </div>
+                </div>
+                {member.connect_group && (
+                  <div className="text-sm text-white/60">Group: {member.connect_group}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Attendance Timeline */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">Attendance Timeline</h3>
+          <div className="mb-4">
+            <div className="text-3xl font-bold text-white mb-1">{family.attendance_together}%</div>
+            <div className="text-sm text-white/60">Attendance Together</div>
+          </div>
+          {family.attendance_timeline && family.attendance_timeline.length > 0 ? (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {family.attendance_timeline.slice(0, 10).map((event, idx) => (
+                <div key={idx} className="flex items-center justify-between text-sm">
+                  <span className="text-white/60">{new Date(event.date).toLocaleDateString()}</span>
+                  <span className="text-white">
+                    {event.count} of {family.members.length} {event.all_present && '✓'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-white/60 text-sm">No recent attendance data</div>
+          )}
+        </div>
+
+        {/* Groups Involvement */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">Groups Involvement</h3>
+          {family.groups_involvement && family.groups_involvement.length > 0 ? (
+            <div className="space-y-2">
+              {family.groups_involvement.map((group, idx) => (
+                <div key={idx} className="bg-white/5 rounded-lg p-3 text-white">
+                  {group}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-white/60 text-sm">No groups</div>
+          )}
+        </div>
+
+        {/* Serving Patterns */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">Serving & Volunteer Patterns</h3>
+          {family.serving_patterns && family.serving_patterns.length > 0 ? (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {family.serving_patterns.slice(0, 10).map((pattern, idx) => (
+                <div key={idx} className="bg-white/5 rounded-lg p-3">
+                  <div className="text-white font-medium">{pattern.person_name}</div>
+                  <div className="text-sm text-white/60">{pattern.role} • {pattern.team_name}</div>
+                  {pattern.date && (
+                    <div className="text-xs text-white/40 mt-1">
+                      {new Date(pattern.date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-white/60 text-sm">No serving records</div>
+          )}
+        </div>
+
+        {/* Giving Rhythm */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">Giving Rhythm</h3>
+          <div className="text-2xl font-bold text-white mb-2 capitalize">{family.giving_rhythm || 'none'}</div>
+          <div className="text-sm text-white/60">
+            {family.parent_giving ? 'Parents are giving' : 'No giving activity'}
+          </div>
+        </div>
+
+        {/* New People & New Christians */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">New People & New Christians</h3>
+          <div className="space-y-3">
+            {family.new_people_count > 0 && (
+              <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-3">
+                <div className="text-blue-300 font-medium">{family.new_people_count} New People</div>
+                <div className="text-sm text-blue-200/60">Joined in last 30 days</div>
+              </div>
+            )}
+            {family.new_christians_count > 0 && (
+              <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-3">
+                <div className="text-purple-300 font-medium">{family.new_christians_count} New Christian{family.new_christians_count > 1 ? 's' : ''}</div>
+                <div className="text-sm text-purple-200/60">In the last 2 years</div>
+              </div>
+            )}
+            {family.new_people_count === 0 && family.new_christians_count === 0 && (
+              <div className="text-white/60 text-sm">No new people or new Christians</div>
+            )}
+          </div>
+        </div>
+
+        {/* Care Cases */}
+        {family.care_cases && family.care_cases.length > 0 && (
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Pastoral Care Cases</h3>
+            <div className="space-y-3">
+              {family.care_cases.map((case_item) => (
+                <div key={case_item.id} className="bg-red-500/20 border border-red-500/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-red-300 font-medium">{case_item.person_name}</div>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      case_item.priority === 'high' ? 'bg-red-500/40 text-red-200' :
+                      case_item.priority === 'medium' ? 'bg-orange-500/40 text-orange-200' :
+                      'bg-yellow-500/40 text-yellow-200'
+                    }`}>
+                      {case_item.priority}
+                    </span>
+                  </div>
+                  {case_item.notes && (
+                    <div className="text-sm text-red-200/60">{case_item.notes}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pastoral Notes */}
+        {family.pastoral_notes && family.pastoral_notes.length > 0 && (
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Pastoral Notes</h3>
+            <div className="space-y-3">
+              {family.pastoral_notes.map((note, idx) => (
+                <div key={idx} className="bg-white/5 rounded-lg p-3">
+                  <div className="text-white font-medium mb-1">{note.person_name}</div>
+                  <div className="text-sm text-white/60">{note.notes}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Summary */}
+        {family.ai_summary && (
+          <div className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-purple-500/30 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <SparklesIcon className="h-5 w-5 text-purple-400" />
+              <h3 className="text-xl font-semibold text-white">AI Family Health Summary</h3>
+            </div>
+            <p className="text-white/80 leading-relaxed">{family.ai_summary}</p>
+          </div>
+        )}
+
+        {/* Next Steps */}
+        {family.next_steps && family.next_steps.length > 0 && (
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <SparklesIcon className="h-5 w-5 text-blue-400" />
+              <h3 className="text-xl font-semibold text-white">AI-Generated Next Steps</h3>
+            </div>
+            <div className="space-y-3">
+              {family.next_steps.map((step, idx) => (
+                <div key={idx} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                  <div className="flex items-start gap-3">
+                    {step.type === 'follow_up' && <UserPlusIcon className="h-5 w-5 text-blue-400 mt-0.5" />}
+                    {step.type === 'discipleship' && <SparklesIcon className="h-5 w-5 text-purple-400 mt-0.5" />}
+                    {step.type === 'engagement' && <CalendarIcon className="h-5 w-5 text-amber-400 mt-0.5" />}
+                    {step.type === 'care' && <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mt-0.5" />}
+                    <div className="flex-1">
+                      <div className="text-white font-medium mb-1">{step.title}</div>
+                      <div className="text-sm text-white/60">{step.description}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="mt-6 flex gap-4">
+        <button className="px-6 py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2">
+          <ChatBubbleLeftRightIcon className="h-5 w-5" />
+          Message Family
+        </button>
+        <button className="px-6 py-3 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg transition-colors flex items-center gap-2">
+          <PencilIcon className="h-5 w-5" />
+          Add Pastoral Note
+        </button>
+        <button className="px-6 py-3 bg-green-600/20 hover:bg-green-600/30 text-green-300 border border-green-500/30 rounded-lg transition-colors flex items-center gap-2">
+          <UserPlusIcon className="h-5 w-5" />
+          Assign Leader
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default Families;
