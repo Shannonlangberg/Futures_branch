@@ -28,6 +28,7 @@ except Exception as e:
 import json
 from typing import Dict, List, Optional, Any
 import logging
+from sqlalchemy import inspect, text, bindparam
 
 try:
     from dotenv import load_dotenv
@@ -296,6 +297,72 @@ scope = [
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/drive"
 ]
+
+# --------------------------------------------------------------------------
+# Event image helpers (works even when image_url column is missing)
+# --------------------------------------------------------------------------
+
+def ensure_event_images_table():
+    """Ensure the event_images mapping table exists."""
+    try:
+        db.session.execute(
+            text("""
+                CREATE TABLE IF NOT EXISTS event_images (
+                    event_id INTEGER PRIMARY KEY,
+                    filename TEXT NOT NULL,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        )
+        db.session.commit()
+    except Exception as e:
+        logger.error(f"[EVENT_IMAGE] Failed to ensure event_images table: {e}", exc_info=True)
+
+
+def set_event_image(event_id: int, filename: str):
+    """Store the image filename mapping for the given event."""
+    if not event_id or not filename:
+        return
+    try:
+        ensure_event_images_table()
+        db.session.execute(
+            text("""
+                INSERT INTO event_images (event_id, filename, updated_at)
+                VALUES (:event_id, :filename, CURRENT_TIMESTAMP)
+                ON CONFLICT(event_id) DO UPDATE
+                SET filename = excluded.filename,
+                    updated_at = CURRENT_TIMESTAMP
+            """),
+            {"event_id": event_id, "filename": filename}
+        )
+        db.session.commit()
+        logger.info(f"[EVENT_IMAGE] Stored mapping event_id={event_id} -> {filename}")
+    except Exception as e:
+        logger.error(f"[EVENT_IMAGE] Failed to store mapping for event {event_id}: {e}", exc_info=True)
+
+
+def get_event_image(event_id: int) -> Optional[str]:
+    """Get the image filename mapped to the event."""
+    if not event_id:
+        return None
+    try:
+        ensure_event_images_table()
+        row = db.session.execute(
+            text("SELECT filename FROM event_images WHERE event_id = :event_id"),
+            {"event_id": event_id}
+        ).fetchone()
+        if row and row[0]:
+            return row[0]
+    except Exception as e:
+        logger.error(f"[EVENT_IMAGE] Failed to fetch mapping for event {event_id}: {e}", exc_info=True)
+    return None
+
+
+def extract_image_filename(image_url: Optional[str]) -> Optional[str]:
+    """Extract filename from full image URL (/api/uploads/events/<filename>)."""
+    if not image_url:
+        return None
+    return os.path.basename(image_url)
 print("[DEBUG] Finished Google Sheets Auth scope definition")
 
 print("[DEBUG] Starting Google Sheets client initialization")
@@ -19210,6 +19277,8 @@ def create_event():
         
         requires_payment = data.get('requires_payment', False) if price else False
         stripe_price_id = data.get('stripe_price_id', None) if requires_payment else None
+        raw_image_url = data.get('image_url')
+        image_filename = extract_image_filename(raw_image_url)
         
         # Parse tags if provided
         tags_json = None
@@ -19276,10 +19345,10 @@ def create_event():
         elif data.get('beacon_zone_id'):
             logger.warning("beacon_zone_id column not found in events table - migration 029_add_beacon_to_events.sql may not have run yet")
         
-        if 'image_url' in columns and data.get('image_url'):
+        if 'image_url' in columns and raw_image_url:
             insert_columns.append('image_url')
-            insert_values.append(data['image_url'])
-        elif data.get('image_url'):
+            insert_values.append(raw_image_url)
+        elif raw_image_url:
             logger.warning("image_url column not found in events table - migration 034_add_image_url_to_events.sql may not have run yet")
         
         # Build and execute raw SQL INSERT
@@ -19293,20 +19362,23 @@ def create_event():
         
         try:
             result = db.session.execute(text(sql), insert_values)
-        db.session.commit()
+            db.session.commit()
             event_id = result.lastrowid
+            
+            if event_id and image_filename:
+                set_event_image(event_id, image_filename)
             
             # Fetch the created event to return it
             new_event = Event.query.get(event_id)
             if not new_event:
-                # If ORM can't fetch it (due to missing columns), construct response manually
-                return jsonify({
+                response_data = {
                     'message': 'Event created successfully',
                     'event': {
                         'id': event_id,
                         'title': data['title']
                     }
-                }), 201
+                }
+                return jsonify(response_data), 201
             
             return jsonify({
                 'message': 'Event created successfully',
