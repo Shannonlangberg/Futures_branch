@@ -2114,10 +2114,19 @@ class GivingTransaction(db.Model):
     person = db.relationship('Person', backref='giving_transactions')
     
     def to_dict(self):
+        # Safely get person name without triggering lazy load that might fail
+        person_name = None
+        try:
+            if hasattr(self, 'person') and self.person:
+                person_name = getattr(self.person, 'full_name', None)
+        except Exception:
+            # If lazy load fails (e.g., missing columns), just use None
+            person_name = None
+        
         return {
             'id': self.id,
             'person_id': self.person_id,
-            'person_name': self.person.full_name if self.person else None,
+            'person_name': person_name,
             'stripe_payment_intent_id': self.stripe_payment_intent_id,
             'amount': self.amount,
             'currency': self.currency,
