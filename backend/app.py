@@ -19101,12 +19101,18 @@ def upload_event_image():
         from PIL import Image
         import uuid
         
+        logger.info(f"[UPLOAD] Received upload request. Files: {list(request.files.keys())}")
+        
         if 'image' not in request.files:
+            logger.error("[UPLOAD] No 'image' key in request.files")
             return jsonify({'error': 'No image file provided'}), 400
         
         file = request.files['image']
         if file.filename == '':
+            logger.error("[UPLOAD] Empty filename")
             return jsonify({'error': 'No file selected'}), 400
+        
+        logger.info(f"[UPLOAD] Processing file: {file.filename}, content_type: {file.content_type}")
         
         # Validate file type
         allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -19137,13 +19143,15 @@ def upload_event_image():
         # Return URL path (relative to backend/uploads)
         image_url = f"/api/uploads/events/{filename}"
         
+        logger.info(f"[UPLOAD] Successfully uploaded image: {filename}, URL: {image_url}")
+        
         return jsonify({
             'image_url': image_url,
             'filename': filename
         }), 200
         
     except Exception as e:
-        logger.error(f"Error uploading event image: {e}", exc_info=True)
+        logger.error(f"[UPLOAD] Error uploading event image: {e}", exc_info=True)
         return jsonify({'error': f'Failed to upload image: {str(e)}'}), 500
 
 @app.route('/api/uploads/events/<filename>')

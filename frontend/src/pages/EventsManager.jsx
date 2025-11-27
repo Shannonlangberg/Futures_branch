@@ -193,7 +193,12 @@ const EventsManager = () => {
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+
+    console.log('Uploading image:', file.name, file.type, file.size);
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -212,23 +217,42 @@ const EventsManager = () => {
       const formData = new FormData();
       formData.append('image', file);
 
+      console.log('Sending upload request to /api/events/upload-image');
+
       const response = await fetch('/api/events/upload-image', {
         method: 'POST',
         credentials: 'include',
         body: formData
       });
 
+      console.log('Upload response status:', response.status, response.statusText);
+
       if (response.ok) {
         const data = await response.json();
-        setFormData(prev => ({ ...prev, image_url: data.image_url }));
-        setImagePreview(data.image_url);
+        console.log('Upload successful, received data:', data);
+        if (data.image_url) {
+          setFormData(prev => ({ ...prev, image_url: data.image_url }));
+          setImagePreview(data.image_url);
+          console.log('Image preview set to:', data.image_url);
+        } else {
+          console.error('No image_url in response:', data);
+          alert('Upload succeeded but no image URL returned');
+        }
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to upload image');
+        const errorText = await response.text();
+        console.error('Upload failed:', response.status, errorText);
+        let errorMessage = 'Failed to upload image';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('Failed to upload image');
+      alert(`Failed to upload image: ${error.message || error}`);
     } finally {
       setUploadingImage(false);
     }
