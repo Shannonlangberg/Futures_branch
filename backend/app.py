@@ -914,18 +914,18 @@ if not database_url or database_url.startswith('sqlite:///'):
         # Local development - use absolute path
         if database_url.startswith('sqlite:///'):
             relative_path = database_url.replace('sqlite:///', '')
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Check if file exists in instance directory first (where it actually is)
-        instance_path = os.path.join(backend_dir, 'instance', relative_path)
-        if os.path.exists(instance_path):
-            database_url = f'sqlite:///{instance_path}'
-            logger.info(f"Using database file: {instance_path}")
-        else:
-            # Use absolute path in backend directory
-            abs_path = os.path.join(backend_dir, relative_path)
-            database_url = f'sqlite:///{abs_path}'
-            logger.info(f"Using database file: {abs_path}")
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Check if file exists in instance directory first (where it actually is)
+            instance_path = os.path.join(backend_dir, 'instance', relative_path)
+            if os.path.exists(instance_path):
+                database_url = f'sqlite:///{instance_path}'
+                logger.info(f"Using database file: {instance_path}")
+            else:
+                # Use absolute path in backend directory
+                abs_path = os.path.join(backend_dir, relative_path)
+                database_url = f'sqlite:///{abs_path}'
+                logger.info(f"Using database file: {abs_path}")
         
         if not volume_found:
             logger.warning("⚠️  No persistent volume detected! Database will be lost on deployment.")
