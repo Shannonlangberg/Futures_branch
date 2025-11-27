@@ -1122,6 +1122,26 @@ def run_migrations():
                     for statement in statements:
                         if not statement:
                             continue
+                        
+                        # Check if this is an ALTER TABLE ADD COLUMN statement
+                        is_add_column = statement.strip().upper().startswith('ALTER TABLE') and 'ADD COLUMN' in statement.upper()
+                        
+                        if is_add_column:
+                            # Extract column name from statement
+                            import re
+                            column_match = re.search(r'ADD COLUMN\s+(\w+)', statement, re.IGNORECASE)
+                            if column_match:
+                                column_name = column_match.group(1)
+                                # Check if column already exists
+                                try:
+                                    cursor.execute(f"PRAGMA table_info(persons)")
+                                    columns = [row[1] for row in cursor.fetchall()]
+                                    if column_name in columns:
+                                        logger.info(f"Migration {migration_file}: Column {column_name} already exists, skipping")
+                                        continue
+                                except Exception as pragma_error:
+                                    logger.warning(f"Migration {migration_file}: Could not check column existence: {pragma_error}")
+                        
                         try:
                             cursor.execute(statement)
                             conn.commit()  # Commit after each successful statement
@@ -1129,7 +1149,7 @@ def run_migrations():
                         except sqlite3.OperationalError as e:
                             error_msg = str(e).lower()
                             # If column already exists, that's okay - skip this statement
-                            if 'duplicate column' in error_msg or 'already exists' in error_msg or 'duplicate column name' in error_msg or 'duplicate column name: step_actions' in error_msg:
+                            if 'duplicate column' in error_msg or 'already exists' in error_msg or 'duplicate column name' in error_msg or 'duplicate column name: step_actions' in error_msg or 'duplicate column name: family_id' in error_msg:
                                 logger.info(f"Migration {migration_file}: Column already exists, skipping statement: {statement[:50]}...")
                                 conn.commit()  # Commit anyway
                                 continue  # Skip this statement, continue with next
@@ -13694,7 +13714,66 @@ def get_persons():
         
         # Force fresh query by expiring session and querying directly
         db.session.expire_all()
-        persons = query.order_by(Person.full_name).all()
+        
+        # Check if new columns exist before querying
+        # Use raw SQL to check table schema
+        try:
+            from sqlalchemy import text
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
+        
+        # If new columns don't exist, use raw SQL to select only existing columns
+        if not has_new_columns:
+            logger.info("New Person columns not found, using raw SQL query")
+            # Build SELECT statement with only existing columns
+            base_columns = [
+                'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+            ]
+            
+            # Build WHERE clause
+            where_clauses = []
+            params = {}
+            
+            if not include_archived:
+                where_clauses.append("is_active = 1")
+            
+            if campus_filter and campus_filter != 'all_campuses':
+                where_clauses.append("campus = :campus")
+                params['campus'] = campus_filter
+            
+            if department_filter and department_filter != 'all':
+                where_clauses.append("LOWER(department) = LOWER(:department)")
+                params['department'] = department_filter
+            
+            if search:
+                where_clauses.append("(full_name LIKE :search OR email LIKE :search OR preferred_name LIKE :search)")
+                params['search'] = f"%{search}%"
+            
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            # Execute raw SQL
+            sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE {where_sql} ORDER BY full_name"
+            rows = db.session.execute(text(sql), params).fetchall()
+            
+            # Convert rows to Person-like objects
+            persons = []
+            for row in rows:
+                person_dict = dict(zip(base_columns, row))
+                # Create a minimal Person object
+                person = Person()
+                for key, value in person_dict.items():
+                    setattr(person, key, value)
+                persons.append(person)
+        else:
+            # New columns exist, use normal query
+            persons = query.order_by(Person.full_name).all()
         
         # Apply new_people filter (last 30 days)
         if new_people:

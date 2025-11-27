@@ -1,12 +1,25 @@
 -- Migration: Add People Section fields to persons table and create pastoral_care_cases table
 -- Date: 2024-01-XX
 
--- Add new fields to persons table
-ALTER TABLE persons ADD COLUMN IF NOT EXISTS family_id TEXT;
-ALTER TABLE persons ADD COLUMN IF NOT EXISTS is_new_christian INTEGER DEFAULT 0;
-ALTER TABLE persons ADD COLUMN IF NOT EXISTS new_christian_date DATE;
-ALTER TABLE persons ADD COLUMN IF NOT EXISTS follow_up_status TEXT;
-ALTER TABLE persons ADD COLUMN IF NOT EXISTS service_attended TEXT;
+-- Add new fields to persons table (SQLite doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN)
+-- We'll check for column existence in the migration runner, but include the columns here
+-- The migration runner will skip if columns already exist
+
+-- Check and add family_id
+-- Note: Migration runner will handle checking if column exists
+ALTER TABLE persons ADD COLUMN family_id TEXT;
+
+-- Check and add is_new_christian
+ALTER TABLE persons ADD COLUMN is_new_christian INTEGER DEFAULT 0;
+
+-- Check and add new_christian_date
+ALTER TABLE persons ADD COLUMN new_christian_date DATE;
+
+-- Check and add follow_up_status
+ALTER TABLE persons ADD COLUMN follow_up_status TEXT;
+
+-- Check and add service_attended
+ALTER TABLE persons ADD COLUMN service_attended TEXT;
 
 -- Create pastoral_care_cases table
 CREATE TABLE IF NOT EXISTS pastoral_care_cases (

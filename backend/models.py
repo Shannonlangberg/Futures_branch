@@ -85,11 +85,12 @@ class Person(db.Model):
             'filled_holy_spirit': safe_date_serialize(self.filled_holy_spirit),
             'rise_attended': safe_date_serialize(self.rise_attended),
             'first_served_on': safe_date_serialize(self.first_served_on),
-            'family_id': self.family_id,
-            'is_new_christian': self.is_new_christian,
-            'new_christian_date': safe_date_serialize(self.new_christian_date),
-            'follow_up_status': self.follow_up_status,
-            'service_attended': self.service_attended,
+            # New fields - use getattr with defaults in case migration hasn't run yet
+            'family_id': getattr(self, 'family_id', None),
+            'is_new_christian': getattr(self, 'is_new_christian', False),
+            'new_christian_date': safe_date_serialize(getattr(self, 'new_christian_date', None)),
+            'follow_up_status': getattr(self, 'follow_up_status', None),
+            'service_attended': getattr(self, 'service_attended', None),
         }
 
 
