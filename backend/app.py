@@ -1585,11 +1585,11 @@ def load_user(user_id):
             ''', (user_id,))
         except Exception:
             # Fallback if custom_permissions column doesn't exist yet
-        cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active
-            FROM users
-            WHERE id = ? AND active = 1
-        ''', (user_id,))
+            cursor.execute('''
+                SELECT id, username, password_hash, full_name, email, role, campus, active
+                FROM users
+                WHERE id = ? AND active = 1
+            ''', (user_id,))
         
         row = cursor.fetchone()
         conn.close()
@@ -1648,9 +1648,9 @@ def authenticate_user(username_or_email, password):
             error_msg = str(col_error).lower()
             if 'no such column' in error_msg or 'custom_permissions' in error_msg:
                 logger.info("custom_permissions column doesn't exist yet, using fallback query")
-        cursor.execute('''
-            SELECT id, username, password_hash, full_name, email, role, campus, active
-            FROM users
+                cursor.execute('''
+                    SELECT id, username, password_hash, full_name, email, role, campus, active
+                    FROM users
                     WHERE (LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)) AND active = 1
                 ''', (username_or_email.strip(), username_or_email.strip()))
             else:
@@ -9579,26 +9579,26 @@ def get_campuses():
             default_campus = "all_campuses" if len(allowed_campuses) > 1 else (allowed_campuses[0] if allowed_campuses else "all_campuses")
     else:
         # No custom restrictions, use role-based filtering
-    if current_user.role == 'admin' or current_user.role == 'senior_leader':
-        # Admin and senior leaders see all campuses
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
-    elif current_user.role == 'campus_pastor':
-        # Campus pastors only see their assigned campus
-        filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
-        default_campus = current_user.campus
-    elif current_user.role == 'finance':
-        # Finance users see all campuses (for logging purposes)
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
-    elif current_user.role == 'pastor':
-        # Pastors see all campuses (for logging purposes)
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
-    else:
-        # Default to all campuses for unknown roles
-        filtered_campuses = active_campuses
-        default_campus = "all_campuses"
+        if current_user.role == 'admin' or current_user.role == 'senior_leader':
+            # Admin and senior leaders see all campuses
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
+        elif current_user.role == 'campus_pastor':
+            # Campus pastors only see their assigned campus
+            filtered_campuses = [c for c in active_campuses if c['id'] == current_user.campus]
+            default_campus = current_user.campus
+        elif current_user.role == 'finance':
+            # Finance users see all campuses (for logging purposes)
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
+        elif current_user.role == 'pastor':
+            # Pastors see all campuses (for logging purposes)
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
+        else:
+            # Default to all campuses for unknown roles
+            filtered_campuses = active_campuses
+            default_campus = "all_campuses"
     
     return jsonify({
         "campuses": [{
@@ -15187,7 +15187,7 @@ def delete_person(person_id):
                 text("DELETE FROM persons WHERE id = :person_id"),
                 {'person_id': person_id}
             )
-        db.session.commit()
+            db.session.commit()
             logger.info(f"Person {person_id} deleted using raw SQL")
         except Exception as e:
             db.session.rollback()
@@ -18448,8 +18448,8 @@ def get_events():
         
         # Log total active events count - handle missing columns gracefully
         try:
-        total_active = Event.query.filter_by(is_active=True).count()
-        logger.info(f"[EVENTS] Total active events in database: {total_active}")
+            total_active = Event.query.filter_by(is_active=True).count()
+            logger.info(f"[EVENTS] Total active events in database: {total_active}")
         except Exception as count_error:
             error_str = str(count_error).lower()
             if 'no such column' in error_str and 'image_url' in error_str:
@@ -18486,12 +18486,12 @@ def get_events():
             if hasattr(Event, 'status') and status in ['draft', 'published', 'cancelled', 'completed']:
                 query = query.filter(Event.status == status)
             elif status == 'upcoming':
-            query = query.filter(
-                db.or_(
-                    Event.start_time > datetime.utcnow(),
-                    Event.start_time.is_(None)
+                query = query.filter(
+                    db.or_(
+                        Event.start_time > datetime.utcnow(),
+                        Event.start_time.is_(None)
+                    )
                 )
-            )
         elif status == 'past':
             query = query.filter(
                 db.and_(
@@ -18556,8 +18556,8 @@ def get_events():
         
         # Execute query - handle missing image_url column gracefully
         try:
-        events = query.all()
-        logger.info(f"[EVENTS] Found {len(events)} events after filtering")
+            events = query.all()
+            logger.info(f"[EVENTS] Found {len(events)} events after filtering")
         except Exception as query_error:
             error_str = str(query_error).lower()
             if 'no such column' in error_str and 'image_url' in error_str:
@@ -19372,7 +19372,7 @@ def create_event():
         
         try:
             result = db.session.execute(text(sql), insert_values)
-        db.session.commit()
+            db.session.commit()
             event_id = result.lastrowid
             
             if event_id and image_filename:
