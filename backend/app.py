@@ -913,7 +913,7 @@ if not database_url or database_url.startswith('sqlite:///'):
         
         # Local development - use absolute path
         if database_url.startswith('sqlite:///'):
-        relative_path = database_url.replace('sqlite:///', '')
+            relative_path = database_url.replace('sqlite:///', '')
         backend_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Check if file exists in instance directory first (where it actually is)
