@@ -361,9 +361,26 @@ def get_person_heartbeat(person_id):
         # Also get attendance from engagement_profiles.attendance_log (mobile app logs here)
         attendance_from_log = []
         try:
-            if person.engagement_profile:
+            # Get engagement profile using raw SQL to avoid column issues
+            engagement_row = None
+            if not has_new_columns:
+                # Use raw SQL to get engagement profile
+                try:
+                    engagement_row = db.session.execute(
+                        text("SELECT attendance_log FROM engagement_profiles WHERE person_id = :person_id"),
+                        {'person_id': person_id}
+                    ).fetchone()
+                except Exception as e:
+                    logger.warning(f"Error fetching engagement profile with raw SQL: {e}")
+                    engagement_row = None
+            else:
+                # Use ORM if columns exist
+                if hasattr(person, 'engagement_profile') and person.engagement_profile:
+                    engagement_row = (person.engagement_profile.attendance_log,)
+            
+            if engagement_row and engagement_row[0]:
                 import json as json_lib
-                attendance_log_str = person.engagement_profile.attendance_log or '[]'
+                attendance_log_str = engagement_row[0] or '[]'
                 attendance_log = json_lib.loads(attendance_log_str) if attendance_log_str else []
                 
                 # Convert attendance_log entries to same format as AttendanceEvent
@@ -378,7 +395,7 @@ def get_person_heartbeat(person_id):
                                     'person_id': person_id,
                                     'created_at': entry_time.isoformat(),
                                     'source': entry.get('zones', ['sunday_service'])[0] if entry.get('zones') else 'sunday_service',
-                                    'campus': entry.get('campus', person.campus),
+                                    'campus': entry.get('campus', getattr(person, 'campus', None)),
                                     'zones': entry.get('zones', ['sunday_service'])
                                 })
                         except Exception as e:
@@ -428,60 +445,66 @@ def get_person_heartbeat(person_id):
         person_milestones = []
         
         # Debug: Log person milestone fields
-        logger.info(f"DEBUG: Person {person_id} milestone fields - baptised_on: {person.baptised_on}, dna_completed: {person.dna_completed}, filled_holy_spirit: {person.filled_holy_spirit}")
+        baptised_on = getattr(person, 'baptised_on', None)
+        dna_completed = getattr(person, 'dna_completed', None)
+        filled_holy_spirit = getattr(person, 'filled_holy_spirit', None)
+        rise_attended = getattr(person, 'rise_attended', None)
+        first_served_on = getattr(person, 'first_served_on', None)
         
-        if person.baptised_on:
+        logger.info(f"DEBUG: Person {person_id} milestone fields - baptised_on: {baptised_on}, dna_completed: {dna_completed}, filled_holy_spirit: {filled_holy_spirit}")
+        
+        if baptised_on:
             person_milestones.append({
                 'id': f'person_milestone_baptism_{person.id}',
                 'person_id': person_id,
                 'type': 'baptism',
                 'description': 'Baptism',
-                'date': person.baptised_on.isoformat() if person.baptised_on else None,
-                'created_at': person.baptised_on.isoformat() if person.baptised_on else None,
+                'date': baptised_on.isoformat() if baptised_on else None,
+                'created_at': baptised_on.isoformat() if baptised_on else None,
                 'is_person_milestone': True
             })
         
-        if person.dna_completed:
+        if dna_completed:
             person_milestones.append({
                 'id': f'person_milestone_dna_{person.id}',
                 'person_id': person_id,
                 'type': 'dna_completed',
                 'description': 'DNA Completed',
-                'date': person.dna_completed.isoformat() if person.dna_completed else None,
-                'created_at': person.dna_completed.isoformat() if person.dna_completed else None,
+                'date': dna_completed.isoformat() if dna_completed else None,
+                'created_at': dna_completed.isoformat() if dna_completed else None,
                 'is_person_milestone': True
             })
         
-        if person.filled_holy_spirit:
+        if filled_holy_spirit:
             person_milestones.append({
                 'id': f'person_milestone_holy_spirit_{person.id}',
                 'person_id': person_id,
                 'type': 'filled_holy_spirit',
                 'description': 'Filled with Holy Spirit',
-                'date': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None,
-                'created_at': person.filled_holy_spirit.isoformat() if person.filled_holy_spirit else None,
+                'date': filled_holy_spirit.isoformat() if filled_holy_spirit else None,
+                'created_at': filled_holy_spirit.isoformat() if filled_holy_spirit else None,
                 'is_person_milestone': True
             })
         
-        if person.rise_attended:
+        if rise_attended:
             person_milestones.append({
                 'id': f'person_milestone_rise_{person.id}',
                 'person_id': person_id,
                 'type': 'rise_attended',
                 'description': 'RISE Attended',
-                'date': person.rise_attended.isoformat() if person.rise_attended else None,
-                'created_at': person.rise_attended.isoformat() if person.rise_attended else None,
+                'date': rise_attended.isoformat() if rise_attended else None,
+                'created_at': rise_attended.isoformat() if rise_attended else None,
                 'is_person_milestone': True
             })
         
-        if person.first_served_on:
+        if first_served_on:
             person_milestones.append({
                 'id': f'person_milestone_first_served_{person.id}',
                 'person_id': person_id,
                 'type': 'first_served',
                 'description': 'First Time Serving',
-                'date': person.first_served_on.isoformat() if person.first_served_on else None,
-                'created_at': person.first_served_on.isoformat() if person.first_served_on else None,
+                'date': first_served_on.isoformat() if first_served_on else None,
+                'created_at': first_served_on.isoformat() if first_served_on else None,
                 'is_person_milestone': True
             })
         
