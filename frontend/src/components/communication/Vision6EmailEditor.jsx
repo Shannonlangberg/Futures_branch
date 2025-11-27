@@ -670,6 +670,12 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
           writing-mode: horizontal-tb !important;
           text-orientation: mixed !important;
         }
+        /* Force LTR on the entire editor container */
+        .email-editor-container,
+        .email-editor-container * {
+          direction: ltr !important;
+          unicode-bidi: embed !important;
+        }
         [contenteditable="true"] {
           caret-color: #000000 !important;
         }
@@ -825,7 +831,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
         </div>
 
         {/* Email Preview/Editor */}
-        <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-100 p-8 email-editor-container">
+        <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-100 p-8 email-editor-container" dir="ltr" lang="en" style={{ direction: 'ltr', unicodeBidi: 'embed' }}>
           <div className="max-w-5xl mx-auto relative">
             <div 
               style={{
@@ -1076,6 +1082,41 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                         onInput={(e) => {
                           const target = e.target;
                           
+                          // CRITICAL: Check if text was inserted backwards and fix it
+                          const selection = window.getSelection();
+                          if (selection && selection.rangeCount > 0) {
+                            const range = selection.getRangeAt(0);
+                            const textNode = range.startContainer;
+                            
+                            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                              const fullText = textNode.textContent || '';
+                              const cursorPos = range.startOffset;
+                              
+                              // Check if the last character was inserted at the wrong position
+                              // If cursor is at position 0 but we just typed, text is backwards
+                              if (cursorPos === 0 && fullText.length > 0) {
+                                // Text was inserted at the beginning - reverse it
+                                const reversed = fullText.split('').reverse().join('');
+                                textNode.textContent = reversed;
+                                
+                                // Move cursor to end
+                                range.setStart(textNode, reversed.length);
+                                range.collapse(true);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                              }
+                              
+                              // Force LTR on parent
+                              const parent = textNode.parentElement;
+                              if (parent) {
+                                parent.setAttribute('dir', 'ltr');
+                                parent.setAttribute('lang', 'en');
+                                parent.style.setProperty('direction', 'ltr', 'important');
+                                parent.style.setProperty('unicode-bidi', 'embed', 'important');
+                              }
+                            }
+                          }
+                          
                           // IMMEDIATELY check and fix ALL text nodes to ensure LTR
                           const walker = document.createTreeWalker(
                             target,
@@ -1098,6 +1139,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           // Fix any nodes with wrong direction
                           nodesToFix.forEach(({ textNode, parent }) => {
                             parent.setAttribute('dir', 'ltr');
+                            parent.setAttribute('lang', 'en');
                             parent.style.setProperty('direction', 'ltr', 'important');
                             parent.style.setProperty('unicode-bidi', 'embed', 'important');
                             parent.style.setProperty('text-align', 'left', 'important');
@@ -1108,6 +1150,7 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                           const computed = window.getComputedStyle(target);
                           if (computed.direction !== 'ltr') {
                             target.setAttribute('dir', 'ltr');
+                            target.setAttribute('lang', 'en');
                             target.style.setProperty('direction', 'ltr', 'important');
                             target.style.setProperty('unicode-bidi', 'embed', 'important');
                             target.style.setProperty('text-align', 'left', 'important');
@@ -1154,125 +1197,107 @@ const Vision6EmailEditor = ({ value, onChange, designSettings, onDesignSettingsC
                             e.target.setAttribute('dir', 'ltr');
                           });
                         }}
-                        onKeyDown={(e) => {
+                        onBeforeInput={(e) => {
+                          // ULTIMATE INTERCEPTION - catch input before it happens
                           const target = e.target;
                           
-                          // IMMEDIATELY force LTR before any key processing
+                          // Force LTR on everything
                           target.setAttribute('dir', 'ltr');
+                          target.setAttribute('lang', 'en');
                           target.style.setProperty('direction', 'ltr', 'important');
                           target.style.setProperty('unicode-bidi', 'embed', 'important');
                           target.style.setProperty('text-align', 'left', 'important');
                           target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
                           
-                          // For printable characters, intercept and manually insert with LTR
-                          // This ensures characters are always inserted left-to-right
-                          if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
-                            const key = e.key;
+                          // Force all ancestors
+                          let current = target.parentElement;
+                          while (current) {
+                            current.setAttribute('dir', 'ltr');
+                            current.setAttribute('lang', 'en');
+                            current.style.setProperty('direction', 'ltr', 'important');
+                            current = current.parentElement;
+                          }
+                          
+                          // If we have input data, intercept it
+                          if (e.inputType === 'insertText' && e.data) {
+                            e.preventDefault();
+                            e.stopPropagation();
                             
-                            // Intercept ALL printable characters to ensure LTR insertion
                             const selection = window.getSelection();
                             if (selection && selection.rangeCount > 0) {
                               const range = selection.getRangeAt(0);
                               
-                              // Get the container element
-                              const container = range.commonAncestorContainer;
-                              const parent = container.nodeType === Node.TEXT_NODE 
-                                ? container.parentElement 
-                                : container;
+                              // Get text before cursor to check if we need to reverse
+                              const textBefore = range.startContainer.textContent?.substring(0, range.startOffset) || '';
+                              const textAfter = range.startContainer.textContent?.substring(range.startOffset) || '';
                               
-                              if (parent) {
-                                // ALWAYS check and force LTR before inserting
-                                const computed = window.getComputedStyle(parent);
+                              // Insert character at the correct position
+                              const textNode = range.startContainer;
+                              if (textNode.nodeType === Node.TEXT_NODE) {
+                                // Insert at the correct position in the text node
+                                const newText = textBefore + e.data + textAfter;
+                                textNode.textContent = newText;
                                 
-                                // ALWAYS intercept to ensure LTR insertion
-                                e.preventDefault();
-                                e.stopPropagation();
-                                
-                                // Force parent and all ancestors to LTR BEFORE insertion
-                                let current = parent;
-                                while (current && current !== target) {
-                                  current.setAttribute('dir', 'ltr');
-                                  current.style.setProperty('direction', 'ltr', 'important');
-                                  current.style.setProperty('unicode-bidi', 'embed', 'important');
-                                  current.style.setProperty('text-align', 'left', 'important');
-                                  current.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-                                  current = current.parentElement;
-                                }
-                                
-                                // Also force target and all its children
-                                target.setAttribute('dir', 'ltr');
-                                target.style.setProperty('direction', 'ltr', 'important');
-                                target.style.setProperty('unicode-bidi', 'embed', 'important');
-                                target.style.setProperty('text-align', 'left', 'important');
-                                target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-                                
-                                // Use execCommand insertText which respects direction better
-                                target.focus();
+                                // Move cursor to after inserted character
+                                range.setStart(textNode, textBefore.length + 1);
+                                range.collapse(true);
                                 selection.removeAllRanges();
                                 selection.addRange(range);
                                 
-                                // Insert using execCommand which should respect the element's direction
-                                const success = document.execCommand('insertText', false, key);
-                                
-                                if (!success) {
-                                  // Fallback: manual insertion with LTR span
-                                  const span = document.createElement('span');
-                                  span.setAttribute('dir', 'ltr');
-                                  span.style.setProperty('direction', 'ltr', 'important');
-                                  span.style.setProperty('unicode-bidi', 'embed', 'important');
-                                  span.style.setProperty('text-align', 'left', 'important');
-                                  span.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-                                  span.style.setProperty('display', 'inline', 'important');
-                                  span.textContent = key;
-                                  
-                                  range.deleteContents();
-                                  range.insertNode(span);
-                                  range.setStartAfter(span);
-                                  range.collapse(true);
+                                // Force LTR on parent
+                                const parent = textNode.parentElement;
+                                if (parent) {
+                                  parent.setAttribute('dir', 'ltr');
+                                  parent.setAttribute('lang', 'en');
+                                  parent.style.setProperty('direction', 'ltr', 'important');
+                                  parent.style.setProperty('unicode-bidi', 'embed', 'important');
                                 }
                                 
-                                // Restore selection
-                                const newRange = selection.getRangeAt(0);
-                                selection.removeAllRanges();
-                                selection.addRange(newRange);
-                                
-                                // Force LTR again immediately after insertion
+                                // Update content
                                 requestAnimationFrame(() => {
-                                  // Check all text nodes and ensure LTR
-                                  const walker = document.createTreeWalker(
-                                    target,
-                                    NodeFilter.SHOW_TEXT,
-                                    null
-                                  );
-                                  
-                                  let textNode;
-                                  while (textNode = walker.nextNode()) {
-                                    const parent = textNode.parentElement;
-                                    if (parent) {
-                                      const computed = window.getComputedStyle(parent);
-                                      if (computed.direction !== 'ltr') {
-                                        parent.setAttribute('dir', 'ltr');
-                                        parent.style.setProperty('direction', 'ltr', 'important');
-                                        parent.style.setProperty('unicode-bidi', 'embed', 'important');
-                                      }
-                                    }
-                                  }
-                                  
-                                  // Update content
                                   updateBlockContent(block.id, target.innerHTML);
                                 });
+                              } else {
+                                // Fallback: use execCommand
+                                target.focus();
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                                document.execCommand('insertText', false, e.data);
                                 
-                                return;
+                                // Force LTR again
+                                requestAnimationFrame(() => {
+                                  const allNodes = target.querySelectorAll('*');
+                                  allNodes.forEach(node => {
+                                    node.setAttribute('dir', 'ltr');
+                                    node.setAttribute('lang', 'en');
+                                    node.style.setProperty('direction', 'ltr', 'important');
+                                  });
+                                  updateBlockContent(block.id, target.innerHTML);
+                                });
                               }
                             }
+                            return;
                           }
+                        }}
+                        onKeyDown={(e) => {
+                          const target = e.target;
                           
-                          // For all other keys, just ensure LTR
-                          requestAnimationFrame(() => {
-                            target.setAttribute('dir', 'ltr');
-                            target.style.setProperty('direction', 'ltr', 'important');
-                            target.style.setProperty('unicode-bidi', 'embed', 'important');
-                          });
+                          // IMMEDIATELY force LTR before any key processing
+                          target.setAttribute('dir', 'ltr');
+                          target.setAttribute('lang', 'en');
+                          target.style.setProperty('direction', 'ltr', 'important');
+                          target.style.setProperty('unicode-bidi', 'embed', 'important');
+                          target.style.setProperty('text-align', 'left', 'important');
+                          target.style.setProperty('writing-mode', 'horizontal-tb', 'important');
+                          
+                          // Force all ancestors
+                          let current = target.parentElement;
+                          while (current) {
+                            current.setAttribute('dir', 'ltr');
+                            current.setAttribute('lang', 'en');
+                            current.style.setProperty('direction', 'ltr', 'important');
+                            current = current.parentElement;
+                          }
                         }}
                         onMouseUp={(e) => {
                           // Check selection immediately and with a small delay
