@@ -168,7 +168,7 @@ const Events = () => {
                 className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:scale-105"
               >
                 <PlusIcon className="h-5 w-5" />
-                Create Events
+                Manage Events
               </button>
             )}
           </div>
