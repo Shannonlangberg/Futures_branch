@@ -928,6 +928,152 @@ const PersonHealthReport = () => {
           </div>
         </div>
 
+        {/* Family Management Section */}
+        <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <UserGroupIcon className="w-6 h-6 text-blue-400" />
+              <h2 className="text-xl font-bold text-white">Family</h2>
+            </div>
+            {familyData?.has_family ? (
+              <button
+                onClick={() => setShowAddMemberModal(true)}
+                className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2 text-sm"
+              >
+                <PlusIcon className="w-4 h-4" />
+                Add Member
+              </button>
+            ) : (
+              <button
+                onClick={handleCreateFamily}
+                className="px-4 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-300 border border-green-500/30 rounded-lg transition-colors flex items-center gap-2 text-sm"
+              >
+                <PlusIcon className="w-4 h-4" />
+                Create Family
+              </button>
+            )}
+          </div>
+
+          {loadingFamily ? (
+            <div className="text-center py-8 text-white/60">Loading family...</div>
+          ) : familyData?.has_family ? (
+            <div>
+              <div className="mb-4">
+                <div className="text-sm text-white/60 mb-2">Family ID: {familyData.family_id}</div>
+                <div className="text-sm text-white/60 mb-4">
+                  {familyData.members.length} {familyData.members.length === 1 ? 'member' : 'members'}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                {familyData.members.map((member) => (
+                  <div
+                    key={member.id}
+                    onClick={() => navigate(`/heartbeat/person/${member.id}`)}
+                    className={`bg-white/5 rounded-lg p-4 border cursor-pointer hover:bg-white/10 transition-colors ${
+                      member.id === personId ? 'border-blue-500/50 bg-blue-500/10' : 'border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-white font-medium">{member.preferred_name || member.full_name}</div>
+                        {member.id === personId && (
+                          <div className="text-xs text-blue-300 mt-1">(Current Person)</div>
+                        )}
+                        {member.email && (
+                          <div className="text-xs text-white/60 mt-1">{member.email}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleRemoveFromFamily}
+                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-lg transition-colors text-sm"
+              >
+                Remove from Family
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-white/60 mb-4">This person is not part of a family yet.</p>
+              <button
+                onClick={handleCreateFamily}
+                className="px-6 py-3 bg-green-600/20 hover:bg-green-600/30 text-green-300 border border-green-500/30 rounded-lg transition-colors"
+              >
+                Create Family
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Add Member Modal */}
+        {showAddMemberModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">Add Family Member</h3>
+                <button
+                  onClick={() => {
+                    setShowAddMemberModal(false);
+                    setSearchTerm('');
+                    setSearchResults([]);
+                  }}
+                  className="text-white/60 hover:text-white"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="mb-4">
+                <div className="relative">
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search by name or email..."
+                    className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              {searching ? (
+                <div className="text-center py-8 text-white/60">Searching...</div>
+              ) : searchResults.length > 0 ? (
+                <div className="space-y-2">
+                  {searchResults.map((person) => (
+                    <div
+                      key={person.id}
+                      className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium">{person.preferred_name || person.full_name}</div>
+                          {person.email && (
+                            <div className="text-sm text-white/60">{person.email}</div>
+                          )}
+                          {person.campus && (
+                            <div className="text-xs text-white/40 mt-1">📍 {person.campus}</div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleAddMember(person.id)}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : searchTerm.length >= 2 ? (
+                <div className="text-center py-8 text-white/60">No results found</div>
+              ) : (
+                <div className="text-center py-8 text-white/60">Start typing to search for people...</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {hasHeartbeat ? (
           <>
             {/* Score Breakdown */}
