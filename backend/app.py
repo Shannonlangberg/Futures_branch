@@ -363,6 +363,12 @@ def extract_image_filename(image_url: Optional[str]) -> Optional[str]:
     if not image_url:
         return None
     return os.path.basename(image_url)
+
+
+def build_image_url(filename: Optional[str]) -> Optional[str]:
+    if not filename:
+        return None
+    return f"/api/uploads/events/{filename}"
 print("[DEBUG] Finished Google Sheets Auth scope definition")
 
 print("[DEBUG] Starting Google Sheets client initialization")
@@ -907,19 +913,19 @@ if not database_url or database_url.startswith('sqlite:///'):
         
         # Local development - use absolute path
         if database_url.startswith('sqlite:///'):
-        relative_path = database_url.replace('sqlite:///', '')
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Check if file exists in instance directory first (where it actually is)
-        instance_path = os.path.join(backend_dir, 'instance', relative_path)
-        if os.path.exists(instance_path):
-            database_url = f'sqlite:///{instance_path}'
-            logger.info(f"Using database file: {instance_path}")
-        else:
-            # Use absolute path in backend directory
-            abs_path = os.path.join(backend_dir, relative_path)
-            database_url = f'sqlite:///{abs_path}'
-            logger.info(f"Using database file: {abs_path}")
+            relative_path = database_url.replace('sqlite:///', '')
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Check if file exists in instance directory first (where it actually is)
+            instance_path = os.path.join(backend_dir, 'instance', relative_path)
+            if os.path.exists(instance_path):
+                database_url = f'sqlite:///{instance_path}'
+                logger.info(f"Using database file: {instance_path}")
+            else:
+                # Use absolute path in backend directory
+                abs_path = os.path.join(backend_dir, relative_path)
+                database_url = f'sqlite:///{abs_path}'
+                logger.info(f"Using database file: {abs_path}")
         
         if not volume_found:
             logger.warning("⚠️  No persistent volume detected! Database will be lost on deployment.")
@@ -18611,7 +18617,6 @@ def get_events():
             image_url = None
             if has_image_url_column:
                 try:
-                    from sqlalchemy import text
                     result = db.session.execute(
                         text("SELECT image_url FROM events WHERE id = :event_id"),
                         {'event_id': event.id}
@@ -18620,6 +18625,12 @@ def get_events():
                         image_url = result[0]
                 except Exception as img_error:
                     logger.debug(f"Could not fetch image_url for event {event.id}: {img_error}")
+            
+            # Fallback to event_images mapping if column missing or value empty
+            if not image_url:
+                mapped_filename = get_event_image(event.id)
+                if mapped_filename:
+                    image_url = build_image_url(mapped_filename)
             
             events_data.append({
                 'id': event.id,
@@ -18645,7 +18656,7 @@ def get_events():
                 'minimum_age': getattr(event, 'minimum_age', None),  # May not exist
                 'maximum_age': getattr(event, 'maximum_age', None),  # May not exist
                 'required_departments': getattr(event, 'required_departments', None),  # May not exist
-                'image_url': image_url,  # Fetched via raw SQL if column exists
+                'image_url': image_url,
                 'additional_info': event.description,  # Use description as fallback
                 'contact_person': getattr(event, 'contact_person', None),  # May not exist
                 'contact_email': getattr(event, 'contact_email', None),  # May not exist
@@ -19421,6 +19432,7 @@ def update_event(event_id):
             return jsonify({'error': 'Event not found'}), 404
         
         data = request.get_json()
+        image_filename = extract_image_filename(data.get('image_url'))
         
         # Update all fields
         if 'title' in data:
@@ -19507,6 +19519,9 @@ def update_event(event_id):
         event.updated_at = datetime.utcnow()
         db.session.commit()
         
+        if image_filename:
+            set_event_image(event.id, image_filename)
+        
         return jsonify({'message': 'Event updated successfully'})
         
     except Exception as e:
@@ -19545,7 +19560,6 @@ def get_event_detail(event_id):
         event_data = event.to_dict()
         
         # Fetch image_url using raw SQL if column exists but not in model
-        from sqlalchemy import inspect, text
         inspector = inspect(db.engine)
         has_image_url_column = False
         try:
@@ -19564,6 +19578,11 @@ def get_event_detail(event_id):
                     event_data['image_url'] = result[0]
             except Exception as img_error:
                 logger.debug(f"Could not fetch image_url for event {event.id}: {img_error}")
+        
+        if not event_data.get('image_url'):
+            mapped_filename = get_event_image(event.id)
+            if mapped_filename:
+                event_data['image_url'] = build_image_url(mapped_filename)
         
         # Include registrations
         registrations = EventRegistration.query.filter_by(event_id=event_id).all()
