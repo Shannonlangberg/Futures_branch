@@ -120,7 +120,14 @@ const Events = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setEvents(data.events || []);
+        const eventsList = data.events || [];
+        // Debug: Log events with images
+        eventsList.forEach(event => {
+          if (event.image_url) {
+            console.log(`Event "${event.title}" has image_url:`, event.image_url);
+          }
+        });
+        setEvents(eventsList);
       }
     } catch (error) {
       console.error('Error fetching events:', error);
@@ -253,18 +260,22 @@ const Events = () => {
                   className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl overflow-hidden border border-white/10 hover:border-blue-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20"
                 >
                   {/* Event Image */}
-                  {event.image_url && (
+                  {event.image_url ? (
                     <div className="w-full h-48 overflow-hidden bg-slate-700/50">
                       <img
                         src={event.image_url}
                         alt={event.title}
                         className="w-full h-full object-cover"
                         onError={(e) => {
+                          console.error('Failed to load event card image:', event.image_url, event);
                           e.target.style.display = 'none';
+                        }}
+                        onLoad={() => {
+                          console.log('Event card image loaded:', event.image_url);
                         }}
                       />
                     </div>
-                  )}
+                  ) : null}
                   
                   <div className="p-6">
                   {/* Date Badge */}
@@ -386,16 +397,24 @@ const Events = () => {
             </div>
 
             {/* Event Image */}
-            {selectedEvent.image_url && (
+            {selectedEvent.image_url ? (
               <div className="mb-6 w-full h-64 overflow-hidden rounded-xl bg-slate-700/50">
                 <img
                   src={selectedEvent.image_url}
                   alt={selectedEvent.title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
+                    console.error('Failed to load event image:', selectedEvent.image_url);
                     e.target.style.display = 'none';
                   }}
+                  onLoad={() => {
+                    console.log('Event image loaded successfully:', selectedEvent.image_url);
+                  }}
                 />
+              </div>
+            ) : (
+              <div className="mb-6 text-slate-400 text-sm">
+                Debug: No image_url found. Event data: {JSON.stringify({id: selectedEvent.id, title: selectedEvent.title, has_image_url: !!selectedEvent.image_url})}
               </div>
             )}
 
