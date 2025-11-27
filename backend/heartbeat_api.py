@@ -562,7 +562,6 @@ def get_person_heartbeat(person_id):
                     if 'no such column' in error_str and 'step_actions' in error_str:
                         # Column doesn't exist - load step manually without step_actions
                         try:
-                            from sqlalchemy import text
                             raw_step = db.session.execute(
                                 text('''
                                     SELECT id, pathway_id, step_order, step_name, step_description, 
