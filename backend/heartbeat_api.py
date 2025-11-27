@@ -794,18 +794,37 @@ def get_person_heartbeat(person_id):
             'journey': pathway_dict,
             'pathway': pathway_dict,  # Keep for backward compatibility
             'recent_activity': {
-                'attendance': recent_attendance if recent_attendance and isinstance(recent_attendance[0], dict) else ([a.to_dict() for a in recent_attendance] if recent_attendance else []),
+                'attendance': recent_attendance if recent_attendance else [],
                 'connect_groups': [
-                    (c._enriched_dict if hasattr(c, '_enriched_dict') else c.to_dict()) 
+                    (c._enriched_dict if hasattr(c, '_enriched_dict') and c._enriched_dict else (c.to_dict() if hasattr(c, 'to_dict') else {}))
                     for c in recent_connect
+                    if c is not None
                 ] if recent_connect else [],
-                'serving': [s.to_dict() for s in recent_serving] if recent_serving else [],
-                'giving': [g.to_dict() for g in recent_giving] if recent_giving else [],
+                'serving': [
+                    s.to_dict() for s in recent_serving 
+                    if s is not None and hasattr(s, 'to_dict')
+                ] if recent_serving else [],
+                'giving': [
+                    g.to_dict() for g in recent_giving 
+                    if g is not None and hasattr(g, 'to_dict')
+                ] if recent_giving else [],
                 'discipleship_steps': all_discipleship_steps if all_discipleship_steps else [],
-                'open_care_cases': [c.to_dict() for c in open_cases] if open_cases else [],
-                'app_opens': [a.to_dict() for a in recent_app_opens] if recent_app_opens else [],
-                'tv_completions': [t.to_dict() for t in recent_tv] if recent_tv else [],
-                'prayer_submissions': [p.to_dict() for p in recent_prayers] if recent_prayers else []
+                'open_care_cases': [
+                    c.to_dict() for c in open_cases 
+                    if c is not None and hasattr(c, 'to_dict')
+                ] if open_cases else [],
+                'app_opens': [
+                    a.to_dict() for a in recent_app_opens 
+                    if a is not None and hasattr(a, 'to_dict')
+                ] if recent_app_opens else [],
+                'tv_completions': [
+                    t.to_dict() for t in recent_tv 
+                    if t is not None and hasattr(t, 'to_dict')
+                ] if recent_tv else [],
+                'prayer_submissions': [
+                    p.to_dict() for p in recent_prayers 
+                    if p is not None and hasattr(p, 'to_dict')
+                ] if recent_prayers else []
             }
         }), 200
         
