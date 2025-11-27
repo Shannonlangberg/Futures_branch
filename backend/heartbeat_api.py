@@ -266,16 +266,44 @@ def get_person_heartbeat(person_id):
     Get full heartbeat detail for one person, including scores and recent events.
     """
     try:
-        person = Person.query.get(person_id)
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+        # Check if new Person columns exist
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_new_columns = False
         
-        # Refresh person from database to ensure we have latest milestone data and connect_group
-        db.session.refresh(person)
-        # Expire all to force fresh queries for relationships
-        db.session.expire_all()
-        # Re-query person to ensure we have the absolute latest data
-        person = Person.query.get(person_id)
+        # Get person - use raw SQL if columns don't exist
+        if not has_new_columns:
+            base_columns = [
+                'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+            ]
+            sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE id = :person_id"
+            row = db.session.execute(text(sql), {'person_id': person_id}).fetchone()
+            
+            if not row:
+                return jsonify({'error': 'Person not found'}), 404
+            
+            person_dict = dict(zip(base_columns, row))
+            person = Person()
+            for key, value in person_dict.items():
+                setattr(person, key, value)
+        else:
+            person = Person.query.get(person_id)
+            if not person:
+                return jsonify({'error': 'Person not found'}), 404
+            
+            # Refresh person from database to ensure we have latest milestone data and connect_group
+            db.session.refresh(person)
+            # Expire all to force fresh queries for relationships
+            db.session.expire_all()
+            # Re-query person to ensure we have the absolute latest data
+            person = Person.query.get(person_id)
         
         # Get latest snapshot
         snapshot = HeartbeatSnapshot.query.filter_by(
@@ -640,9 +668,27 @@ def get_person_heartbeat(person_id):
         heartbeat_dict = snapshot.to_dict() if snapshot else None
         logger.info(f"📤 Returning heartbeat data for {person_id}: gather_score={heartbeat_dict.get('gather_score') if heartbeat_dict else 'None'}, total_score={heartbeat_dict.get('total_score') if heartbeat_dict else 'None'}, attendance_count={len(recent_attendance)}, giving_count={len(recent_giving)}")
         
+        # Use to_dict() safely - it handles missing columns with getattr
+        try:
+            person_dict = person.to_dict()
+        except Exception as e:
+            logger.warning(f"Error calling person.to_dict(), using manual dict: {e}")
+            # Fallback: create dict manually
+            person_dict = {
+                'id': person.id,
+                'full_name': person.full_name,
+                'preferred_name': getattr(person, 'preferred_name', None),
+                'email': getattr(person, 'email', None),
+                'phone': getattr(person, 'phone', None),
+                'campus': getattr(person, 'campus', None),
+                'department': getattr(person, 'department', None),
+                'connect_group': getattr(person, 'connect_group', None),
+                'is_active': getattr(person, 'is_active', True),
+            }
+        
         return jsonify({
             'person_id': person_id,
-            'person': person.to_dict(),
+            'person': person_dict,
             'heartbeat': heartbeat_dict,
             'journey': pathway_progress.to_dict() if pathway_progress else None,
             'pathway': pathway_progress.to_dict() if pathway_progress else None,  # Keep for backward compatibility

@@ -58,31 +58,26 @@ const People = () => {
     tags: []
   });
 
-  useEffect(() => {
-    loadCampuses();
-    loadPersons();
-  }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
-  
   // Sync statusFilterTab with pulseFilter for API calls
   useEffect(() => {
     if (statusFilterTab === 'healthy') {
       setPulseFilter('green');
-      loadPersons();
     } else if (statusFilterTab === 'watch' || statusFilterTab === 'at_risk') {
       setPulseFilter('amber');
-      loadPersons();
     } else if (statusFilterTab === 'critical') {
       setPulseFilter('red');
-      loadPersons();
     } else if (statusFilterTab === 'all') {
       setPulseFilter('all');
-      loadPersons();
     } else if (statusFilterTab === 'new_people' || statusFilterTab === 'new_christians' || statusFilterTab === 'in_groups') {
       // These filters are handled client-side, but we still need to load all persons
       setPulseFilter('all');
-      loadPersons();
     }
   }, [statusFilterTab]);
+  
+  useEffect(() => {
+    loadCampuses();
+    loadPersons();
+  }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
 
   // Refresh data when window regains focus (in case mobile app updated data)
   useEffect(() => {
