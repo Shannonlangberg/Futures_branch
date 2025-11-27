@@ -19363,8 +19363,22 @@ def update_event(event_id):
             event.stripe_price_id = data['stripe_price_id']
         if 'beacon_zone_id' in data:
             event.beacon_zone_id = int(data['beacon_zone_id']) if data['beacon_zone_id'] else None
-        if 'image_url' in data and hasattr(event, 'image_url'):
-            event.image_url = data['image_url']
+        
+        # Update image_url using raw SQL if column exists but not in model
+        if 'image_url' in data:
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            try:
+                columns = [col['name'] for col in inspector.get_columns('events')]
+                if 'image_url' in columns:
+                    # Update using raw SQL
+                    db.session.execute(
+                        text("UPDATE events SET image_url = :image_url WHERE id = :event_id"),
+                        {'image_url': data['image_url'], 'event_id': event.id}
+                    )
+            except Exception as img_error:
+                logger.debug(f"Could not update image_url for event {event.id}: {img_error}")
+        
         if 'is_active' in data:
             event.is_active = data['is_active']
         if 'ministry' in data and hasattr(Event, 'ministry'):
@@ -19432,6 +19446,27 @@ def get_event_detail(event_id):
             return jsonify({'error': 'Event not found'}), 404
         
         event_data = event.to_dict()
+        
+        # Fetch image_url using raw SQL if column exists but not in model
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        has_image_url_column = False
+        try:
+            columns = [col['name'] for col in inspector.get_columns('events')]
+            has_image_url_column = 'image_url' in columns
+        except:
+            pass
+        
+        if has_image_url_column:
+            try:
+                result = db.session.execute(
+                    text("SELECT image_url FROM events WHERE id = :event_id"),
+                    {'event_id': event.id}
+                ).fetchone()
+                if result and result[0]:
+                    event_data['image_url'] = result[0]
+            except Exception as img_error:
+                logger.debug(f"Could not fetch image_url for event {event.id}: {img_error}")
         
         # Include registrations
         registrations = EventRegistration.query.filter_by(event_id=event_id).all()
