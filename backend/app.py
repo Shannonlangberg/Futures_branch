@@ -927,10 +927,9 @@ if not database_url or database_url.startswith('sqlite:///'):
                 database_url = f'sqlite:///{abs_path}'
                 logger.info(f"Using database file: {abs_path}")
         
-        if not volume_found:
-            logger.warning("⚠️  No persistent volume detected! Database will be lost on deployment.")
-            logger.warning("💡 RECOMMENDED: Add Railway PostgreSQL service (free) for persistent storage. See POSTGRES_SETUP_GUIDE.md")
-            logger.warning("   Alternative: Add Railway volume at /data (requires paid plan)")
+        logger.warning("⚠️  No persistent volume detected! Database will be lost on deployment.")
+        logger.warning("💡 RECOMMENDED: Add Railway PostgreSQL service (free) for persistent storage. See POSTGRES_SETUP_GUIDE.md")
+        logger.warning("   Alternative: Add Railway volume at /data (requires paid plan)")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
