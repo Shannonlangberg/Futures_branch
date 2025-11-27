@@ -232,9 +232,25 @@ const EventsManager = () => {
         const data = await response.json();
         console.log('Upload successful, received data:', data);
         if (data.image_url) {
-          setFormData(prev => ({ ...prev, image_url: data.image_url }));
+          console.log('Setting image_url in formData and imagePreview to:', data.image_url);
+          setFormData(prev => {
+            const updated = { ...prev, image_url: data.image_url };
+            console.log('Updated formData:', updated);
+            return updated;
+          });
           setImagePreview(data.image_url);
-          console.log('Image preview set to:', data.image_url);
+          console.log('Image preview state set to:', data.image_url);
+          
+          // Test if image loads
+          const testImg = new Image();
+          testImg.onload = () => {
+            console.log('Image test load successful:', data.image_url);
+          };
+          testImg.onerror = () => {
+            console.error('Image test load failed:', data.image_url);
+            alert(`Warning: Image uploaded but may not be accessible at ${data.image_url}`);
+          };
+          testImg.src = data.image_url;
         } else {
           console.error('No image_url in response:', data);
           alert('Upload succeeded but no image URL returned');
