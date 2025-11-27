@@ -18508,6 +18508,16 @@ def get_events():
             else:
                 raise  # Re-raise if it's a different error
         
+        # Check if image_url column exists in database
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        has_image_url_column = False
+        try:
+            columns = [col['name'] for col in inspector.get_columns('events')]
+            has_image_url_column = 'image_url' in columns
+        except:
+            pass
+        
         # Convert to JSON
         events_data = []
         for event in events:
@@ -18523,6 +18533,20 @@ def get_events():
             
             # Calculate registration count from actual registrations
             registration_count = event.get_registration_count()
+            
+            # Fetch image_url using raw SQL if column exists but not in model
+            image_url = None
+            if has_image_url_column:
+                try:
+                    from sqlalchemy import text
+                    result = db.session.execute(
+                        text("SELECT image_url FROM events WHERE id = :event_id"),
+                        {'event_id': event.id}
+                    ).fetchone()
+                    if result and result[0]:
+                        image_url = result[0]
+                except Exception as img_error:
+                    logger.debug(f"Could not fetch image_url for event {event.id}: {img_error}")
             
             events_data.append({
                 'id': event.id,
@@ -18548,7 +18572,7 @@ def get_events():
                 'minimum_age': getattr(event, 'minimum_age', None),  # May not exist
                 'maximum_age': getattr(event, 'maximum_age', None),  # May not exist
                 'required_departments': getattr(event, 'required_departments', None),  # May not exist
-                'image_url': getattr(event, 'image_url', None),  # May not exist
+                'image_url': image_url,  # Fetched via raw SQL if column exists
                 'additional_info': event.description,  # Use description as fallback
                 'contact_person': getattr(event, 'contact_person', None),  # May not exist
                 'contact_email': getattr(event, 'contact_email', None),  # May not exist

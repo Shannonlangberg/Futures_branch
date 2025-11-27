@@ -249,8 +249,23 @@ const Events = () => {
               return (
                 <div
                   key={event.id}
-                  className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-white/10 hover:border-blue-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20"
+                  className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl overflow-hidden border border-white/10 hover:border-blue-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20"
                 >
+                  {/* Event Image */}
+                  {event.image_url && (
+                    <div className="w-full h-48 overflow-hidden bg-slate-700/50">
+                      <img
+                        src={event.image_url}
+                        alt={event.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="p-6">
                   {/* Date Badge */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="bg-blue-500/20 rounded-xl px-4 py-2 border border-blue-500/30">
@@ -328,6 +343,7 @@ const Events = () => {
                       </button>
                     )}
                   </div>
+                  </div>
                 </div>
               );
             })}
@@ -367,6 +383,20 @@ const Events = () => {
                 <XMarkIcon className="w-6 h-6 text-white/60" />
               </button>
             </div>
+
+            {/* Event Image */}
+            {selectedEvent.image_url && (
+              <div className="mb-6 w-full h-64 overflow-hidden rounded-xl bg-slate-700/50">
+                <img
+                  src={selectedEvent.image_url}
+                  alt={selectedEvent.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
 
             {/* Event Date & Time */}
             {selectedEvent.start_datetime || selectedEvent.start_time ? (
