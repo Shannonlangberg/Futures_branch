@@ -6079,6 +6079,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
             'youth_attendance': 0,
             'youth_salvations': 0,
             'youth_new_people': 0,
+            'youth_leaders': 0,
             
             # Kids breakdown
             'kids_attendance': 0,
@@ -6274,6 +6275,7 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                     period_stats['youth_attendance'] += get_stat_value(row, ['Youth Attendance', 'youth_attendance'])
                     period_stats['youth_salvations'] += get_stat_value(row, ['Youth Salvations', 'youth_salvations'])
                     period_stats['youth_new_people'] += get_stat_value(row, ['Youth New People', 'youth_new_people'])
+                    period_stats['youth_leaders'] += get_stat_value(row, ['Youth Leaders', 'youth_leaders'])
                     
                     # Kids breakdown
                     period_stats['kids_attendance'] += calculate_kids_attendance(row)
@@ -11020,6 +11022,7 @@ def quick_input():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
+                'Youth Leaders': safe_value('Youth Leaders'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -11032,10 +11035,10 @@ def quick_input():
                 row_data[service_time] = safe_value(service_time)
                 row_data[f'Kids {service_time}'] = safe_value(f'Kids {service_time}')
             
-            # Build list of all required headers
+            # Build list of all required headers (only from row_data, not from existing sheet)
             required_headers = list(row_data.keys())
             
-            # Ensure Google Sheets has all required columns
+            # Ensure Google Sheets has all required columns (only adds missing ones from our list)
             ensure_google_sheets_columns(required_headers)
             
             # Re-fetch headers after potentially adding new columns
@@ -11044,9 +11047,11 @@ def quick_input():
             
             print(f"[DEBUG] Row data prepared: {row_data}")
             
-            # Add any missing headers with default values
+            # Only add headers that are in our expected list (prevent adding unwanted columns)
+            # Define the valid headers we want to support
+            valid_headers = set(required_headers)  # Only our required headers are valid
             for header in headers:
-                if header not in row_data:
+                if header in valid_headers and header not in row_data:
                     row_data[header] = ''
             
             # Convert to list format for Google Sheets
@@ -11286,6 +11291,7 @@ def quick_input_update():
                 'Youth Attendance': safe_value('Youth Attendance'),
                 'Youth Salvations': safe_value('Youth Salvations'),
                 'Youth New People': safe_value('Youth New People'),
+                'Youth Leaders': safe_value('Youth Leaders'),
                 'Connect Groups': safe_value('Connect Groups'),
                 'Dream Team': safe_value('Dream Team'),
                 'Tithe': safe_value('Tithe'),
@@ -11302,19 +11308,21 @@ def quick_input_update():
                 row_data[service_time] = safe_value(service_time)
                 row_data[f'Kids {service_time}'] = safe_value(f'Kids {service_time}')
             
-            # Build list of all required headers
+            # Build list of all required headers (only from row_data, not from existing sheet)
             required_headers = list(row_data.keys())
             
-            # Ensure Google Sheets has all required columns
+            # Ensure Google Sheets has all required columns (only adds missing ones from our list)
             ensure_google_sheets_columns(required_headers)
             
             # Re-fetch headers after potentially adding new columns
             all_records = safe_sheets_request(sheet.get_all_records)
             headers = list(all_records[0].keys()) if all_records else []
             
-            # Add any missing headers with default values
+            # Only add headers that are in our expected list (prevent adding unwanted columns)
+            # Define the valid headers we want to support
+            valid_headers = set(required_headers)  # Only our required headers are valid
             for header in headers:
-                if header not in row_data:
+                if header in valid_headers and header not in row_data:
                     row_data[header] = ''
             
             # Convert to list format for Google Sheets
