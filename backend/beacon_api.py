@@ -65,7 +65,8 @@ def create_beacon():
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
         # Validate UUID format (should be like: 00000000-0000-0000-0000-000000000000)
-        uuid = data['beacon_uuid'].strip()
+        # Normalize to uppercase and strip whitespace
+        uuid = data['beacon_uuid'].strip().upper()
         if len(uuid) != 36 or uuid.count('-') != 4:
             return jsonify({'error': 'Invalid UUID format. Expected format: 00000000-0000-0000-0000-000000000000'}), 400
         
@@ -149,9 +150,9 @@ def update_beacon(beacon_id):
         if 'campus' in data:
             beacon.campus = data['campus']
         if 'beacon_uuid' in data:
-            uuid = data['beacon_uuid'].strip()
+            uuid = data['beacon_uuid'].strip().upper()
             if len(uuid) != 36 or uuid.count('-') != 4:
-                return jsonify({'error': 'Invalid UUID format'}), 400
+                return jsonify({'error': 'Invalid UUID format. Expected format: 00000000-0000-0000-0000-000000000000'}), 400
             beacon.beacon_uuid = uuid
         if 'beacon_major' in data:
             try:
@@ -233,11 +234,19 @@ def detect_beacon():
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
+        # Normalize UUID to uppercase for consistency
+        beacon_uuid = data['beacon_uuid'].strip().upper()
+        try:
+            beacon_major = int(data['beacon_major'])
+            beacon_minor = int(data['beacon_minor'])
+        except (ValueError, TypeError):
+            return jsonify({'error': 'beacon_major and beacon_minor must be integers'}), 400
+        
         # Find beacon zone
         zone = BeaconZone.find_zone(
-            uuid=data['beacon_uuid'],
-            major=data['beacon_major'],
-            minor=data['beacon_minor']
+            uuid=beacon_uuid,
+            major=beacon_major,
+            minor=beacon_minor
         )
         if not zone:
             return jsonify({'error': 'Beacon zone not found or inactive'}), 404

@@ -745,12 +745,15 @@ class BeaconZone(db.Model):
     
     @classmethod
     def find_zone(cls, uuid, major, minor):
-        """Find beacon zone by UUID, major, and minor"""
-        return cls.query.filter_by(
-            beacon_uuid=uuid,
-            beacon_major=major,
-            beacon_minor=minor,
-            is_active=True
+        """Find beacon zone by UUID, major, and minor (case-insensitive UUID matching)"""
+        from sqlalchemy import func
+        # Normalize UUID to uppercase for case-insensitive matching
+        uuid_upper = uuid.strip().upper() if uuid else None
+        return cls.query.filter(
+            func.upper(cls.beacon_uuid) == uuid_upper,
+            cls.beacon_major == major,
+            cls.beacon_minor == minor,
+            cls.is_active == True
         ).first()
     
     def get_active_schedule(self, detection_time=None):

@@ -16071,11 +16071,19 @@ def log_attendance():
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
+        # Normalize UUID to uppercase for consistency
+        beacon_uuid = data['beacon_uuid'].strip().upper()
+        try:
+            beacon_major = int(data['beacon_major'])
+            beacon_minor = int(data['beacon_minor'])
+        except (ValueError, TypeError):
+            return jsonify({'error': 'beacon_major and beacon_minor must be integers'}), 400
+        
         # Find beacon zone
         zone = BeaconZone.find_zone(
-            uuid=data['beacon_uuid'],
-            major=data['beacon_major'],
-            minor=data['beacon_minor']
+            uuid=beacon_uuid,
+            major=beacon_major,
+            minor=beacon_minor
         )
         if not zone:
             return jsonify({'error': 'Beacon zone not found'}), 404
@@ -18861,11 +18869,19 @@ def log_beacon_attendance():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
+        # Normalize UUID to uppercase for consistency
+        beacon_uuid = data['beacon_uuid'].strip().upper()
+        try:
+            beacon_major = int(data['beacon_major'])
+            beacon_minor = int(data['beacon_minor'])
+        except (ValueError, TypeError):
+            return jsonify({'error': 'beacon_major and beacon_minor must be integers'}), 400
+        
         # Find beacon zone
         zone = BeaconZone.find_zone(
-            uuid=data['beacon_uuid'],
-            major=data['beacon_major'],
-            minor=data['beacon_minor']
+            uuid=beacon_uuid,
+            major=beacon_major,
+            minor=beacon_minor
         )
         
         if not zone:
