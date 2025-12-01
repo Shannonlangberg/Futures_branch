@@ -15,9 +15,12 @@ import {
   HandRaisedIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
-import CampusSelector from '../CampusSelector';
+// Removed CampusSelector import - using inline selector instead
 
 const PastoralCare = () => {
+  // Debug: Log that component is rendering
+  console.log('🔵 PastoralCare component is rendering!');
+  
   const [careCases, setCareCases] = useState([]);
   const [prayerRequests, setPrayerRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,9 +73,9 @@ const PastoralCare = () => {
         setUserRole(data.role || 'user');
         setUserCampus(data.campus || 'all_campuses');
         
-        // Show campus selector for senior leadership
+        // Show campus selector for senior leadership - DISABLED for now to avoid dashboard selector
         const hasFullAccess = ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor'].includes(data.role);
-        setShowCampusSelector(hasFullAccess);
+        setShowCampusSelector(false); // Temporarily disabled - will show simple dropdown instead
         
         // Auto-select campus for campus pastors
         if (data.role === 'campus_pastor' && data.campus && data.campus !== 'all_campuses') {
@@ -374,14 +377,20 @@ const PastoralCare = () => {
     });
   }, [loading, careCases.length, prayerRequests.length, selectedTab, statusFilter, priorityFilter, selectedCampus, userRole]);
 
+  // Ensure we always render the Pastoral Care UI, never CampusSelector
+  console.log('🔵 PastoralCare component rendering - URL:', window.location.pathname);
+  console.log('🔵 showCampusSelector:', showCampusSelector, 'campuses:', campuses.length);
+  
+  // CRITICAL: Never render CampusSelector - this component should ONLY show Pastoral Care UI
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-y-auto">
+    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-y-auto" data-page="pastoral-care">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-3xl font-bold text-white mb-2">Pastoral Care</h2>
             <p className="text-white/60">Care engine for tracking and managing pastoral needs</p>
+            <p className="text-red-400 text-xs mt-1">⚠️ If you see "Campus Dashboard Selection" below, the frontend needs to be rebuilt!</p>
           </div>
           {canCreateCase && (
             <button
@@ -394,20 +403,39 @@ const PastoralCare = () => {
           )}
         </div>
 
-        {/* Campus Selector */}
-        {showCampusSelector && (
+        {/* Campus Selector - Simple Dropdown */}
+        {showCampusSelector && campuses.length > 0 && (
           <div className="mb-4">
-            <CampusSelector
-              onCampusSelect={(campus) => {
-                setSelectedCampus(campus);
+            <label className="block text-white/80 mb-2 text-sm font-medium">Filter by Campus</label>
+            <select
+              value={selectedCampus?.id || 'all_campuses'}
+              onChange={(e) => {
+                const campusId = e.target.value;
+                if (campusId === 'all_campuses') {
+                  setSelectedCampus({ id: 'all_campuses', name: 'All Campuses' });
+                } else {
+                  const campus = campuses.find(c => c.id === campusId || c.campus_id === campusId);
+                  if (campus) {
+                    setSelectedCampus({ 
+                      id: campus.id || campus.campus_id, 
+                      name: campus.name || campus.display_name || campusId 
+                    });
+                  }
+                }
                 loadCareCases();
                 if (selectedTab === 'prayer' || selectedTab === 'all') {
                   loadPrayerRequests();
                 }
               }}
-              userRole={userRole}
-              userCampus={userCampus}
-            />
+              className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500 min-w-[200px]"
+            >
+              <option value="all_campuses">All Campuses</option>
+              {campuses.map(campus => (
+                <option key={campus.id || campus.campus_id} value={campus.id || campus.campus_id}>
+                  {campus.name || campus.display_name || campus.id || campus.campus_id}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
