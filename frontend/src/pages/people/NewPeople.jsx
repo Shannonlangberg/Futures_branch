@@ -287,6 +287,7 @@ const NewPeople = () => {
               const isExpanded = expandedCards[person.id];
               const hasPathway = person.assigned_pathways && person.assigned_pathways.length > 0;
               const currentPathway = hasPathway ? person.assigned_pathways[0] : null;
+              const currentPathwayId = currentPathway ? (currentPathway.pathway_id || currentPathway.id) : null;
               
               return (
                 <div
