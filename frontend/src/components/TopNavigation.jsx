@@ -100,9 +100,6 @@ const TopNavigation = ({ userRole, customPermissions }) => {
   };
 
   const filteredItems = getFilteredItems();
-  
-  // Debug: Log when component renders
-  console.log('[TopNavigation] Rendering with role:', userRole, 'filtered items:', filteredItems.length);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700/50">
