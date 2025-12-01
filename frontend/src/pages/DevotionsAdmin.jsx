@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusIcon, PencilIcon, EyeIcon, CheckIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, EyeIcon, CheckIcon, BookOpenIcon, TrashIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 
 const DevotionsAdmin = () => {
@@ -120,6 +120,62 @@ const DevotionsAdmin = () => {
       }
     } catch (err) {
       setError('Error publishing devotion plan');
+      console.error(err);
+    }
+  };
+
+  const handleArchive = async (planId) => {
+    if (!confirm('Are you sure you want to archive this plan? It will no longer be visible to users.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/devotions/admin/plans/${planId}/archive`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        await fetchPlans();
+        setSuccess('Plan archived successfully!');
+        setError(null);
+        setShowCreateForm(false);
+        setEditingPlan(null);
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to archive plan');
+        setSuccess(null);
+      }
+    } catch (err) {
+      setError('Error archiving devotion plan');
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (planId) => {
+    if (!confirm('Are you sure you want to delete this plan? This action cannot be undone and will delete all content.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/devotions/admin/plans/${planId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchPlans();
+        setSuccess('Plan deleted successfully!');
+        setError(null);
+        setShowCreateForm(false);
+        setEditingPlan(null);
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to delete plan');
+        setSuccess(null);
+      }
+    } catch (err) {
+      setError('Error deleting devotion plan');
       console.error(err);
     }
   };
@@ -374,10 +430,11 @@ const DevotionsAdmin = () => {
                   {formData.cover_url && (
                     <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-700/50">
                       <img
-                        src={formData.cover_url}
+                        src={formData.cover_url.startsWith('http') ? formData.cover_url : `${window.location.origin}${formData.cover_url}`}
                         alt="Cover preview"
                         className="w-full h-full object-cover"
                         onError={(e) => {
+                          console.error('Image preview error:', formData.cover_url);
                           e.target.style.display = 'none';
                         }}
                       />
@@ -417,20 +474,44 @@ const DevotionsAdmin = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-700/50">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-6 py-2 bg-slate-700/50 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-blue-500/25 hover:scale-105 transition-all duration-300"
-                >
-                  {editingPlan ? 'Update Plan' : 'Create Plan'}
-                </button>
+              <div className="flex justify-between items-center pt-4 border-t border-slate-700/50">
+                <div className="flex space-x-2">
+                  {editingPlan && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleArchive(editingPlan.id)}
+                        className="px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 font-medium rounded-lg transition-colors flex items-center space-x-2"
+                      >
+                        <ArchiveBoxIcon className="h-4 w-4" />
+                        <span>Archive</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(editingPlan.id)}
+                        className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium rounded-lg transition-colors flex items-center space-x-2"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                        <span>Delete</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="px-6 py-2 bg-slate-700/50 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-blue-500/25 hover:scale-105 transition-all duration-300"
+                  >
+                    {editingPlan ? 'Update Plan' : 'Create Plan'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -442,17 +523,19 @@ const DevotionsAdmin = () => {
             {plans.map((plan) => (
               <div
                 key={plan.id}
-                className="glass-effect rounded-xl overflow-hidden backdrop-blur-sm border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:scale-105"
+                className="glass-effect rounded-xl overflow-hidden backdrop-blur-sm border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:scale-105 cursor-pointer"
+                onClick={() => handleEdit(plan)}
               >
                 {/* Thumbnail Image */}
                 {plan.cover_url ? (
                   <div className="w-full h-48 overflow-hidden bg-slate-700/50">
                     <img
-                      src={plan.cover_url}
+                      src={plan.cover_url.startsWith('http') ? plan.cover_url : `${window.location.origin}${plan.cover_url}`}
                       alt={plan.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.target.style.display = 'none';
+                        console.error('Image load error:', plan.cover_url);
+                        e.target.parentElement.style.display = 'none';
                       }}
                     />
                   </div>
@@ -493,24 +576,21 @@ const DevotionsAdmin = () => {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-4 border-t border-slate-700/50">
+                <div className="flex items-center justify-between pt-4 border-t border-slate-700/50" onClick={(e) => e.stopPropagation()}>
                   <Link
                     to={`/devotions/plans/${plan.id}`}
                     className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center transition-colors"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     Manage Days <PencilIcon className="ml-1 h-4 w-4" />
                   </Link>
                   <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleEdit(plan)}
-                      className="p-2 text-white/60 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
-                      title="Edit Plan"
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
                     {plan.status === 'draft' && (
                       <button
-                        onClick={() => handlePublish(plan.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePublish(plan.id);
+                        }}
                         className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors"
                         title="Publish Plan"
                       >

@@ -61,23 +61,9 @@ const SeriesCard = ({ series, isLarge = false }) => {
       onMouseLeave={() => setIsHovered(false)}
       style={{ zIndex: isHovered ? 100 : 'auto' }}
     >
-      {/* Badges - positioned outside Link to prevent rendering issues */}
+      {/* Badges */}
       {series.is_published && (
-        <div 
-          className="absolute top-2 left-3 z-20 pointer-events-none"
-          style={{
-            backgroundColor: '#e50914',
-            color: '#ffffff',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '10px',
-            fontWeight: '700',
-            lineHeight: '1.2',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-            whiteSpace: 'nowrap',
-            textShadow: 'none'
-          }}
-        >
+        <div className="absolute top-2 left-3 z-20 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">
           NEW
         </div>
       )}

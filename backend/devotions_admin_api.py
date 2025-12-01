@@ -189,6 +189,7 @@ def create_devotion_plan():
             start_date=datetime.fromisoformat(data['start_date']) if data.get('start_date') else None,
             end_date=datetime.fromisoformat(data['end_date']) if data.get('end_date') else None,
             total_days=data.get('total_days', 30),  # Support custom plan length
+            cover_url=data.get('cover_url', ''),
             created_by=user_context['user_id'],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
@@ -247,6 +248,8 @@ def update_devotion_plan(plan_id):
             plan.start_date = datetime.fromisoformat(data['start_date']) if data['start_date'] else None
         if 'end_date' in data:
             plan.end_date = datetime.fromisoformat(data['end_date']) if data['end_date'] else None
+        if 'cover_url' in data:
+            plan.cover_url = data['cover_url']
         
         plan.updated_at = datetime.utcnow()
         
@@ -473,6 +476,77 @@ def delete_plan_content(plan_id, day_index):
         db.session.rollback()
         logger.error(f"Error deleting plan content: {e}", exc_info=True)
         return jsonify({'error': f'Failed to delete content: {str(e)}'}), 500
+
+@devotions_admin_bp.route('/plans/<plan_id>', methods=['DELETE'])
+@login_required
+def delete_devotion_plan(plan_id):
+    """Delete a devotion plan"""
+    try:
+        if DevotionPlan is None:
+            return jsonify({'error': 'Devotions module not fully configured. Database models missing.'}), 503
+        
+        user_context = get_user_context()
+        
+        # Get the plan
+        plan = DevotionPlan.query.get(plan_id)
+        if not plan:
+            return jsonify({'error': 'Devotion plan not found'}), 404
+        
+        # Check campus access
+        if not validate_campus_access('devotions_admin', plan.campus, user_context['role'], user_context['campus']):
+            return jsonify({'error': 'Insufficient campus access'}), 403
+        
+        # Delete the plan (cascade will delete content)
+        db.session.delete(plan)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Devotion plan deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting devotion plan: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to delete devotion plan: {str(e)}'}), 500
+
+@devotions_admin_bp.route('/plans/<plan_id>/archive', methods=['POST'])
+@login_required
+def archive_devotion_plan(plan_id):
+    """Archive a devotion plan"""
+    try:
+        if DevotionPlan is None:
+            return jsonify({'error': 'Devotions module not fully configured. Database models missing.'}), 503
+        
+        user_context = get_user_context()
+        
+        # Get the plan
+        plan = DevotionPlan.query.get(plan_id)
+        if not plan:
+            return jsonify({'error': 'Devotion plan not found'}), 404
+        
+        # Check campus access
+        if not validate_campus_access('devotions_admin', plan.campus, user_context['role'], user_context['campus']):
+            return jsonify({'error': 'Insufficient campus access'}), 403
+        
+        # Archive the plan
+        plan.status = 'archived'
+        plan.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Devotion plan archived successfully',
+            'plan': {
+                'id': plan.id,
+                'title': plan.title,
+                'status': plan.status
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error archiving devotion plan: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to archive devotion plan: {str(e)}'}), 500
 
 # Media upload endpoints
 @devotions_admin_bp.route('/upload', methods=['POST'])

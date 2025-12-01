@@ -14763,6 +14763,16 @@ def get_person_by_email(email):
             logger.info(f"Raw SQL query completed, result: {result is not None}")
             
             if result:
+                # Helper function to safely convert dates (handles both date objects and strings)
+                def safe_date_convert(date_val):
+                    if date_val is None:
+                        return None
+                    if isinstance(date_val, str):
+                        return date_val  # Already a string
+                    if hasattr(date_val, 'isoformat'):
+                        return date_val.isoformat()  # Date/datetime object
+                    return str(date_val)  # Fallback
+                
                 # Build person_data dict manually
                 person_data = {
                     'id': result[0],
@@ -14774,17 +14784,17 @@ def get_person_by_email(email):
                     'department': result[6],
                     'connect_group': result[7],
                     'dream_team_roles': json.loads(result[8]) if result[8] else [],
-                    'birthday': result[9].isoformat() if result[9] else None,
+                    'birthday': safe_date_convert(result[9]),
                     'pastoral_notes': result[10],
                     'tags': json.loads(result[11]) if result[11] else [],
                     'is_active': bool(result[12]),
-                    'created_at': result[13].isoformat() if result[13] else None,
-                    'updated_at': result[14].isoformat() if result[14] else None,
-                    'dna_completed': result[15].isoformat() if result[15] else None,
-                    'baptised_on': result[16].isoformat() if result[16] else None,
-                    'filled_holy_spirit': result[17].isoformat() if result[17] else None,
-                    'rise_attended': result[18].isoformat() if result[18] else None,
-                    'first_served_on': result[19].isoformat() if result[19] else None,
+                    'created_at': safe_date_convert(result[13]),
+                    'updated_at': safe_date_convert(result[14]),
+                    'dna_completed': safe_date_convert(result[15]),
+                    'baptised_on': safe_date_convert(result[16]),
+                    'filled_holy_spirit': safe_date_convert(result[17]),
+                    'rise_attended': safe_date_convert(result[18]),
+                    'first_served_on': safe_date_convert(result[19]),
                     # Missing columns set to None
                     'family_id': None,
                     'is_new_christian': False,
