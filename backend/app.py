@@ -13975,7 +13975,7 @@ def get_persons():
                         continue
                 elif pulse_filter in ['green', 'amber', 'red']:
                     if mapped_pulse != pulse_filter and person_data.get('pulse_status') != pulse_filter:
-                continue
+                        continue
             
             result.append(person_data)
         
