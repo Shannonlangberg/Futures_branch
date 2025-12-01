@@ -13790,14 +13790,22 @@ def get_persons():
         pulse_filter = request.args.get('pulse_status', None)
         department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
-        include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+        # Archive filter: 'active', 'archived', 'all' (defaults to 'active' for backward compatibility)
+        archive_filter = request.args.get('archive_filter', None)
+        if archive_filter is None:
+            # Support old 'include_archived' parameter for backward compatibility
+            include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+            archive_filter = 'all' if include_archived else 'active'
+        
         new_people = request.args.get('new_people', 'false').lower() == 'true'
         new_christians = request.args.get('new_christians', 'false').lower() == 'true'
         
         # Build query - FORCE fresh query from database
-        if include_archived:
+        if archive_filter == 'archived':
+            query = Person.query.filter_by(is_active=False)
+        elif archive_filter == 'all':
             query = Person.query
-        else:
+        else:  # 'active' or default
             query = Person.query.filter_by(is_active=True)
         
         if campus_filter and campus_filter != 'all_campuses':
@@ -13850,7 +13858,12 @@ def get_persons():
             where_clauses = []
             params = {}
             
-            if not include_archived:
+            # Apply archive filter
+            if archive_filter == 'archived':
+                where_clauses.append("is_active = 0")
+            elif archive_filter == 'all':
+                pass  # Show all, no filter
+            else:  # 'active' or default
                 where_clauses.append("is_active = 1")
             
             if campus_filter and campus_filter != 'all_campuses':
@@ -14201,12 +14214,19 @@ def export_persons_csv():
         pulse_filter = request.args.get('pulse_status', None)
         department_filter = request.args.get('department', None)
         search = request.args.get('search', '').strip()
-        include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+        # Archive filter: 'active', 'archived', 'all' (defaults to 'active' for backward compatibility)
+        archive_filter = request.args.get('archive_filter', None)
+        if archive_filter is None:
+            # Support old 'include_archived' parameter for backward compatibility
+            include_archived = request.args.get('include_archived', 'false').lower() == 'true'
+            archive_filter = 'all' if include_archived else 'active'
         
         # Build query (same logic as get_persons)
-        if include_archived:
+        if archive_filter == 'archived':
+            query = Person.query.filter_by(is_active=False)
+        elif archive_filter == 'all':
             query = Person.query
-        else:
+        else:  # 'active' or default
             query = Person.query.filter_by(is_active=True)
         
         if campus_filter and campus_filter != 'all_campuses':

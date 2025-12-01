@@ -32,7 +32,7 @@ const People = () => {
   const [campusFilter, setCampusFilter] = useState('all_campuses');
   const [pulseFilter, setPulseFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [archiveFilter, setArchiveFilter] = useState('active'); // 'active', 'archived', 'all'
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -79,7 +79,7 @@ const People = () => {
   useEffect(() => {
     loadCampuses();
     loadPersons();
-  }, [campusFilter, pulseFilter, departmentFilter, searchTerm, includeArchived]);
+  }, [campusFilter, pulseFilter, departmentFilter, searchTerm, archiveFilter]);
 
   // Refresh data when window regains focus (in case mobile app updated data)
   useEffect(() => {
@@ -155,9 +155,8 @@ const People = () => {
       if (searchTerm) {
         params.append('search', searchTerm);
       }
-      if (includeArchived) {
-        params.append('include_archived', 'true');
-      }
+      // Archive filter: 'active', 'archived', 'all'
+      params.append('archive_filter', archiveFilter);
 
       // Add cache-busting timestamp
       params.append('_t', Date.now().toString());
@@ -625,7 +624,12 @@ const People = () => {
   }, [searchTerm]);
 
   // Stats (only count active people unless showing archived)
-  const activePersons = includeArchived ? persons : persons.filter(p => p.is_active);
+  // Filter persons based on archive filter
+  const activePersons = archiveFilter === 'archived' 
+    ? persons.filter(p => !p.is_active)
+    : archiveFilter === 'all'
+    ? persons
+    : persons.filter(p => p.is_active);
   const stats = {
     total: activePersons.length,
     green: activePersons.filter(p => p.pulse_status === 'green').length,
@@ -823,17 +827,20 @@ const People = () => {
                 </select>
               </div>
 
-              {/* Include Archived Toggle */}
+              {/* Archive Filter */}
               <div className="min-w-[180px]">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={includeArchived}
-                    onChange={(e) => setIncludeArchived(e.target.checked)}
-                    className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-xs font-medium text-slate-300">Include Archived</span>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Show
                 </label>
+                <select
+                  value={archiveFilter}
+                  onChange={(e) => setArchiveFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500/50"
+                >
+                  <option value="active">Active Only</option>
+                  <option value="archived">Archived Only</option>
+                  <option value="all">All</option>
+                </select>
               </div>
             </div>
           </div>
@@ -923,17 +930,20 @@ const People = () => {
               </select>
             </div>
 
-            {/* Include Archived Toggle */}
+            {/* Archive Filter */}
             <div className="min-w-[180px]">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeArchived}
-                  onChange={(e) => setIncludeArchived(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium text-slate-300">Include Archived</span>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Show
               </label>
+              <select
+                value={archiveFilter}
+                onChange={(e) => setArchiveFilter(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="active">Active Only</option>
+                <option value="archived">Archived Only</option>
+                <option value="all">All</option>
+              </select>
             </div>
           </div>
         </div>
