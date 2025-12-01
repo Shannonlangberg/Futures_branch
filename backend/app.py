@@ -15186,23 +15186,74 @@ def archive_person(person_id):
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        person = Person.query.filter_by(id=person_id).first()
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+        # Check if person exists using raw SQL to avoid column issues
+        from sqlalchemy import text
+        from sqlalchemy.exc import OperationalError
         
-        person.is_active = False
-        db.session.commit()
-        
-        logger.info(f"Person {person_id} archived by user {current_user.id}")
-        return jsonify({
-            'message': 'Person archived successfully',
-            'person': person.to_dict()
-        })
+        # First, check if the person exists
+        try:
+            result = db.session.execute(
+                text("SELECT id FROM persons WHERE id = :person_id"),
+                {'person_id': person_id}
+            ).first()
+            
+            if not result:
+                return jsonify({'error': 'Person not found'}), 404
+            
+            # Update using raw SQL to avoid column issues
+            db.session.execute(
+                text("UPDATE persons SET is_active = 0 WHERE id = :person_id"),
+                {'person_id': person_id}
+            )
+            db.session.commit()
+            
+            # Fetch the updated person using raw SQL to build response
+            person_row = db.session.execute(
+                text("SELECT id, full_name, preferred_name, email, phone, campus, department, is_active FROM persons WHERE id = :person_id"),
+                {'person_id': person_id}
+            ).first()
+            
+            if person_row:
+                person_dict = {
+                    'id': person_row[0],
+                    'full_name': person_row[1],
+                    'preferred_name': person_row[2],
+                    'email': person_row[3],
+                    'phone': person_row[4],
+                    'campus': person_row[5],
+                    'department': person_row[6],
+                    'is_active': bool(person_row[7])
+                }
+            else:
+                person_dict = {'id': person_id, 'is_active': False}
+            
+            logger.info(f"Person {person_id} archived by user {current_user.id}")
+            return jsonify({
+                'message': 'Person archived successfully',
+                'person': person_dict
+            })
+            
+        except OperationalError as e:
+            error_str = str(e).lower()
+            if 'no such column' in error_str or 'no such table' in error_str:
+                logger.warning(f"Database schema issue when archiving person: {e}")
+                # Fallback: try simple update without column checks
+                db.session.execute(
+                    text("UPDATE persons SET is_active = 0 WHERE id = :person_id"),
+                    {'person_id': person_id}
+                )
+                db.session.commit()
+                return jsonify({
+                    'message': 'Person archived successfully',
+                    'person': {'id': person_id, 'is_active': False}
+                })
+            else:
+                raise
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error archiving person {person_id}: {e}")
-        return jsonify({'error': 'Failed to archive person'}), 500
+        logger.error(f"Error archiving person {person_id}: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to archive person: {str(e)}'}), 500
 
 
 @app.route('/api/persons/<person_id>/restore', methods=['POST'])
@@ -15213,23 +15264,74 @@ def restore_person(person_id):
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        person = Person.query.filter_by(id=person_id).first()
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+        # Check if person exists using raw SQL to avoid column issues
+        from sqlalchemy import text
+        from sqlalchemy.exc import OperationalError
         
-        person.is_active = True
-        db.session.commit()
-        
-        logger.info(f"Person {person_id} restored by user {current_user.id}")
-        return jsonify({
-            'message': 'Person restored successfully',
-            'person': person.to_dict()
-        })
+        # First, check if the person exists
+        try:
+            result = db.session.execute(
+                text("SELECT id FROM persons WHERE id = :person_id"),
+                {'person_id': person_id}
+            ).first()
+            
+            if not result:
+                return jsonify({'error': 'Person not found'}), 404
+            
+            # Update using raw SQL to avoid column issues
+            db.session.execute(
+                text("UPDATE persons SET is_active = 1 WHERE id = :person_id"),
+                {'person_id': person_id}
+            )
+            db.session.commit()
+            
+            # Fetch the updated person using raw SQL to build response
+            person_row = db.session.execute(
+                text("SELECT id, full_name, preferred_name, email, phone, campus, department, is_active FROM persons WHERE id = :person_id"),
+                {'person_id': person_id}
+            ).first()
+            
+            if person_row:
+                person_dict = {
+                    'id': person_row[0],
+                    'full_name': person_row[1],
+                    'preferred_name': person_row[2],
+                    'email': person_row[3],
+                    'phone': person_row[4],
+                    'campus': person_row[5],
+                    'department': person_row[6],
+                    'is_active': bool(person_row[7])
+                }
+            else:
+                person_dict = {'id': person_id, 'is_active': True}
+            
+            logger.info(f"Person {person_id} restored by user {current_user.id}")
+            return jsonify({
+                'message': 'Person restored successfully',
+                'person': person_dict
+            })
+            
+        except OperationalError as e:
+            error_str = str(e).lower()
+            if 'no such column' in error_str or 'no such table' in error_str:
+                logger.warning(f"Database schema issue when restoring person: {e}")
+                # Fallback: try simple update without column checks
+                db.session.execute(
+                    text("UPDATE persons SET is_active = 1 WHERE id = :person_id"),
+                    {'person_id': person_id}
+                )
+                db.session.commit()
+                return jsonify({
+                    'message': 'Person restored successfully',
+                    'person': {'id': person_id, 'is_active': True}
+                })
+            else:
+                raise
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error restoring person {person_id}: {e}")
-        return jsonify({'error': 'Failed to restore person'}), 500
+        logger.error(f"Error restoring person {person_id}: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to restore person: {str(e)}'}), 500
 
 
 @app.route('/api/persons/<person_id>', methods=['DELETE'])
@@ -15240,9 +15342,33 @@ def delete_person(person_id):
         if not current_user.has_permission('query_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
-        person = Person.query.filter_by(id=person_id).first()
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+        # Check if person exists using raw SQL to avoid column issues
+        from sqlalchemy import text
+        from sqlalchemy.exc import OperationalError
+        
+        # First, verify the person exists using raw SQL
+        try:
+            result = db.session.execute(
+                text("SELECT id FROM persons WHERE id = :person_id"),
+                {'person_id': person_id}
+            ).first()
+            
+            if not result:
+                return jsonify({'error': 'Person not found'}), 404
+        except OperationalError as e:
+            error_str = str(e).lower()
+            if 'no such column' in error_str:
+                # If there's a column issue, try a simpler query
+                logger.warning(f"Column issue when checking person existence: {e}")
+                # Still check existence but with minimal columns
+                result = db.session.execute(
+                    text("SELECT id FROM persons WHERE id = :person_id"),
+                    {'person_id': person_id}
+                ).first()
+                if not result:
+                    return jsonify({'error': 'Person not found'}), 404
+            else:
+                raise
         
         logger.info(f"Starting deletion of person {person_id} and all related records...")
         
@@ -22133,9 +22259,61 @@ def create_pastoral_care_case():
         )
         
         db.session.add(case)
+        db.session.flush()  # Flush to get case.id
+        
+        # SYNC: Create corresponding CareCase for Heartbeat engine (central system)
+        try:
+            # Map PastoralCareCase status to CareCase status
+            status_map = {
+                'open': 'open',
+                'resolved': 'closed',
+                'closed': 'closed'
+            }
+            care_case_status = status_map.get(case.status, 'open')
+            
+            # Determine care case type from notes or default to 'pastoral_care'
+            care_case_type = 'pastoral_care'
+            if case.notes:
+                notes_lower = case.notes.lower()
+                if any(word in notes_lower for word in ['bereavement', 'death', 'grief', 'loss']):
+                    care_case_type = 'bereavement'
+                elif any(word in notes_lower for word in ['marriage', 'divorce', 'relationship']):
+                    care_case_type = 'marriage'
+                elif any(word in notes_lower for word in ['mental', 'depression', 'anxiety', 'counseling']):
+                    care_case_type = 'mental_health'
+                elif any(word in notes_lower for word in ['prayer', 'pray']):
+                    care_case_type = 'prayer_request'
+            
+            # Create CareCase for heartbeat engine
+            heartbeat_care_case = CareCase(
+                person_id=case.person_id,
+                type=care_case_type,
+                status=care_case_status,
+                priority=case.priority,
+                summary=case.notes[:500] if case.notes else f"Pastoral care case: {case.id}",
+                details=case.notes if case.notes else None,
+                created_by_person_id=getattr(current_user, 'id', None) or case.person_id,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(heartbeat_care_case)
+            logger.info(f"✅ Created CareCase {heartbeat_care_case.id} for PastoralCareCase {case.id} (synced for Heartbeat)")
+        except Exception as sync_error:
+            logger.error(f"⚠️ Failed to sync CareCase for PastoralCareCase {case.id}: {sync_error}", exc_info=True)
+            # Continue even if sync fails - don't break the main operation
+        
         db.session.commit()
         
-        # Update person's heartbeat if high priority case (affects health)
+        # Recalculate heartbeat to reflect the new care case
+        try:
+            from heartbeat_engine import HeartbeatEngine
+            engine = HeartbeatEngine()
+            engine.calculate_heartbeat(person.id)
+            logger.info(f"💗 Heartbeat recalculated after creating pastoral care case")
+        except Exception as heartbeat_error:
+            logger.warning(f"Could not recalculate heartbeat: {heartbeat_error}")
+        
+        # Update person's heartbeat status if high priority case (affects health)
         if case.priority == 'high' and person.engagement_profile:
             # High care case reduces health
             person.engagement_profile.pulse_status = 'amber'
@@ -22193,7 +22371,71 @@ def update_pastoral_care_case(case_id):
             case.family_dependencies = json.dumps(data['family_dependencies']) if data['family_dependencies'] else None
         
         case.updated_at = datetime.utcnow()
+        
+        # SYNC: Update corresponding CareCase for Heartbeat engine
+        try:
+            # Find the CareCase that corresponds to this PastoralCareCase
+            # We'll match by person_id and similar summary/details
+            heartbeat_care_cases = CareCase.query.filter_by(person_id=case.person_id).all()
+            
+            # Try to find matching CareCase by checking if summary matches
+            matching_case = None
+            if case.notes:
+                for hc in heartbeat_care_cases:
+                    if hc.summary and case.notes[:500] in hc.summary:
+                        matching_case = hc
+                        break
+            
+            # If no exact match, use the most recent open case for this person
+            if not matching_case:
+                open_cases = [c for c in heartbeat_care_cases if c.status in ['open', 'in_progress']]
+                if open_cases:
+                    matching_case = max(open_cases, key=lambda x: x.created_at)
+            
+            if matching_case:
+                # Map PastoralCareCase status to CareCase status
+                status_map = {
+                    'open': 'open',
+                    'resolved': 'closed',
+                    'closed': 'closed'
+                }
+                matching_case.status = status_map.get(case.status, matching_case.status)
+                matching_case.priority = case.priority
+                if case.notes:
+                    matching_case.summary = case.notes[:500]
+                    matching_case.details = case.notes
+                matching_case.updated_at = datetime.utcnow()
+                logger.info(f"✅ Updated CareCase {matching_case.id} for PastoralCareCase {case.id}")
+            else:
+                # No matching case found - create one (shouldn't happen, but handle it)
+                logger.warning(f"⚠️ No matching CareCase found for PastoralCareCase {case.id}, creating new one")
+                status_map = {'open': 'open', 'resolved': 'closed', 'closed': 'closed'}
+                new_care_case = CareCase(
+                    person_id=case.person_id,
+                    type='pastoral_care',
+                    status=status_map.get(case.status, 'open'),
+                    priority=case.priority,
+                    summary=case.notes[:500] if case.notes else f"Pastoral care case: {case.id}",
+                    details=case.notes if case.notes else None,
+                    created_by_person_id=getattr(current_user, 'id', None) or case.person_id,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+                db.session.add(new_care_case)
+        except Exception as sync_error:
+            logger.error(f"⚠️ Failed to sync CareCase for PastoralCareCase {case.id}: {sync_error}", exc_info=True)
+        
         db.session.commit()
+        
+        # Recalculate heartbeat if status changed
+        if 'status' in data and case.person:
+            try:
+                from heartbeat_engine import HeartbeatEngine
+                engine = HeartbeatEngine()
+                engine.calculate_heartbeat(case.person_id)
+                logger.info(f"💗 Heartbeat recalculated after updating pastoral care case")
+            except Exception as heartbeat_error:
+                logger.warning(f"Could not recalculate heartbeat: {heartbeat_error}")
         
         return jsonify(case.to_dict())
         
@@ -22215,8 +22457,33 @@ def delete_pastoral_care_case(case_id):
         if not case:
             return jsonify({'error': 'Case not found'}), 404
         
+        person_id = case.person_id  # Save for heartbeat recalculation
+        
+        # SYNC: Close corresponding CareCase (don't delete, just mark as closed)
+        try:
+            heartbeat_care_cases = CareCase.query.filter_by(person_id=case.person_id).all()
+            if case.notes:
+                for hc in heartbeat_care_cases:
+                    if hc.summary and case.notes[:500] in hc.summary:
+                        hc.status = 'closed'
+                        hc.updated_at = datetime.utcnow()
+                        logger.info(f"✅ Closed CareCase {hc.id} for deleted PastoralCareCase {case_id}")
+                        break
+        except Exception as sync_error:
+            logger.error(f"⚠️ Failed to sync CareCase deletion for PastoralCareCase {case_id}: {sync_error}", exc_info=True)
+        
         db.session.delete(case)
         db.session.commit()
+        
+        # Recalculate heartbeat after deletion
+        if person_id:
+            try:
+                from heartbeat_engine import HeartbeatEngine
+                engine = HeartbeatEngine()
+                engine.calculate_heartbeat(person_id)
+                logger.info(f"💗 Heartbeat recalculated after deleting pastoral care case")
+            except Exception as heartbeat_error:
+                logger.warning(f"Could not recalculate heartbeat: {heartbeat_error}")
         
         return jsonify({'success': True, 'message': 'Case deleted successfully'})
         
@@ -22241,6 +22508,19 @@ def resolve_pastoral_care_case(case_id):
         case.status = 'resolved'
         case.updated_at = datetime.utcnow()
         
+        # SYNC: Update corresponding CareCase to closed status
+        try:
+            heartbeat_care_cases = CareCase.query.filter_by(person_id=case.person_id).all()
+            if case.notes:
+                for hc in heartbeat_care_cases:
+                    if hc.summary and case.notes[:500] in hc.summary:
+                        hc.status = 'closed'
+                        hc.updated_at = datetime.utcnow()
+                        logger.info(f"✅ Closed CareCase {hc.id} for resolved PastoralCareCase {case_id}")
+                        break
+        except Exception as sync_error:
+            logger.error(f"⚠️ Failed to sync CareCase resolution for PastoralCareCase {case_id}: {sync_error}", exc_info=True)
+        
         # Improve person's heartbeat when case is resolved
         if case.person and case.person.engagement_profile:
             if case.person.engagement_profile.pulse_status == 'red':
@@ -22249,6 +22529,16 @@ def resolve_pastoral_care_case(case_id):
                 case.person.engagement_profile.pulse_status = 'green'
         
         db.session.commit()
+        
+        # Recalculate heartbeat to reflect resolved case
+        if case.person_id:
+            try:
+                from heartbeat_engine import HeartbeatEngine
+                engine = HeartbeatEngine()
+                engine.calculate_heartbeat(case.person_id)
+                logger.info(f"💗 Heartbeat recalculated after resolving pastoral care case")
+            except Exception as heartbeat_error:
+                logger.warning(f"Could not recalculate heartbeat: {heartbeat_error}")
         
         return jsonify(case.to_dict())
         
