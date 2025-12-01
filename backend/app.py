@@ -18484,6 +18484,14 @@ def prayer_submission_page(link_id):
 from serving_api import serving_bp
 app.register_blueprint(serving_bp)
 
+# BEACON MANAGEMENT ROUTES (Bluetooth beacon management)
+try:
+    from beacon_api import beacon_bp
+    app.register_blueprint(beacon_bp)
+    logger.info("Beacon API registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import beacon_api: {e}")
+
 # COMMUNICATION MODULE ROUTES (Email & SMS Campaign Management)
 try:
     from communication_api import communication_bp
@@ -22087,12 +22095,15 @@ def create_family_for_person(person_id):
             has_family_id = False
         
         # Auto-create all missing columns from migration 035
+        # Include ALL columns that might be in the Person model
         columns_to_add = [
             ('family_id', 'TEXT'),
             ('is_new_christian', 'INTEGER DEFAULT 0'),
             ('new_christian_date', 'DATE'),
             ('follow_up_status', 'TEXT'),
-            ('service_attended', 'TEXT')
+            ('service_attended', 'TEXT'),
+            ('is_new_person', 'INTEGER DEFAULT 0'),
+            ('new_person_date', 'DATE')
         ]
         
         missing_columns = [col for col in columns_to_add if col[0] not in existing_columns]
@@ -22152,7 +22163,8 @@ def create_family_for_person(person_id):
             }), 400
         
         # Verify all required columns exist before querying (to avoid SQLAlchemy errors)
-        required_columns = ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended']
+        # Check for ALL columns that might be in the Person model
+        required_columns = ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended', 'is_new_person', 'new_person_date']
         missing_required = [col for col in required_columns if col not in existing_columns]
         if missing_required:
             logger.error(f"Required columns still missing: {missing_required}")
@@ -22164,8 +22176,28 @@ def create_family_for_person(person_id):
             }), 400
         
         logger.info(f"Looking up person with id: '{person_id}'")
-        # Now safe to query - all columns should exist
-        person = Person.query.get(person_id)
+        # Use raw SQL to query person to avoid SQLAlchemy trying to select all model columns
+        # This is safer even after creating columns, as there might be other model columns we haven't created yet
+        try:
+            sql = f"SELECT * FROM persons WHERE id = :person_id"
+            result = db.session.execute(text(sql), {'person_id': person_id}).fetchone()
+            if not result:
+                logger.warning(f"Person not found with id '{person_id}'")
+                return jsonify({'error': 'Person not found'}), 404
+            
+            # Get column names from the result
+            column_names = [desc[0] for desc in result.keys()] if hasattr(result, 'keys') else [desc[0] for desc in db.session.execute(text("PRAGMA table_info(persons)")).fetchall()]
+            person_dict = dict(zip(column_names, result))
+            
+            # Create Person object and set attributes
+            person = Person()
+            for key, value in person_dict.items():
+                if hasattr(person, key):
+                    setattr(person, key, value)
+        except Exception as query_error:
+            logger.error(f"Error querying person with raw SQL: {query_error}", exc_info=True)
+            # Fallback to ORM query (might fail if columns missing)
+            person = Person.query.get(person_id)
         if not person:
             # Try to find by exact match or similar
             logger.warning(f"Person not found with id '{person_id}', trying alternative lookup")
