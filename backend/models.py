@@ -1642,6 +1642,39 @@ class ConnectGroupMessage(db.Model):
         }
 
 
+class Group(db.Model):
+    """Regular Group model (separate from Connect Groups)"""
+    __tablename__ = 'groups'
+    
+    id = db.Column(db.String(50), primary_key=True)  # e.g., "grp_copper_coast_1"
+    name = db.Column(db.String(200), nullable=False)
+    campus = db.Column(db.String(100), nullable=False, default='all_campuses')
+    leader_id = db.Column(db.String(50), db.ForeignKey('persons.id'), nullable=True)
+    description = db.Column(db.Text)
+    status = db.Column(db.String(20), default='active')  # active, inactive
+    
+    # Metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    leader = db.relationship('Person', foreign_keys=[leader_id], backref='led_regular_groups')
+    
+    def to_dict(self):
+        """Convert group to dictionary"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'campus': self.campus,
+            'leader_id': self.leader_id,
+            'leader_name': self.leader.full_name if self.leader else None,
+            'description': self.description,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class EventCategory(db.Model):
     """Event category model"""
     __tablename__ = 'event_categories'

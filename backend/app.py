@@ -18130,6 +18130,179 @@ def mark_leader_attendance(group_id):
         return jsonify({'error': f'Failed to mark attendance: {str(e)}'}), 500
 
 
+# Regular Groups API Endpoints
+@app.route('/api/groups', methods=['GET'])
+@login_required
+def get_groups():
+    """Get list of regular groups"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        campus_filter = request.args.get('campus', 'all_campuses')
+        status_filter = request.args.get('status', None)
+        
+        # Build query
+        query = Group.query
+        
+        # Apply campus scoping
+        try:
+            from utils.campus_scope import apply_campus_filter
+            query = apply_campus_filter(query, 'groups')
+        except Exception as filter_error:
+            logger.warning(f"Campus filter failed: {filter_error}")
+        
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter(Group.campus == campus_filter)
+        
+        if status_filter:
+            query = query.filter(Group.status == status_filter)
+        
+        groups = query.order_by(Group.name).all()
+        
+        groups_data = [g.to_dict() for g in groups]
+        
+        return jsonify({
+            'groups': groups_data,
+            'total': len(groups_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching groups: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch groups'}), 500
+
+
+@app.route('/api/groups', methods=['POST'])
+@login_required
+def create_group():
+    """Create new regular group"""
+    try:
+        if not current_user.has_permission('groups', 'create'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data.get('name'):
+            return jsonify({'error': 'Missing required field: name'}), 400
+        
+        # Generate group ID
+        import uuid
+        campus_slug = (data.get('campus', 'all_campuses') or 'all_campuses').lower().replace(' ', '_')
+        group_id = f"grp_{campus_slug}_{str(uuid.uuid4())[:8]}"
+        
+        # Verify leader exists if provided
+        leader_id = data.get('leader_id')
+        if leader_id:
+            leader = Person.query.filter_by(id=leader_id, is_active=True).first()
+            if not leader:
+                return jsonify({'error': 'Leader not found'}), 404
+        
+        # Create group
+        group = Group(
+            id=group_id,
+            name=data['name'],
+            campus=data.get('campus', 'all_campuses'),
+            leader_id=leader_id,
+            description=data.get('description'),
+            status=data.get('status', 'active')
+        )
+        
+        db.session.add(group)
+        db.session.commit()
+        
+        return jsonify(group.to_dict()), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating group: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create group'}), 500
+
+
+@app.route('/api/groups/<group_id>', methods=['GET'])
+@login_required
+def get_group(group_id):
+    """Get a single regular group"""
+    try:
+        if not current_user.has_permission('groups', 'view'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = Group.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        return jsonify(group.to_dict())
+        
+    except Exception as e:
+        logger.error(f"Error fetching group: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch group'}), 500
+
+
+@app.route('/api/groups/<group_id>', methods=['PUT'])
+@login_required
+def update_group(group_id):
+    """Update a regular group"""
+    try:
+        if not current_user.has_permission('groups', 'edit'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = Group.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        data = request.get_json()
+        
+        # Update fields
+        if 'name' in data:
+            group.name = data['name']
+        if 'campus' in data:
+            group.campus = data['campus']
+        if 'leader_id' in data:
+            leader_id = data['leader_id']
+            if leader_id:
+                leader = Person.query.filter_by(id=leader_id, is_active=True).first()
+                if not leader:
+                    return jsonify({'error': 'Leader not found'}), 404
+            group.leader_id = leader_id
+        if 'description' in data:
+            group.description = data['description']
+        if 'status' in data:
+            group.status = data['status']
+        
+        group.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify(group.to_dict())
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating group: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to update group'}), 500
+
+
+@app.route('/api/groups/<group_id>', methods=['DELETE'])
+@login_required
+def delete_group(group_id):
+    """Delete a regular group"""
+    try:
+        if not current_user.has_permission('groups', 'delete'):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        group = Group.query.filter_by(id=group_id).first()
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        db.session.delete(group)
+        db.session.commit()
+        
+        return jsonify({'message': 'Group deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting group: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to delete group'}), 500
+
+
 @app.route('/api/connect-groups/meetings/<meeting_id>/attendance', methods=['POST'])
 def submit_meeting_attendance(meeting_id):
     """Submit attendance for a meeting (allows leader access via email + access code)"""
