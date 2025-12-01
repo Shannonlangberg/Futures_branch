@@ -14812,8 +14812,51 @@ def get_person_by_email(email):
             else:
                 return jsonify({'error': 'Person not found'}), 404
         except Exception as raw_error:
+            import traceback
             logger.error(f"Error in raw SQL query: {raw_error}", exc_info=True)
-            return jsonify({'error': 'Failed to fetch person profile', 'details': str(raw_error)}), 500
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            # Try to get basic person info even if date conversion fails
+            try:
+                if result:
+                    # Fallback: return data with dates as strings
+                    person_data = {
+                        'id': result[0],
+                        'full_name': result[1],
+                        'preferred_name': result[2],
+                        'email': result[3],
+                        'phone': result[4],
+                        'campus': result[5],
+                        'department': result[6],
+                        'connect_group': result[7],
+                        'dream_team_roles': json.loads(result[8]) if result[8] else [],
+                        'birthday': str(result[9]) if result[9] else None,
+                        'pastoral_notes': result[10],
+                        'tags': json.loads(result[11]) if result[11] else [],
+                        'is_active': bool(result[12]),
+                        'created_at': str(result[13]) if result[13] else None,
+                        'updated_at': str(result[14]) if result[14] else None,
+                        'dna_completed': str(result[15]) if result[15] else None,
+                        'baptised_on': str(result[16]) if result[16] else None,
+                        'filled_holy_spirit': str(result[17]) if result[17] else None,
+                        'rise_attended': str(result[18]) if result[18] else None,
+                        'first_served_on': str(result[19]) if result[19] else None,
+                        'family_id': None,
+                        'is_new_christian': False,
+                        'new_christian_date': None,
+                        'follow_up_status': None,
+                        'service_attended': None,
+                        'is_new_person': False,
+                        'new_person_date': None,
+                        'engagement': None,
+                        'pathway': None,
+                        'streaks': [],
+                        'next_steps': []
+                    }
+                    person_id_from_result = result[0]
+                    logger.info("Using fallback date conversion (strings)")
+            except Exception as fallback_error:
+                logger.error(f"Fallback also failed: {fallback_error}")
+                return jsonify({'error': 'Failed to fetch person profile', 'details': str(raw_error)}), 500
         
         if not person_data:
             return jsonify({'error': 'Person not found'}), 404
