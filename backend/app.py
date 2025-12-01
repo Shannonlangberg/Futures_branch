@@ -21144,6 +21144,17 @@ def get_families():
         from sqlalchemy import text
         from sqlalchemy.exc import OperationalError
         
+        # Check if new Person columns exist
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_family_id = 'family_id' in existing_columns
+            has_new_christian_fields = all(col in existing_columns for col in ['is_new_christian', 'new_christian_date'])
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_family_id = False
+            has_new_christian_fields = False
+        
         # Get query parameters
         campus_filter = request.args.get('campus', None)
         search = request.args.get('search', '').strip()
@@ -21151,21 +21162,54 @@ def get_families():
         has_kids = request.args.get('has_kids', None)  # true/false
         has_youth = request.args.get('has_youth', None)  # true/false
         
-        # Get all active persons
-        query = Person.query.filter_by(is_active=True)
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter(Person.campus == campus_filter)
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                db.or_(
-                    Person.full_name.ilike(search_term),
-                    Person.email.ilike(search_term),
-                    Person.preferred_name.ilike(search_term)
+        # Get all active persons - use raw SQL if columns don't exist to avoid errors
+        if not has_family_id:
+            # Use raw SQL to select only existing columns
+            base_columns = [
+                'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
+                'department', 'connect_group', 'dream_team_roles', 'birthday', 
+                'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
+                'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
+            ]
+            
+            where_clauses = ["is_active = 1"]
+            params = {}
+            
+            if campus_filter and campus_filter != 'all_campuses':
+                where_clauses.append("campus = :campus")
+                params['campus'] = campus_filter
+            
+            if search:
+                where_clauses.append("(full_name LIKE :search OR email LIKE :search OR preferred_name LIKE :search)")
+                params['search'] = f"%{search}%"
+            
+            sql = f"SELECT {', '.join(base_columns)} FROM persons WHERE {' AND '.join(where_clauses)}"
+            rows = db.session.execute(text(sql), params).fetchall()
+            
+            # Convert rows to Person objects
+            persons = []
+            for row in rows:
+                person_dict = dict(zip(base_columns, row))
+                person = Person()
+                for key, value in person_dict.items():
+                    setattr(person, key, value)
+                persons.append(person)
+        else:
+            # Use normal ORM query if columns exist
+            query = Person.query.filter_by(is_active=True)
+            if campus_filter and campus_filter != 'all_campuses':
+                query = query.filter(Person.campus == campus_filter)
+            if search:
+                search_term = f"%{search}%"
+                query = query.filter(
+                    db.or_(
+                        Person.full_name.ilike(search_term),
+                        Person.email.ilike(search_term),
+                        Person.preferred_name.ilike(search_term)
+                    )
                 )
-            )
-        
-        persons = query.all()
+            
+            persons = query.all()
         
         # Group by family/household using family_id if available, otherwise fallback to email/last name
         family_map = {}
@@ -21174,7 +21218,10 @@ def get_families():
         for person in persons:
             try:
                 # Use family_id if available, otherwise use fallback grouping
-                family_id = getattr(person, 'family_id', None)
+                family_id = None
+                if has_family_id:
+                    family_id = getattr(person, 'family_id', None)
+                
                 if family_id:
                     family_key = family_id
                 else:
@@ -21288,8 +21335,8 @@ def get_families():
                     'heartbeat_status': heartbeat_status,
                     'pulse_status': pulse_status,
                     'connect_group': connect_group_name or person_connect_group,
-                    'is_new_christian': getattr(person, 'is_new_christian', False),
-                    'new_christian_date': safe_date_iso(getattr(person, 'new_christian_date', None)),
+                    'is_new_christian': getattr(person, 'is_new_christian', False) if has_new_christian_fields else False,
+                    'new_christian_date': safe_date_iso(getattr(person, 'new_christian_date', None)) if has_new_christian_fields else None,
                     'baptised_on': safe_date_iso(getattr(person, 'baptised_on', None)),
                     'created_at': safe_date_iso(getattr(person, 'created_at', None)),
                     'has_family_id': bool(family_id)
