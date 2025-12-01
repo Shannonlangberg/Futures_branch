@@ -25,6 +25,7 @@ import Lists from './pages/Lists';
 import PersonHealthReport from './pages/PersonHealthReport';
 import PastoralCareAppointments from './pages/PastoralCareAppointments';
 import Prayer from './pages/Prayer';
+import PrayerWrapper from './pages/people/PrayerWrapper';
 import BeaconManagement from './pages/BeaconManagement';
 import PathwayManager from './pages/PathwayManager';
 import Landing from './pages/Landing';
@@ -398,7 +399,7 @@ function App() {
                   <Route path="/connect-groups" element={<Navigate to="/groups" replace />} />
                   <Route path="/persons/:personId" element={<PersonHealthReport />} />
                   <Route path="/pastoral-care" element={<PastoralCareAppointments />} />
-                  <Route path="/prayer" element={<Prayer />} />
+                  <Route path="/prayer" element={<PrayerWrapper />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
                   <Route path="/notifications" element={<NotificationManager />} />
