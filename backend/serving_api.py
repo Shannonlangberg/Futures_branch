@@ -878,44 +878,62 @@ def get_serving_dashboard():
         user_id = current_user.id
         
         # Get user's teams
-        teams = get_user_teams(user_id)
+        teams = []
+        try:
+            teams = get_user_teams(user_id)
+        except Exception as e:
+            logger.warning(f"Error getting user teams for {user_id}: {e}")
         
         # Get upcoming schedules
-        upcoming_schedules = ServingSchedule.query.filter(
-            ServingSchedule.assigned_person_id == user_id,
-            ServingSchedule.scheduled_date >= datetime.now().date(),
-            ServingSchedule.status.in_(['assigned', 'confirmed'])
-        ).order_by(ServingSchedule.scheduled_date, ServingSchedule.start_time).limit(10).all()
-        
-        schedules_data = [schedule.to_dict() for schedule in upcoming_schedules]
+        schedules_data = []
+        try:
+            upcoming_schedules = ServingSchedule.query.filter(
+                ServingSchedule.assigned_person_id == user_id,
+                ServingSchedule.scheduled_date >= datetime.now().date(),
+                ServingSchedule.status.in_(['assigned', 'confirmed'])
+            ).order_by(ServingSchedule.scheduled_date, ServingSchedule.start_time).limit(10).all()
+            schedules_data = [schedule.to_dict() for schedule in upcoming_schedules]
+        except Exception as e:
+            logger.warning(f"Error getting serving schedules for {user_id}: {e}")
         
         # Get recent serving records
-        recent_records = ServingRecord.query.filter_by(
-            person_id=user_id
-        ).order_by(ServingRecord.served_date.desc()).limit(5).all()
-        
-        records_data = [record.to_dict() for record in recent_records]
+        records_data = []
+        try:
+            recent_records = ServingRecord.query.filter_by(
+                person_id=user_id
+            ).order_by(ServingRecord.served_date.desc()).limit(5).all()
+            records_data = [record.to_dict() for record in recent_records]
+        except Exception as e:
+            logger.warning(f"Error getting serving records for {user_id}: {e}")
         
         # Get pending requests
-        pending_requests = ServingRequest.query.filter_by(
-            person_id=user_id,
-            status='pending'
-        ).order_by(ServingRequest.created_at.desc()).all()
-        
-        requests_data = [req.to_dict() for req in pending_requests]
+        requests_data = []
+        try:
+            pending_requests = ServingRequest.query.filter_by(
+                person_id=user_id,
+                status='pending'
+            ).order_by(ServingRequest.created_at.desc()).all()
+            requests_data = [req.to_dict() for req in pending_requests]
+        except Exception as e:
+            logger.warning(f"Error getting serving requests for {user_id}: {e}")
         
         # Calculate serving stats
-        total_servings = ServingRecord.query.filter_by(
-            person_id=user_id,
-            status='completed'
-        ).count()
-        
-        this_month = datetime.now().replace(day=1).date()
-        monthly_servings = ServingRecord.query.filter(
-            ServingRecord.person_id == user_id,
-            ServingRecord.status == 'completed',
-            ServingRecord.served_date >= this_month
-        ).count()
+        total_servings = 0
+        monthly_servings = 0
+        try:
+            total_servings = ServingRecord.query.filter_by(
+                person_id=user_id,
+                status='completed'
+            ).count()
+            
+            this_month = datetime.now().replace(day=1).date()
+            monthly_servings = ServingRecord.query.filter(
+                ServingRecord.person_id == user_id,
+                ServingRecord.status == 'completed',
+                ServingRecord.served_date >= this_month
+            ).count()
+        except Exception as e:
+            logger.warning(f"Error calculating serving stats for {user_id}: {e}")
         
         return jsonify({
             'teams': teams,

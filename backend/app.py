@@ -13875,12 +13875,31 @@ def get_persons():
         # Apply new_people filter (last 30 days)
         if new_people:
             thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-            persons = [p for p in persons if p.created_at and p.created_at >= thirty_days_ago]
+            filtered_persons = []
+            for p in persons:
+                try:
+                    if p.created_at and p.created_at >= thirty_days_ago:
+                        filtered_persons.append(p)
+                except Exception as e:
+                    logger.debug(f"Error checking created_at for person {getattr(p, 'id', 'unknown')}: {e}")
+                    continue
+            persons = filtered_persons
         
         # Apply new_christians filter
         if new_christians:
             two_years_ago = datetime.utcnow().date() - timedelta(days=730)
-            persons = [p for p in persons if p.baptised_on and p.baptised_on >= two_years_ago]
+            filtered_persons = []
+            for p in persons:
+                try:
+                    baptised_on = getattr(p, 'baptised_on', None)
+                    is_new_christian = getattr(p, 'is_new_christian', False)
+                    new_christian_date = getattr(p, 'new_christian_date', None)
+                    if (baptised_on and baptised_on >= two_years_ago) or is_new_christian or (new_christian_date and new_christian_date >= two_years_ago):
+                        filtered_persons.append(p)
+                except Exception as e:
+                    logger.debug(f"Error checking new_christian status for person {getattr(p, 'id', 'unknown')}: {e}")
+                    continue
+            persons = filtered_persons
         
         # Log what we found
         logger.info(f"GET /api/persons - Query returned {len(persons)} persons")
@@ -22094,26 +22113,29 @@ def get_new_christians():
         two_years_ago = datetime.utcnow().date() - timedelta(days=730)
         
         for person in persons:
-            is_new_christian = False
-            new_christian_date = None
-            
-            # Check for new_christian_date field (preferred)
-            if person.new_christian_date:
-                if person.new_christian_date >= two_years_ago:
+            try:
+                is_new_christian = False
+                new_christian_date = None
+                
+                # Check for new_christian_date field (preferred) - safely access
+                new_christian_date_attr = getattr(person, 'new_christian_date', None)
+                if new_christian_date_attr:
+                    if new_christian_date_attr >= two_years_ago:
+                        is_new_christian = True
+                        new_christian_date = new_christian_date_attr.isoformat() if hasattr(new_christian_date_attr, 'isoformat') else str(new_christian_date_attr)
+                # Check for is_new_christian flag - safely access
+                elif getattr(person, 'is_new_christian', False):
                     is_new_christian = True
-                    new_christian_date = person.new_christian_date.isoformat()
-            # Check for is_new_christian flag
-            elif person.is_new_christian:
-                is_new_christian = True
-                # Use baptism date or created_at as fallback
-                if person.baptised_on:
-                    new_christian_date = person.baptised_on.isoformat()
-                elif person.created_at:
-                    new_christian_date = person.created_at.date().isoformat()
-            # Check for baptism date (within last 2 years)
-            elif person.baptised_on and person.baptised_on >= two_years_ago:
-                is_new_christian = True
-                new_christian_date = person.baptised_on.isoformat()
+                    # Use baptism date or created_at as fallback
+                    if person.baptised_on:
+                        new_christian_date = person.baptised_on.isoformat() if hasattr(person.baptised_on, 'isoformat') else str(person.baptised_on)
+                    elif person.created_at:
+                        created_date = person.created_at.date() if hasattr(person.created_at, 'date') else person.created_at
+                        new_christian_date = created_date.isoformat() if hasattr(created_date, 'isoformat') else str(created_date)
+                # Check for baptism date (within last 2 years)
+                elif person.baptised_on and person.baptised_on >= two_years_ago:
+                    is_new_christian = True
+                    new_christian_date = person.baptised_on.isoformat() if hasattr(person.baptised_on, 'isoformat') else str(person.baptised_on)
             
             if is_new_christian:
                 # Get pathway progress
@@ -22132,12 +22154,16 @@ def get_new_christians():
                 
                 # Calculate group attendance
                 group_attendance = 0
-                if person.engagement_profile:
-                    try:
-                        attendance_log = json.loads(person.engagement_profile.attendance_log or '[]')
-                        group_attendance = len([a for a in attendance_log if a.get('type') == 'group'])
-                    except:
-                        pass
+                try:
+                    engagement_profile = getattr(person, 'engagement_profile', None)
+                    if engagement_profile:
+                        try:
+                            attendance_log = json.loads(getattr(engagement_profile, 'attendance_log', None) or '[]')
+                            group_attendance = len([a for a in attendance_log if a.get('type') == 'group'])
+                        except:
+                            pass
+                except Exception:
+                    pass
                 
                 # Generate AI analysis
                 ai_analysis = f"This person is progressing well. "
@@ -22192,16 +22218,39 @@ def get_attendance_patterns():
         today = datetime.utcnow().date()
         
         for person in persons:
-            if person.engagement_profile and person.engagement_profile.last_seen:
-                days_since_seen = (today - person.engagement_profile.last_seen).days
+            try:
+                # Safely access engagement_profile
+                engagement_profile = None
+                try:
+                    engagement_profile = person.engagement_profile
+                except Exception:
+                    pass
                 
-                if days_since_seen > 14:  # 2+ weeks
-                    missing_streaks.append({
-                        'person_id': person.id,
-                        'name': person.preferred_name or person.full_name,
-                        'days': days_since_seen,
-                        'last_attended': person.engagement_profile.last_seen.isoformat()
-                    })
+                if engagement_profile:
+                    last_seen = getattr(engagement_profile, 'last_seen', None)
+                    if last_seen:
+                        try:
+                            # Handle both date and datetime objects
+                            if isinstance(last_seen, str):
+                                from datetime import datetime as dt
+                                last_seen = dt.fromisoformat(last_seen.replace('Z', '+00:00')).date()
+                            elif hasattr(last_seen, 'date'):
+                                last_seen = last_seen.date()
+                            
+                            days_since_seen = (today - last_seen).days
+                            
+                            if days_since_seen > 14:  # 2+ weeks
+                                missing_streaks.append({
+                                    'person_id': person.id,
+                                    'name': person.preferred_name or person.full_name,
+                                    'days': days_since_seen,
+                                    'last_attended': last_seen.isoformat() if hasattr(last_seen, 'isoformat') else str(last_seen)
+                                })
+                        except Exception as e:
+                            logger.debug(f"Error calculating days_since_seen for {person.id}: {e}")
+            except Exception as e:
+                logger.warning(f"Error processing person {getattr(person, 'id', 'unknown')} in attendance patterns: {e}")
+                continue
         
         # Sort by days (most critical first)
         missing_streaks.sort(key=lambda x: x['days'], reverse=True)

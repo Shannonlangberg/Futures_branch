@@ -481,11 +481,24 @@ def get_submissions():
         # Convert to dict and add person name
         submissions = []
         for case in care_cases:
-            case_dict = case.to_dict()
-            if case.person:
-                case_dict['person_name'] = case.person.full_name
-                case_dict['campus'] = case.person.campus
-            submissions.append(case_dict)
+            try:
+                case_dict = case.to_dict()
+                # Safely access person relationship
+                try:
+                    if case.person:
+                        case_dict['person_name'] = case.person.full_name
+                        case_dict['campus'] = getattr(case.person, 'campus', None)
+                    else:
+                        case_dict['person_name'] = None
+                        case_dict['campus'] = None
+                except Exception as person_error:
+                    logger.warning(f"Error accessing person for case {case.id}: {person_error}")
+                    case_dict['person_name'] = None
+                    case_dict['campus'] = None
+                submissions.append(case_dict)
+            except Exception as e:
+                logger.warning(f"Error processing care case {getattr(case, 'id', 'unknown')}: {e}")
+                continue
         
         return jsonify({
             'submissions': submissions,
