@@ -202,6 +202,23 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
   // NEW PEOPLE / SALVATIONS: ALWAYS show TOTALS - regardless of date filter
   // This ensures consistent reporting across all date ranges
   
+  // Helper function to parse service time and convert to minutes for sorting
+  const parseServiceTime = (timeStr) => {
+    // Handle formats like "9:00 AM", "10:00 AM", "5:30 PM", etc.
+    const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!match) return 0; // If can't parse, put at start
+    
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const period = match[3].toUpperCase();
+    
+    // Convert to 24-hour format
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    
+    return hours * 60 + minutes; // Return total minutes for easy sorting
+  };
+
   // Get service breakdown from the data FIRST (needed for Sunday attendance calculation)
   const serviceBreakdown = data.service_breakdown || {};
   const services = Object.keys(serviceBreakdown).map(service => ({
@@ -209,7 +226,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
     attendance: serviceBreakdown[service]?.average || 0,
     count: serviceBreakdown[service]?.count || 0,
     total: serviceBreakdown[service]?.total || 0
-  }));
+  })).sort((a, b) => parseServiceTime(a.name) - parseServiceTime(b.name));
   
   // Calculate Sunday attendance from service breakdown AVERAGES (not totals)
   // Sum the averages across all service times to get total average Sunday attendance
@@ -988,7 +1005,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                           <h3 className="text-xl font-bold text-white mb-4">Service Breakdown (Adults + Kids)</h3>
                           <div className="space-y-4">
-                            {Array.from(allServiceTimes).sort().map((serviceTime, index) => {
+                            {Array.from(allServiceTimes).sort((a, b) => parseServiceTime(a) - parseServiceTime(b)).map((serviceTime, index) => {
                               const adultData = adultBreakdown[serviceTime] || { average: 0, count: 0 };
                               const kidsData = kidsBreakdown[serviceTime] || { average: 0, count: 0 };
                               const adultAvg = Math.round(adultData.average || 0);
@@ -1082,7 +1099,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         name: service,
                         attendance: serviceBreakdown[service]?.average || 0,
                         count: serviceBreakdown[service]?.count || 0
-                      }));
+                      })).sort((a, b) => parseServiceTime(a.name) - parseServiceTime(b.name));
                     }
                     
                     if (servicesToShow && servicesToShow.length > 0) {
