@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { HeartIcon, LinkIcon, QrCodeIcon, MapPinIcon, PlusIcon, TrashIcon, PencilIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { HeartIcon, LinkIcon, QrCodeIcon, MapPinIcon, PlusIcon, TrashIcon, PencilIcon, CheckCircleIcon, XCircleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 
 const Prayer = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('requests'); // 'requests', 'praise', 'links'
   const [prayerRequests, setPrayerRequests] = useState([]);
   const [praiseReports, setPraiseReports] = useState([]);
@@ -202,18 +204,29 @@ const Prayer = () => {
                 }`}>
                   {type === 'prayer' ? '🙏' : '🎉'}
                 </div>
-                <div>
+              <div>
+                <div className="flex items-center gap-2">
                   <h3 className="text-white font-semibold">{item.person_name || 'Anonymous'}</h3>
-                  <p className="text-sm text-gray-400">
-                    {new Date(item.created_at).toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric', 
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
+                  {item.person_id && (
+                    <button
+                      onClick={() => navigate(`/persons/${item.person_id}`)}
+                      className="p-1 hover:bg-purple-500/20 rounded transition-colors"
+                      title="View Heartbeat Profile"
+                    >
+                      <HeartIcon className="h-4 w-4 text-purple-400" />
+                    </button>
+                  )}
                 </div>
+                <p className="text-sm text-gray-400">
+                  {new Date(item.created_at).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
               </div>
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                 item.status === 'open' ? 'bg-blue-500/20 text-blue-300' :
@@ -503,13 +516,23 @@ const Prayer = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">
-              🙏
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">Prayer & Praise</h1>
-              <p className="text-gray-400">Manage prayer requests, praise reports, and submission links</p>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">
+                🙏
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white">Prayer & Praise</h1>
+                <p className="text-gray-400">Central prayer management system - linked to mobile app & Heartbeat</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30">
+                    📱 Mobile App
+                  </span>
+                  <span className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">
+                    💗 Heartbeat
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
