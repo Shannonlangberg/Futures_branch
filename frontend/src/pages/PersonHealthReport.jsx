@@ -473,6 +473,30 @@ const PersonHealthReport = () => {
     }
   };
 
+  const fetchFamilyData = async () => {
+    try {
+      const response = await fetch(`/api/persons/${personId}/family`, {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setFamilyData(result);
+      } else if (response.status === 404) {
+        // Person has no family - set to null
+        setFamilyData({ has_family: false, members: [] });
+      }
+    } catch (err) {
+      console.error('Error fetching family data:', err);
+      // Don't fail the whole page load if family fetch fails
+      setFamilyData({ has_family: false, members: [] });
+    }
+  };
+
   const fetchPersonData = async (silent = false) => {
       try {
         if (!silent) {
