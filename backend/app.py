@@ -11290,11 +11290,16 @@ def quick_input_update():
                     time.sleep(wait_time)
             
             if not row_index:
-                # Entry not found - try one more fallback: use the most recent entry on this date
-                logger.warning(f"Exact campus match not found. Trying fallback: most recent entry on {original_date}")
+                # Entry not found - try one more fallback: use the most recent entry on this date FOR THE SAME CAMPUS
+                logger.warning(f"Exact campus match not found. Trying fallback: most recent entry on {original_date} for campus {original_campus}")
                 
                 # Sort by timestamp to get the most recent entry
                 entries_on_date = [r for r in all_records if r.get('Date') == original_date]
+                
+                # FIX: Filter by campus first - only consider entries from the same campus
+                # This prevents overwriting another campus's data
+                entries_on_date = [r for r in entries_on_date if normalize_campus(str(r.get('Campus', ''))) == search_campus_norm]
+                
                 if entries_on_date:
                     # Try to sort by timestamp if available
                     try:
@@ -11302,7 +11307,7 @@ def quick_input_update():
                     except:
                         pass  # If timestamp sorting fails, use original order
                     
-                    # Use the most recent entry
+                    # Use the most recent entry (now guaranteed to be from the same campus)
                     most_recent_entry = entries_on_date[0]
                     most_recent_idx = all_records.index(most_recent_entry)
                     row_index = most_recent_idx + 2
@@ -11310,8 +11315,8 @@ def quick_input_update():
                     logger.warning(f"Using fallback: most recent entry at index {row_index} for campus '{most_recent_entry.get('Campus')}' on {original_date}")
                     logger.warning(f"This will UPDATE the existing entry instead of creating a new one")
                 else:
-                    # No entries on this date at all
-                    logger.error(f"No entries found on {original_date} at all. Recent entries:")
+                    # No entries on this date for this campus
+                    logger.error(f"No entries found on {original_date} for campus {original_campus}. Recent entries:")
                     for r in all_records[-5:]:
                         logger.error(f"  Campus: '{r.get('Campus')}', Date: '{r.get('Date')}', Normalized: '{normalize_campus(r.get('Campus', ''))}'")
                     
