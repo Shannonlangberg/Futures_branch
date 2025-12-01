@@ -21866,27 +21866,79 @@ def create_family_for_person(person_id):
         if not current_user.has_permission('edit_access'):
             return jsonify({'error': 'Insufficient permissions'}), 403
         
+        from sqlalchemy import text
+        from sqlalchemy.exc import OperationalError
+        
+        # Check if family_id column exists
+        try:
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            existing_columns = [row[1] for row in table_info]
+            has_family_id = 'family_id' in existing_columns
+        except Exception as e:
+            logger.warning(f"Could not check table schema: {e}")
+            has_family_id = False
+        
+        if not has_family_id:
+            return jsonify({
+                'error': 'Family feature not available',
+                'details': 'The family_id column does not exist in the database. Please run migration 035_add_people_section_fields.sql'
+            }), 400
+        
         person = Person.query.get(person_id)
         if not person:
             return jsonify({'error': 'Person not found'}), 404
+        
+        # Check if person already has a family
+        existing_family_id = getattr(person, 'family_id', None)
+        if existing_family_id:
+            return jsonify({
+                'success': True,
+                'family_id': existing_family_id,
+                'message': 'Person already has a family',
+                'already_exists': True
+            })
         
         # Generate unique family_id
         import uuid
         family_id = f"family_{uuid.uuid4().hex[:12]}"
         
         # Assign person to family
-        person.family_id = family_id
-        db.session.commit()
+        try:
+            person.family_id = family_id
+            db.session.commit()
+            
+            logger.info(f"Created family {family_id} for person {person_id}")
+            
+            return jsonify({
+                'success': True,
+                'family_id': family_id,
+                'message': 'Family created successfully'
+            })
+        except OperationalError as db_error:
+            logger.error(f"Database error creating family: {db_error}", exc_info=True)
+            db.session.rollback()
+            return jsonify({
+                'error': 'Database error',
+                'details': str(db_error)
+            }), 500
+        except Exception as db_error:
+            logger.error(f"Error setting family_id: {db_error}", exc_info=True)
+            db.session.rollback()
+            return jsonify({
+                'error': 'Failed to assign family_id',
+                'details': str(db_error)
+            }), 500
         
-        return jsonify({
-            'success': True,
-            'family_id': family_id,
-            'message': 'Family created successfully'
-        })
     except Exception as e:
         logger.error(f"Error creating family: {e}", exc_info=True)
         db.session.rollback()
-        return jsonify({'error': 'Failed to create family'}), 500
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Full traceback: {error_details}")
+        return jsonify({
+            'error': 'Failed to create family',
+            'details': str(e)
+        }), 500
 
 
 @app.route('/api/persons/<person_id>/family/add-member', methods=['POST'])
