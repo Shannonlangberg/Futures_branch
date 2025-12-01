@@ -595,6 +595,13 @@ def upload_media():
         # Save file
         file.save(filepath)
         
+        # Verify file was saved
+        if not os.path.exists(filepath):
+            logger.error(f"File upload failed - file not found at: {filepath}")
+            return jsonify({'error': 'Failed to save file'}), 500
+        
+        logger.info(f"File uploaded successfully to: {filepath}")
+        
         # Determine file type
         file_type = 'image' if file_ext in {'png', 'jpg', 'jpeg', 'gif', 'webp'} else 'video'
         
@@ -614,27 +621,39 @@ def upload_media():
 
 @devotions_admin_bp.route('/media/<filename>')
 def serve_media(filename):
-    """Serve uploaded devotion media files"""
+    """Serve uploaded devotion media files (public endpoint)"""
     try:
+        # Sanitize filename to prevent directory traversal
+        filename = os.path.basename(filename)
+        
         # Check both possible locations
-        instance_dir = os.path.join(os.path.dirname(__file__), '..', 'instance')
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        instance_dir = os.path.join(backend_dir, 'instance')
         data_dir = os.path.join(instance_dir, 'uploads', 'devotions')
         
         # Try Railway volume path first
         if os.path.exists('/data'):
             upload_dir = os.path.join('/data', 'uploads', 'devotions')
-            if os.path.exists(os.path.join(upload_dir, filename)):
+            file_path = os.path.join(upload_dir, filename)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                logger.info(f"Serving media from volume: {file_path}")
                 return send_from_directory(upload_dir, filename)
         
         # Fall back to instance directory
-        if os.path.exists(os.path.join(data_dir, filename)):
+        file_path = os.path.join(data_dir, filename)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            logger.info(f"Serving media from instance: {file_path}")
             return send_from_directory(data_dir, filename)
         
         # Try old location for backwards compatibility
-        old_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'devotions')
-        if os.path.exists(os.path.join(old_dir, filename)):
+        old_dir = os.path.join(backend_dir, 'uploads', 'devotions')
+        file_path = os.path.join(old_dir, filename)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            logger.info(f"Serving media from old location: {file_path}")
             return send_from_directory(old_dir, filename)
         
+        upload_dir_check = os.path.join('/data', 'uploads', 'devotions') if os.path.exists('/data') else 'N/A'
+        logger.warning(f"Media file not found: {filename}. Checked: {upload_dir_check}, {data_dir}, {old_dir}")
         return jsonify({'error': 'Media file not found'}), 404
     except Exception as e:
         logger.error(f"Error serving media: {e}", exc_info=True)
