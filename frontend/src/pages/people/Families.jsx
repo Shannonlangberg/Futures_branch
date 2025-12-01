@@ -206,30 +206,57 @@ const Families = () => {
       console.log('Response data:', data);
       
       if (response.ok) {
-        await loadFamilies();
         setShowCreateFamilyModal(false);
         setPeopleSearchTerm('');
         setAvailablePeople([]);
+        
         if (data.already_exists) {
           alert('This person already has a family assigned.');
+          await loadFamilies();
         } else {
-          // Find the newly created family and open its detail view
-          const updatedFamilies = await fetch('/api/people/families', {
-            credentials: 'include'
-          }).then(r => r.json()).then(d => d.families || []).catch(() => []);
+          // Reload families to get the newly created one
+          await loadFamilies();
           
-          // Find family by the person's ID
-          const newFamily = updatedFamilies.find(f => 
-            f.members && f.members.some(m => m.id === personId)
-          );
-          
-          if (newFamily) {
-            setSelectedFamily(newFamily);
-            setShowFamilyDetail(true);
-            alert('Family created successfully! You can now add members below.');
-          } else {
-            alert('Family created successfully! Refresh the page to see it.');
-          }
+          // Wait a moment for state to update, then find and open the family
+          setTimeout(async () => {
+            try {
+              // Fetch fresh families list
+              const response = await fetch('/api/people/families', {
+                credentials: 'include'
+              });
+              
+              if (response.ok) {
+                const familyData = await response.json();
+                const updatedFamilies = familyData.families || [];
+                
+                // Find family by the person's ID
+                const newFamily = updatedFamilies.find(f => 
+                  f.members && f.members.some(m => m.id === personId)
+                );
+                
+                if (newFamily) {
+                  setSelectedFamily(newFamily);
+                  setShowFamilyDetail(true);
+                } else {
+                  // If not found, try to find by family_id if we have it
+                  if (data.family_id) {
+                    const familyById = updatedFamilies.find(f => f.id === data.family_id);
+                    if (familyById) {
+                      setSelectedFamily(familyById);
+                      setShowFamilyDetail(true);
+                    } else {
+                      alert('Family created successfully! Click on it in the list to add members.');
+                    }
+                  } else {
+                    alert('Family created successfully! Click on it in the list to add members.');
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('Error loading family detail:', err);
+              alert('Family created successfully! Refresh the page to see it.');
+            }
+          }, 500);
         }
       } else {
         // Show detailed error message
