@@ -14528,16 +14528,17 @@ def calculate_streaks_and_next_steps(person):
                             break
                     
                     if current_streak > 0:
+                        sunday_text = "s" if current_streak != 1 else ""
                         streaks.append({
                             'type': 'sunday_attendance',
                             'label': 'Sunday Attendance',
                             'count': current_streak,
                             'emoji': '⛪',
-                            'message': f'{current_streak} Sunday{"s" if current_streak != 1 else ""} in a row!' if current_streak > 0 else None
+                            'message': f'{current_streak} Sunday{sunday_text} in a row!' if current_streak > 0 else None
                         })
-        except Exception as e:
-            logger.warning(f"Error calculating attendance streak: {e}")
-        
+    except Exception as e:
+        logger.warning(f"Error calculating attendance streak: {e}")
+    
     # Check for completed discipleship steps (milestones)
     try:
         completed_steps = []
