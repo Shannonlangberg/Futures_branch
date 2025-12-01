@@ -155,6 +155,21 @@ const Families = () => {
           setSelectedFamily(null);
         }}
         onAddMember={() => setShowAddMemberModal(true)}
+        onMessageFamily={handleMessageFamily}
+        onAddPastoralNote={handleAddPastoralNote}
+        showMessageModal={showMessageModal}
+        showPastoralNoteModal={showPastoralNoteModal}
+        messageText={messageText}
+        setMessageText={setMessageText}
+        pastoralNoteText={pastoralNoteText}
+        setPastoralNoteText={setPastoralNoteText}
+        sendMessageToFamily={sendMessageToFamily}
+        savePastoralNote={savePastoralNote}
+        setShowMessageModal={setShowMessageModal}
+        setShowPastoralNoteModal={setShowPastoralNoteModal}
+        loadFamilies={loadFamilies}
+        setSelectedFamily={setSelectedFamily}
+        setToast={setToast}
       />
     );
   }
@@ -1048,7 +1063,7 @@ const FamilyDetailView = ({
       </div>
 
       {/* Message Family Modal */}
-      {showMessageModal && selectedFamily && (
+      {showMessageModal && family && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full">
             <div className="flex items-center justify-between mb-4">
@@ -1064,7 +1079,7 @@ const FamilyDetailView = ({
               </button>
             </div>
             <p className="text-white/60 mb-4">
-              Send a message to {selectedFamily.members.length} family member(s)
+              Send a message to {family.members.length} family member(s)
             </p>
             <textarea
               value={messageText}
@@ -1095,7 +1110,7 @@ const FamilyDetailView = ({
       )}
 
       {/* Add Pastoral Note Modal */}
-      {showPastoralNoteModal && selectedFamily && (
+      {showPastoralNoteModal && family && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full">
             <div className="flex items-center justify-between mb-4">
@@ -1111,7 +1126,7 @@ const FamilyDetailView = ({
               </button>
             </div>
             <p className="text-white/60 mb-4">
-              Add a pastoral note for {selectedFamily.family_name || 'this family'}
+              Add a pastoral note for {family.family_name || 'this family'}
             </p>
             <textarea
               value={pastoralNoteText}
