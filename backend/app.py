@@ -19391,7 +19391,13 @@ def upload_event_image():
             return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
         
         # Create uploads/events directory if it doesn't exist
-        upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'events')
+        # Try persistent volume first (Railway), then fall back to local
+        if os.path.exists('/data') and os.path.isdir('/data'):
+            upload_dir = os.path.join('/data', 'uploads', 'events')
+            logger.info(f"[UPLOAD] Using persistent volume for uploads: {upload_dir}")
+        else:
+            upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'events')
+            logger.info(f"[UPLOAD] Using local directory for uploads: {upload_dir}")
         os.makedirs(upload_dir, exist_ok=True)
         
         # Generate unique filename
@@ -19428,15 +19434,37 @@ def upload_event_image():
 def serve_event_image(filename):
     """Serve uploaded event images"""
     try:
-        upload_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'events')
-        filepath = os.path.join(upload_dir, filename)
+        # Try persistent volume first (Railway), then fall back to local
+        upload_dirs = []
+        if os.path.exists('/data') and os.path.isdir('/data'):
+            upload_dirs.append(os.path.join('/data', 'uploads', 'events'))
+        upload_dirs.append(os.path.join(os.path.dirname(__file__), 'uploads', 'events'))
         
-        # Log for debugging
-        logger.debug(f"[IMAGE] Serving image: {filename} from {upload_dir}")
-        logger.debug(f"[IMAGE] Full path: {filepath}, exists: {os.path.exists(filepath)}")
+        filepath = None
+        upload_dir = None
         
-        if not os.path.exists(filepath):
-            logger.error(f"[IMAGE] File not found: {filepath}")
+        # Check each possible location
+        for dir_path in upload_dirs:
+            test_path = os.path.join(dir_path, filename)
+            if os.path.exists(test_path):
+                filepath = test_path
+                upload_dir = dir_path
+                logger.info(f"[IMAGE] Found image at: {filepath}")
+                break
+        
+        if not filepath or not upload_dir:
+            # Log all checked locations for debugging
+            logger.error(f"[IMAGE] File not found: {filename}")
+            logger.error(f"[IMAGE] Checked locations: {upload_dirs}")
+            for dir_path in upload_dirs:
+                exists = os.path.exists(dir_path)
+                logger.error(f"[IMAGE]   - {dir_path}: exists={exists}")
+                if exists:
+                    try:
+                        files = os.listdir(dir_path)
+                        logger.error(f"[IMAGE]     Files in directory: {len(files)} files")
+                    except Exception as e:
+                        logger.error(f"[IMAGE]     Cannot list directory: {e}")
             return jsonify({'error': 'Image not found'}), 404
         
         return send_from_directory(upload_dir, filename)
