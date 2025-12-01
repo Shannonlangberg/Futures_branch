@@ -304,6 +304,97 @@ const Families = () => {
     }
   };
 
+  const handleMessageFamily = () => {
+    if (selectedFamily && selectedFamily.members && selectedFamily.members.length > 0) {
+      setShowMessageModal(true);
+    } else {
+      setToast({ type: 'error', message: 'No family members to message' });
+    }
+  };
+
+  const sendMessageToFamily = async () => {
+    if (!messageText.trim() || !selectedFamily) {
+      setToast({ type: 'error', message: 'Please enter a message' });
+      return;
+    }
+
+    try {
+      // Get all member emails/phones
+      const members = selectedFamily.members || [];
+      const emails = members.filter(m => m.email).map(m => m.email);
+      const phones = members.filter(m => m.phone).map(m => m.phone);
+
+      // For now, just show a success message
+      // In the future, this could integrate with a messaging service
+      setToast({ 
+        type: 'success', 
+        message: `Message prepared for ${members.length} family member(s). Messaging feature coming soon!` 
+      });
+      setShowMessageModal(false);
+      setMessageText('');
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setToast({ type: 'error', message: 'Failed to send message' });
+    }
+  };
+
+  const handleAddPastoralNote = () => {
+    if (selectedFamily && selectedFamily.members && selectedFamily.members.length > 0) {
+      setShowPastoralNoteModal(true);
+    } else {
+      setToast({ type: 'error', message: 'No family members to add note for' });
+    }
+  };
+
+  const savePastoralNote = async () => {
+    if (!pastoralNoteText.trim() || !selectedFamily) {
+      setToast({ type: 'error', message: 'Please enter a pastoral note' });
+      return;
+    }
+
+    try {
+      // Get the first member (or parent) to attach the note to
+      const primaryMember = selectedFamily.members.find(m => m.role === 'parent') || selectedFamily.members[0];
+      
+      if (!primaryMember || !primaryMember.id) {
+        setToast({ type: 'error', message: 'Could not find family member to attach note to' });
+        return;
+      }
+
+      // Update the person's pastoral notes
+      const response = await fetch(`/api/persons/${encodeURIComponent(primaryMember.id)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pastoral_notes: pastoralNoteText
+        })
+      });
+
+      if (response.ok) {
+        setToast({ type: 'success', message: 'Pastoral note saved successfully' });
+        setShowPastoralNoteModal(false);
+        setPastoralNoteText('');
+        // Reload families to refresh data
+        await loadFamilies();
+        // Refresh selected family if still viewing it
+        if (selectedFamily) {
+          const updatedFamilies = await fetch('/api/people/families', {
+            credentials: 'include'
+          }).then(r => r.json()).then(d => d.families || []).catch(() => []);
+          const updatedFamily = updatedFamilies.find(f => f.id === selectedFamily.id);
+          if (updatedFamily) setSelectedFamily(updatedFamily);
+        }
+      } else {
+        const error = await response.json().catch(() => ({}));
+        setToast({ type: 'error', message: error.error || 'Failed to save pastoral note' });
+      }
+    } catch (err) {
+      console.error('Error saving pastoral note:', err);
+      setToast({ type: 'error', message: 'Failed to save pastoral note' });
+    }
+  };
+
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -645,7 +736,26 @@ const Families = () => {
 };
 
 // Family Detail View Component
-const FamilyDetailView = ({ family, onBack, onAddMember }) => {
+const FamilyDetailView = ({ 
+  family, 
+  onBack, 
+  onAddMember,
+  onMessageFamily,
+  onAddPastoralNote,
+  showMessageModal,
+  showPastoralNoteModal,
+  messageText,
+  setMessageText,
+  pastoralNoteText,
+  setPastoralNoteText,
+  sendMessageToFamily,
+  savePastoralNote,
+  setShowMessageModal,
+  setShowPastoralNoteModal,
+  loadFamilies,
+  setSelectedFamily,
+  setToast
+}) => {
   const navigate = useNavigate();
 
   // Get family name - should already be in "Lastname Family" format from backend
@@ -914,11 +1024,17 @@ const FamilyDetailView = ({ family, onBack, onAddMember }) => {
 
       {/* Action Buttons */}
       <div className="mt-6 flex gap-4">
-        <button className="px-6 py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2">
+        <button 
+          onClick={onMessageFamily}
+          className="px-6 py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2"
+        >
           <ChatBubbleLeftRightIcon className="h-5 w-5" />
           Message Family
         </button>
-        <button className="px-6 py-3 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg transition-colors flex items-center gap-2">
+        <button 
+          onClick={onAddPastoralNote}
+          className="px-6 py-3 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg transition-colors flex items-center gap-2"
+        >
           <PencilIcon className="h-5 w-5" />
           Add Pastoral Note
         </button>
@@ -930,6 +1046,100 @@ const FamilyDetailView = ({ family, onBack, onAddMember }) => {
           Add Member
         </button>
       </div>
+
+      {/* Message Family Modal */}
+      {showMessageModal && selectedFamily && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-white">Message Family</h3>
+              <button
+                onClick={() => {
+                  setShowMessageModal(false);
+                  setMessageText('');
+                }}
+                className="text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-white/60 mb-4">
+              Send a message to {selectedFamily.members.length} family member(s)
+            </p>
+            <textarea
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder="Enter your message..."
+              rows={6}
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowMessageModal(false);
+                  setMessageText('');
+                }}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={sendMessageToFamily}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Send Message
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Pastoral Note Modal */}
+      {showPastoralNoteModal && selectedFamily && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-white">Add Pastoral Note</h3>
+              <button
+                onClick={() => {
+                  setShowPastoralNoteModal(false);
+                  setPastoralNoteText('');
+                }}
+                className="text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-white/60 mb-4">
+              Add a pastoral note for {selectedFamily.family_name || 'this family'}
+            </p>
+            <textarea
+              value={pastoralNoteText}
+              onChange={(e) => setPastoralNoteText(e.target.value)}
+              placeholder="Enter your pastoral note..."
+              rows={6}
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowPastoralNoteModal(false);
+                  setPastoralNoteText('');
+                }}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePastoralNote}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+              >
+                Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
