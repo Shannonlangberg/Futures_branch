@@ -69,12 +69,15 @@ const Dashboard = () => {
     if (userRole && (userRole === 'senior_leader' || userRole === 'admin' || userRole === 'senior_pastor' || userRole === 'lead_pastor')) {
       setShowCampusSelector(true);
     } else if (userRole && userCampus && userCampus !== 'all_campuses') {
-      // Auto-select campus for campus pastors
+      // Auto-select campus for campus pastors and other users with a campus
       setSelectedCampus({
         id: userCampus,
         name: (Array.isArray(campuses) ? campuses.find(c => c.id === userCampus)?.name : userCampus) || userCampus,
         isRollup: false
       });
+    } else if (userRole && campuses.length > 0) {
+      // If user has no specific campus but campuses are loaded, show selector
+      setShowCampusSelector(true);
     }
   }, [userRole, userCampus, campuses]);
 
@@ -571,25 +574,8 @@ const Dashboard = () => {
     }
   };
 
-  // Show campus selector if needed
-  if (showCampusSelector) {
-    return <CampusSelector onCampusSelect={handleCampusSelect} userRole={userRole} userCampus={userCampus} />;
-  }
-
-  // Show campus dashboard if campus is selected
-  if (selectedCampus) {
-  return (
-      <CampusDashboard 
-        campusId={selectedCampus.id} 
-        campusName={selectedCampus.name} 
-        isRollup={selectedCampus.isRollup}
-        onBackToSelector={handleBackToSelector}
-      />
-    );
-  }
-
   // Show loading while determining what to show
-  if (loading) {
+  if (loading || !userRole) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -603,6 +589,31 @@ const Dashboard = () => {
     );
   }
 
+  // Show campus selector if needed (for senior leadership or users without a selected campus)
+  if (showCampusSelector && !selectedCampus) {
+    return <CampusSelector onCampusSelect={handleCampusSelect} userRole={userRole} userCampus={userCampus} />;
+  }
+
+  // Show campus dashboard if campus is selected (this is the main view everyone should see)
+  if (selectedCampus) {
+    return (
+      <CampusDashboard 
+        campusId={selectedCampus.id} 
+        campusName={selectedCampus.name} 
+        isRollup={selectedCampus.isRollup}
+        onBackToSelector={handleBackToSelector}
+      />
+    );
+  }
+
+  // Fallback: Show campus selector if no campus is selected
+  return <CampusSelector onCampusSelect={handleCampusSelect} userRole={userRole} userCampus={userCampus} />;
+};
+
+// OLD MINISTRY ANALYTICS VIEW - REMOVED - Everyone should see CampusDashboard instead
+// The code below is kept for reference but is never executed due to the return statement above
+/*
+const OldMinistryAnalyticsView = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Animated Background */}
@@ -1568,5 +1579,6 @@ const Dashboard = () => {
     </div>
   );
 };
+*/
 
 export default Dashboard;
