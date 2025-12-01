@@ -25,7 +25,6 @@ import {
   AcademicCapIcon,
   PlayIcon,
   ListBulletIcon,
-  MagnifyingGlassIcon,
   FunnelIcon,
   Squares2X2Icon,
   UsersIcon,
@@ -113,7 +112,6 @@ const EnhancedNavigation = ({
   setSettingsOpen
 }) => {
   const location = useLocation();
-  const [searchTerm, setSearchTerm] = useState('');
   const [expandedGroups, setExpandedGroups] = useState({});
   const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'flat'
 
@@ -182,15 +180,8 @@ const EnhancedNavigation = ({
 
   const allItems = useMemo(() => getFilteredItems(), [userRole, customPermissions]);
 
-  // Filter by search term
-  const filteredItems = useMemo(() => {
-    if (!searchTerm) return allItems;
-    const search = searchTerm.toLowerCase();
-    return allItems.filter(item => 
-      item.name.toLowerCase().includes(search) ||
-      item.group?.toLowerCase().includes(search)
-    );
-  }, [allItems, searchTerm]);
+  // Use all items (no search filtering for now)
+  const filteredItems = allItems;
 
   // Group items for grouped view
   const groupedItems = useMemo(() => {
@@ -270,29 +261,9 @@ const EnhancedNavigation = ({
             </button>
           </div>
 
-          {/* Search Bar */}
-          <div className="px-4 py-4 border-b border-slate-700/50 flex-shrink-0">
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search navigation..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            
-            {/* View Mode Toggle */}
-            <div className="mt-2 flex gap-2">
+          {/* View Mode Toggle */}
+          <div className="px-4 py-3 border-b border-slate-700/50 flex-shrink-0">
+            <div className="flex gap-2">
               <button
                 onClick={() => setViewMode('grouped')}
                 className={`flex-1 px-2 py-1.5 text-xs rounded-md transition-all ${
