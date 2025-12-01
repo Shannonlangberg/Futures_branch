@@ -376,7 +376,7 @@ const NewPeople = () => {
                       Mark as Contacted
                     </button>
                     <button
-                      onClick={() => navigate(`/people/heartbeat?person=${person.id}`)}
+                      onClick={() => navigate(`/persons/${person.id}`)}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                     >
                       <HeartIcon className="h-4 w-4" />
