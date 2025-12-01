@@ -4,7 +4,8 @@ import {
   MagnifyingGlassIcon,
   HeartIcon,
   UserGroupIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  AcademicCapIcon
 } from '@heroicons/react/24/outline';
 
 const PeopleMain = () => {
@@ -14,10 +15,13 @@ const PeopleMain = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('healthy'); // healthy, watch, at_risk, critical, new_people, new_christians, in_groups
   const [campuses, setCampuses] = useState([]);
+  const [pathways, setPathways] = useState([]);
+  const [assigningPathway, setAssigningPathway] = useState({});
 
   useEffect(() => {
     loadPersons();
     loadCampuses();
+    loadPathways();
   }, [statusFilter, searchTerm]);
 
   const loadCampuses = async () => {
@@ -69,12 +73,125 @@ const PeopleMain = () => {
           filtered = filtered.filter(p => p.connect_group);
         }
 
-        setPersons(filtered);
+        // Load pathway info for each person
+        const personsWithPathways = await Promise.all(
+          filtered.map(async (person) => {
+            try {
+              const pathwayResponse = await fetch(`/api/journeys/person/${person.id}`, {
+                credentials: 'include'
+              });
+              if (pathwayResponse.ok) {
+                const pathwayData = await pathwayResponse.json();
+                person.assigned_pathways = pathwayData.pathways || [];
+              }
+            } catch (err) {
+              console.error(`Error loading pathways for ${person.id}:`, err);
+            }
+            return person;
+          })
+        );
+
+        setPersons(personsWithPathways);
       }
     } catch (err) {
       console.error('Error loading persons:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPathways = async () => {
+    try {
+      const response = await fetch('/api/journeys', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('All pathways from API:', data.pathways);
+        
+        // Show all active pathways (both templates and non-templates for assignment)
+        // Users can assign any active pathway
+        const activePathways = (data.pathways || []).filter(p => p.is_active === true);
+        setPathways(activePathways);
+        console.log(`Loaded ${activePathways.length} active pathways (including templates)`);
+        
+        // Also log what we're filtering out
+        const filtered = (data.pathways || []).filter(p => !p.is_active);
+        if (filtered.length > 0) {
+          console.log(`Filtered out ${filtered.length} inactive pathways`);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to load pathways:', response.status, errorText);
+      }
+    } catch (err) {
+      console.error('Error loading pathways:', err);
+    }
+  };
+
+  const assignPathway = async (personId, pathwayId) => {
+    if (!personId || !pathwayId) {
+      console.error('Missing personId or pathwayId:', { personId, pathwayId });
+      alert('Error: Missing person or pathway information');
+      return;
+    }
+
+    try {
+      setAssigningPathway({ ...assigningPathway, [personId]: true });
+      
+      const pathwayIdInt = typeof pathwayId === 'string' ? parseInt(pathwayId, 10) : pathwayId;
+      
+      if (isNaN(pathwayIdInt)) {
+        console.error('Invalid pathway ID:', pathwayId);
+        alert('Error: Invalid pathway ID');
+        return;
+      }
+      
+      console.log(`Assigning pathway ${pathwayIdInt} (type: ${typeof pathwayIdInt}) to person ${personId}`);
+      
+      const requestBody = {
+        pathway_id: pathwayIdInt,
+        start_immediately: true
+      };
+      
+      console.log('Request body:', JSON.stringify(requestBody));
+      
+      const response = await fetch(`/api/journeys/person/${personId}/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('Response status:', response.status, response.statusText);
+      
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonErr) {
+        const text = await response.text();
+        console.error('Failed to parse JSON response:', text);
+        alert(`Server error: ${response.status} ${response.statusText}`);
+        return;
+      }
+      
+      console.log('Assignment response:', result);
+      
+      if (response.ok) {
+        alert('Journey assigned successfully!');
+        await loadPersons(); // Reload to get updated pathway info
+      } else {
+        const errorMsg = result.error || result.message || `Failed to assign pathway (${response.status})`;
+        console.error('Assignment error:', errorMsg, result);
+        alert(`Error: ${errorMsg}`);
+      }
+    } catch (err) {
+      console.error('Error assigning pathway:', err);
+      alert(`Failed to assign pathway: ${err.message || 'Network error'}`);
+    } finally {
+      setAssigningPathway({ ...assigningPathway, [personId]: false });
     }
   };
 
@@ -179,6 +296,7 @@ const PeopleMain = () => {
                 <tr>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Name</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Heartbeat</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Pathway</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Group</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Serving</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Campus</th>
@@ -188,13 +306,13 @@ const PeopleMain = () => {
               <tbody className="divide-y divide-white/10">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-white/60">
+                    <td colSpan="7" className="px-6 py-12 text-center text-white/60">
                       Loading people...
                     </td>
                   </tr>
                 ) : persons.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-white/60">
+                    <td colSpan="7" className="px-6 py-12 text-center text-white/60">
                       No people found matching your filters
                     </td>
                   </tr>
@@ -207,6 +325,9 @@ const PeopleMain = () => {
                       .join('')
                       .toUpperCase()
                       .slice(0, 2);
+                    
+                    const hasPathway = person.assigned_pathways && person.assigned_pathways.length > 0;
+                    const currentPathway = hasPathway ? person.assigned_pathways[0] : null;
 
                     return (
                       <tr key={person.id} className="hover:bg-white/5 transition-colors">
@@ -257,6 +378,43 @@ const PeopleMain = () => {
                             </div>
                           </div>
                         </td>
+                        <td className="px-6 py-4">
+                          {hasPathway ? (
+                            <div className="flex items-center gap-2">
+                              <AcademicCapIcon className="h-4 w-4 text-purple-400" />
+                              <div>
+                                <div className="text-white/90 text-sm font-medium">
+                                  {currentPathway.pathway_name}
+                                </div>
+                                <div className="text-white/60 text-xs">
+                                  {currentPathway.progress_percentage || 0}% complete
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  const pathwayId = parseInt(e.target.value);
+                                  console.log(`Selected pathway ${pathwayId} for person ${person.id}`);
+                                  assignPathway(person.id, pathwayId);
+                                  e.target.value = '';
+                                }
+                              }}
+                              disabled={assigningPathway[person.id] || pathways.length === 0}
+                              className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:ring-2 focus:ring-purple-500/50"
+                            >
+                              <option value="">
+                                {pathways.length === 0 ? 'Loading pathways...' : 'Assign Pathway...'}
+                              </option>
+                              {pathways.map(pathway => (
+                                <option key={pathway.id} value={pathway.id}>
+                                  {pathway.name} {pathway.is_template ? '(Template)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-white/80">
                           {person.connect_group_name || person.connect_group || 'No Group'}
                         </td>
@@ -269,12 +427,36 @@ const PeopleMain = () => {
                           {person.campus === 'all_campuses' ? 'All Campuses' : person.campus || '—'}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => navigate(`/persons/${person.id}`)}
-                            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/50 rounded-lg transition-all duration-200 hover:scale-105"
-                          >
-                            View Profile
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {hasPathway && (
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const pathwayId = parseInt(e.target.value);
+                                    console.log(`Changing pathway to ${pathwayId} for person ${person.id}`);
+                                    assignPathway(person.id, pathwayId);
+                                    e.target.value = '';
+                                  }
+                                }}
+                                disabled={assigningPathway[person.id] || pathways.length === 0}
+                                className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/50 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed outline-none"
+                                title="Change Pathway"
+                              >
+                                <option value="">Change...</option>
+                                {pathways.map(pathway => (
+                                  <option key={pathway.id} value={pathway.id}>
+                                    {pathway.name} {pathway.is_template ? '(Template)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            <button
+                              onClick={() => navigate(`/persons/${person.id}`)}
+                              className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/50 rounded-lg transition-all duration-200 hover:scale-105 text-sm"
+                            >
+                              View Profile
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

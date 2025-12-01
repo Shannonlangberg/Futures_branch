@@ -748,11 +748,18 @@ class BeaconZone(db.Model):
         """Find beacon zone by UUID, major, and minor (case-insensitive UUID matching)"""
         from sqlalchemy import func
         # Normalize UUID to uppercase for case-insensitive matching
-        uuid_upper = uuid.strip().upper() if uuid else None
+        if not uuid:
+            return None
+        uuid_upper = str(uuid).strip().upper()
+        try:
+            major_int = int(major)
+            minor_int = int(minor)
+        except (ValueError, TypeError):
+            return None
         return cls.query.filter(
             func.upper(cls.beacon_uuid) == uuid_upper,
-            cls.beacon_major == major,
-            cls.beacon_minor == minor,
+            cls.beacon_major == major_int,
+            cls.beacon_minor == minor_int,
             cls.is_active == True
         ).first()
     
@@ -877,6 +884,19 @@ class DiscipleshipPathway(db.Model):
                     ).fetchall()
                     
                     for row in raw_steps:
+                        # Handle created_at - might be date object or string
+                        created_at = row[7]
+                        if created_at:
+                            if isinstance(created_at, str):
+                                # Already a string, use as-is (might be ISO format or SQLite format)
+                                created_at_str = created_at
+                            elif hasattr(created_at, 'isoformat'):
+                                created_at_str = created_at.isoformat()
+                            else:
+                                created_at_str = str(created_at)
+                        else:
+                            created_at_str = None
+                        
                         steps_list.append({
                             'id': row[0],
                             'pathway_id': row[1],
@@ -886,7 +906,7 @@ class DiscipleshipPathway(db.Model):
                             'milestone_type': row[5],
                             'is_required': bool(row[6]),
                             'step_actions': [],  # Default to empty array
-                            'created_at': row[7].isoformat() if row[7] else None
+                            'created_at': created_at_str
                         })
                 except Exception as e2:
                     logger.error(f"Error loading steps manually: {e2}")

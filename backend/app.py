@@ -13989,7 +13989,28 @@ def get_persons():
                 if engagement_row:
                     # Parse the engagement data manually
                     pulse_status = engagement_row[0] or 'red'
-                    last_seen = engagement_row[1].isoformat() if engagement_row[1] else None
+                    # Handle last_seen - might be date object or string
+                    last_seen_raw = engagement_row[1]
+                    if last_seen_raw:
+                        if isinstance(last_seen_raw, str):
+                            # Already a string, might be ISO format or SQLite format
+                            # Try to parse and reformat if it's a valid date string
+                            try:
+                                # If it's already ISO format, use as-is
+                                if 'T' in last_seen_raw or len(last_seen_raw) == 10:
+                                    last_seen = last_seen_raw
+                                else:
+                                    # SQLite format like '2025-12-17 00:00:00.000000'
+                                    dt = datetime.fromisoformat(last_seen_raw.replace(' ', 'T').split('.')[0])
+                                    last_seen = dt.isoformat()
+                            except:
+                                last_seen = last_seen_raw  # Use as-is if parsing fails
+                        elif hasattr(last_seen_raw, 'isoformat'):
+                            last_seen = last_seen_raw.isoformat()
+                        else:
+                            last_seen = str(last_seen_raw)
+                    else:
+                        last_seen = None
                     attendance_frequency = float(engagement_row[2] or 0.0)
                     serving_frequency = float(engagement_row[3] or 0.0)
                     overall_engagement = float(engagement_row[4] or 0.0)
@@ -14216,9 +14237,21 @@ def create_person():
         
         # Return created person with engagement data
         person_data = person.to_dict()
+        # Safely serialize last_seen
+        last_seen_val = engagement.last_seen
+        if last_seen_val:
+            if isinstance(last_seen_val, str):
+                last_seen_str = last_seen_val
+            elif hasattr(last_seen_val, 'isoformat'):
+                last_seen_str = last_seen_val.isoformat()
+            else:
+                last_seen_str = str(last_seen_val)
+        else:
+            last_seen_str = None
+        
         person_data.update({
             'pulse_status': engagement.pulse_status,
-            'last_seen': engagement.last_seen.isoformat() if engagement.last_seen else None,
+            'last_seen': last_seen_str,
             'pulse_reasons': engagement.get_pulse_reasons()
         })
         
@@ -14307,7 +14340,17 @@ def export_persons_csv():
             
             if person.engagement_profile:
                 pulse_status = person.engagement_profile.pulse_status or 'red'
-                last_seen = person.engagement_profile.last_seen.isoformat() if person.engagement_profile.last_seen else None
+                # Safely serialize last_seen
+                last_seen_raw = person.engagement_profile.last_seen
+                if last_seen_raw:
+                    if isinstance(last_seen_raw, str):
+                        last_seen = last_seen_raw
+                    elif hasattr(last_seen_raw, 'isoformat'):
+                        last_seen = last_seen_raw.isoformat()
+                    else:
+                        last_seen = str(last_seen_raw)
+                else:
+                    last_seen = None
                 attendance_frequency = person.engagement_profile.attendance_frequency or 0.0
                 serving_frequency = person.engagement_profile.serving_frequency or 0.0
                 overall_engagement = person.engagement_profile.overall_engagement or 0.0
@@ -14431,7 +14474,13 @@ def get_person_detail(person_id):
 
 def calculate_streaks_and_next_steps(person):
     """Calculate attendance streaks and recommend next steps for a person"""
-    from models import DiscipleshipStep, TVUserEpisodeProgress, TVEpisode
+    # Import models that may not exist, handle gracefully
+    try:
+        from models import DiscipleshipStep, TVUserEpisodeProgress, TVEpisode
+    except ImportError:
+        DiscipleshipStep = None
+        TVUserEpisodeProgress = None
+        TVEpisode = None
     
     streaks = []
     next_steps = []
@@ -14486,13 +14535,15 @@ def calculate_streaks_and_next_steps(person):
                             'emoji': '⛪',
                             'message': f'{current_streak} Sunday{"s" if current_streak != 1 else ""} in a row!' if current_streak > 0 else None
                         })
-    except Exception as e:
-        logger.warning(f"Error calculating attendance streak: {e}")
+        except Exception as e:
+            logger.warning(f"Error calculating attendance streak: {e}")
         
-        # Check for completed discipleship steps (milestones)
+    # Check for completed discipleship steps (milestones)
+    try:
         completed_steps = []
         try:
-            completed_steps = DiscipleshipStep.query.filter_by(person_id=person.id).all()
+            if DiscipleshipStep:
+                completed_steps = DiscipleshipStep.query.filter_by(person_id=person.id).all()
             if completed_steps:
                 milestones = []
                 if any(s.type == 'baptism' for s in completed_steps):
@@ -14519,7 +14570,8 @@ def calculate_streaks_and_next_steps(person):
         # Generate next steps recommendations
         completed_steps_list = []
         try:
-            completed_steps_list = DiscipleshipStep.query.filter_by(person_id=person.id).all()
+            if DiscipleshipStep:
+                completed_steps_list = DiscipleshipStep.query.filter_by(person_id=person.id).all()
         except:
             pass
         
@@ -14674,8 +14726,11 @@ def get_person_by_email(email):
         return jsonify(person_data)
         
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
         logger.error(f"Error fetching person by email {email}: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to fetch person profile'}), 500
+        logger.error(f"Full traceback: {error_traceback}")
+        return jsonify({'error': 'Failed to fetch person profile', 'details': str(e)}), 500
 
 
 @app.route('/api/people/profile', methods=['PUT'])
@@ -15244,7 +15299,26 @@ def update_person(person_id):
             
             if engagement_row:
                 pulse_status = engagement_row[0] or 'red'
-                last_seen = engagement_row[1].isoformat() if engagement_row[1] else None
+                # Handle last_seen - might be date object or string
+                last_seen_raw = engagement_row[1]
+                if last_seen_raw:
+                    if isinstance(last_seen_raw, str):
+                        # Already a string, might be ISO format or SQLite format
+                        try:
+                            if 'T' in last_seen_raw or len(last_seen_raw) == 10:
+                                last_seen = last_seen_raw
+                            else:
+                                # SQLite format like '2025-12-17 00:00:00.000000'
+                                dt = datetime.fromisoformat(last_seen_raw.replace(' ', 'T').split('.')[0])
+                                last_seen = dt.isoformat()
+                        except:
+                            last_seen = last_seen_raw  # Use as-is if parsing fails
+                    elif hasattr(last_seen_raw, 'isoformat'):
+                        last_seen = last_seen_raw.isoformat()
+                    else:
+                        last_seen = str(last_seen_raw)
+                else:
+                    last_seen = None
                 attendance_frequency = float(engagement_row[2] or 0.0)
                 serving_frequency = float(engagement_row[3] or 0.0)
                 overall_engagement = float(engagement_row[4] or 0.0)
@@ -18345,7 +18419,7 @@ def get_pulse_status(person_id):
                 'attendance_frequency': engagement.attendance_frequency,
                 'serving_frequency': engagement.serving_frequency,
                 'overall_engagement': engagement.overall_engagement,
-                'last_seen': engagement.last_seen.isoformat() if engagement.last_seen else None
+                'last_seen': engagement.last_seen.isoformat() if (engagement.last_seen and hasattr(engagement.last_seen, 'isoformat')) else (str(engagement.last_seen) if engagement.last_seen else None)
             }
         })
         

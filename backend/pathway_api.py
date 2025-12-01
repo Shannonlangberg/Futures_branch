@@ -446,33 +446,54 @@ def get_person_pathways(person_id):
 def assign_pathway_to_person(person_id):
     """Assign a pathway to a person"""
     try:
-        # Allow heartbeat admins or any admin role
-        if not (current_user.has_permission('heartbeat', 'edit') or 
-                current_user.has_permission('heartbeat', 'create') or
-                getattr(current_user, 'role', None) in ['admin', 'senior_leadership', 'senior_pastor', 'lead_pastor', 'campus_pastor']):
-            return jsonify({'error': 'Insufficient permissions'}), 403
+        # Allow heartbeat admins, any admin role, or staff with query_access
+        user_role = getattr(current_user, 'role', None)
+        has_permission = (
+            current_user.has_permission('heartbeat', 'edit') or 
+            current_user.has_permission('heartbeat', 'create') or
+            current_user.has_permission('query_access') or
+            user_role in ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff']
+        )
+        
+        if not has_permission:
+            logger.warning(f"User {getattr(current_user, 'id', 'unknown')} with role {user_role} attempted to assign pathway without permission")
+            return jsonify({'error': 'Insufficient permissions. You need staff access or heartbeat permissions to assign journeys.'}), 403
         
         person = Person.query.get(person_id)
         if not person:
+            logger.error(f"Person not found: {person_id}")
             return jsonify({'error': 'Person not found'}), 404
         
         data = request.get_json()
+        logger.info(f"Assign pathway request: person_id={person_id}, data={data}")
         
         if 'pathway_id' not in data:
+            logger.error(f"Missing pathway_id in request data: {data}")
             return jsonify({'error': 'Missing required field: pathway_id'}), 400
         
-        pathway = DiscipleshipPathway.query.get(data['pathway_id'])
+        pathway_id = data['pathway_id']
+        # Handle both string and int pathway_id
+        if isinstance(pathway_id, str):
+            try:
+                pathway_id = int(pathway_id)
+            except ValueError:
+                logger.error(f"Invalid pathway_id format: {pathway_id}")
+                return jsonify({'error': 'Invalid pathway_id format'}), 400
+        
+        pathway = DiscipleshipPathway.query.get(pathway_id)
         if not pathway:
-            return jsonify({'error': 'Pathway not found'}), 404
+            logger.error(f"Pathway not found: {pathway_id}")
+            return jsonify({'error': f'Pathway not found: {pathway_id}'}), 404
         
         # Check if this exact pathway is already assigned (prevent duplicates)
         existing_same = PersonPathwayProgress.query.filter_by(
             person_id=person_id,
-            pathway_id=data['pathway_id'],
+            pathway_id=pathway_id,
             is_active=True
         ).first()
         
         if existing_same:
+            logger.info(f"Pathway {pathway_id} already assigned to person {person_id}")
             return jsonify({'error': 'This journey is already assigned to this person'}), 400
         
         # Allow assigning new pathways even if others exist
@@ -489,11 +510,13 @@ def assign_pathway_to_person(person_id):
         
         # Get first step
         first_step = pathway.steps.order_by(PathwayStep.step_order).first()
+        if not first_step:
+            logger.warning(f"Pathway {pathway_id} has no steps")
         
         # Create progress record
         progress = PersonPathwayProgress(
             person_id=person_id,
-            pathway_id=data['pathway_id'],
+            pathway_id=pathway_id,
             assigned_by_person_id=getattr(current_user, 'id', None),
             started_at=datetime.utcnow() if data.get('start_immediately', False) else None,
             current_step_id=first_step.id if first_step else None,
@@ -502,6 +525,8 @@ def assign_pathway_to_person(person_id):
         
         db.session.add(progress)
         db.session.commit()
+        
+        logger.info(f"Successfully assigned pathway {pathway_id} to person {person_id}")
         
         return jsonify({
             'message': 'Journey assigned successfully',

@@ -71,7 +71,19 @@ const NewChristians = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setPathways(data.pathways || []);
+        console.log('All pathways from API (NewChristians):', data.pathways);
+        
+        // Show all active pathways (including templates)
+        const activePathways = (data.pathways || []).filter(p => p.is_active === true);
+        setPathways(activePathways);
+        console.log(`Loaded ${activePathways.length} active pathways for assignment`);
+        
+        if (activePathways.length === 0) {
+          console.warn('No active pathways found! Check if pathways exist and are marked as active.');
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to load pathways:', response.status, errorText);
       }
     } catch (err) {
       console.error('Error loading pathways:', err);
@@ -79,8 +91,31 @@ const NewChristians = () => {
   };
 
   const assignPathway = async (personId, pathwayId) => {
+    if (!personId || !pathwayId) {
+      console.error('[NewChristians] Missing personId or pathwayId:', { personId, pathwayId });
+      alert('Error: Missing person or pathway information');
+      return;
+    }
+
     try {
       setAssigningPathway({ ...assigningPathway, [personId]: true });
+      
+      const pathwayIdInt = typeof pathwayId === 'string' ? parseInt(pathwayId, 10) : pathwayId;
+      
+      if (isNaN(pathwayIdInt)) {
+        console.error('[NewChristians] Invalid pathway ID:', pathwayId);
+        alert('Error: Invalid pathway ID');
+        return;
+      }
+      
+      console.log(`[NewChristians] Assigning pathway ${pathwayIdInt} to person ${personId}`);
+      
+      const requestBody = {
+        pathway_id: pathwayIdInt,
+        start_immediately: true
+      };
+      
+      console.log('[NewChristians] Request body:', JSON.stringify(requestBody));
       
       const response = await fetch(`/api/journeys/person/${personId}/assign`, {
         method: 'POST',
@@ -88,21 +123,34 @@ const NewChristians = () => {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({
-          pathway_id: pathwayId,
-          start_immediately: true
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      console.log('[NewChristians] Response status:', response.status, response.statusText);
+      
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonErr) {
+        const text = await response.text();
+        console.error('[NewChristians] Failed to parse JSON response:', text);
+        alert(`Server error: ${response.status} ${response.statusText}`);
+        return;
+      }
+      
+      console.log('[NewChristians] Assignment response:', result);
+      
       if (response.ok) {
+        alert('Pathway assigned successfully!');
         await loadNewChristians(); // Reload to get updated pathway info
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to assign pathway');
+        const errorMsg = result.error || result.message || `Failed to assign pathway (${response.status})`;
+        console.error('[NewChristians] Assignment error:', errorMsg, result);
+        alert(`Error: ${errorMsg}`);
       }
     } catch (err) {
-      console.error('Error assigning pathway:', err);
-      alert('Failed to assign pathway');
+      console.error('[NewChristians] Error assigning pathway:', err);
+      alert(`Failed to assign pathway: ${err.message || 'Network error'}`);
     } finally {
       setAssigningPathway({ ...assigningPathway, [personId]: false });
     }
@@ -201,27 +249,30 @@ const NewChristians = () => {
                       <select
                         onChange={(e) => {
                           if (e.target.value) {
-                            assignPathway(person.id, parseInt(e.target.value));
+                            const pathwayId = parseInt(e.target.value);
+                            console.log(`[NewChristians] Selected pathway ${pathwayId} for person ${person.id}`);
+                            assignPathway(person.id, pathwayId);
                             e.target.value = '';
                           }
                         }}
-                        disabled={assigningPathway[person.id]}
+                        disabled={assigningPathway[person.id] || pathways.length === 0}
                         className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-none outline-none"
+                        style={{ minWidth: '250px' }}
                       >
-                        <option value="">Assign Journey (Recommended: Foundations)...</option>
-                        {pathways
-                          .filter(p => p.is_active && !p.is_template)
-                          .map(pathway => (
-                            <option key={pathway.id} value={pathway.id}>
-                              {pathway.name}
-                            </option>
-                          ))}
+                        <option value="">
+                          {pathways.length === 0 ? 'Loading pathways...' : 'Assign Pathway (Recommended: Foundations)...'}
+                        </option>
+                        {pathways.map(pathway => (
+                          <option key={pathway.id} value={pathway.id}>
+                            {pathway.name} {pathway.is_template ? '(Template)' : ''}
+                          </option>
+                        ))}
                       </select>
                     )}
                     {hasPathway && (
                       <div className="px-4 py-2 bg-green-600/20 text-green-300 rounded-lg text-sm font-medium flex items-center gap-2">
                         <AcademicCapIcon className="h-4 w-4" />
-                        Journey Assigned: {currentPathway.pathway_name}
+                        Pathway Assigned: {currentPathway.pathway_name}
                       </div>
                     )}
                   </div>
@@ -234,7 +285,7 @@ const NewChristians = () => {
                         <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-3">
                             <AcademicCapIcon className="h-5 w-5 text-purple-400" />
-                            <div className="text-purple-400 font-semibold">Journey: {currentPathway.pathway_name}</div>
+                            <div className="text-purple-400 font-semibold">Pathway: {currentPathway.pathway_name}</div>
                           </div>
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>

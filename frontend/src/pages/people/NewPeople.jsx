@@ -67,21 +67,89 @@ const NewPeople = () => {
 
   const loadPathways = async () => {
     try {
+      console.log('[NewPeople] ===== LOADING PATHWAYS =====');
+      // NOTE: This uses the same endpoint as /journeys page
+      // All pathways created/managed at /journeys will appear here
       const response = await fetch('/api/journeys', {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setPathways(data.pathways || []);
+      
+      console.log('[NewPeople] Response status:', response.status);
+      console.log('[NewPeople] Response headers:', response.headers);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[NewPeople] API Error:', response.status, errorText);
+        alert(`Failed to load pathways: ${response.status}\n${errorText.substring(0, 200)}`);
+        return;
       }
+      
+      const data = await response.json();
+      console.log('[NewPeople] ===== RAW API RESPONSE =====');
+      console.log('[NewPeople] Full response:', JSON.stringify(data, null, 2));
+      console.log('[NewPeople] Pathways array:', data.pathways);
+      console.log('[NewPeople] Pathways count:', data.pathways?.length || 0);
+      
+        // NO FILTERING - show everything
+        const allPathways = data.pathways || [];
+        console.log(`[NewPeople] Using ALL pathways (no filter): ${allPathways.length} pathways`);
+        
+        // Log each pathway
+        allPathways.forEach((p, idx) => {
+          console.log(`[NewPeople] Pathway ${idx + 1}:`, {
+            id: p.id,
+            name: p.name,
+            is_active: p.is_active,
+            is_template: p.is_template
+          });
+        });
+        
+        setPathways(allPathways);
+        console.log(`[NewPeople] ===== SET PATHWAYS STATE: ${allPathways.length} pathways =====`);
+        
+        if (allPathways.length === 0) {
+          console.error('[NewPeople] ⚠️ NO PATHWAYS FOUND IN API RESPONSE!');
+          alert('No pathways found. Check console for API response details.');
+        } else {
+          console.log('[NewPeople] ✓ Pathways loaded successfully!');
+        }
     } catch (err) {
-      console.error('Error loading pathways:', err);
+      console.error('[NewPeople] ===== ERROR LOADING PATHWAYS =====');
+      console.error('[NewPeople] Error:', err);
+      console.error('[NewPeople] Error stack:', err.stack);
+      alert(`Error loading pathways: ${err.message}\nCheck console for details.`);
     }
   };
 
   const assignPathway = async (personId, pathwayId) => {
+    if (!personId || !pathwayId) {
+      console.error('Missing personId or pathwayId:', { personId, pathwayId });
+      alert('Error: Missing person or pathway information');
+      return;
+    }
+
     try {
       setAssigningPathway({ ...assigningPathway, [personId]: true });
+      
+      const pathwayIdInt = typeof pathwayId === 'string' ? parseInt(pathwayId, 10) : pathwayId;
+      
+      if (isNaN(pathwayIdInt)) {
+        console.error('Invalid pathway ID:', pathwayId);
+        alert('Error: Invalid pathway ID');
+        return;
+      }
+      
+      console.log(`[NewPeople] Assigning pathway ${pathwayIdInt} to person ${personId}`);
+      
+      const requestBody = {
+        pathway_id: pathwayIdInt,
+        start_immediately: true
+      };
+      
+      console.log('[NewPeople] Request body:', JSON.stringify(requestBody));
       
       const response = await fetch(`/api/journeys/person/${personId}/assign`, {
         method: 'POST',
@@ -89,21 +157,34 @@ const NewPeople = () => {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({
-          pathway_id: pathwayId,
-          start_immediately: true
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      console.log('[NewPeople] Response status:', response.status, response.statusText);
+      
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonErr) {
+        const text = await response.text();
+        console.error('[NewPeople] Failed to parse JSON response:', text);
+        alert(`Server error: ${response.status} ${response.statusText}`);
+        return;
+      }
+      
+      console.log('[NewPeople] Assignment response:', result);
+      
       if (response.ok) {
+        alert('Pathway assigned successfully!');
         await loadNewPeople(); // Reload to get updated pathway info
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to assign pathway');
+        const errorMsg = result.error || result.message || `Failed to assign pathway (${response.status})`;
+        console.error('[NewPeople] Assignment error:', errorMsg, result);
+        alert(`Error: ${errorMsg}`);
       }
     } catch (err) {
-      console.error('Error assigning pathway:', err);
-      alert('Failed to assign pathway');
+      console.error('[NewPeople] Error assigning pathway:', err);
+      alert(`Failed to assign pathway: ${err.message || 'Network error'}`);
     } finally {
       setAssigningPathway({ ...assigningPathway, [personId]: false });
     }
@@ -158,8 +239,31 @@ const NewPeople = () => {
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-y-auto">
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-white mb-2">New People</h2>
-        <p className="text-white/60">People who joined in the last 30 days • {newPeople.length} total</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-white mb-2">New People</h2>
+            <p className="text-white/60">People who joined in the last 30 days • {newPeople.length} total</p>
+          </div>
+          <div className="text-sm text-white/60 flex items-center gap-3">
+            <div>
+              Pathways available: <span className="font-bold text-white">{pathways.length}</span>
+            </div>
+            <button
+              onClick={() => {
+                console.log('[NewPeople] Manual refresh clicked');
+                loadPathways();
+              }}
+              className="px-3 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs border border-blue-500/30"
+            >
+              🔄 Reload Pathways
+            </button>
+            {pathways.length > 0 && (
+              <div className="text-green-400 text-xs">
+                ✓ {pathways.length} pathway{pathways.length !== 1 ? 's' : ''} ready
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -233,7 +337,7 @@ const NewPeople = () => {
                       </div>
                     </div>
                     <div className="bg-white/5 rounded-lg p-4">
-                      <div className="text-white/60 text-sm mb-1">Assigned Journey</div>
+                      <div className="text-white/60 text-sm mb-1">Assigned Pathway</div>
                       <div className="text-white font-medium">
                         {currentPathway ? currentPathway.pathway_name : 'None'}
                       </div>
@@ -250,25 +354,64 @@ const NewPeople = () => {
                       <PhoneIcon className="h-4 w-4" />
                       Mark as Contacted
                     </button>
-                    <select
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          assignPathway(person.id, parseInt(e.target.value));
-                          e.target.value = '';
-                        }
-                      }}
-                      disabled={assigningPathway[person.id]}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-none outline-none"
-                    >
-                      <option value="">Assign Journey...</option>
-                      {pathways
-                        .filter(p => p.is_active && !p.is_template)
-                        .map(pathway => (
-                          <option key={pathway.id} value={pathway.id}>
-                            {pathway.name}
-                          </option>
-                        ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        id={`pathway-select-${person.id}`}
+                        onChange={(e) => {
+                          console.log('[NewPeople] ===== DROPDOWN CHANGED =====');
+                          console.log('[NewPeople] Selected value:', e.target.value);
+                          console.log('[NewPeople] Selected index:', e.target.selectedIndex);
+                          console.log('[NewPeople] All options:', Array.from(e.target.options).map(opt => ({ value: opt.value, text: opt.text })));
+                          if (e.target.value) {
+                            const pathwayId = parseInt(e.target.value);
+                            console.log(`[NewPeople] Selected pathway ${pathwayId} for person ${person.id}`);
+                            assignPathway(person.id, pathwayId);
+                            e.target.value = '';
+                          }
+                        }}
+                        onFocus={(e) => {
+                          console.log('[NewPeople] ===== DROPDOWN FOCUSED =====');
+                          console.log('[NewPeople] Pathways in state:', pathways.length);
+                          console.log('[NewPeople] Pathways array:', pathways);
+                          console.log('[NewPeople] Select element:', e.target);
+                          console.log('[NewPeople] Options count:', e.target.options.length);
+                        }}
+                        onClick={(e) => {
+                          console.log('[NewPeople] ===== DROPDOWN CLICKED =====');
+                          console.log('[NewPeople] Pathways count:', pathways.length);
+                          console.log('[NewPeople] Pathways:', pathways);
+                          console.log('[NewPeople] Select element options:', Array.from(e.target.options).map(o => o.text));
+                        }}
+                        disabled={assigningPathway[person.id]}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer"
+                        style={{ minWidth: '200px', paddingRight: '2.5rem', zIndex: 10 }}
+                      >
+                        <option value="" disabled>
+                          {pathways.length === 0 ? 'Loading pathways...' : 'Assign Pathway...'}
+                        </option>
+                        {pathways.length > 0 ? (
+                          pathways.map((pathway, idx) => {
+                            if (idx === 0) {
+                              console.log(`[NewPeople] Rendering first pathway option:`, pathway);
+                            }
+                            return (
+                              <option key={pathway.id} value={String(pathway.id)}>
+                                {pathway.name} {pathway.is_template ? '(Template)' : ''}
+                              </option>
+                            );
+                          })
+                        ) : (
+                          <option value="" disabled>No pathways - Check console</option>
+                        )}
+                      </select>
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none z-0">
+                        <ChevronDownIcon className="h-4 w-4 text-white" />
+                      </div>
+                      {/* Debug info - always visible */}
+                      <div className="text-xs text-white/60 mt-1">
+                        {pathways.length} pathway{pathways.length !== 1 ? 's' : ''} loaded | Click dropdown to see options
+                      </div>
+                    </div>
                     <select
                       onChange={(e) => {
                         if (e.target.value) {
@@ -295,7 +438,7 @@ const NewPeople = () => {
                         <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-2">
                             <AcademicCapIcon className="h-5 w-5 text-purple-400" />
-                            <div className="text-purple-400 font-semibold">Assigned Journey: {currentPathway.pathway_name}</div>
+                            <div className="text-purple-400 font-semibold">Assigned Pathway: {currentPathway.pathway_name}</div>
                           </div>
                           <div className="text-white/80 text-sm">
                             Progress: {currentPathway.progress_percentage || 0}%
