@@ -22351,11 +22351,15 @@ def add_family_member(person_id):
                 return jsonify({'error': 'Failed to update member'}), 500
             
             logger.info(f"Added member {member_person_id} to family {family_id}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Member added to family successfully'
-        })
+            
+            return jsonify({
+                'success': True,
+                'message': 'Member added to family successfully'
+            })
+        except Exception as update_error:
+            logger.error(f"Error updating member family_id: {update_error}", exc_info=True)
+            db.session.rollback()
+            return jsonify({'error': 'Failed to update member', 'details': str(update_error)}), 500
     except Exception as e:
         logger.error(f"Error adding family member: {e}", exc_info=True)
         db.session.rollback()
