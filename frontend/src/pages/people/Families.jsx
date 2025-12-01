@@ -35,6 +35,10 @@ const Families = () => {
   const [searchingPeople, setSearchingPeople] = useState(false);
   const [peopleSearchTerm, setPeopleSearchTerm] = useState('');
   const [toast, setToast] = useState(null);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showPastoralNoteModal, setShowPastoralNoteModal] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [pastoralNoteText, setPastoralNoteText] = useState('');
 
   useEffect(() => {
     loadCampuses();
