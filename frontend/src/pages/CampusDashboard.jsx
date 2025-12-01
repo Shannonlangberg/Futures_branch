@@ -450,6 +450,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 rededications: data.stats?.rededications || 0,
                 kids: data.stats?.new_kids_salvations || 0,
                 salvationCardsReturned: data.stats?.salvation_cards_returned || 0,
+                handsUp: data.stats?.hands_up || 0,
                 campus: campusName 
               })}
             >
@@ -479,6 +480,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 firstTime: data.stats?.first_time_visitors || 0,
                 visiting: data.stats?.visitors || 0,
                 infoGathered: data.stats?.information_gathered || 0,
+                packsOut: data.stats?.packs_out || 0,
                 campus: campusName 
               })}
             >
@@ -1172,6 +1174,13 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
               </div>
               <p className="text-white/60">Salvation cards collected</p>
             </div>
+            <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+              <h3 className="text-xl font-bold text-white mb-4">Hands Up</h3>
+              <div className="text-4xl font-bold text-yellow-400 mb-2">
+                {modalData.handsUp?.toLocaleString() || 0}
+              </div>
+              <p className="text-white/60">People who responded (may differ from actual salvations)</p>
+            </div>
           </div>
                 </div>
               )}
@@ -1207,6 +1216,13 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                         {modalData.infoGathered.toLocaleString()}
                       </div>
                       <p className="text-white/60">Contact information collected</p>
+                    </div>
+                    <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                      <h3 className="text-xl font-bold text-white mb-4">Packs Out</h3>
+                      <div className="text-4xl font-bold text-cyan-400 mb-2">
+                        {modalData.packsOut?.toLocaleString() || 0}
+                      </div>
+                      <p className="text-white/60">New people packs handed out</p>
                     </div>
                   </div>
                 </div>
