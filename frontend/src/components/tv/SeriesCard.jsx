@@ -79,23 +79,20 @@ const SeriesCard = ({ series, isLarge = false }) => {
           ) : null}
           <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
         </div>
-        {/* Badges - positioned outside the image container to prevent clipping */}
+        {/* Badges - clean Netflix-style badge */}
         {series.is_published && (
-          <div 
-            className="absolute top-2 left-2 z-10 rounded shadow-lg"
-            style={{
-              backgroundColor: '#dc2626',
-              color: '#ffffff',
-              fontSize: '11px',
-              fontWeight: '700',
-              padding: '4px 8px',
-              lineHeight: '1',
-              letterSpacing: '0.5px',
-              textTransform: 'uppercase',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            New
+          <div className="absolute top-2 left-2 z-10">
+            <span 
+              className="inline-block rounded px-2 py-0.5 text-[10px] font-semibold leading-none shadow-md"
+              style={{
+                backgroundColor: '#e50914',
+                color: '#ffffff',
+                letterSpacing: '0.03em',
+                textTransform: 'uppercase'
+              }}
+            >
+              New
+            </span>
           </div>
         )}
         {!isLarge && (
