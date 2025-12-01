@@ -18869,11 +18869,19 @@ def log_beacon_attendance():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Normalize UUID to uppercase for consistency
-        beacon_uuid = data['beacon_uuid'].strip().upper()
+        # Normalize and validate UUID
+        beacon_uuid = data['beacon_uuid'].strip().upper() if data.get('beacon_uuid') else None
+        if not beacon_uuid or len(beacon_uuid) != 36 or beacon_uuid.count('-') != 4:
+            return jsonify({'error': 'Invalid UUID format. Expected format: 00000000-0000-0000-0000-000000000000'}), 400
+        
+        # Validate major and minor
         try:
             beacon_major = int(data['beacon_major'])
             beacon_minor = int(data['beacon_minor'])
+            if beacon_major < 0 or beacon_major > 65535:
+                return jsonify({'error': 'beacon_major must be between 0 and 65535'}), 400
+            if beacon_minor < 0 or beacon_minor > 65535:
+                return jsonify({'error': 'beacon_minor must be between 0 and 65535'}), 400
         except (ValueError, TypeError):
             return jsonify({'error': 'beacon_major and beacon_minor must be integers'}), 400
         
@@ -18885,7 +18893,10 @@ def log_beacon_attendance():
         )
         
         if not zone:
-            return jsonify({'error': 'Beacon zone not found'}), 404
+            return jsonify({
+                'error': 'Beacon zone not found',
+                'message': 'No active beacon zone found with the provided UUID, major, and minor values. Please verify the beacon configuration.'
+            }), 404
         
         # Log attendance
         attendance = EngagementProfile(
@@ -21401,10 +21412,17 @@ def get_families():
             existing_columns = [row[1] for row in table_info]
             has_family_id = 'family_id' in existing_columns
             has_new_christian_fields = all(col in existing_columns for col in ['is_new_christian', 'new_christian_date'])
+            # Check for all new columns that might be in the Person model
+            required_new_columns = [
+                'family_id', 'is_new_christian', 'new_christian_date', 
+                'follow_up_status', 'service_attended', 'is_new_person', 'new_person_date'
+            ]
+            has_all_new_columns = all(col in existing_columns for col in required_new_columns)
         except Exception as e:
             logger.warning(f"Could not check table schema: {e}")
             has_family_id = False
             has_new_christian_fields = False
+            has_all_new_columns = False
         
         # Get query parameters
         campus_filter = request.args.get('campus', None)
@@ -21414,7 +21432,8 @@ def get_families():
         has_youth = request.args.get('has_youth', None)  # true/false
         
         # Get all active persons - use raw SQL if columns don't exist to avoid errors
-        if not has_family_id:
+        # Must use raw SQL if ANY new columns are missing, because ORM will try to select all model columns
+        if not has_all_new_columns:
             # Use raw SQL to select only existing columns
             base_columns = [
                 'id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 
@@ -21422,6 +21441,12 @@ def get_families():
                 'pastoral_notes', 'tags', 'is_active', 'created_at', 'updated_at',
                 'dna_completed', 'baptised_on', 'filled_holy_spirit', 'rise_attended', 'first_served_on'
             ]
+            # Add new columns only if they exist
+            optional_columns = ['family_id', 'is_new_christian', 'new_christian_date', 
+                               'follow_up_status', 'service_attended', 'is_new_person', 'new_person_date']
+            for col in optional_columns:
+                if col in existing_columns:
+                    base_columns.append(col)
             
             where_clauses = ["is_active = 1"]
             params = {}
