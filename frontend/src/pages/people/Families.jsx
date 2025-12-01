@@ -327,15 +327,15 @@ const Families = () => {
     }
   };
 
-  const sendMessageToFamily = async () => {
-    if (!messageText.trim() || !selectedFamily) {
+  const sendMessageToFamily = async (family) => {
+    if (!messageText.trim() || !family) {
       setToast({ type: 'error', message: 'Please enter a message' });
       return;
     }
 
     try {
       // Get all member emails/phones
-      const members = selectedFamily.members || [];
+      const members = family.members || [];
       const emails = members.filter(m => m.email).map(m => m.email);
       const phones = members.filter(m => m.phone).map(m => m.phone);
 
@@ -361,15 +361,15 @@ const Families = () => {
     }
   };
 
-  const savePastoralNote = async () => {
-    if (!pastoralNoteText.trim() || !selectedFamily) {
+  const savePastoralNote = async (family) => {
+    if (!pastoralNoteText.trim() || !family) {
       setToast({ type: 'error', message: 'Please enter a pastoral note' });
       return;
     }
 
     try {
       // Get the first member (or parent) to attach the note to
-      const primaryMember = selectedFamily.members.find(m => m.role === 'parent') || selectedFamily.members[0];
+      const primaryMember = family.members.find(m => m.role === 'parent') || family.members[0];
       
       if (!primaryMember || !primaryMember.id) {
         setToast({ type: 'error', message: 'Could not find family member to attach note to' });
@@ -393,13 +393,11 @@ const Families = () => {
         // Reload families to refresh data
         await loadFamilies();
         // Refresh selected family if still viewing it
-        if (selectedFamily) {
-          const updatedFamilies = await fetch('/api/people/families', {
-            credentials: 'include'
-          }).then(r => r.json()).then(d => d.families || []).catch(() => []);
-          const updatedFamily = updatedFamilies.find(f => f.id === selectedFamily.id);
-          if (updatedFamily) setSelectedFamily(updatedFamily);
-        }
+        const updatedFamilies = await fetch('/api/people/families', {
+          credentials: 'include'
+        }).then(r => r.json()).then(d => d.families || []).catch(() => []);
+        const updatedFamily = updatedFamilies.find(f => f.id === family.id);
+        if (updatedFamily) setSelectedFamily(updatedFamily);
       } else {
         const error = await response.json().catch(() => ({}));
         setToast({ type: 'error', message: error.error || 'Failed to save pastoral note' });
@@ -1146,7 +1144,7 @@ const FamilyDetailView = ({
                 Cancel
               </button>
               <button
-                onClick={savePastoralNote}
+                onClick={() => savePastoralNote(family)}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
               >
                 Save Note
