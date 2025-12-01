@@ -13791,7 +13791,7 @@ def get_persons():
                 persons.append(person)
         else:
             # New columns exist, use normal query
-        persons = query.order_by(Person.full_name).all()
+            persons = query.order_by(Person.full_name).all()
         
         # Apply new_people filter (last 30 days)
         if new_people:
