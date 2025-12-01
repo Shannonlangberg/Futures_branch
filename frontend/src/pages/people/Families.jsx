@@ -988,7 +988,7 @@ const FamilyDetailView = ({
                     View Profile
                   </button>
                   <button
-                    onClick={() => navigate(`/people/heartbeat?person=${member.id}`)}
+                    onClick={() => navigate(`/persons/${member.id}`)}
                     className="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-lg text-sm transition-colors"
                   >
                     <HeartIcon className="h-4 w-4" />
