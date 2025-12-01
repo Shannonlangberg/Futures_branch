@@ -1,18 +1,23 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import PastoralCare from './PastoralCare';
+import { useSearchParams } from 'react-router-dom';
 
 /**
- * Wrapper component that redirects to Pastoral Care page with prayer tab active.
+ * Wrapper component that renders Pastoral Care page with prayer tab active.
  * This ensures /prayer shows the full-featured prayer management integrated with Heartbeat.
  */
 const PrayerWrapper = () => {
-  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  // Preserve any query parameters from the original request
-  const searchParams = new URLSearchParams(location.search);
-  searchParams.set('tab', 'prayer');
+  // Ensure the tab is set to 'prayer' if not already set
+  React.useEffect(() => {
+    if (searchParams.get('tab') !== 'prayer') {
+      setSearchParams({ tab: 'prayer' });
+    }
+  }, [searchParams, setSearchParams]);
   
-  return <Navigate to={`/people/pastoral-care?${searchParams.toString()}`} replace />;
+  // Render PastoralCare directly - it will read the tab parameter
+  return <PastoralCare />;
 };
 
 export default PrayerWrapper;
