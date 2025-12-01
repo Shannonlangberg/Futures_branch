@@ -50,6 +50,10 @@ const PastoralCare = () => {
   const [campuses, setCampuses] = useState([]);
   const [showCampusSelector, setShowCampusSelector] = useState(false);
   const [pastors, setPastors] = useState([]);
+  const [people, setPeople] = useState([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [personSearchTerm, setPersonSearchTerm] = useState('');
+  const [showPeopleDropdown, setShowPeopleDropdown] = useState(false);
   const [showCreateLink, setShowCreateLink] = useState(false);
   const [newLink, setNewLink] = useState({
     link_type: 'both',
@@ -81,7 +85,42 @@ const PastoralCare = () => {
     fetchUserSession();
     loadCampuses();
     loadPastors();
+    loadPeople();
   }, []);
+
+  // Close people dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showPeopleDropdown && !event.target.closest('.people-selector-container')) {
+        setShowPeopleDropdown(false);
+      }
+    };
+
+    if (showPeopleDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showPeopleDropdown]);
+
+  const loadPeople = async () => {
+    try {
+      setPeopleLoading(true);
+      const response = await fetch('/api/persons?page_size=500&is_active=true', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPeople(data.persons || []);
+      }
+    } catch (err) {
+      console.error('Error loading people:', err);
+      setPeople([]);
+    } finally {
+      setPeopleLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (userRole) { // Only load when we have user role
@@ -344,6 +383,8 @@ const PastoralCare = () => {
           follow_up_date: '',
           ai_summary: ''
         });
+        setPersonSearchTerm('');
+        setShowPeopleDropdown(false);
         loadCareCases();
       } else {
         const error = await response.json();
@@ -525,6 +566,20 @@ const PastoralCare = () => {
 
   const filteredCases = careCases;
   const filteredPrayerRequests = prayerRequests;
+  
+  // Filter people based on search term
+  const filteredPeople = people.filter(person => {
+    if (!personSearchTerm) return false;
+    const search = personSearchTerm.toLowerCase();
+    const fullName = (person.full_name || '').toLowerCase();
+    const preferredName = (person.preferred_name || '').toLowerCase();
+    const email = (person.email || '').toLowerCase();
+    const personId = (person.id || '').toLowerCase();
+    return fullName.includes(search) || 
+           preferredName.includes(search) || 
+           email.includes(search) || 
+           personId.includes(search);
+  }).slice(0, 20); // Limit to 20 results for performance
 
   // Debug: Log current state
   useEffect(() => {
@@ -1329,7 +1384,20 @@ const PastoralCare = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-2xl font-bold text-white">Create Care Case</h3>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setFormData({
+                    person_id: '',
+                    person_name: '',
+                    priority: 'medium',
+                    notes: '',
+                    assigned_leader: '',
+                    follow_up_date: '',
+                    ai_summary: ''
+                  });
+                  setPersonSearchTerm('');
+                  setShowPeopleDropdown(false);
+                }}
                 className="text-white/60 hover:text-white"
               >
                 <XMarkIcon className="h-6 w-6" />
@@ -1337,18 +1405,75 @@ const PastoralCare = () => {
             </div>
             
             <form onSubmit={handleCreateCase} className="space-y-4">
-              <div>
-                <label className="block text-white/80 mb-2">Person Name/ID</label>
-                <input
-                  type="text"
-                  value={formData.person_name || formData.person_id}
-                  onChange={(e) => {
-                    setFormData({ ...formData, person_name: e.target.value, person_id: e.target.value });
-                  }}
-                  placeholder="Enter person name or ID"
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                  required
-                />
+              <div className="relative">
+                <label className="block text-white/80 mb-2">Select Person</label>
+                <div className="relative people-selector-container">
+                  <input
+                    type="text"
+                    value={formData.person_name || personSearchTerm}
+                    onChange={(e) => {
+                      setPersonSearchTerm(e.target.value);
+                      setShowPeopleDropdown(true);
+                      if (!e.target.value) {
+                        setFormData({ ...formData, person_id: '', person_name: '' });
+                      }
+                    }}
+                    onFocus={() => {
+                      setShowPeopleDropdown(true);
+                      if (!personSearchTerm && formData.person_name) {
+                        setPersonSearchTerm(formData.person_name);
+                      }
+                    }}
+                    placeholder="Search for a person..."
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                    required={!formData.person_id}
+                  />
+                  {peopleLoading && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/40">
+                      Loading...
+                    </div>
+                  )}
+                  {showPeopleDropdown && personSearchTerm && (
+                    <div 
+                      className="absolute z-50 w-full mt-1 bg-slate-800 border border-white/10 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {filteredPeople.length > 0 ? (
+                        filteredPeople.map((person) => (
+                          <button
+                            key={person.id}
+                            type="button"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                person_id: person.id,
+                                person_name: person.preferred_name || person.full_name
+                              });
+                              setPersonSearchTerm(person.preferred_name || person.full_name);
+                              setShowPeopleDropdown(false);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-white/10 text-white transition-colors"
+                          >
+                            <div className="font-medium">{person.preferred_name || person.full_name}</div>
+                            {person.full_name !== person.preferred_name && (
+                              <div className="text-sm text-white/60">{person.full_name}</div>
+                            )}
+                            {person.email && (
+                              <div className="text-xs text-white/40">{person.email}</div>
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-white/60 text-sm">No people found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {formData.person_id && (
+                  <div className="mt-2 text-sm text-purple-300">
+                    Selected: {formData.person_name}
+                  </div>
+                )}
               </div>
               
               <div>
