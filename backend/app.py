@@ -21915,6 +21915,10 @@ def create_family_for_person(person_id):
         from sqlalchemy import text
         from sqlalchemy.exc import OperationalError
         
+        # URL decode person_id in case it was encoded
+        from urllib.parse import unquote
+        person_id = unquote(person_id)
+        
         # Check if family_id column exists
         try:
             table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
@@ -21925,6 +21929,7 @@ def create_family_for_person(person_id):
             has_family_id = False
         
         if not has_family_id:
+            logger.error(f"Family feature not available - family_id column missing for person {person_id}")
             return jsonify({
                 'error': 'Family feature not available',
                 'details': 'The family_id column does not exist in the database. Please run migration 035_add_people_section_fields.sql'

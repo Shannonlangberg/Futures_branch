@@ -180,23 +180,35 @@ const Families = () => {
 
   const createFamilyForPerson = async (personId) => {
     try {
-      const response = await fetch(`/api/persons/${personId}/family/create`, {
+      // URL encode the person ID to handle special characters (like spaces in PCO IDs)
+      const encodedPersonId = encodeURIComponent(personId);
+      const response = await fetch(`/api/persons/${encodedPersonId}/family/create`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
+      
+      const data = await response.json().catch(() => ({}));
+      
       if (response.ok) {
         await loadFamilies();
         setShowCreateFamilyModal(false);
         setPeopleSearchTerm('');
         setAvailablePeople([]);
+        if (data.already_exists) {
+          alert('This person already has a family assigned.');
+        } else {
+          alert('Family created successfully!');
+        }
       } else {
-        const error = await response.json().catch(() => ({}));
-        alert(error.error || 'Failed to create family');
+        // Show detailed error message
+        const errorMsg = data.error || data.details || `Failed to create family (${response.status})`;
+        console.error('Error creating family:', data);
+        alert(errorMsg);
       }
     } catch (err) {
       console.error('Error creating family:', err);
-      alert('Failed to create family');
+      alert(`Failed to create family: ${err.message}`);
     }
   };
 
