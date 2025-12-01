@@ -392,12 +392,25 @@ const UserManagement = () => {
                   Email
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    // Auto-fix common email issues: replace spaces with dots in local part
+                    let email = e.target.value;
+                    if (email.includes('@')) {
+                      const [localPart, domain] = email.split('@');
+                      email = localPart.replace(/\s+/g, '.') + '@' + domain;
+                    }
+                    setFormData({ ...formData, email });
+                  }}
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
                   placeholder="john.smith@futures.church"
                 />
+                {formData.email && formData.email.includes(' ') && (
+                  <p className="mt-1 text-xs text-yellow-400">
+                    Note: Spaces in email will be automatically converted to dots
+                  </p>
+                )}
               </div>
 
               {/* Password */}
