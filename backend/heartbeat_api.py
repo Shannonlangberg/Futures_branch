@@ -80,10 +80,10 @@ def get_campus_people(campus_id):
                         setattr(person, key, value)
                     people.append(person)
             else:
-            query = Person.query.filter_by(is_active=True)
-            if department_filter:
-                query = query.filter_by(department=department_filter)
-            people = query.all()
+                query = Person.query.filter_by(is_active=True)
+                if department_filter:
+                    query = query.filter_by(department=department_filter)
+                people = query.all()
             campus_name = 'All Campuses'
             campus_id_display = 'all_campuses'
         else:
