@@ -81,9 +81,9 @@ class HeartbeatEngine:
             for key, value in person_dict.items():
                 setattr(person, key, value)
         else:
-        person = Person.query.get(person_id)
-        if not person:
-            raise ValueError(f"Person {person_id} not found")
+            person = Person.query.get(person_id)
+            if not person:
+                raise ValueError(f"Person {person_id} not found")
         
         # Default to last 12 weeks if no range provided
         if date_range_end is None:
