@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   StarIcon, 
   BookOpenIcon, 
@@ -9,10 +10,12 @@ import {
   EnvelopeIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  SparklesIcon
+  SparklesIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline';
 
 const NewChristians = () => {
+  const navigate = useNavigate();
   const [newChristians, setNewChristians] = useState([]);
   const [allNewChristians, setAllNewChristians] = useState([]); // Store all for filtering
   const [loading, setLoading] = useState(true);
@@ -356,6 +359,13 @@ const NewChristians = () => {
                         Current: {currentPathway.pathway_name}
                       </div>
                     )}
+                    <button
+                      onClick={() => navigate(`/people/heartbeat?person=${person.id}`)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <HeartIcon className="h-4 w-4" />
+                      View Heartbeat Profile
+                    </button>
                   </div>
 
                   {/* Expanded Details */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   UserPlusIcon, 
   CalendarIcon, 
@@ -9,10 +10,12 @@ import {
   EnvelopeIcon,
   UserGroupIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline';
 
 const NewPeople = () => {
+  const navigate = useNavigate();
   const [newPeople, setNewPeople] = useState([]);
   const [allNewPeople, setAllNewPeople] = useState([]); // Store all people for filtering
   const [loading, setLoading] = useState(true);
@@ -371,6 +374,13 @@ const NewPeople = () => {
                     >
                       <PhoneIcon className="h-4 w-4" />
                       Mark as Contacted
+                    </button>
+                    <button
+                      onClick={() => navigate(`/people/heartbeat?person=${person.id}`)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <HeartIcon className="h-4 w-4" />
+                      View Heartbeat Profile
                     </button>
                     <div className="relative">
                       <select
