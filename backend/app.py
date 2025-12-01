@@ -13838,7 +13838,7 @@ def get_persons():
             from sqlalchemy import text
             table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
             existing_columns = [row[1] for row in table_info]
-            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended'])
+            has_new_columns = all(col in existing_columns for col in ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended', 'is_new_person', 'new_person_date'])
         except Exception as e:
             logger.warning(f"Could not check table schema: {e}")
             has_new_columns = False
@@ -13897,16 +13897,45 @@ def get_persons():
             # New columns exist, use normal query
             persons = query.order_by(Person.full_name).all()
         
-        # Apply new_people filter (last 30 days)
+        # Apply new_people filter (last 30 days OR manually flagged)
         if new_people:
             thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+            thirty_days_ago_date = thirty_days_ago.date()
             filtered_persons = []
             for p in persons:
                 try:
-                    if p.created_at and p.created_at >= thirty_days_ago:
+                    # Check if manually flagged as new person
+                    is_new_person = getattr(p, 'is_new_person', False)
+                    new_person_date = getattr(p, 'new_person_date', None)
+                    
+                    # Include if:
+                    # 1. Manually flagged as new person AND date is within last 30 days (or no date set)
+                    # 2. OR created in last 30 days (for backward compatibility)
+                    is_flagged_new = False
+                    if is_new_person:
+                        if new_person_date is None:
+                            # No date set, include if flagged
+                            is_flagged_new = True
+                        else:
+                            # Convert to date if needed
+                            if isinstance(new_person_date, str):
+                                try:
+                                    new_person_date = datetime.fromisoformat(new_person_date.replace('Z', '+00:00')).date()
+                                except:
+                                    new_person_date = datetime.strptime(new_person_date, '%Y-%m-%d').date()
+                            elif hasattr(new_person_date, 'date'):
+                                new_person_date = new_person_date.date()
+                            
+                            # Check if date is within last 30 days
+                            if new_person_date >= thirty_days_ago_date:
+                                is_flagged_new = True
+                    
+                    is_recently_created = p.created_at and p.created_at >= thirty_days_ago
+                    
+                    if is_flagged_new or is_recently_created:
                         filtered_persons.append(p)
                 except Exception as e:
-                    logger.debug(f"Error checking created_at for person {getattr(p, 'id', 'unknown')}: {e}")
+                    logger.debug(f"Error checking new_person status for person {getattr(p, 'id', 'unknown')}: {e}")
                     continue
             persons = filtered_persons
         
@@ -15135,6 +15164,26 @@ def update_person(person_id):
                             person.new_christian_date = value
                     except ValueError:
                         return jsonify({'error': 'Invalid date format for new_christian_date'}), 400
+        
+        # Update new person tracking fields
+        if 'is_new_person' in data:
+            if hasattr(person, 'is_new_person'):
+                person.is_new_person = bool(data['is_new_person'])
+        
+        if 'new_person_date' in data:
+            if hasattr(person, 'new_person_date'):
+                value = data['new_person_date']
+                if value == '' or value is None:
+                    person.new_person_date = None
+                else:
+                    try:
+                        if isinstance(value, str):
+                            parsed_date = datetime.strptime(value, '%Y-%m-%d').date()
+                            person.new_person_date = parsed_date
+                        else:
+                            person.new_person_date = value
+                    except ValueError:
+                        return jsonify({'error': 'Invalid date format for new_person_date'}), 400
         
         # Update discipleship milestones (convert empty strings to None)
         milestone_fields = [
@@ -21967,36 +22016,64 @@ def create_family_for_person(person_id):
             logger.warning(f"Could not check table schema: {e}")
             has_family_id = False
         
-        if not has_family_id:
-            logger.warning(f"family_id column missing - attempting to create it automatically")
+        # Auto-create all missing columns from migration 035
+        columns_to_add = [
+            ('family_id', 'TEXT'),
+            ('is_new_christian', 'INTEGER DEFAULT 0'),
+            ('new_christian_date', 'DATE'),
+            ('follow_up_status', 'TEXT'),
+            ('service_attended', 'TEXT')
+        ]
+        
+        missing_columns = [col for col in columns_to_add if col[0] not in existing_columns]
+        
+        if missing_columns:
+            logger.warning(f"Missing columns detected: {[col[0] for col in missing_columns]} - attempting to create them automatically")
             try:
-                # Try to add the column automatically
-                db.session.execute(text("ALTER TABLE persons ADD COLUMN family_id TEXT"))
+                for col_name, col_type in missing_columns:
+                    try:
+                        db.session.execute(text(f"ALTER TABLE persons ADD COLUMN {col_name} {col_type}"))
+                        logger.info(f"Successfully added {col_name} column to persons table")
+                    except OperationalError as alter_error:
+                        error_msg = str(alter_error).lower()
+                        if 'duplicate column' in error_msg or 'already exists' in error_msg:
+                            logger.info(f"{col_name} column already exists (race condition)")
+                        else:
+                            logger.error(f"Failed to add {col_name} column: {alter_error}")
+                            raise
+                
                 db.session.commit()
-                logger.info("Successfully added family_id column to persons table")
-                has_family_id = True
+                logger.info("Successfully added all missing columns to persons table")
+                # Re-check after adding columns
+                table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+                existing_columns = [row[1] for row in table_info]
+                has_family_id = 'family_id' in existing_columns
             except OperationalError as alter_error:
                 error_msg = str(alter_error).lower()
-                if 'duplicate column' in error_msg or 'already exists' in error_msg:
-                    logger.info("family_id column already exists (race condition)")
-                    has_family_id = True
-                else:
-                    logger.error(f"Failed to add family_id column: {alter_error}")
-                    db.session.rollback()
-                    return jsonify({
-                        'error': 'Family feature not available',
-                        'details': 'The family_id column does not exist and could not be created automatically. Please run migration 035_add_people_section_fields.sql',
-                        'person_id': person_id,
-                        'database_error': str(alter_error)
-                    }), 400
-            except Exception as alter_error:
-                logger.error(f"Unexpected error adding family_id column: {alter_error}")
+                logger.error(f"Failed to add columns: {alter_error}")
                 db.session.rollback()
                 return jsonify({
-                    'error': 'Family feature not available',
-                    'details': 'The family_id column does not exist and could not be created. Please run migration 035_add_people_section_fields.sql',
+                    'error': 'Database migration needed',
+                    'details': 'Some required columns are missing and could not be created automatically. Please run migration 035_add_people_section_fields.sql',
+                    'person_id': person_id,
+                    'database_error': str(alter_error)
+                }), 400
+            except Exception as alter_error:
+                logger.error(f"Unexpected error adding columns: {alter_error}")
+                db.session.rollback()
+                return jsonify({
+                    'error': 'Database migration needed',
+                    'details': 'Some required columns are missing and could not be created. Please run migration 035_add_people_section_fields.sql',
                     'person_id': person_id
                 }), 400
+        
+        if not has_family_id:
+            logger.error(f"family_id column still missing after auto-creation attempt")
+            return jsonify({
+                'error': 'Family feature not available',
+                'details': 'The family_id column does not exist and could not be created automatically. Please run migration 035_add_people_section_fields.sql',
+                'person_id': person_id
+            }), 400
         
         logger.info(f"Looking up person with id: '{person_id}'")
         person = Person.query.get(person_id)
