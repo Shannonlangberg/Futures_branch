@@ -64,9 +64,9 @@ const SeriesCard = ({ series, isLarge = false }) => {
       {/* Original Card */}
       <Link
         to={`/tv/series/${series.id}`}
-        className={`group flex-shrink-0 ${cardWidth} ${cardHeight} rounded-lg overflow-hidden transition-transform duration-200 relative`}
+        className={`group flex-shrink-0 ${cardWidth} ${cardHeight} rounded-lg overflow-visible transition-transform duration-200 relative`}
       >
-        <div className="relative w-full h-full bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40">
+        <div className="relative w-full h-full bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40 rounded-lg overflow-hidden">
           {series.thumbnail_url ? (
             <img
               src={series.thumbnail_url}
@@ -78,13 +78,13 @@ const SeriesCard = ({ series, isLarge = false }) => {
             />
           ) : null}
           <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-          {/* Badges */}
-          {series.is_published && (
-            <div className="absolute top-2 right-2 px-2 py-1 bg-red-600/90 text-white text-xs font-semibold rounded">
-              NEW
-            </div>
-          )}
         </div>
+        {/* Badges - positioned outside the image container to prevent clipping */}
+        {series.is_published && (
+          <div className="absolute top-2 left-2 z-10 px-2.5 py-1 bg-red-600 text-white text-xs font-bold rounded shadow-lg">
+            NEW
+          </div>
+        )}
         {!isLarge && (
           <div className="mt-2">
             <h3 className="text-white font-medium text-sm line-clamp-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-purple-400 group-hover:via-blue-400 group-hover:to-pink-400 group-hover:bg-clip-text transition-all">

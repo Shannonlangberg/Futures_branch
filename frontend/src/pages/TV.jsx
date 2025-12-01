@@ -184,8 +184,6 @@ const TV = () => {
             </div>
             <div className="w-full overflow-x-auto overflow-y-visible pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               <div className="flex gap-5" style={{ paddingLeft: '24px', paddingRight: '24px', minWidth: 'fit-content' }}>
-                {/* Spacer to ensure first card is fully visible - accounts for sidebar and badge overflow */}
-                <div className="flex-shrink-0" style={{ width: '96px' }}></div>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
