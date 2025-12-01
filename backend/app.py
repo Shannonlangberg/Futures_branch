@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, make_response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase, HeartbeatSnapshot, AttendanceEvent, ServingAssignment, GivingTransaction, CareCase
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, Group, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase, HeartbeatSnapshot, AttendanceEvent, ServingAssignment, GivingTransaction, CareCase
 from datetime import datetime, timezone, timedelta, date
 import os
 import re
