@@ -67,7 +67,7 @@ const NAVIGATION_GROUPS = {
       { name: 'Pathways', href: '/journeys', icon: AcademicCapIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: 'pathway_manager' },
       { name: 'Events', href: '/events', icon: CalendarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: 'events' },
       { name: 'Serving', href: '/serving', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'staff'], featureKey: 'serving' },
-      { name: 'Prayer', href: '/prayer', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: null },
+      { name: 'Prayer', href: '/prayer', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: 'prayer' },
       { name: 'Training', href: '#', icon: AcademicCapIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'], featureKey: 'training', disabled: true },
     ]
   },
@@ -158,6 +158,13 @@ const EnhancedNavigation = ({
         }
         
         // Check custom permissions first (overrides role defaults)
+        // If featureKey is null, skip permission check (always show based on role)
+        if (item.featureKey === null) {
+          // No feature key means always show if role matches (legacy items)
+          return item.roles.includes(userRole);
+        }
+        
+        // If featureKey exists, check custom permissions first
         if (item.featureKey && customPermissions.hasOwnProperty(item.featureKey)) {
           return customPermissions[item.featureKey] === true;
         }

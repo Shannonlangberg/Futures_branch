@@ -411,3 +411,4 @@ className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 p
 ---
 
 This design system creates a cohesive, modern interface that feels both professional and engaging, perfect for a church management and engagement platform.
+
