@@ -559,19 +559,33 @@ def get_person_heartbeat(person_id):
         
         # Get pathway progress to include completed pathway steps as spiritual events
         from models import PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep
-        pathway_progress = PersonPathwayProgress.query.filter_by(
-            person_id=person_id,
-            is_active=True
-        ).first()
+        pathway_progress = None
+        try:
+            pathway_progress = PersonPathwayProgress.query.filter_by(
+                person_id=person_id,
+                is_active=True
+            ).first()
+        except Exception as e:
+            logger.warning(f"Error querying pathway progress for {person_id}: {e}")
+            pathway_progress = None
         
         # Include completed pathway steps as spiritual events
         pathway_step_events = []
         if pathway_progress:
-            db.session.refresh(pathway_progress)
+            try:
+                db.session.refresh(pathway_progress)
+            except Exception as e:
+                logger.warning(f"Error refreshing pathway progress for {person_id}: {e}")
+            
             # Get all completed pathway steps
-            completed_steps = PersonPathwayStepCompletion.query.filter_by(
-                person_pathway_progress_id=pathway_progress.id
-            ).all()
+            completed_steps = []
+            try:
+                completed_steps = PersonPathwayStepCompletion.query.filter_by(
+                    person_pathway_progress_id=pathway_progress.id
+                ).all()
+            except Exception as e:
+                logger.warning(f"Error querying completed steps for {person_id}: {e}")
+                completed_steps = []
             
             # Get person's connect group name if they have one
             connect_group_name = None
