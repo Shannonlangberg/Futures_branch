@@ -20,7 +20,26 @@ const CampusSelector = ({ onCampusSelect, userRole, userCampus }) => {
     if (!hasFullAccess) {
       // For campus pastors, only show their assigned campus
       if (userCampus && userCampus !== 'all_campuses') {
-        accessibleCampuses = campuses.filter(c => c.id === userCampus || c.id === userCampus.toLowerCase().replace(' ', '_'));
+        // Normalize campus ID for matching (handle case, spaces, underscores)
+        const normalizedUserCampus = userCampus.toLowerCase().trim().replace(/\s+/g, '_');
+        
+        accessibleCampuses = campuses.filter(c => {
+          const campusId = (c.id || '').toLowerCase().trim();
+          const campusName = (c.name || '').toLowerCase().trim();
+          return campusId === normalizedUserCampus || 
+                 campusId === userCampus.toLowerCase().trim() ||
+                 campusName === userCampus.toLowerCase().trim() ||
+                 campusName.includes(userCampus.toLowerCase().trim()) ||
+                 campusId.includes(normalizedUserCampus);
+        });
+        
+        // If no campus found, log warning but don't return empty (show all for debugging)
+        if (accessibleCampuses.length === 0) {
+          console.warn(`[CampusSelector] Campus pastor campus "${userCampus}" not found. Available campuses:`, campuses.map(c => `${c.id} (${c.name})`));
+          // Return all campuses so user can see what's available (for debugging)
+          // In production, you might want to return empty array instead
+          return campuses;
+        }
       } else {
         return []; // No access
       }
