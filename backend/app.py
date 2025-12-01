@@ -22298,21 +22298,59 @@ def add_family_member(person_id):
         if not member_person_id:
             return jsonify({'error': 'member_person_id is required'}), 400
         
-        person = Person.query.get(person_id)
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+        # URL decode person_id in case it was encoded
+        from urllib.parse import unquote
+        person_id_decoded = unquote(person_id)
+        if person_id_decoded != person_id:
+            logger.info(f"Decoded person_id from '{person_id}' to '{person_id_decoded}'")
+            person_id = person_id_decoded
         
-        family_id = getattr(person, 'family_id', None)
-        if not family_id:
-            return jsonify({'error': 'Person does not have a family. Create one first.'}), 400
+        # Use raw SQL to query person to avoid ORM issues
+        from sqlalchemy import text
+        try:
+            sql = "SELECT family_id FROM persons WHERE id = :person_id"
+            result = db.session.execute(text(sql), {'person_id': person_id}).fetchone()
+            if not result:
+                return jsonify({'error': 'Person not found'}), 404
+            
+            family_id = result[0]
+            if not family_id:
+                return jsonify({'error': 'Person does not have a family. Create one first.'}), 400
+        except Exception as query_error:
+            logger.error(f"Error querying person: {query_error}", exc_info=True)
+            return jsonify({'error': 'Failed to query person', 'details': str(query_error)}), 500
         
-        member = Person.query.get(member_person_id)
-        if not member:
-            return jsonify({'error': 'Member person not found'}), 404
+        # Check if member exists and get their current family_id
+        try:
+            member_sql = "SELECT id, family_id FROM persons WHERE id = :member_id"
+            member_result = db.session.execute(text(member_sql), {'member_id': member_person_id}).fetchone()
+            if not member_result:
+                return jsonify({'error': 'Member person not found'}), 404
+            
+            # Check if member already has a different family
+            if member_result[1] and member_result[1] != family_id:
+                return jsonify({
+                    'error': 'Member already belongs to another family',
+                    'details': f'Member is already in family: {member_result[1]}'
+                }), 400
+        except Exception as query_error:
+            logger.error(f"Error querying member: {query_error}", exc_info=True)
+            return jsonify({'error': 'Failed to query member', 'details': str(query_error)}), 500
         
-        # Add member to family
-        member.family_id = family_id
-        db.session.commit()
+        # Add member to family using raw SQL UPDATE
+        try:
+            update_sql = "UPDATE persons SET family_id = :family_id WHERE id = :member_id"
+            result = db.session.execute(text(update_sql), {
+                'family_id': family_id,
+                'member_id': member_person_id
+            })
+            db.session.commit()
+            
+            if result.rowcount == 0:
+                logger.warning(f"No rows updated for member {member_person_id}")
+                return jsonify({'error': 'Failed to update member'}), 500
+            
+            logger.info(f"Added member {member_person_id} to family {family_id}")
         
         return jsonify({
             'success': True,

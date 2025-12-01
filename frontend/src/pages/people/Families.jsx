@@ -265,29 +265,56 @@ const Families = () => {
 
   const addMemberToFamily = async (familyPersonId, memberPersonId) => {
     try {
-      const response = await fetch(`/api/persons/${familyPersonId}/family/add-member`, {
+      // URL encode person IDs to handle special characters
+      const encodedFamilyPersonId = encodeURIComponent(familyPersonId);
+      
+      const response = await fetch(`/api/persons/${encodedFamilyPersonId}/family/add-member`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ member_person_id: memberPersonId })
       });
+      
+      const data = await response.json().catch(() => ({}));
+      
       if (response.ok) {
+        setToast({ type: 'success', message: 'Member added to family successfully!' });
         await loadFamilies();
         setShowAddMemberModal(false);
         setPeopleSearchTerm('');
         setAvailablePeople([]);
-        // Refresh detail view if open
+        
+        // Refresh detail view if open - fetch fresh data
         if (selectedFamily) {
-          const updatedFamily = families.find(f => f.id === selectedFamily.id);
-          if (updatedFamily) setSelectedFamily(updatedFamily);
+          try {
+            const familyResponse = await fetch('/api/people/families', {
+              credentials: 'include'
+            });
+            if (familyResponse.ok) {
+              const familyData = await familyResponse.json();
+              const updatedFamilies = familyData.families || [];
+              const updatedFamily = updatedFamilies.find(f => f.id === selectedFamily.id);
+              if (updatedFamily) {
+                setSelectedFamily(updatedFamily);
+              }
+            }
+          } catch (refreshErr) {
+            console.error('Error refreshing family detail:', refreshErr);
+          }
         }
       } else {
-        const error = await response.json().catch(() => ({}));
-        setToast({ type: 'error', message: error.error || 'Failed to add member' });
+        const errorMsg = data.error || data.details || `Failed to add member (${response.status})`;
+        console.error('Error adding member:', {
+          status: response.status,
+          data: data,
+          familyPersonId: familyPersonId,
+          memberPersonId: memberPersonId
+        });
+        setToast({ type: 'error', message: errorMsg });
       }
     } catch (err) {
       console.error('Error adding member:', err);
-      setToast({ type: 'error', message: 'Failed to add member' });
+      setToast({ type: 'error', message: `Failed to add member: ${err.message}` });
     }
   };
 
