@@ -81,8 +81,8 @@ const SeriesCard = ({ series, isLarge = false }) => {
         </div>
         {/* Badges - positioned outside the image container to prevent clipping */}
         {series.is_published && (
-          <div className="absolute top-2 left-2 z-10 px-2.5 py-1 bg-red-600 text-white text-xs font-bold rounded shadow-lg">
-            NEW
+          <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-red-600 text-white text-[10px] font-bold uppercase tracking-tight rounded-md shadow-lg whitespace-nowrap">
+            New
           </div>
         )}
         {!isLarge && (
