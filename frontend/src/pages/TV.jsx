@@ -173,7 +173,7 @@ const TV = () => {
       </div>
 
       <div className="pb-16 relative" style={{ zIndex: 1 }}>
-        {/* Most Watched Section */}
+        {/* Most Watched Section - Recreated to match Category Rows exactly */}
         {mostWatched.length > 0 && !selectedCategory && (
           <div className="mb-16 mt-16">
             <div className="max-w-7xl mx-auto px-6 mb-6">
@@ -182,23 +182,17 @@ const TV = () => {
                 Most Watched
               </h2>
             </div>
-            <div className="w-full overflow-x-auto overflow-y-visible pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              <div className="flex gap-5 items-start" style={{ paddingLeft: '24px', paddingRight: '24px', minWidth: 'fit-content' }}>
-                {/* Spacer to ensure first card's badge is never clipped */}
-                <div className="flex-shrink-0" style={{ width: '32px', minWidth: '32px' }}></div>
-                {/* Add some placeholders to show layout */}
-                {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
-                  if (item.isPlaceholder) {
-                    return (
-                      <div key={item.id} className="flex-shrink-0 w-64 h-40 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
-                        <span className="text-slate-400 text-sm">Coming Soon</span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <SeriesCard key={item.id} series={item} isLarge={true} />
-                  );
-                })}
+            <div className="w-full overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+              <div className="flex gap-5" style={{ paddingLeft: '32px', paddingRight: '24px', minWidth: 'fit-content' }}>
+                {mostWatched.map((s) => (
+                  <SeriesCard key={s.id} series={s} />
+                ))}
+                {/* Add placeholders */}
+                {createPlaceholders(2).map((item) => (
+                  <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
+                    <span className="text-slate-400 text-xs">Coming Soon</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
