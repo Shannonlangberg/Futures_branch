@@ -122,7 +122,7 @@ class PastoralCareCase(db.Model):
     # Relationship
     person = db.relationship('Person', backref='pastoral_care_cases')
     
-    def to_dict(self):
+    def to_dict(self, include_leader_name=True):
         """Convert case to dictionary"""
         try:
             suggested_responses = json.loads(self.suggested_responses) if self.suggested_responses else []
@@ -141,6 +141,20 @@ class PastoralCareCase(db.Model):
                 return date_val
             return date_val.isoformat()
         
+        # Look up assigned leader name if we have an ID
+        assigned_leader_name = None
+        if include_leader_name and self.assigned_leader:
+            try:
+                # Query users table directly (it's a plain table, not a model)
+                result = db.session.execute(
+                    text("SELECT full_name FROM users WHERE id = :user_id OR CAST(id AS TEXT) = :user_id_str"),
+                    {'user_id': self.assigned_leader, 'user_id_str': str(self.assigned_leader)}
+                ).fetchone()
+                if result:
+                    assigned_leader_name = result[0]
+            except Exception as e:
+                logger.warning(f"Could not look up assigned leader name for ID {self.assigned_leader}: {e}")
+        
         return {
             'id': self.id,
             'person_id': self.person_id,
@@ -149,6 +163,7 @@ class PastoralCareCase(db.Model):
             'status': self.status,
             'notes': self.notes,
             'assigned_leader': self.assigned_leader,
+            'assigned_leader_name': assigned_leader_name or self.assigned_leader if self.assigned_leader else None,
             'follow_up_date': safe_date_serialize(self.follow_up_date),
             'ai_summary': self.ai_summary,
             'suggested_responses': suggested_responses,

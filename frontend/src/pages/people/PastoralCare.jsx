@@ -805,10 +805,14 @@ const PastoralCare = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-white/5 rounded-lg p-4">
                       <div className="text-white/60 text-sm mb-1">Assigned Leader</div>
-                      <div className="text-white font-medium">{case_.assigned_leader || 'Unassigned'}</div>
+                      <div className="text-white font-medium">
+                        {case_.assigned_leader ? (
+                          pastors.find(p => p.id === case_.assigned_leader)?.name || case_.assigned_leader_name || case_.assigned_leader
+                        ) : 'Unassigned'}
+                      </div>
                     </div>
                     <div className="bg-white/5 rounded-lg p-4">
-                      <div className="text-white/60 text-sm mb-1">Follow-up Timeline</div>
+                      <div className="text-white/60 text-sm mb-1">Follow-up Date</div>
                       <div className="text-white font-medium">
                         {case_.follow_up_date ? new Date(case_.follow_up_date).toLocaleDateString() : 'No date set'}
                       </div>
@@ -820,6 +824,24 @@ const PastoralCare = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Follow-up Steps */}
+                  {case_.suggested_responses && case_.suggested_responses.length > 0 && (
+                    <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                      <div className="text-blue-400 font-semibold mb-3 flex items-center gap-2">
+                        <ClockIcon className="h-5 w-5" />
+                        Follow-up Steps
+                      </div>
+                      <ul className="space-y-2">
+                        {case_.suggested_responses.map((step, index) => (
+                          <li key={index} className="text-white/80 flex items-start gap-2">
+                            <span className="text-blue-400 font-bold mt-1">{index + 1}.</span>
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {case_.ai_summary && (
                     <div className="mt-4 bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
@@ -1365,7 +1387,7 @@ const PastoralCare = () => {
                 >
                   <option value="">Unassigned</option>
                   {pastors.map(p => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
+                    <option key={p.id} value={p.id}>{p.name} ({p.role})</option>
                   ))}
                 </select>
               </div>
@@ -1418,7 +1440,7 @@ const PastoralCare = () => {
               {pastors.map(pastor => (
                 <button
                   key={pastor.id}
-                  onClick={() => handleAssignLeader(showAssignModal, pastor.name)}
+                  onClick={() => handleAssignLeader(showAssignModal, pastor.id)}
                   className="w-full text-left px-4 py-3 bg-white/5 hover:bg-white/10 rounded-lg text-white transition-colors"
                 >
                   {pastor.name} <span className="text-white/40 text-sm">({pastor.role})</span>

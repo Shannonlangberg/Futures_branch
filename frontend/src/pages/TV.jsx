@@ -183,7 +183,7 @@ const TV = () => {
               </h2>
             </div>
             <div className="w-full overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-              <div className="flex gap-5" style={{ paddingLeft: '48px', paddingRight: '24px', minWidth: 'fit-content' }}>
+              <div className="flex gap-5" style={{ paddingLeft: '80px', paddingRight: '24px', minWidth: 'fit-content' }}>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
