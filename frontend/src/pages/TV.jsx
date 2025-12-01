@@ -91,7 +91,7 @@ const TV = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="text-white text-xl">Loading Pulse TV...</div>
       </div>
     );
@@ -99,7 +99,7 @@ const TV = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="text-red-400 text-xl">{error}</div>
       </div>
     );
