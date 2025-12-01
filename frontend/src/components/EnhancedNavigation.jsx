@@ -54,7 +54,7 @@ const NAVIGATION_GROUPS = {
       { name: 'Pastoral Care', href: '/people/pastoral-care', icon: HandRaisedIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
       { name: 'New People', href: '/people/new-people', icon: UserPlusIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
       { name: 'New Christians', href: '/people/new-christians', icon: SparklesIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
-      { name: 'Groups', href: '/connect-groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff', 'connect_group_leader'], featureKey: 'connect_groups' },
+      { name: 'Groups', href: '/groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff', 'connect_group_leader'], featureKey: 'connect_groups' },
     ]
   },
   ministry: {
@@ -124,6 +124,10 @@ const EnhancedNavigation = ({
       const hasCurrentPage = group.items.some(item => {
         if (item.href === '/') {
           return currentPath === '/';
+        }
+        // Special handling for /groups routes - they should all highlight the Groups nav item
+        if (item.href === '/groups') {
+          return currentPath === '/groups' || currentPath.startsWith('/groups/') || currentPath === '/connect-groups';
         }
         return currentPath === item.href || currentPath.startsWith(item.href + '/');
       });

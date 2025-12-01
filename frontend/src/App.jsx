@@ -30,6 +30,8 @@ import PathwayManager from './pages/PathwayManager';
 import Landing from './pages/Landing';
 import ConnectGroups from './pages/ConnectGroups';
 import ConnectGroupLeader from './pages/ConnectGroupLeader';
+import GroupsWrapper from './pages/GroupsWrapper';
+import Groups from './pages/Groups';
 import Give from './pages/Give';
 import TV from './pages/TV';
 import TVSeries from './pages/TVSeries';
@@ -391,7 +393,9 @@ function App() {
                   <Route path="/people/new-christians" element={<NewChristians />} />
                   <Route path="/people/attendance" element={<Attendance />} />
                   <Route path="/lists" element={<Lists />} />
-                  <Route path="/connect-groups" element={<ConnectGroups />} />
+                  <Route path="/groups" element={<GroupsWrapper />} />
+                  <Route path="/groups/regular" element={<GroupsWrapper />} />
+                  <Route path="/connect-groups" element={<Navigate to="/groups" replace />} />
                   <Route path="/persons/:personId" element={<PersonHealthReport />} />
                   <Route path="/pastoral-care" element={<PastoralCareAppointments />} />
                   <Route path="/prayer" element={<Navigate to="/people/pastoral-care?tab=prayer" replace />} />
