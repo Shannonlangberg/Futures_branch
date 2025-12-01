@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify, send_from_directory, render_template,
 from flask_cors import CORS
 from flask_compress import Compress
 from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase, HeartbeatSnapshot, AttendanceEvent, ServingAssignment, GivingTransaction, CareCase
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 import os
 import re
 
@@ -18903,9 +18903,9 @@ def get_beacon_zones_public():
             zones_data.append({
                 'zone_name': zone.zone_name,
                 'campus': zone.campus,
-                'uuid': zone.uuid,
-                'major': zone.major,
-                'minor': zone.minor
+                'uuid': zone.beacon_uuid,
+                'major': zone.beacon_major,
+                'minor': zone.beacon_minor
             })
         return jsonify({'zones': zones_data})
     except Exception as e:
@@ -21773,13 +21773,25 @@ def get_families():
                         try:
                             if m.get('created_at'):
                                 created_date = m['created_at']
-                                if isinstance(created_date, str):
+                                created_dt = None
+                                
+                                if isinstance(created_date, datetime):
+                                    created_dt = created_date
+                                elif isinstance(created_date, date):
+                                    created_dt = datetime.combine(created_date, datetime.min.time())
+                                elif isinstance(created_date, str):
                                     # Handle different date formats
+                                    # ISO format: "2024-01-01T05:59:22" or "2024-01-01T05:59:22.071364"
                                     if 'T' in created_date:
                                         created_date = created_date.split('T')[0]
+                                    # SQL datetime format: "2024-01-01 05:59:22.071364"
+                                    elif ' ' in created_date:
+                                        created_date = created_date.split(' ')[0]
+                                    # Parse as date
                                     created_dt = datetime.strptime(created_date, '%Y-%m-%d')
-                                    if created_dt >= thirty_days_ago:
-                                        new_people.append(m)
+                                
+                                if created_dt and created_dt >= thirty_days_ago:
+                                    new_people.append(m)
                         except Exception as date_error:
                             logger.warning(f"Error parsing created_at for member {m.get('id')}: {date_error}")
                             continue
@@ -21791,12 +21803,29 @@ def get_families():
                                 new_christians.append(m)
                             elif m.get('baptised_on'):
                                 baptised_date = m['baptised_on']
-                                if isinstance(baptised_date, str):
+                                baptised_d = None
+                                
+                                if isinstance(baptised_date, date):
+                                    baptised_d = baptised_date
+                                elif isinstance(baptised_date, datetime):
+                                    baptised_d = baptised_date.date()
+                                elif isinstance(baptised_date, str):
+                                    # Handle different date formats
+                                    # ISO format: "2024-01-01T05:59:22"
                                     if 'T' in baptised_date:
                                         baptised_date = baptised_date.split('T')[0]
-                                    baptised_d = date.fromisoformat(baptised_date)
-                                    if baptised_d >= two_years_ago:
-                                        new_christians.append(m)
+                                    # SQL datetime format: "2024-01-01 05:59:22.071364"
+                                    elif ' ' in baptised_date:
+                                        baptised_date = baptised_date.split(' ')[0]
+                                    # Parse as date
+                                    try:
+                                        baptised_d = date.fromisoformat(baptised_date)
+                                    except ValueError:
+                                        # Fallback to strptime if fromisoformat fails
+                                        baptised_d = datetime.strptime(baptised_date, '%Y-%m-%d').date()
+                                
+                                if baptised_d and baptised_d >= two_years_ago:
+                                    new_christians.append(m)
                         except Exception as date_error:
                             logger.warning(f"Error parsing new Christian date for member {m.get('id')}: {date_error}")
                             continue
