@@ -1208,6 +1208,68 @@ def run_migrations():
         # This prevents the app from crashing on startup due to migration issues
         logger.warning("Continuing app startup despite migration errors...")
 
+def migrate_event_images():
+    """Migrate existing event images from old location to persistent volume"""
+    try:
+        import shutil
+        
+        old_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'events')
+        new_dir = None
+        
+        # Check if persistent volume exists
+        if os.path.exists('/data') and os.path.isdir('/data'):
+            new_dir = os.path.join('/data', 'uploads', 'events')
+            os.makedirs(new_dir, exist_ok=True)
+            logger.info(f"[IMAGE_MIGRATION] Persistent volume found, will migrate to: {new_dir}")
+        else:
+            logger.info("[IMAGE_MIGRATION] No persistent volume found, skipping migration")
+            return
+        
+        # Check if old directory exists and has files
+        if not os.path.exists(old_dir) or not os.path.isdir(old_dir):
+            logger.info(f"[IMAGE_MIGRATION] Old directory doesn't exist: {old_dir}")
+            return
+        
+        try:
+            old_files = os.listdir(old_dir)
+            if not old_files:
+                logger.info(f"[IMAGE_MIGRATION] No files to migrate in {old_dir}")
+                return
+        except Exception as e:
+            logger.warning(f"[IMAGE_MIGRATION] Cannot list old directory: {e}")
+            return
+        
+        # Migrate each file
+        migrated_count = 0
+        for filename in old_files:
+            old_path = os.path.join(old_dir, filename)
+            new_path = os.path.join(new_dir, filename)
+            
+            # Skip if it's a directory
+            if os.path.isdir(old_path):
+                continue
+            
+            # Skip if file already exists in new location
+            if os.path.exists(new_path):
+                logger.debug(f"[IMAGE_MIGRATION] File already exists in new location: {filename}")
+                continue
+            
+            try:
+                shutil.copy2(old_path, new_path)
+                migrated_count += 1
+                logger.info(f"[IMAGE_MIGRATION] Migrated: {filename}")
+            except Exception as e:
+                logger.error(f"[IMAGE_MIGRATION] Failed to migrate {filename}: {e}")
+        
+        if migrated_count > 0:
+            logger.info(f"[IMAGE_MIGRATION] Successfully migrated {migrated_count} image(s) to persistent volume")
+        else:
+            logger.info("[IMAGE_MIGRATION] No images needed migration")
+            
+    except Exception as e:
+        logger.error(f"[IMAGE_MIGRATION] Error during image migration: {e}", exc_info=True)
+        # Don't fail startup if migration fails
+
 CORS(app, 
      supports_credentials=True, 
      origins=[
@@ -1244,6 +1306,15 @@ try:
 except Exception as e:
     logger.error(f"❌ Migration error: {e}", exc_info=True)
     # Don't fail startup - app should still work with graceful error handling
+
+# Migrate existing event images to persistent volume
+logger.info("🔄 Migrating event images to persistent volume...")
+try:
+    migrate_event_images()
+    logger.info("✅ Image migration completed")
+except Exception as e:
+    logger.error(f"❌ Image migration error: {e}", exc_info=True)
+    # Don't fail startup - app should still work without image migration
 
 # Seed database with initial data
 try:
