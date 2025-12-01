@@ -381,10 +381,15 @@ def get_person_heartbeat(person_id):
         twelve_weeks_ago = date.today() - timedelta(weeks=12)
         
         # Recent attendance from AttendanceEvent table
-        recent_attendance_events = AttendanceEvent.query.filter(
-            AttendanceEvent.person_id == person_id,
-            AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-        ).order_by(AttendanceEvent.created_at.desc()).limit(10).all()
+        recent_attendance_events = []
+        try:
+            recent_attendance_events = AttendanceEvent.query.filter(
+                AttendanceEvent.person_id == person_id,
+                AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+            ).order_by(AttendanceEvent.created_at.desc()).limit(10).all()
+        except Exception as e:
+            logger.warning(f"Error fetching attendance events for person {person_id}: {e}")
+            recent_attendance_events = []
         
         # Also get attendance from engagement_profiles.attendance_log (mobile app logs here)
         attendance_from_log = []
@@ -446,10 +451,15 @@ def get_person_heartbeat(person_id):
         recent_attendance = all_attendance[:10]  # Limit to 10 most recent
         
         # Recent connect attendance (include more to show missed meetings)
-        recent_connect = ConnectAttendance.query.filter(
-            ConnectAttendance.person_id == person_id,
-            ConnectAttendance.date >= twelve_weeks_ago
-        ).order_by(ConnectAttendance.date.desc()).limit(20).all()
+        recent_connect = []
+        try:
+            recent_connect = ConnectAttendance.query.filter(
+                ConnectAttendance.person_id == person_id,
+                ConnectAttendance.date >= twelve_weeks_ago
+            ).order_by(ConnectAttendance.date.desc()).limit(20).all()
+        except Exception as e:
+            logger.warning(f"Error fetching connect attendance for person {person_id}: {e}")
+            recent_connect = []
         
         # Enrich with group names
         for att in recent_connect:
@@ -476,15 +486,25 @@ def get_person_heartbeat(person_id):
                     att._enriched_dict = None
         
         # Recent serving
-        recent_serving = ServingAssignment.query.filter(
-            ServingAssignment.person_id == person_id
-        ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
+        recent_serving = []
+        try:
+            recent_serving = ServingAssignment.query.filter(
+                ServingAssignment.person_id == person_id
+            ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
+        except Exception as e:
+            logger.warning(f"Error fetching serving assignments for person {person_id}: {e}")
+            recent_serving = []
         
         # Recent discipleship steps from DiscipleshipStep table
         # Get ALL discipleship steps (not just recent ones) to ensure we capture all milestones
-        recent_steps = DiscipleshipStep.query.filter(
-            DiscipleshipStep.person_id == person_id
-        ).order_by(DiscipleshipStep.date.desc()).all()  # Removed limit to get all steps
+        recent_steps = []
+        try:
+            recent_steps = DiscipleshipStep.query.filter(
+                DiscipleshipStep.person_id == person_id
+            ).order_by(DiscipleshipStep.date.desc()).all()  # Removed limit to get all steps
+        except Exception as e:
+            logger.warning(f"Error fetching discipleship steps for person {person_id}: {e}")
+            recent_steps = []
         
         logger.info(f"DEBUG: Found {len(recent_steps)} DiscipleshipStep records for person {person_id}")
         for step in recent_steps:
@@ -724,26 +744,37 @@ def get_person_heartbeat(person_id):
         all_discipleship_steps.sort(key=lambda x: x.get('date') or x.get('created_at') or '', reverse=True)
         
         # Open care cases
-        logger.info(f"🔍 Looking for CareCases for person_id: {person_id}")
-        all_cases_for_person = CareCase.query.filter(CareCase.person_id == person_id).all()
-        logger.info(f"📊 Total CareCases for {person_id}: {len(all_cases_for_person)}")
-        for case in all_cases_for_person:
-            logger.info(f"   - CareCase {case.id}: type={case.type}, status={case.status}, created={case.created_at}")
-        
-        open_cases = CareCase.query.filter(
-            CareCase.person_id == person_id,
-            CareCase.status.in_(['open', 'in_progress'])
-        ).all()
-        logger.info(f"✅ Found {len(open_cases)} open CareCases for person {person_id}")
+        open_cases = []
+        all_cases_for_person = []
+        try:
+            logger.info(f"🔍 Looking for CareCases for person_id: {person_id}")
+            all_cases_for_person = CareCase.query.filter(CareCase.person_id == person_id).all()
+            logger.info(f"📊 Total CareCases for {person_id}: {len(all_cases_for_person)}")
+            for case in all_cases_for_person:
+                logger.info(f"   - CareCase {case.id}: type={case.type}, status={case.status}, created={case.created_at}")
+            
+            open_cases = CareCase.query.filter(
+                CareCase.person_id == person_id,
+                CareCase.status.in_(['open', 'in_progress'])
+            ).all()
+            logger.info(f"✅ Found {len(open_cases)} open CareCases for person {person_id}")
+        except Exception as e:
+            logger.warning(f"Error fetching care cases for person {person_id}: {e}")
+            open_cases = []
+            all_cases_for_person = []
         
         # Recent giving transactions
-        recent_giving = GivingTransaction.query.filter(
-            GivingTransaction.person_id == person_id,
-            GivingTransaction.status == 'completed',
-            GivingTransaction.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-        ).order_by(GivingTransaction.created_at.desc()).limit(20).all()
-        
-        logger.info(f"DEBUG: Found {len(recent_giving)} giving transactions for person {person_id} in last 12 weeks")
+        recent_giving = []
+        try:
+            recent_giving = GivingTransaction.query.filter(
+                GivingTransaction.person_id == person_id,
+                GivingTransaction.status == 'completed',
+                GivingTransaction.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+            ).order_by(GivingTransaction.created_at.desc()).limit(20).all()
+            logger.info(f"DEBUG: Found {len(recent_giving)} giving transactions for person {person_id} in last 12 weeks")
+        except Exception as e:
+            logger.warning(f"Error fetching giving transactions for person {person_id}: {e}")
+            recent_giving = []
         
         # NEW: App opens (engagement tracking)
         recent_app_opens = []
