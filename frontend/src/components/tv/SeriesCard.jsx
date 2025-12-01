@@ -81,18 +81,23 @@ const SeriesCard = ({ series, isLarge = false }) => {
         </div>
         {/* Badges - clean Netflix-style badge */}
         {series.is_published && (
-          <div className="absolute top-2 left-3 z-10">
-            <span 
-              className="inline-block rounded px-2 py-0.5 text-[10px] font-semibold leading-none shadow-md"
-              style={{
-                backgroundColor: '#e50914',
-                color: '#ffffff',
-                letterSpacing: '0.03em',
-                textTransform: 'uppercase'
-              }}
-            >
-              New
-            </span>
+          <div 
+            className="absolute top-2 left-3 z-10"
+            style={{
+              backgroundColor: '#e50914',
+              color: '#ffffff',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: '700',
+              lineHeight: '1',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            New
           </div>
         )}
         {!isLarge && (
