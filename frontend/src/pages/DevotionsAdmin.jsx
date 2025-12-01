@@ -6,6 +6,7 @@ const DevotionsAdmin = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [formData, setFormData] = useState({
@@ -62,9 +63,14 @@ const DevotionsAdmin = () => {
         resetForm();
         setShowCreateForm(false);
         setEditingPlan(null);
+        setSuccess(editingPlan ? 'Plan updated successfully!' : 'Plan created successfully!');
+        setError(null);
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to save plan');
+        setSuccess(null);
       }
     } catch (err) {
       setError('Error saving devotion plan');
@@ -80,9 +86,13 @@ const DevotionsAdmin = () => {
 
       if (response.ok) {
         await fetchPlans();
+        setSuccess('Plan published successfully!');
+        setError(null);
+        setTimeout(() => setSuccess(null), 3000);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to publish plan');
+        setSuccess(null);
       }
     } catch (err) {
       setError('Error publishing devotion plan');
@@ -159,9 +169,41 @@ const DevotionsAdmin = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 backdrop-blur-sm">
-            <div className="text-red-400 font-medium">Error</div>
-            <div className="text-red-300 text-sm mt-1">{error}</div>
+          <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 backdrop-blur-sm animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-red-400 font-medium">Error</div>
+                <div className="text-red-300 text-sm mt-1">{error}</div>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-300 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {success && (
+          <div className="mb-6 bg-green-500/10 border border-green-500/20 rounded-xl p-4 backdrop-blur-sm animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <CheckIcon className="h-5 w-5 text-green-400" />
+                <div className="text-green-400 font-medium">{success}</div>
+              </div>
+              <button
+                onClick={() => setSuccess(null)}
+                className="text-green-400 hover:text-green-300 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         )}
 
@@ -262,7 +304,7 @@ const DevotionsAdmin = () => {
                   placeholder="Describe your devotion plan..."
                 />
               </div>
-              <div className="flex justify-end space-x-3 pt-4">
+              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-700/50">
                 <button
                   type="button"
                   onClick={handleCancel}
@@ -309,7 +351,7 @@ const DevotionsAdmin = () => {
                     <div className="flex flex-wrap gap-2 text-xs text-white/50">
                       <span>{plan.campus || 'All Campuses'}</span>
                       <span>•</span>
-                      <span>{plan.content_count || 0} days</span>
+                      <span>{plan.content_count || 0} / {plan.total_days || 30} days</span>
                       <span>•</span>
                       <span>{new Date(plan.created_at).toLocaleDateString()}</span>
                     </div>
@@ -318,7 +360,7 @@ const DevotionsAdmin = () => {
                 <div className="flex items-center justify-between pt-4 border-t border-slate-700/50">
                   <Link
                     to={`/devotions/plans/${plan.id}`}
-                    className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center"
+                    className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center transition-colors"
                   >
                     Manage Days <PencilIcon className="ml-1 h-4 w-4" />
                   </Link>
@@ -346,9 +388,20 @@ const DevotionsAdmin = () => {
           </div>
         ) : (
           <div className="glass-effect rounded-xl p-12 text-center backdrop-blur-sm border border-slate-700/50">
-            <BookOpenIcon className="h-16 w-16 text-white/20 mx-auto mb-4" />
-            <p className="text-white/60 text-lg">No devotion plans found.</p>
-            <p className="text-white/40 text-sm mt-2">Create your first plan to get started.</p>
+            <div className="max-w-md mx-auto">
+              <div className="w-24 h-24 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <BookOpenIcon className="h-12 w-12 text-white/40" />
+              </div>
+              <h3 className="text-white text-xl font-semibold mb-2">No devotion plans found</h3>
+              <p className="text-white/60 text-sm mb-6">Create your first devotion plan to get started. You can add daily readings, scripture, and prayer focuses.</p>
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-blue-500/25 hover:scale-105 transition-all duration-300"
+              >
+                <PlusIcon className="mr-2 h-5 w-5" />
+                Create Your First Plan
+              </button>
+            </div>
           </div>
         )}
       </div>

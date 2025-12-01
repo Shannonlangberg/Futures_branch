@@ -176,6 +176,13 @@
       "description": "User logged in successfully",
       "ip_address": "192.168.15.107",
       "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T07:50:19.087898",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "192.168.20.10",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
     }
   ],
   "unknown": [

@@ -6,13 +6,13 @@
 // In production, this would come from environment variables
 // For testing on physical device or simulator, update this to your local IP address
 // e.g., 'http://192.168.1.100:5000' (get your IP with: ipconfig getifaddr en0 or ifconfig)
-// Production Railway URL
-export const API_BASE_URL = 'https://futuresbranch-production.up.railway.app';
+// Local development - connect to your Mac's backend
+export const API_BASE_URL = __DEV__ 
+  ? 'http://192.168.20.12:5002'  // Your local IP for physical device testing (port 5002)
+  : 'https://futuresbranch-production.up.railway.app';
 
-// Original config (restore after testing):
-// export const API_BASE_URL = __DEV__ 
-//   ? 'http://192.168.15.167:5002'  // Your local IP for physical device testing (port 5002, not 5000 - AirPlay uses 5000)
-//   : 'https://futures-pulse-production.up.railway.app';
+// Production Railway URL (for production builds)
+// export const API_BASE_URL = 'https://futuresbranch-production.up.railway.app';
 
 export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SVOK61uLgcfkEmJo3nyVnfVhKu1kchnuhtkcmsAyfAEXHEKV8KbQtNdqyu5Q3UIFWXpyr0lpNE94aVYdzEOyDXZ00TQfprQ3N';
 

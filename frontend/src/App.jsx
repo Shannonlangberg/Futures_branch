@@ -423,6 +423,7 @@ function App() {
                   <Route path="/communication/email-editor/:campaignId" element={<EmailEditor />} />
                   <Route path="/devotions" element={<DevotionsAdmin />} />
                   <Route path="/devotions/plans" element={<DevotionPlanManager />} />
+                  <Route path="/devotions/plans/:planId" element={<DevotionPlanManager />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>

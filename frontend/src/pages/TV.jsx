@@ -175,15 +175,15 @@ const TV = () => {
       <div className="pb-16 relative" style={{ zIndex: 1 }}>
         {/* Most Watched Section */}
         {mostWatched.length > 0 && !selectedCategory && (
-          <div className="mb-20 mt-16">
-            <div className="max-w-7xl mx-auto px-6 mb-10">
+          <div className="mb-16 mt-16">
+            <div className="max-w-7xl mx-auto px-6 mb-6">
               <h2 className="text-3xl font-bold text-white flex items-center gap-3">
                 <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                 Most Watched
               </h2>
             </div>
-            <div className="w-full overflow-x-auto pb-14 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-              <div className="flex gap-5" style={{ paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
+            <div className="w-full overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+              <div className="flex gap-5" style={{ paddingLeft: '32px', paddingRight: '24px', minWidth: 'fit-content' }}>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
@@ -212,7 +212,7 @@ const TV = () => {
               </h2>
             </div>
             <div className="w-full overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-              <div className="flex gap-5" style={{ paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
+              <div className="flex gap-5" style={{ paddingLeft: '32px', paddingRight: '24px', minWidth: 'fit-content' }}>
                 {continueWatching.slice(0, 8).map((episode) => (
                   <Link
                     key={episode.id}
@@ -274,7 +274,7 @@ const TV = () => {
                 </h2>
               </div>
               <div className="w-full overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-                <div className="flex gap-5" style={{ paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
+                <div className="flex gap-5" style={{ paddingLeft: '32px', paddingRight: '24px', minWidth: 'fit-content' }}>
                   {categorySeries.map((s) => (
                     <SeriesCard key={s.id} series={s} />
                   ))}
@@ -300,7 +300,7 @@ const TV = () => {
               </h2>
             </div>
             <div className="w-full overflow-x-auto pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-              <div className="flex gap-5" style={{ paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
+              <div className="flex gap-5" style={{ paddingLeft: '32px', paddingRight: '24px', minWidth: 'fit-content' }}>
                 {createPlaceholders(6).map((item) => (
                   <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-pink-900/30 rounded-lg border border-purple-500/30 flex flex-col items-center justify-center">
                     <span className="text-slate-400 text-xs mb-2">📺</span>

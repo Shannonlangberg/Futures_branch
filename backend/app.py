@@ -29,6 +29,7 @@ import json
 from typing import Dict, List, Optional, Any
 import logging
 from sqlalchemy import inspect, text, bindparam
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 try:
     from dotenv import load_dotenv
@@ -14736,34 +14737,81 @@ def get_person_by_email(email):
         db.session.expire_all()
         
         # Find person by email (case-insensitive)
-        person = Person.query.filter(
-            db.func.lower(Person.email) == email.lower(),
-            Person.is_active == True
-        ).first()
+        # Use raw SQL directly to avoid schema mismatch issues (family_id, is_new_christian, etc. may not exist)
+        person = None
+        person_data = None
+        person_id_from_result = None
         
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
-        
-        # Get person data (handle errors in to_dict)
+        # Try raw SQL first to avoid ORM schema mismatch issues
+        logger.info(f"Attempting raw SQL query for email: {email}")
         try:
-            person_data = person.to_dict()
-        except Exception as e:
-            logger.error(f"Error calling to_dict() for person {person.id}: {e}", exc_info=True)
-            # Return basic person data if to_dict fails
-            person_data = {
-                'id': person.id,
-                'full_name': person.full_name,
-                'preferred_name': person.preferred_name,
-                'email': person.email,
-                'phone': person.phone,
-                'campus': person.campus,
-                'department': getattr(person, 'department', None),
-            }
+            result = db.session.execute(
+                text("""
+                    SELECT id, full_name, preferred_name, email, phone, campus, department,
+                           connect_group, dream_team_roles, birthday, pastoral_notes, tags,
+                           is_active, created_at, updated_at, dna_completed, baptised_on,
+                           filled_holy_spirit, rise_attended, first_served_on
+                    FROM persons 
+                    WHERE lower(email) = :email AND is_active = 1 
+                    LIMIT 1
+                """),
+                {'email': email.lower()}
+            ).fetchone()
+            logger.info(f"Raw SQL query completed, result: {result is not None}")
+            
+            if result:
+                # Build person_data dict manually
+                person_data = {
+                    'id': result[0],
+                    'full_name': result[1],
+                    'preferred_name': result[2],
+                    'email': result[3],
+                    'phone': result[4],
+                    'campus': result[5],
+                    'department': result[6],
+                    'connect_group': result[7],
+                    'dream_team_roles': json.loads(result[8]) if result[8] else [],
+                    'birthday': result[9].isoformat() if result[9] else None,
+                    'pastoral_notes': result[10],
+                    'tags': json.loads(result[11]) if result[11] else [],
+                    'is_active': bool(result[12]),
+                    'created_at': result[13].isoformat() if result[13] else None,
+                    'updated_at': result[14].isoformat() if result[14] else None,
+                    'dna_completed': result[15].isoformat() if result[15] else None,
+                    'baptised_on': result[16].isoformat() if result[16] else None,
+                    'filled_holy_spirit': result[17].isoformat() if result[17] else None,
+                    'rise_attended': result[18].isoformat() if result[18] else None,
+                    'first_served_on': result[19].isoformat() if result[19] else None,
+                    # Missing columns set to None
+                    'family_id': None,
+                    'is_new_christian': False,
+                    'new_christian_date': None,
+                    'follow_up_status': None,
+                    'service_attended': None,
+                    'is_new_person': False,
+                    'new_person_date': None,
+                    'engagement': None,
+                    'pathway': None,
+                    'streaks': [],
+                    'next_steps': []
+                }
+                person_id_from_result = result[0]
+            else:
+                return jsonify({'error': 'Person not found'}), 404
+        except Exception as raw_error:
+            logger.error(f"Error in raw SQL query: {raw_error}", exc_info=True)
+            return jsonify({'error': 'Failed to fetch person profile', 'details': str(raw_error)}), 500
+        
+        if not person_data:
+            return jsonify({'error': 'Person not found'}), 404
         
         # Add engagement profile if it exists (handle schema mismatch gracefully)
         try:
-            # Try to access engagement profile, but catch schema errors
-            if hasattr(person, 'engagement_profile') and person.engagement_profile:
+            # If we used raw SQL (person is None), skip engagement profile for now
+            if person_id_from_result:
+                # Try to query engagement profile with raw SQL if needed
+                person_data['engagement'] = None
+            elif person and hasattr(person, 'engagement_profile') and person.engagement_profile:
                 try:
                     person_data['engagement'] = person.engagement_profile.to_dict()
                 except Exception as e:
@@ -14779,8 +14827,9 @@ def get_person_by_email(email):
         # Add ACTUAL assigned pathway from database (not hardcoded)
         try:
             # Get the person's active pathway progress (assigned by staff)
+            person_id_for_pathway = person.id if person else person_id_from_result
             pathway_progress = PersonPathwayProgress.query.filter_by(
-                person_id=person.id,
+                person_id=person_id_for_pathway,
                 is_active=True
             ).first()
             
@@ -14789,28 +14838,36 @@ def get_person_by_email(email):
                 try:
                     pathway_dict = pathway_progress.to_dict()
                     person_data['pathway'] = pathway_dict
-                    logger.info(f"Found assigned pathway for {person.email}: {pathway_dict.get('pathway_name')}")
+                    email_for_log = person.email if person else (person_data.get('email') if person_data else 'unknown')
+                    logger.info(f"Found assigned pathway for {email_for_log}: {pathway_dict.get('pathway_name')}")
                 except Exception as to_dict_error:
                     logger.error(f"Error converting pathway to dict: {to_dict_error}", exc_info=True)
                     person_data['pathway'] = None
             else:
                 # No pathway assigned - return None (staff needs to assign one)
-                logger.info(f"No pathway assigned to {person.email}")
+                email_for_log = person.email if person else (person_data.get('email') if person_data else 'unknown')
+                logger.info(f"No pathway assigned to {email_for_log}")
                 person_data['pathway'] = None
                 
         except Exception as e:
             logger.warning(f"Error loading assigned pathway: {e}", exc_info=True)
             person_data['pathway'] = None
         
-        # Add streaks and next steps data
+        # Add streaks and next steps data (skip if person object not available)
         try:
-            streaks_data = calculate_streaks_and_next_steps(person)
-            person_data['streaks'] = streaks_data['streaks']
-            person_data['next_steps'] = streaks_data['next_steps']
+            if person:
+                streaks_data = calculate_streaks_and_next_steps(person)
+                person_data['streaks'] = streaks_data['streaks']
+                person_data['next_steps'] = streaks_data['next_steps']
+            else:
+                # Skip streaks calculation if we used raw SQL workaround
+                person_data['streaks'] = []
+                person_data['next_steps'] = []
         except Exception as e:
             logger.warning(f"Error calculating streaks: {e}")
-            person_data['streaks'] = []
-            person_data['next_steps'] = []
+            if person_data:
+                person_data['streaks'] = []
+                person_data['next_steps'] = []
         
         return jsonify(person_data)
         

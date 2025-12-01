@@ -9,10 +9,55 @@ from flask_login import login_required, current_user
 from models import db, BeaconZone, BeaconSchedule, Person
 from datetime import datetime
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 beacon_bp = Blueprint('beacon', __name__, url_prefix='/api/beacons')
+
+
+def normalize_uuid(uuid_str):
+    """Normalize UUID string to uppercase and validate format"""
+    if not uuid_str:
+        return None
+    uuid = str(uuid_str).strip().upper()
+    # Validate UUID format: 8-4-4-4-12 hexadecimal digits
+    uuid_pattern = re.compile(r'^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$')
+    if not uuid_pattern.match(uuid):
+        return None
+    return uuid
+
+
+def validate_beacon_data(data):
+    """Validate and normalize beacon data from request"""
+    errors = []
+    
+    if 'beacon_uuid' not in data:
+        errors.append('Missing required field: beacon_uuid')
+    else:
+        uuid = normalize_uuid(data['beacon_uuid'])
+        if not uuid:
+            errors.append('Invalid UUID format. Expected format: 00000000-0000-0000-0000-000000000000')
+        else:
+            data['beacon_uuid'] = uuid
+    
+    if 'beacon_major' in data:
+        try:
+            data['beacon_major'] = int(data['beacon_major'])
+            if data['beacon_major'] < 0 or data['beacon_major'] > 65535:
+                errors.append('beacon_major must be between 0 and 65535')
+        except (ValueError, TypeError):
+            errors.append('beacon_major must be an integer')
+    
+    if 'beacon_minor' in data:
+        try:
+            data['beacon_minor'] = int(data['beacon_minor'])
+            if data['beacon_minor'] < 0 or data['beacon_minor'] > 65535:
+                errors.append('beacon_minor must be between 0 and 65535')
+        except (ValueError, TypeError):
+            errors.append('beacon_minor must be an integer')
+    
+    return errors
 
 
 @beacon_bp.route('', methods=['GET'])
@@ -64,18 +109,14 @@ def create_beacon():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Validate UUID format (should be like: 00000000-0000-0000-0000-000000000000)
-        # Normalize to uppercase and strip whitespace
-        uuid = data['beacon_uuid'].strip().upper()
-        if len(uuid) != 36 or uuid.count('-') != 4:
-            return jsonify({'error': 'Invalid UUID format. Expected format: 00000000-0000-0000-0000-000000000000'}), 400
+        # Validate and normalize beacon data
+        validation_errors = validate_beacon_data(data)
+        if validation_errors:
+            return jsonify({'error': 'Validation failed', 'details': validation_errors}), 400
         
-        # Validate major and minor are integers
-        try:
-            major = int(data['beacon_major'])
-            minor = int(data['beacon_minor'])
-        except (ValueError, TypeError):
-            return jsonify({'error': 'beacon_major and beacon_minor must be integers'}), 400
+        uuid = data['beacon_uuid']
+        major = data['beacon_major']
+        minor = data['beacon_minor']
         
         # Check for duplicate UUID/major/minor combination
         existing = BeaconZone.query.filter_by(
@@ -150,20 +191,23 @@ def update_beacon(beacon_id):
         if 'campus' in data:
             beacon.campus = data['campus']
         if 'beacon_uuid' in data:
-            uuid = data['beacon_uuid'].strip().upper()
-            if len(uuid) != 36 or uuid.count('-') != 4:
-                return jsonify({'error': 'Invalid UUID format. Expected format: 00000000-0000-0000-0000-000000000000'}), 400
-            beacon.beacon_uuid = uuid
-        if 'beacon_major' in data:
-            try:
-                beacon.beacon_major = int(data['beacon_major'])
-            except (ValueError, TypeError):
-                return jsonify({'error': 'beacon_major must be an integer'}), 400
-        if 'beacon_minor' in data:
-            try:
-                beacon.beacon_minor = int(data['beacon_minor'])
-            except (ValueError, TypeError):
-                return jsonify({'error': 'beacon_minor must be an integer'}), 400
+            validation_errors = validate_beacon_data({'beacon_uuid': data['beacon_uuid']})
+            if validation_errors:
+                return jsonify({'error': 'Validation failed', 'details': validation_errors}), 400
+            beacon.beacon_uuid = data['beacon_uuid']
+        if 'beacon_major' in data or 'beacon_minor' in data:
+            validation_data = {}
+            if 'beacon_major' in data:
+                validation_data['beacon_major'] = data['beacon_major']
+            if 'beacon_minor' in data:
+                validation_data['beacon_minor'] = data['beacon_minor']
+            validation_errors = validate_beacon_data(validation_data)
+            if validation_errors:
+                return jsonify({'error': 'Validation failed', 'details': validation_errors}), 400
+            if 'beacon_major' in data:
+                beacon.beacon_major = data['beacon_major']
+            if 'beacon_minor' in data:
+                beacon.beacon_minor = data['beacon_minor']
         if 'is_active' in data:
             beacon.is_active = bool(data['is_active'])
         
@@ -234,11 +278,19 @@ def detect_beacon():
         if not person:
             return jsonify({'error': 'Person not found'}), 404
         
-        # Normalize UUID to uppercase for consistency
-        beacon_uuid = data['beacon_uuid'].strip().upper()
+        # Validate and normalize UUID
+        beacon_uuid = normalize_uuid(data['beacon_uuid'])
+        if not beacon_uuid:
+            return jsonify({'error': 'Invalid UUID format. Expected format: 00000000-0000-0000-0000-000000000000'}), 400
+        
+        # Validate major and minor
         try:
             beacon_major = int(data['beacon_major'])
             beacon_minor = int(data['beacon_minor'])
+            if beacon_major < 0 or beacon_major > 65535:
+                return jsonify({'error': 'beacon_major must be between 0 and 65535'}), 400
+            if beacon_minor < 0 or beacon_minor > 65535:
+                return jsonify({'error': 'beacon_minor must be between 0 and 65535'}), 400
         except (ValueError, TypeError):
             return jsonify({'error': 'beacon_major and beacon_minor must be integers'}), 400
         

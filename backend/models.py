@@ -34,15 +34,16 @@ class Person(db.Model):
     rise_attended = db.Column(db.Date)
     first_served_on = db.Column(db.Date)
     
-    # Family and new Christian tracking
-    family_id = db.Column(db.String(50))  # For family grouping
-    is_new_christian = db.Column(db.Boolean, default=False)
-    new_christian_date = db.Column(db.Date)  # Date of decision (may differ from baptism)
-    follow_up_status = db.Column(db.String(50))  # 'contacted', 'connected', 'joined_events', 'needed'
-    service_attended = db.Column(db.String(100))  # Service time attended
+    # Family and new Christian tracking (columns may not exist in older databases)
+    # These are accessed via getattr() in to_dict() to handle gracefully
+    family_id = db.Column(db.String(50), nullable=True)  # For family grouping
+    is_new_christian = db.Column(db.Boolean, default=False, nullable=True)
+    new_christian_date = db.Column(db.Date, nullable=True)  # Date of decision (may differ from baptism)
+    follow_up_status = db.Column(db.String(50), nullable=True)  # 'contacted', 'connected', 'joined_events', 'needed'
+    service_attended = db.Column(db.String(100), nullable=True)  # Service time attended
     # New person tracking (for manually flagging visitors)
-    is_new_person = db.Column(db.Boolean, default=False)
-    new_person_date = db.Column(db.Date)  # Date of first visit (may differ from created_at)
+    is_new_person = db.Column(db.Boolean, default=False, nullable=True)
+    new_person_date = db.Column(db.Date, nullable=True)  # Date of first visit (may differ from created_at)
     
     # Relationship to engagement profile
     engagement_profile = db.relationship('EngagementProfile', backref='person', uselist=False, cascade='all, delete-orphan')
