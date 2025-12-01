@@ -119,6 +119,10 @@ const NewPeople = () => {
         return;
       }
       
+      // Check if person already has a pathway - if so, replace it
+      const person = allNewPeople.find(p => p.id === personId);
+      const hasExistingPathway = person && person.assigned_pathways && person.assigned_pathways.length > 0;
+      
       const response = await fetch(`/api/journeys/person/${personId}/assign`, {
         method: 'POST',
         headers: {
@@ -127,7 +131,8 @@ const NewPeople = () => {
         credentials: 'include',
         body: JSON.stringify({
           pathway_id: pathwayIdInt,
-          start_immediately: true
+          start_immediately: true,
+          replace_existing: hasExistingPathway // Replace existing pathway if one exists
         })
       });
       

@@ -114,10 +114,9 @@ const NewChristians = () => {
       
       console.log(`[NewChristians] Assigning pathway ${pathwayIdInt} to person ${personId}`);
       
-      const requestBody = {
-        pathway_id: pathwayIdInt,
-        start_immediately: true
-      };
+      // Check if person already has a pathway - if so, replace it
+      const person = allNewChristians.find(p => p.id === personId);
+      const hasExistingPathway = person && person.assigned_pathways && person.assigned_pathways.length > 0;
       
       const response = await fetch(`/api/journeys/person/${personId}/assign`, {
         method: 'POST',
@@ -127,7 +126,8 @@ const NewChristians = () => {
         credentials: 'include',
         body: JSON.stringify({
           pathway_id: pathwayIdInt,
-          start_immediately: true
+          start_immediately: true,
+          replace_existing: hasExistingPathway // Replace existing pathway if one exists
         })
       });
       
