@@ -1202,11 +1202,91 @@ def run_migrations():
         conn.close()
         logger.info("All migrations completed successfully")
         
+        # Ensure step_actions column exists (critical for pathway assignment)
+        try:
+            ensure_step_actions_column(conn)
+        except Exception as e:
+            logger.warning(f"Could not ensure step_actions column: {e}")
+        
     except Exception as e:
         logger.error(f"Migration error: {e}", exc_info=True)
         # Don't raise - allow app to start even if migrations fail
         # This prevents the app from crashing on startup due to migration issues
         logger.warning("Continuing app startup despite migration errors...")
+        
+        # Try to ensure step_actions column even if migrations failed
+        try:
+            import sqlite3
+            database_url = app.config.get('SQLALCHEMY_DATABASE_URI', os.getenv('DATABASE_URL', ''))
+            if database_url.startswith('sqlite:///'):
+                db_path = database_url.replace('sqlite:///', '').replace('sqlite:////', '')
+                if not os.path.isabs(db_path):
+                    backend_dir = os.path.dirname(os.path.abspath(__file__))
+                    if os.path.exists('/data'):
+                        db_path = os.path.join('/data', 'futures_link.db')
+                    else:
+                        db_path = os.path.join(backend_dir, 'futures_link.db')
+                if os.path.exists(db_path):
+                    conn = sqlite3.connect(db_path)
+                    ensure_step_actions_column(conn)
+                    conn.close()
+        except Exception as e2:
+            logger.warning(f"Could not ensure step_actions column after migration error: {e2}")
+
+def ensure_step_actions_column(conn=None):
+    """Ensure step_actions column exists in discipleship_pathway_steps table"""
+    import sqlite3
+    try:
+        if conn is None:
+            # Get database connection
+            database_url = app.config.get('SQLALCHEMY_DATABASE_URI', os.getenv('DATABASE_URL', ''))
+            if database_url.startswith('sqlite:///'):
+                db_path = database_url.replace('sqlite:///', '').replace('sqlite:////', '')
+                if not os.path.isabs(db_path):
+                    backend_dir = os.path.dirname(os.path.abspath(__file__))
+                    if os.path.exists('/data'):
+                        db_path = os.path.join('/data', 'futures_link.db')
+                    else:
+                        db_path = os.path.join(backend_dir, 'futures_link.db')
+                conn = sqlite3.connect(db_path)
+                should_close = True
+            else:
+                return
+        else:
+            should_close = False
+        
+        cursor = conn.cursor()
+        
+        # Check if column exists
+        cursor.execute("PRAGMA table_info(discipleship_pathway_steps)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'step_actions' not in columns:
+            logger.info("➕ Adding step_actions column to discipleship_pathway_steps table...")
+            cursor.execute("""
+                ALTER TABLE discipleship_pathway_steps 
+                ADD COLUMN step_actions TEXT DEFAULT '[]'
+            """)
+            cursor.execute("""
+                UPDATE discipleship_pathway_steps 
+                SET step_actions = '[]' 
+                WHERE step_actions IS NULL
+            """)
+            conn.commit()
+            logger.info("✅ Successfully added step_actions column")
+        else:
+            logger.debug("✅ step_actions column already exists")
+        
+        if should_close:
+            conn.close()
+            
+    except sqlite3.OperationalError as e:
+        if 'duplicate column' in str(e).lower() or 'already exists' in str(e).lower():
+            logger.debug("✅ step_actions column already exists (detected via error)")
+        else:
+            logger.warning(f"Could not add step_actions column: {e}")
+    except Exception as e:
+        logger.warning(f"Error ensuring step_actions column: {e}")
 
 def migrate_event_images():
     """Migrate existing event images from old location to persistent volume"""
@@ -1303,6 +1383,14 @@ logger.info("🔄 Running database migrations after database initialization...")
 try:
     run_migrations()
     logger.info("✅ Migrations completed successfully")
+    
+    # Double-check that step_actions column exists (critical for pathway assignment)
+    try:
+        ensure_step_actions_column()
+        logger.info("✅ Verified step_actions column exists")
+    except Exception as e2:
+        logger.warning(f"⚠️ Could not verify step_actions column: {e2}")
+        
 except Exception as e:
     logger.error(f"❌ Migration error: {e}", exc_info=True)
     # Don't fail startup - app should still work with graceful error handling

@@ -508,8 +508,41 @@ def assign_pathway_to_person(person_id):
                 old_progress.updated_at = datetime.utcnow()
             db.session.flush()  # Flush before creating new progress
         
-        # Get first step
-        first_step = pathway.steps.order_by(PathwayStep.step_order).first()
+        # Get first step - handle missing step_actions column gracefully
+        first_step = None
+        try:
+            first_step = pathway.steps.order_by(PathwayStep.step_order).first()
+        except Exception as step_error:
+            error_str = str(step_error).lower()
+            if 'no such column' in error_str and 'step_actions' in error_str:
+                # Column doesn't exist - query manually without step_actions
+                logger.warning(f"step_actions column missing, querying steps manually for pathway {pathway_id}")
+                try:
+                    from sqlalchemy import text
+                    raw_step = db.session.execute(
+                        text('''
+                            SELECT id, pathway_id, step_order, step_name, step_description, 
+                                   milestone_type, is_required, created_at
+                            FROM discipleship_pathway_steps 
+                            WHERE pathway_id = :pathway_id
+                            ORDER BY step_order
+                            LIMIT 1
+                        '''),
+                        {'pathway_id': pathway_id}
+                    ).fetchone()
+                    
+                    if raw_step:
+                        # Create a minimal step object with just the id
+                        class MinimalStep:
+                            def __init__(self, row):
+                                self.id = row[0]
+                        first_step = MinimalStep(raw_step)
+                except Exception as e2:
+                    logger.error(f"Error loading first step manually: {e2}")
+            else:
+                # Different error - re-raise
+                raise
+        
         if not first_step:
             logger.warning(f"Pathway {pathway_id} has no steps")
         
