@@ -768,8 +768,19 @@ const Families = () => {
                       <button
                         onClick={() => {
                           const parentMember = selectedFamily.members.find(m => m.role === 'parent') || selectedFamily.members[0];
-                          if (parentMember) {
+                          if (parentMember && parentMember.id) {
+                            console.log('Button clicked - adding member:', {
+                              parentMemberId: parentMember.id,
+                              newMemberId: person.id,
+                              parentMember: parentMember
+                            });
                             addMemberToFamily(parentMember.id, person.id);
+                          } else {
+                            console.error('No valid parent member found:', {
+                              selectedFamily,
+                              members: selectedFamily.members
+                            });
+                            setToast({ type: 'error', message: 'Could not find a family member to add to. Please refresh the page.' });
                           }
                         }}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
