@@ -21624,45 +21624,79 @@ def get_heartbeat_dashboard():
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         
         for person in persons:
-            if not person.engagement_profile:
-                health_overview['critical'] += 1
+            try:
+                # Safely access engagement_profile
+                engagement_profile = None
+                try:
+                    engagement_profile = person.engagement_profile
+                except Exception as e:
+                    logger.debug(f"Could not access engagement_profile for {person.id}: {e}")
+                    engagement_profile = None
+                
+                if not engagement_profile:
+                    health_overview['critical'] += 1
+                    continue
+                
+                pulse_status = getattr(engagement_profile, 'pulse_status', None) or 'red'
+                
+                # Count by status
+                if pulse_status == 'green':
+                    health_overview['healthy'] += 1
+                elif pulse_status == 'amber':
+                    health_overview['watch'] += 1
+                    health_overview['at_risk'] += 1
+                else:
+                    health_overview['critical'] += 1
+                
+                # Check for new people (created in last 30 days)
+                if person.created_at and person.created_at >= thirty_days_ago:
+                    health_overview['new_people'] += 1
+                
+                # Check for new Christians (has baptism date or new_christian flag)
+                is_new_christian = getattr(person, 'is_new_christian', False)
+                new_christian_date = getattr(person, 'new_christian_date', None)
+                if person.baptised_on or is_new_christian or new_christian_date:
+                    health_overview['new_christians'] += 1
+                
+                # Check youth at risk
+                if person.department == 'Youth' and pulse_status in ['amber', 'red']:
+                    health_overview['youth_at_risk'] += 1
+                
+                # Track attendance issues
+                last_seen = getattr(engagement_profile, 'last_seen', None)
+                if last_seen:
+                    try:
+                        if isinstance(last_seen, str):
+                            from datetime import datetime as dt
+                            last_seen = dt.fromisoformat(last_seen.replace('Z', '+00:00')).date()
+                        elif hasattr(last_seen, 'date'):
+                            last_seen = last_seen.date()
+                        
+                        days_since_seen = (datetime.utcnow().date() - last_seen).days
+                        if days_since_seen > 21:  # 3+ weeks
+                            missing_attendance.append({
+                                'name': person.preferred_name or person.full_name,
+                                'days': days_since_seen
+                            })
+                    except Exception as e:
+                        logger.debug(f"Error calculating days_since_seen for {person.id}: {e}")
+            except Exception as e:
+                logger.warning(f"Error processing person {getattr(person, 'id', 'unknown')} in dashboard: {e}")
                 continue
-            
-            pulse_status = person.engagement_profile.pulse_status or 'red'
-            
-            # Count by status
-            if pulse_status == 'green':
-                health_overview['healthy'] += 1
-            elif pulse_status == 'amber':
-                health_overview['watch'] += 1
-                health_overview['at_risk'] += 1
-            else:
-                health_overview['critical'] += 1
-            
-            # Check for new people (created in last 30 days)
-            if person.created_at and person.created_at >= thirty_days_ago:
-                health_overview['new_people'] += 1
-            
-            # Check for new Christians (has baptism date or new_christian flag)
-            if person.baptised_on or person.is_new_christian or person.new_christian_date:
-                health_overview['new_christians'] += 1
-            
-            # Check youth at risk
-            if person.department == 'Youth' and pulse_status in ['amber', 'red']:
-                health_overview['youth_at_risk'] += 1
-            
-            # Track attendance issues
-            if person.engagement_profile.last_seen:
-                days_since_seen = (datetime.utcnow().date() - person.engagement_profile.last_seen).days
-                if days_since_seen > 21:  # 3+ weeks
-                    missing_attendance.append({
-                        'name': person.preferred_name or person.full_name,
-                        'days': days_since_seen
-                    })
         
         # Generate AI analysis (simplified for now)
+        healthy_count = 0
+        for p in persons:
+            try:
+                if hasattr(p, 'engagement_profile') and p.engagement_profile:
+                    pulse = getattr(p.engagement_profile, 'pulse_status', None)
+                    if pulse == 'green':
+                        healthy_count += 1
+            except Exception:
+                continue
+        
         ai_analysis = {
-            'positive_shifts': f"{len([p for p in persons if p.engagement_profile and p.engagement_profile.pulse_status == 'green'])} people showing healthy engagement",
+            'positive_shifts': f"{healthy_count} people showing healthy engagement",
             'health_drops': f"{health_overview['at_risk']} people showing declining health",
             'attendance_drops': f"{len(missing_attendance)} people missed 3+ weeks",
             'giving_rhythm_changes': 'No significant changes detected',
@@ -21675,11 +21709,30 @@ def get_heartbeat_dashboard():
         pastor_focus_list = []
         
         # Add people with critical status
-        critical_people = [p for p in persons if p.engagement_profile and p.engagement_profile.pulse_status == 'red']
+        critical_people = []
+        for p in persons:
+            try:
+                if hasattr(p, 'engagement_profile') and p.engagement_profile:
+                    pulse = getattr(p.engagement_profile, 'pulse_status', None)
+                    if pulse == 'red':
+                        critical_people.append(p)
+            except Exception:
+                continue
+        
         for person in critical_people[:5]:  # Top 5
             days_ago = 0
-            if person.engagement_profile.last_seen:
-                days_ago = (datetime.utcnow().date() - person.engagement_profile.last_seen).days
+            try:
+                if hasattr(person, 'engagement_profile') and person.engagement_profile:
+                    last_seen = getattr(person.engagement_profile, 'last_seen', None)
+                    if last_seen:
+                        if isinstance(last_seen, str):
+                            from datetime import datetime as dt
+                            last_seen = dt.fromisoformat(last_seen.replace('Z', '+00:00')).date()
+                        elif hasattr(last_seen, 'date'):
+                            last_seen = last_seen.date()
+                        days_ago = (datetime.utcnow().date() - last_seen).days
+            except Exception:
+                pass
             
             pastor_focus_list.append({
                 'name': person.preferred_name or person.full_name,

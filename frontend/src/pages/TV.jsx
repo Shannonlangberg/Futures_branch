@@ -175,13 +175,13 @@ const TV = () => {
       <div className="pb-16 relative" style={{ zIndex: 1 }}>
         {/* Most Watched Section */}
         {mostWatched.length > 0 && !selectedCategory && (
-          <div className="mb-16 mt-12">
+          <div className="mb-20 mt-16">
             <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-3xl font-bold mb-8 text-white flex items-center gap-3">
+              <h2 className="text-3xl font-bold mb-10 text-white flex items-center gap-3">
                 <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                 Most Watched
               </h2>
-              <div className="flex gap-5 overflow-x-auto pb-12 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+              <div className="flex gap-5 overflow-x-auto pb-14 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
