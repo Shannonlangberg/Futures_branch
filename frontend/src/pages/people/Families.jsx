@@ -572,13 +572,10 @@ const Families = () => {
 const FamilyDetailView = ({ family, onBack, onAddMember }) => {
   const navigate = useNavigate();
 
-  // Get full family name from all members' full names
+  // Get family name - should already be in "Lastname Family" format from backend
   const getFullFamilyName = () => {
-    const parents = family.members.filter(m => m.role === 'parent');
-    if (parents.length > 0) {
-      return parents.map(p => p.full_name || p.name).join(', ');
-    }
-    return family.members.map(m => m.full_name || m.name).join(', ') || family.family_name;
+    // Backend should already format it as "Lastname Family"
+    return family.family_name || 'Family';
   };
 
   return (

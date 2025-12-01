@@ -21511,12 +21511,38 @@ def get_families():
         for family_key, family_data in family_map.items():
             # Only include families with multiple members OR single members with family_id set
             if len(family_data['members']) > 1 or (len(family_data['members']) == 1 and family_data['members'][0].get('has_family_id')):
-                # Set family name (use parents' names or all members)
-                parents = [m for m in family_data['members'] if m['role'] == 'parent']
-                if parents:
-                    family_data['family_name'] = ', '.join([p['name'] for p in parents])
+                # Set family name using last names (e.g., "Turner Family", "Rawlins Family")
+                def get_last_name(full_name):
+                    """Extract last name from full name"""
+                    if not full_name:
+                        return None
+                    parts = full_name.strip().split()
+                    if len(parts) > 1:
+                        return parts[-1]  # Last word is typically last name
+                    return None
+                
+                # Get last names from all members
+                last_names = []
+                for member in family_data['members']:
+                    full_name = member.get('full_name') or member.get('name', '')
+                    last_name = get_last_name(full_name)
+                    if last_name and last_name not in last_names:
+                        last_names.append(last_name)
+                
+                # If we have last names, use them (e.g., "Turner Family" or "Turner-Smith Family")
+                if last_names:
+                    if len(last_names) == 1:
+                        family_data['family_name'] = f"{last_names[0]} Family"
+                    else:
+                        # Multiple last names (e.g., married couple with different names)
+                        family_data['family_name'] = f"{'-'.join(last_names)} Family"
                 else:
-                    family_data['family_name'] = ', '.join([m['name'] for m in family_data['members'][:2]])
+                    # Fallback: use first names if no last names found
+                    parents = [m for m in family_data['members'] if m['role'] == 'parent']
+                    if parents:
+                        family_data['family_name'] = ', '.join([p['name'] for p in parents]) + ' Family'
+                    else:
+                        family_data['family_name'] = ', '.join([m['name'] for m in family_data['members'][:2]]) + ' Family'
                 
                 # Calculate average household heartbeat
                 heartbeats = [m['heartbeat_score'] for m in family_data['members']]
