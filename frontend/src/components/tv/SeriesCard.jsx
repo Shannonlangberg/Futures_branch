@@ -61,10 +61,31 @@ const SeriesCard = ({ series, isLarge = false }) => {
       onMouseLeave={() => setIsHovered(false)}
       style={{ zIndex: isHovered ? 100 : 'auto' }}
     >
+      {/* Badges - positioned outside Link to prevent rendering issues */}
+      {series.is_published && (
+        <div 
+          className="absolute top-2 left-3 z-20 pointer-events-none"
+          style={{
+            backgroundColor: '#e50914',
+            color: '#ffffff',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '10px',
+            fontWeight: '700',
+            lineHeight: '1.2',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            whiteSpace: 'nowrap',
+            textShadow: 'none'
+          }}
+        >
+          NEW
+        </div>
+      )}
+      
       {/* Original Card */}
       <Link
         to={`/tv/series/${series.id}`}
-        className={`group flex-shrink-0 ${cardWidth} ${cardHeight} rounded-lg overflow-visible transition-transform duration-200 relative`}
+        className={`group flex-shrink-0 ${cardWidth} ${cardHeight} rounded-lg overflow-hidden transition-transform duration-200 relative`}
       >
         <div className="relative w-full h-full bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40 rounded-lg overflow-hidden">
           {series.thumbnail_url ? (
@@ -79,27 +100,6 @@ const SeriesCard = ({ series, isLarge = false }) => {
           ) : null}
           <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
         </div>
-        {/* Badges - clean Netflix-style badge */}
-        {series.is_published && (
-          <div 
-            className="absolute top-2 left-3 z-10"
-            style={{
-              backgroundColor: '#e50914',
-              color: '#ffffff',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              fontSize: '10px',
-              fontWeight: '700',
-              lineHeight: '1',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            New
-          </div>
-        )}
         {!isLarge && (
           <div className="mt-2">
             <h3 className="text-white font-medium text-sm line-clamp-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-purple-400 group-hover:via-blue-400 group-hover:to-pink-400 group-hover:bg-clip-text transition-all">

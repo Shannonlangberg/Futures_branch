@@ -91,7 +91,7 @@ export default function ExploreScreen() {
       title: 'Devotionals',
       icon: 'meditation',
       description: 'Daily readings',
-      onPress: () => Alert.alert('Coming Soon', 'Daily devotionals coming soon!'),
+      onPress: () => navigation.navigate('Devotions'),
       cardColor: '#f59e0b', // Amber
     },
     {

@@ -31,6 +31,7 @@ import ExploreScreen from './src/screens/ExploreScreen';
 import GroupChatScreen from './src/screens/GroupChatScreen';
 import GroupLeaderPortalScreen from './src/screens/GroupLeaderPortalScreen';
 import PrayerSubmitScreen from './src/screens/PrayerSubmitScreen';
+import DevotionsScreen from './src/screens/DevotionsScreen';
 
 // Services
 import { AuthService } from './src/services/AuthService';
@@ -391,6 +392,11 @@ export default function App() {
                   animation: 'slide_from_right',
                   headerShown: false,
                 }}
+              />
+              <Stack.Screen 
+                name="Devotions" 
+                component={DevotionsScreen}
+                options={createHeaderOptions('Devotionals')}
               />
             </>
           ) : (

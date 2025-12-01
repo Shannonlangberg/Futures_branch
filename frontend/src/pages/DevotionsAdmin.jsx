@@ -17,8 +17,10 @@ const DevotionsAdmin = () => {
     total_days: 30, // Add custom length
     start_date: '',
     end_date: '',
-    status: 'draft'
+    status: 'draft',
+    cover_url: ''
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     fetchCampuses();
@@ -122,6 +124,36 @@ const DevotionsAdmin = () => {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/devotions/admin/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFormData(prev => ({ ...prev, cover_url: data.url }));
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to upload image');
+      }
+    } catch (err) {
+      setError('Error uploading image');
+      console.error(err);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       title: '',
@@ -130,7 +162,8 @@ const DevotionsAdmin = () => {
       total_days: 30,
       start_date: '',
       end_date: '',
-      status: 'draft'
+      status: 'draft',
+      cover_url: ''
     });
   };
 
@@ -143,7 +176,8 @@ const DevotionsAdmin = () => {
       total_days: plan.total_days || 30,
       start_date: plan.start_date ? plan.start_date.split('T')[0] : '',
       end_date: plan.end_date ? plan.end_date.split('T')[0] : '',
-      status: plan.status
+      status: plan.status,
+      cover_url: plan.cover_url || ''
     });
     setShowCreateForm(true);
   };
@@ -334,6 +368,55 @@ const DevotionsAdmin = () => {
                   placeholder="Describe your devotion plan..."
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">Cover Image (Thumbnail)</label>
+                <div className="space-y-3">
+                  {formData.cover_url && (
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-700/50">
+                      <img
+                        src={formData.cover_url}
+                        alt="Cover preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, cover_url: ''})}
+                        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-2 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-3">
+                    <label className="flex-1 cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        disabled={uploadingImage}
+                      />
+                      <div className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-3 text-white hover:bg-slate-700/50 transition-colors text-center">
+                        {uploadingImage ? 'Uploading...' : formData.cover_url ? 'Change Image' : 'Upload Cover Image'}
+                      </div>
+                    </label>
+                    {formData.cover_url && (
+                      <input
+                        type="text"
+                        value={formData.cover_url}
+                        onChange={(e) => setFormData({...formData, cover_url: e.target.value})}
+                        placeholder="Or enter image URL"
+                        className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
               <div className="flex justify-end space-x-3 pt-4 border-t border-slate-700/50">
                 <button
                   type="button"
@@ -359,8 +442,27 @@ const DevotionsAdmin = () => {
             {plans.map((plan) => (
               <div
                 key={plan.id}
-                className="glass-effect rounded-xl p-6 backdrop-blur-sm border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:scale-105"
+                className="glass-effect rounded-xl overflow-hidden backdrop-blur-sm border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:scale-105"
               >
+                {/* Thumbnail Image */}
+                {plan.cover_url ? (
+                  <div className="w-full h-48 overflow-hidden bg-slate-700/50">
+                    <img
+                      src={plan.cover_url}
+                      alt={plan.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-48 bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                    <BookOpenIcon className="h-16 w-16 text-white/30" />
+                  </div>
+                )}
+                
+                <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
@@ -416,6 +518,7 @@ const DevotionsAdmin = () => {
                       </button>
                     )}
                   </div>
+                </div>
                 </div>
               </div>
             ))}

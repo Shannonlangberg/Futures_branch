@@ -8,7 +8,7 @@
 // e.g., 'http://192.168.1.100:5000' (get your IP with: ipconfig getifaddr en0 or ifconfig)
 // Local development - connect to your Mac's backend
 export const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.20.12:5002'  // Your local IP for physical device testing (port 5002)
+  ? 'http://192.168.15.167:5002'  // Your local IP for physical device testing (port 5002)
   : 'https://futuresbranch-production.up.railway.app';
 
 // Production Railway URL (for production builds)
