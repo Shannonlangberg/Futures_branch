@@ -81,7 +81,7 @@ const SeriesCard = ({ series, isLarge = false }) => {
         </div>
         {/* Badges - clean Netflix-style badge */}
         {series.is_published && (
-          <div className="absolute top-2 left-2 z-10">
+          <div className="absolute top-2 left-3 z-10">
             <span 
               className="inline-block rounded px-2 py-0.5 text-[10px] font-semibold leading-none shadow-md"
               style={{
