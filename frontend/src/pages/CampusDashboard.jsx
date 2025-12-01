@@ -647,39 +647,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
             </div>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Connect Groups Percentage */}
-            <div className="group relative bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-2xl hover:shadow-cyan-500/10 transition-all duration-500">
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-cyan-500/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                      <span className="text-xl">📊</span>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white">Connect Groups Engagement</h3>
-                      <p className="text-white/60 text-sm">Percentage of Sunday attendance</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-6xl font-bold text-cyan-400 mb-4">
-                    {connectGroupPercentage}%
-                  </div>
-                  <div className="w-full bg-white/10 rounded-full h-4 mb-4">
-                    <div 
-                      className="bg-gradient-to-r from-cyan-500 to-blue-500 h-4 rounded-full transition-all duration-1000"
-                      style={{ width: `${Math.min(connectGroupPercentage, 100)}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-white/60 text-sm">
-                    {Math.round(data.stats?.avg_connect_groups || 0)} in groups out of {sundayAdultAttendance} Sunday attendees
-                  </p>
-                </div>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Attendance Trends */}
             <div className="group relative bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-2xl hover:shadow-blue-500/10 transition-all duration-500">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
