@@ -50,7 +50,9 @@ const DevotionsAdmin = () => {
   const fetchPlans = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/devotions/admin/plans');
+      const response = await fetch('/api/devotions/admin/plans', {
+        credentials: 'include'
+      });
       if (response.ok) {
         const data = await response.json();
         setPlans(data.plans || []);
@@ -79,15 +81,17 @@ const DevotionsAdmin = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
       if (response.ok) {
+        const wasEditing = !!editingPlan;
         await fetchPlans();
         resetForm();
         setShowCreateForm(false);
         setEditingPlan(null);
-        setSuccess(editingPlan ? 'Plan updated successfully!' : 'Plan created successfully!');
+        setSuccess(wasEditing ? 'Plan updated successfully!' : 'Plan created successfully!');
         setError(null);
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(null), 3000);
@@ -106,6 +110,7 @@ const DevotionsAdmin = () => {
     try {
       const response = await fetch(`/api/devotions/admin/plans/${planId}/publish`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -132,6 +137,7 @@ const DevotionsAdmin = () => {
     try {
       const response = await fetch(`/api/devotions/admin/plans/${planId}/archive`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -160,6 +166,7 @@ const DevotionsAdmin = () => {
     try {
       const response = await fetch(`/api/devotions/admin/plans/${planId}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -224,18 +231,33 @@ const DevotionsAdmin = () => {
   };
 
   const handleEdit = (plan) => {
+    console.log('Editing plan:', plan);
+    if (!plan || !plan.id) {
+      console.error('Invalid plan data:', plan);
+      setError('Cannot edit: Invalid plan data');
+      return;
+    }
     setEditingPlan(plan);
     setFormData({
-      title: plan.title,
+      title: plan.title || '',
       description: plan.description || '',
       campus: plan.campus || '', // Empty/null = All Campuses
       total_days: plan.total_days || 30,
-      start_date: plan.start_date ? plan.start_date.split('T')[0] : '',
-      end_date: plan.end_date ? plan.end_date.split('T')[0] : '',
-      status: plan.status,
+      start_date: plan.start_date ? (plan.start_date.split('T')[0] || '') : '',
+      end_date: plan.end_date ? (plan.end_date.split('T')[0] || '') : '',
+      status: plan.status || 'draft',
       cover_url: plan.cover_url || ''
     });
     setShowCreateForm(true);
+    setError(null);
+    setSuccess(null);
+    // Scroll to form
+    setTimeout(() => {
+      const formElement = document.getElementById('devotion-form');
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   const handleCancel = () => {
@@ -335,7 +357,7 @@ const DevotionsAdmin = () => {
 
         {/* Create/Edit Form */}
         {showCreateForm && (
-          <div className="mb-8 glass-effect rounded-xl p-6 backdrop-blur-sm border border-slate-700/50">
+          <div id="devotion-form" className="mb-8 glass-effect rounded-xl p-6 backdrop-blur-sm border border-slate-700/50">
             <h2 className="text-xl font-bold text-white mb-4">
               {editingPlan ? 'Edit Devotion Plan' : 'Create New Devotion Plan'}
             </h2>
@@ -523,8 +545,7 @@ const DevotionsAdmin = () => {
             {plans.map((plan) => (
               <div
                 key={plan.id}
-                className="glass-effect rounded-xl overflow-hidden backdrop-blur-sm border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:scale-105 cursor-pointer"
-                onClick={() => handleEdit(plan)}
+                className="glass-effect rounded-xl overflow-hidden backdrop-blur-sm border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300"
               >
                 {/* Thumbnail Image */}
                 {plan.cover_url ? (
@@ -585,6 +606,16 @@ const DevotionsAdmin = () => {
                     Manage Days <PencilIcon className="ml-1 h-4 w-4" />
                   </Link>
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(plan);
+                      }}
+                      className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
+                      title="Edit Plan"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
                     {plan.status === 'draft' && (
                       <button
                         onClick={(e) => {

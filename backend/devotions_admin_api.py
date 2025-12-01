@@ -244,6 +244,13 @@ def update_devotion_plan(plan_id):
             plan.status = data['status']
         if 'total_days' in data:
             plan.total_days = data['total_days']
+        if 'campus' in data:
+            # Handle campus update - empty string means all campuses
+            campus = data['campus'] or ''
+            if campus.lower() in ['', 'all', 'all_campuses', 'all campuses']:
+                plan.campus = None
+            else:
+                plan.campus = campus
         if 'start_date' in data:
             plan.start_date = datetime.fromisoformat(data['start_date']) if data['start_date'] else None
         if 'end_date' in data:
@@ -567,8 +574,18 @@ def upload_media():
         if file_ext not in allowed_extensions:
             return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
         
-        # Create uploads/devotions directory if it doesn't exist
-        upload_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'devotions')
+        # Create uploads/devotions directory - use persistent volume if available
+        # Check for Railway volume mount or use instance directory for persistence
+        instance_dir = os.path.join(os.path.dirname(__file__), '..', 'instance')
+        data_dir = os.path.join(instance_dir, 'uploads', 'devotions')
+        
+        # Try Railway volume path first (/data is typically mounted)
+        if os.path.exists('/data'):
+            upload_dir = os.path.join('/data', 'uploads', 'devotions')
+        else:
+            # Fall back to instance directory (persists with database)
+            upload_dir = data_dir
+        
         os.makedirs(upload_dir, exist_ok=True)
         
         # Generate unique filename
@@ -599,7 +616,26 @@ def upload_media():
 def serve_media(filename):
     """Serve uploaded devotion media files"""
     try:
-        upload_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'devotions')
-        return send_from_directory(upload_dir, filename)
-    except FileNotFoundError:
+        # Check both possible locations
+        instance_dir = os.path.join(os.path.dirname(__file__), '..', 'instance')
+        data_dir = os.path.join(instance_dir, 'uploads', 'devotions')
+        
+        # Try Railway volume path first
+        if os.path.exists('/data'):
+            upload_dir = os.path.join('/data', 'uploads', 'devotions')
+            if os.path.exists(os.path.join(upload_dir, filename)):
+                return send_from_directory(upload_dir, filename)
+        
+        # Fall back to instance directory
+        if os.path.exists(os.path.join(data_dir, filename)):
+            return send_from_directory(data_dir, filename)
+        
+        # Try old location for backwards compatibility
+        old_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'devotions')
+        if os.path.exists(os.path.join(old_dir, filename)):
+            return send_from_directory(old_dir, filename)
+        
         return jsonify({'error': 'Media file not found'}), 404
+    except Exception as e:
+        logger.error(f"Error serving media: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to serve media'}), 500

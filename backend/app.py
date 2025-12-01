@@ -18951,6 +18951,15 @@ except ImportError as e:
 
 # DEVOTIONS MODULE ROUTES
 try:
+    # Import devotions models to ensure tables are created
+    try:
+        from devotions_models import DevotionPlan, DevotionContent
+        # Ensure tables exist - this will create them if they don't exist
+        db.create_all()
+        logger.info("Devotions models imported and tables verified")
+    except Exception as model_error:
+        logger.warning(f"Could not import devotions models (tables may not exist yet): {model_error}")
+    
     from devotions_api import devotions_bp
     app.register_blueprint(devotions_bp)
     logger.info("Devotions API registered successfully")
@@ -19450,20 +19459,23 @@ def get_events():
         
         logger.info(f"[EVENTS] Fetching events - campus: {campus}, upcoming: {upcoming}, status: {status}")
         
-        # Build query
-        query = Event.query.filter_by(is_active=True)
+        # Build query - handle schema mismatches gracefully
+        # Check if start_time column exists first
+        use_raw_sql = False
+        from sqlalchemy import text
         
-        # Log total active events count - handle missing columns gracefully
         try:
-            total_active = Event.query.filter_by(is_active=True).count()
-            logger.info(f"[EVENTS] Total active events in database: {total_active}")
-        except Exception as count_error:
-            error_str = str(count_error).lower()
-            if 'no such column' in error_str and 'image_url' in error_str:
-                logger.warning("[EVENTS] image_url column not found - migration 034_add_image_url_to_events.sql needs to be applied")
-                # Try using raw SQL to count without image_url
+            # Test if start_time column exists
+            test_result = db.session.execute(text("SELECT start_time FROM events LIMIT 1"))
+            test_result.fetchone()
+            logger.info("[EVENTS] start_time column exists, using ORM query")
+        except Exception as schema_test_error:
+            error_str = str(schema_test_error).lower()
+            if 'no such column' in error_str or 'start_time' in error_str:
+                logger.warning(f"[EVENTS] Schema mismatch detected (start_time missing). Using raw SQL fallback.")
+                use_raw_sql = True
+                # Count using raw SQL
                 try:
-                    from sqlalchemy import text
                     result = db.session.execute(text("SELECT COUNT(*) FROM events WHERE is_active = 1"))
                     total_active = result.scalar()
                     logger.info(f"[EVENTS] Total active events (using raw SQL): {total_active}")
@@ -19471,8 +19483,89 @@ def get_events():
                     logger.error(f"[EVENTS] Could not count events: {raw_error}")
                     total_active = 0
             else:
-                logger.error(f"[EVENTS] Error counting events: {count_error}")
-                total_active = 0
+                logger.warning(f"[EVENTS] Schema test failed: {schema_test_error}, using raw SQL")
+                use_raw_sql = True
+        
+        # Build ORM query (only if schema is OK)
+        query = None
+        if not use_raw_sql:
+            try:
+                query = Event.query.filter_by(is_active=True)
+                total_active = query.count()
+                logger.info(f"[EVENTS] Total active events in database: {total_active}")
+            except Exception as orm_error:
+                logger.warning(f"[EVENTS] ORM query failed, falling back to raw SQL: {orm_error}")
+                use_raw_sql = True
+        
+        # If schema mismatch, use raw SQL for entire query
+        if use_raw_sql:
+            try:
+                from sqlalchemy import text
+                # Build raw SQL query using ACTUAL Pulse database schema
+                sql = """
+                    SELECT id, title, description, short_description, category_id, campus, 
+                           location, virtual_link, start_datetime, end_datetime, is_all_day,
+                           registration_required, registration_opens, registration_closes,
+                           max_capacity, allow_waitlist, is_public, requires_approval,
+                           minimum_age, maximum_age, is_active
+                    FROM events 
+                    WHERE is_active = 1
+                """
+                params = {}
+                
+                # Add campus filter
+                if campus != 'all_campuses':
+                    sql += " AND (campus = :campus OR campus = 'all_campuses')"
+                    params['campus'] = campus
+                
+                # Add upcoming filter using start_datetime
+                if upcoming == 'true':
+                    sql += " AND (start_datetime > datetime('now') OR start_datetime IS NULL)"
+                elif upcoming == 'false':
+                    sql += " AND start_datetime < datetime('now') AND start_datetime IS NOT NULL"
+                
+                # Order by start_datetime
+                sql += " ORDER BY start_datetime ASC"
+                
+                # Execute query
+                result = db.session.execute(text(sql), params)
+                rows = result.fetchall()
+                
+                # Convert to dict format matching expected API response
+                events = []
+                for row in rows:
+                    event_dict = {
+                        'id': row[0],
+                        'title': row[1],
+                        'description': row[2],
+                        'short_description': row[3],
+                        'category_id': row[4],
+                        'campus': row[5],
+                        'location': row[6],
+                        'virtual_link': row[7],
+                        'start_time': str(row[8]) if row[8] else None,  # Map start_datetime to start_time for API compatibility
+                        'end_time': str(row[9]) if row[9] else None,    # Map end_datetime to end_time
+                        'start_datetime': str(row[8]) if row[8] else None,
+                        'end_datetime': str(row[9]) if row[9] else None,
+                        'is_all_day': bool(row[10]) if row[10] else False,
+                        'registration_required': bool(row[11]) if row[11] else False,
+                        'registration_opens': str(row[12]) if row[12] else None,
+                        'registration_closes': str(row[13]) if row[13] else None,
+                        'max_capacity': row[14],
+                        'allow_waitlist': bool(row[15]) if row[15] else False,
+                        'is_public': bool(row[16]) if row[16] else True,
+                        'requires_approval': bool(row[17]) if row[17] else False,
+                        'minimum_age': row[18],
+                        'maximum_age': row[19],
+                        'is_active': bool(row[20]) if row[20] else True,
+                    }
+                    events.append(event_dict)
+                
+                logger.info(f"[EVENTS] Returning {len(events)} events via raw SQL (Pulse schema)")
+                return jsonify({'events': events})
+            except Exception as raw_sql_error:
+                logger.error(f"[EVENTS] Raw SQL query failed: {raw_sql_error}")
+                return jsonify({'events': [], 'error': 'Failed to fetch events'}), 500
         
         # Filter by campus
         if campus != 'all_campuses':

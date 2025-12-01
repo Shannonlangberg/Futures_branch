@@ -48,7 +48,6 @@ def enforce_positive_response(f):
     return decorated_function
 
 @devotions_bp.route('/library', methods=['GET'])
-@login_required
 @enforce_positive_response
 def get_devotion_library():
     """Get user's devotion library with assigned, in-progress, completed, and personal plans"""
@@ -60,8 +59,15 @@ def get_devotion_library():
         except ImportError:
             DevotionPlan = None
         
-        # Get user's campus
-        user_campus = getattr(current_user, 'campus', None) or 'all_campuses'
+        # Get user's campus (if authenticated, otherwise show all)
+        try:
+            from flask_login import current_user
+            if current_user.is_authenticated:
+                user_campus = getattr(current_user, 'campus', None) or 'all_campuses'
+            else:
+                user_campus = 'all_campuses'
+        except:
+            user_campus = 'all_campuses'
         
         # Query published plans that are visible to this user's campus
         if DevotionPlan:
