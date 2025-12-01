@@ -850,7 +850,7 @@ const FamilyDetailView = ({ family, onBack, onAddMember }) => {
           Add Pastoral Note
         </button>
         <button 
-          onClick={() => setShowAddMemberModal(true)}
+          onClick={onAddMember}
           className="px-6 py-3 bg-green-600/20 hover:bg-green-600/30 text-green-300 border border-green-500/30 rounded-lg transition-colors flex items-center gap-2"
         >
           <UserPlusIcon className="h-5 w-5" />
