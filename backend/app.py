@@ -22044,10 +22044,16 @@ def create_family_for_person(person_id):
                 
                 db.session.commit()
                 logger.info("Successfully added all missing columns to persons table")
-                # Re-check after adding columns
+                # Re-check after adding columns to ensure they all exist
                 table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
                 existing_columns = [row[1] for row in table_info]
                 has_family_id = 'family_id' in existing_columns
+                
+                # Verify all required columns now exist
+                all_required = all(col[0] in existing_columns for col in columns_to_add)
+                if not all_required:
+                    missing = [col[0] for col in columns_to_add if col[0] not in existing_columns]
+                    logger.error(f"Some columns still missing after creation: {missing}")
             except OperationalError as alter_error:
                 error_msg = str(alter_error).lower()
                 logger.error(f"Failed to add columns: {alter_error}")
@@ -22075,7 +22081,20 @@ def create_family_for_person(person_id):
                 'person_id': person_id
             }), 400
         
+        # Verify all required columns exist before querying (to avoid SQLAlchemy errors)
+        required_columns = ['family_id', 'is_new_christian', 'new_christian_date', 'follow_up_status', 'service_attended']
+        missing_required = [col for col in required_columns if col not in existing_columns]
+        if missing_required:
+            logger.error(f"Required columns still missing: {missing_required}")
+            return jsonify({
+                'error': 'Database schema incomplete',
+                'details': f'Some required columns are missing: {", ".join(missing_required)}. Please run migration 035_add_people_section_fields.sql',
+                'person_id': person_id,
+                'missing_columns': missing_required
+            }), 400
+        
         logger.info(f"Looking up person with id: '{person_id}'")
+        # Now safe to query - all columns should exist
         person = Person.query.get(person_id)
         if not person:
             # Try to find by exact match or similar
