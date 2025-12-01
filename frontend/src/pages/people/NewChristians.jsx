@@ -71,19 +71,10 @@ const NewChristians = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('All pathways from API (NewChristians):', data.pathways);
-        
-        // Show all active pathways (including templates)
         const activePathways = (data.pathways || []).filter(p => p.is_active === true);
         setPathways(activePathways);
-        console.log(`Loaded ${activePathways.length} active pathways for assignment`);
-        
-        if (activePathways.length === 0) {
-          console.warn('No active pathways found! Check if pathways exist and are marked as active.');
-        }
       } else {
-        const errorText = await response.text();
-        console.error('Failed to load pathways:', response.status, errorText);
+        console.error('Failed to load pathways:', response.status);
       }
     } catch (err) {
       console.error('Error loading pathways:', err);
@@ -115,37 +106,23 @@ const NewChristians = () => {
         start_immediately: true
       };
       
-      console.log('[NewChristians] Request body:', JSON.stringify(requestBody));
-      
       const response = await fetch(`/api/journeys/person/${personId}/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          pathway_id: pathwayIdInt,
+          start_immediately: true
+        })
       });
       
-      console.log('[NewChristians] Response status:', response.status, response.statusText);
-      
-      let result;
-      try {
-        result = await response.json();
-      } catch (jsonErr) {
-        const text = await response.text();
-        console.error('[NewChristians] Failed to parse JSON response:', text);
-        alert(`Server error: ${response.status} ${response.statusText}`);
-        return;
-      }
-      
-      console.log('[NewChristians] Assignment response:', result);
-      
       if (response.ok) {
-        alert('Pathway assigned successfully!');
         await loadNewChristians(); // Reload to get updated pathway info
       } else {
+        const result = await response.json().catch(() => ({}));
         const errorMsg = result.error || result.message || `Failed to assign pathway (${response.status})`;
-        console.error('[NewChristians] Assignment error:', errorMsg, result);
         alert(`Error: ${errorMsg}`);
       }
     } catch (err) {
@@ -250,22 +227,12 @@ const NewChristians = () => {
                         <select
                           value=""
                           onChange={(e) => {
-                            console.log('[NewChristians] ===== DROPDOWN CHANGED =====');
-                            console.log('[NewChristians] Selected value:', e.target.value);
                             if (e.target.value && e.target.value !== '') {
                               const pathwayId = parseInt(e.target.value);
                               if (!isNaN(pathwayId)) {
-                                console.log(`[NewChristians] Selected pathway ${pathwayId} for person ${person.id}`);
                                 assignPathway(person.id, pathwayId);
-                              } else {
-                                console.error('[NewChristians] Invalid pathway ID:', e.target.value);
                               }
                             }
-                          }}
-                          onFocus={(e) => {
-                            console.log('[NewChristians] ===== DROPDOWN FOCUSED =====');
-                            console.log('[NewChristians] Pathways count:', pathways.length);
-                            console.log('[NewChristians] Options count:', e.target.options.length);
                           }}
                           disabled={assigningPathway[person.id] || pathways.length === 0}
                           className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer appearance-none"
@@ -287,11 +254,6 @@ const NewChristians = () => {
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                           <ChevronDownIcon className="h-4 w-4 text-white" />
                         </div>
-                        {pathways.length > 0 && (
-                          <div className="text-xs text-green-400 mt-1">
-                            ✓ {pathways.length} pathway{pathways.length !== 1 ? 's' : ''} available
-                          </div>
-                        )}
                       </div>
                     )}
                     {hasPathway && (
