@@ -213,7 +213,23 @@ const Families = () => {
         if (data.already_exists) {
           alert('This person already has a family assigned.');
         } else {
-          alert('Family created successfully!');
+          // Find the newly created family and open its detail view
+          const updatedFamilies = await fetch('/api/people/families', {
+            credentials: 'include'
+          }).then(r => r.json()).then(d => d.families || []).catch(() => []);
+          
+          // Find family by the person's ID
+          const newFamily = updatedFamilies.find(f => 
+            f.members && f.members.some(m => m.id === personId)
+          );
+          
+          if (newFamily) {
+            setSelectedFamily(newFamily);
+            setShowFamilyDetail(true);
+            alert('Family created successfully! You can now add members below.');
+          } else {
+            alert('Family created successfully! Refresh the page to see it.');
+          }
         }
       } else {
         // Show detailed error message
