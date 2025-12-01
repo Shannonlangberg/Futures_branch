@@ -149,6 +149,7 @@ const Families = () => {
           setShowFamilyDetail(false);
           setSelectedFamily(null);
         }}
+        onAddMember={() => setShowAddMemberModal(true)}
       />
     );
   }
@@ -568,7 +569,7 @@ const Families = () => {
 };
 
 // Family Detail View Component
-const FamilyDetailView = ({ family, onBack }) => {
+const FamilyDetailView = ({ family, onBack, onAddMember }) => {
   const navigate = useNavigate();
 
   // Get full family name from all members' full names
