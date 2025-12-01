@@ -3,7 +3,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, flash, session, Response, make_response
 from flask_cors import CORS
 from flask_compress import Compress
-from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, Group, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase, HeartbeatSnapshot, AttendanceEvent, ServingAssignment, GivingTransaction, CareCase
+from models import db, init_db, Person, EngagementProfile, BeaconZone, Event, EventCategory, EventRegistration, EventTeamAssignment, EventResourceBooking, create_person_with_engagement, ConnectGroup, ConnectGroupMeeting, ConnectGroupAttendance, ConnectGroupMessage, ResourceCategory, PersonPathwayProgress, PersonPathwayStepCompletion, PathwayStep, PushNotificationToken, ScheduledNotification, PastoralCareCase, HeartbeatSnapshot, AttendanceEvent, ServingAssignment, GivingTransaction, CareCase
 from datetime import datetime, timezone, timedelta, date
 import os
 import re
@@ -14726,15 +14726,18 @@ def calculate_streaks_and_next_steps(person):
 @app.route('/api/persons/email/<email>', methods=['GET'])
 def get_person_by_email(email):
     """Get person profile by email - public endpoint for mobile app"""
+    import sys
+    print(f"🔵 FUNCTION CALLED: get_person_by_email({email})", file=sys.stderr)
+    logger.error(f"🔵 FUNCTION CALLED: get_person_by_email({email})")
     try:
         # Log which database we're using
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
         db_path = get_db_path()
+        print(f"🔵 Starting function execution for {email}", file=sys.stderr)
+        logger.error(f"🔵 Starting function execution for {email}")
+        logger.info(f"=== START get_person_by_email for {email} ===")
         logger.info(f"GET /api/persons/email/{email} - Using database: {db_uri}")
         logger.info(f"GET /api/persons/email/{email} - Database path: {db_path}")
-        
-        # Force fresh query
-        db.session.expire_all()
         
         # Find person by email (case-insensitive)
         # Use raw SQL directly to avoid schema mismatch issues (family_id, is_new_christian, etc. may not exist)
@@ -23462,6 +23465,9 @@ def get_new_christians():
                     new_christians.append({
                         'id': person.id,
                         'name': person.preferred_name or person.full_name,
+                        'full_name': person.full_name,
+                        'campus': getattr(person, 'campus', None),
+                        'department': getattr(person, 'department', None),
                         'new_christian_date': new_christian_date,
                         'foundations_progress': '50%',  # TODO: Calculate from pathway
                         'pathway_progress': pathway_progress,
