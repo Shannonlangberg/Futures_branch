@@ -202,20 +202,32 @@ const NewPeople = () => {
     // Filter by campus
     if (selectedCampus !== 'all') {
       filtered = filtered.filter(person => {
-        const personCampus = (person.campus || '').toLowerCase().replace(/\s+/g, '_');
-        const selectedCampusLower = selectedCampus.toLowerCase();
-        return personCampus === selectedCampusLower || 
-               personCampus.includes(selectedCampusLower) ||
-               selectedCampusLower.includes(personCampus);
+        // Normalize person's campus: lowercase, replace spaces/hyphens with underscores
+        const personCampus = (person.campus || '').toLowerCase().replace(/[\s-]+/g, '_').trim();
+        // Normalize selected campus: lowercase (should already be in format like "copper_coast")
+        const selectedCampusNormalized = selectedCampus.toLowerCase().trim();
+        
+        // Only match if both are non-empty and exactly equal
+        if (!personCampus || !selectedCampusNormalized) {
+          return false;
+        }
+        
+        return personCampus === selectedCampusNormalized;
       });
     }
 
     // Filter by department
     if (selectedDepartment !== 'all') {
       filtered = filtered.filter(person => {
-        const personDept = (person.department || '').toLowerCase();
-        const selectedDept = selectedDepartment.toLowerCase();
-        return personDept === selectedDept || personDept.includes(selectedDept);
+        const personDept = (person.department || '').trim();
+        const selectedDept = selectedDepartment.trim();
+        
+        // Only match if both are non-empty and exactly equal
+        if (!personDept || !selectedDept) {
+          return false;
+        }
+        
+        return personDept.toLowerCase() === selectedDept.toLowerCase();
       });
     }
 
