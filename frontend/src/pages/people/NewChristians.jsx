@@ -14,15 +14,27 @@ import {
 
 const NewChristians = () => {
   const [newChristians, setNewChristians] = useState([]);
+  const [allNewChristians, setAllNewChristians] = useState([]); // Store all for filtering
   const [loading, setLoading] = useState(true);
   const [pathways, setPathways] = useState([]);
   const [expandedCards, setExpandedCards] = useState({});
   const [assigningPathway, setAssigningPathway] = useState({});
+  const [selectedCampus, setSelectedCampus] = useState('all');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [campuses, setCampuses] = useState([]);
 
   useEffect(() => {
     loadNewChristians();
     loadPathways();
+    loadCampuses();
   }, []);
+
+  useEffect(() => {
+    // Filter people when filters change
+    if (allNewChristians.length > 0) {
+      filterPeople();
+    }
+  }, [selectedCampus, selectedDepartment]);
 
   const loadNewChristians = async () => {
     try {
@@ -55,7 +67,8 @@ const NewChristians = () => {
           })
         );
         
-        setNewChristians(christiansWithPathways);
+        setAllNewChristians(christiansWithPathways);
+        filterPeople(christiansWithPathways);
       }
     } catch (err) {
       console.error('Error loading new Christians:', err);
@@ -133,6 +146,45 @@ const NewChristians = () => {
     }
   };
 
+  const loadCampuses = async () => {
+    try {
+      const response = await fetch('/api/campuses/public');
+      if (response.ok) {
+        const data = await response.json();
+        setCampuses(data.campuses || []);
+      }
+    } catch (err) {
+      console.error('Error loading campuses:', err);
+    }
+  };
+
+  const filterPeople = (peopleToFilter = null) => {
+    const people = peopleToFilter || allNewChristians;
+    let filtered = [...people];
+
+    // Filter by campus
+    if (selectedCampus !== 'all') {
+      filtered = filtered.filter(person => {
+        const personCampus = (person.campus || '').toLowerCase().replace(/\s+/g, '_');
+        const selectedCampusLower = selectedCampus.toLowerCase();
+        return personCampus === selectedCampusLower || 
+               personCampus.includes(selectedCampusLower) ||
+               selectedCampusLower.includes(personCampus);
+      });
+    }
+
+    // Filter by department
+    if (selectedDepartment !== 'all') {
+      filtered = filtered.filter(person => {
+        const personDept = (person.department || '').toLowerCase();
+        const selectedDept = selectedDepartment.toLowerCase();
+        return personDept === selectedDept || personDept.includes(selectedDept);
+      });
+    }
+
+    setNewChristians(filtered);
+  };
+
   const toggleCard = (personId) => {
     setExpandedCards({
       ...expandedCards,
@@ -143,8 +195,48 @@ const NewChristians = () => {
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-y-auto">
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-white mb-2">New Christians</h2>
-        <p className="text-white/60">Track discipleship progress and next steps • {newChristians.length} total</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-3xl font-bold text-white mb-2">New Christians</h2>
+            <p className="text-white/60">Track discipleship progress and next steps • {newChristians.length} showing ({allNewChristians.length} total)</p>
+          </div>
+        </div>
+        
+        {/* Filters */}
+        <div className="flex gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <label className="text-white/60 text-sm">Campus:</label>
+            <select
+              value={selectedCampus}
+              onChange={(e) => setSelectedCampus(e.target.value)}
+              className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            >
+              <option value="all">All Campuses</option>
+              {campuses.map(campus => (
+                <option key={campus.id} value={campus.id}>
+                  {campus.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-white/60 text-sm">Department:</label>
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            >
+              <option value="all">All Departments</option>
+              <option value="Kids">Kids</option>
+              <option value="Youth">Youth</option>
+              <option value="Young Adults">Young Adults</option>
+              <option value="Families">Families</option>
+              <option value="Adults">Adults</option>
+              <option value="Seniors">Seniors</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -156,6 +248,7 @@ const NewChristians = () => {
               const isExpanded = expandedCards[person.id];
               const hasPathway = person.assigned_pathways && person.assigned_pathways.length > 0;
               const currentPathway = hasPathway ? person.assigned_pathways[0] : null;
+              const currentPathwayId = currentPathway ? (currentPathway.pathway_id || currentPathway.id) : null;
               
               return (
                 <div
@@ -222,44 +315,45 @@ const NewChristians = () => {
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {!hasPathway && (
-                      <div className="relative">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value && e.target.value !== '') {
-                              const pathwayId = parseInt(e.target.value);
-                              if (!isNaN(pathwayId)) {
+                    <div className="relative">
+                      <select
+                        value={currentPathwayId ? String(currentPathwayId) : ""}
+                        onChange={(e) => {
+                          if (e.target.value && e.target.value !== '') {
+                            const pathwayId = parseInt(e.target.value);
+                            if (!isNaN(pathwayId)) {
+                              // Only assign if it's different from current
+                              if (!currentPathwayId || currentPathwayId !== pathwayId) {
                                 assignPathway(person.id, pathwayId);
                               }
                             }
-                          }}
-                          disabled={assigningPathway[person.id] || pathways.length === 0}
-                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer appearance-none"
-                          style={{ minWidth: '250px', paddingRight: '2.5rem' }}
-                        >
-                          <option value="" disabled>
-                            {pathways.length === 0 ? 'Loading pathways...' : 'Select Pathway (Recommended: Foundations)...'}
-                          </option>
-                          {pathways.length > 0 ? (
-                            pathways.map(pathway => (
-                              <option key={`pathway-${pathway.id}`} value={String(pathway.id)}>
-                                {pathway.name} {pathway.is_template ? '(Template)' : ''}
-                              </option>
-                            ))
-                          ) : (
-                            <option value="" disabled>No pathways available</option>
-                          )}
-                        </select>
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                          <ChevronDownIcon className="h-4 w-4 text-white" />
-                        </div>
+                          }
+                        }}
+                        disabled={assigningPathway[person.id] || pathways.length === 0}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer appearance-none"
+                        style={{ minWidth: '250px', paddingRight: '2.5rem' }}
+                      >
+                        <option value="">
+                          {pathways.length === 0 ? 'Loading pathways...' : currentPathway ? 'Change Pathway...' : 'Select Pathway (Recommended: Foundations)...'}
+                        </option>
+                        {pathways.length > 0 ? (
+                          pathways.map(pathway => (
+                            <option key={`pathway-${pathway.id}`} value={String(pathway.id)}>
+                              {pathway.name} {pathway.is_template ? '(Template)' : ''}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>No pathways available</option>
+                        )}
+                      </select>
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <ChevronDownIcon className="h-4 w-4 text-white" />
                       </div>
-                    )}
+                    </div>
                     {hasPathway && (
                       <div className="px-4 py-2 bg-green-600/20 text-green-300 rounded-lg text-sm font-medium flex items-center gap-2">
                         <AcademicCapIcon className="h-4 w-4" />
-                        Pathway Assigned: {currentPathway.pathway_name}
+                        Current: {currentPathway.pathway_name}
                       </div>
                     )}
                   </div>

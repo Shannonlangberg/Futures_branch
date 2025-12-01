@@ -14,16 +14,28 @@ import {
 
 const NewPeople = () => {
   const [newPeople, setNewPeople] = useState([]);
+  const [allNewPeople, setAllNewPeople] = useState([]); // Store all people for filtering
   const [loading, setLoading] = useState(true);
   const [pathways, setPathways] = useState([]);
   const [expandedCards, setExpandedCards] = useState({});
   const [assigningPathway, setAssigningPathway] = useState({});
   const [updatingStatus, setUpdatingStatus] = useState({});
+  const [selectedCampus, setSelectedCampus] = useState('all');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [campuses, setCampuses] = useState([]);
 
   useEffect(() => {
     loadNewPeople();
     loadPathways();
+    loadCampuses();
   }, []);
+
+  useEffect(() => {
+    // Filter people when filters change
+    if (allNewPeople.length > 0) {
+      filterPeople();
+    }
+  }, [selectedCampus, selectedDepartment]);
 
   const loadNewPeople = async () => {
     try {
@@ -56,7 +68,8 @@ const NewPeople = () => {
           })
         );
         
-        setNewPeople(personsWithPathways);
+        setAllNewPeople(personsWithPathways);
+        filterPeople(personsWithPathways);
       }
     } catch (err) {
       console.error('Error loading new people:', err);
@@ -162,6 +175,45 @@ const NewPeople = () => {
     }
   };
 
+  const loadCampuses = async () => {
+    try {
+      const response = await fetch('/api/campuses/public');
+      if (response.ok) {
+        const data = await response.json();
+        setCampuses(data.campuses || []);
+      }
+    } catch (err) {
+      console.error('Error loading campuses:', err);
+    }
+  };
+
+  const filterPeople = (peopleToFilter = null) => {
+    const people = peopleToFilter || allNewPeople;
+    let filtered = [...people];
+
+    // Filter by campus
+    if (selectedCampus !== 'all') {
+      filtered = filtered.filter(person => {
+        const personCampus = (person.campus || '').toLowerCase().replace(/\s+/g, '_');
+        const selectedCampusLower = selectedCampus.toLowerCase();
+        return personCampus === selectedCampusLower || 
+               personCampus.includes(selectedCampusLower) ||
+               selectedCampusLower.includes(personCampus);
+      });
+    }
+
+    // Filter by department
+    if (selectedDepartment !== 'all') {
+      filtered = filtered.filter(person => {
+        const personDept = (person.department || '').toLowerCase();
+        const selectedDept = selectedDepartment.toLowerCase();
+        return personDept === selectedDept || personDept.includes(selectedDept);
+      });
+    }
+
+    setNewPeople(filtered);
+  };
+
   const toggleCard = (personId) => {
     setExpandedCards({
       ...expandedCards,
@@ -182,10 +234,46 @@ const NewPeople = () => {
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-y-auto">
       <div className="mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-3xl font-bold text-white mb-2">New People</h2>
-            <p className="text-white/60">People who joined in the last 30 days • {newPeople.length} total</p>
+            <p className="text-white/60">People who joined in the last 30 days • {newPeople.length} showing ({allNewPeople.length} total)</p>
+          </div>
+        </div>
+        
+        {/* Filters */}
+        <div className="flex gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <label className="text-white/60 text-sm">Campus:</label>
+            <select
+              value={selectedCampus}
+              onChange={(e) => setSelectedCampus(e.target.value)}
+              className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            >
+              <option value="all">All Campuses</option>
+              {campuses.map(campus => (
+                <option key={campus.id} value={campus.id}>
+                  {campus.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-white/60 text-sm">Department:</label>
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            >
+              <option value="all">All Departments</option>
+              <option value="Kids">Kids</option>
+              <option value="Youth">Youth</option>
+              <option value="Young Adults">Young Adults</option>
+              <option value="Families">Families</option>
+              <option value="Adults">Adults</option>
+              <option value="Seniors">Seniors</option>
+            </select>
           </div>
         </div>
       </div>
@@ -281,12 +369,15 @@ const NewPeople = () => {
                     <div className="relative">
                       <select
                         id={`pathway-select-${person.id}`}
-                        value=""
+                        value={currentPathwayId ? String(currentPathwayId) : ""}
                         onChange={(e) => {
                           if (e.target.value && e.target.value !== '') {
                             const pathwayId = parseInt(e.target.value);
                             if (!isNaN(pathwayId)) {
-                              assignPathway(person.id, pathwayId);
+                              // Only assign if it's different from current
+                              if (!currentPathwayId || currentPathwayId !== pathwayId) {
+                                assignPathway(person.id, pathwayId);
+                              }
                             }
                           }
                         }}
@@ -294,8 +385,8 @@ const NewPeople = () => {
                         className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer appearance-none"
                         style={{ minWidth: '200px', paddingRight: '2.5rem' }}
                       >
-                        <option value="" disabled>
-                          {pathways.length === 0 ? 'Loading pathways...' : 'Select Pathway...'}
+                        <option value="">
+                          {pathways.length === 0 ? 'Loading pathways...' : currentPathway ? 'Change Pathway...' : 'Select Pathway...'}
                         </option>
                         {pathways.map(pathway => (
                           <option key={`pathway-${pathway.id}`} value={String(pathway.id)}>
