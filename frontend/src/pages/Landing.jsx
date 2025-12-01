@@ -2,24 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowTopRightOnSquareIcon,
-  ClipboardDocumentListIcon,
-  DocumentChartBarIcon,
   LifebuoyIcon,
   MegaphoneIcon,
-  PlayCircleIcon,
   SparklesIcon,
-  CurrencyDollarIcon,
-  BookOpenIcon,
-  Cog6ToothIcon,
-  UserGroupIcon,
   ShieldCheckIcon,
-  ChartBarIcon,
-  BuildingOfficeIcon,
-  UserCircleIcon,
-  HeartIcon,
   ArrowsRightLeftIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
+import MetricsDashboard from '../components/MetricsDashboard';
 
 const gradientBackground = 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950';
 
@@ -97,161 +87,6 @@ const Landing = () => {
     return fullName.split(' ')[0];
   };
 
-  // Get role-specific quick actions
-  const getQuickActions = () => {
-    // Use preview role if set (for beta role switcher), otherwise use actual role
-    const userRole = previewRole || session?.role || 'user';
-    const userCampus = session?.campus || 'all_campuses';
-    const isCampusPastor = userRole === 'campus_pastor';
-    
-    const baseActions = [
-      {
-        name: 'Dashboard',
-        description: 'Explore ministry metrics and weekend pulse data visualisations.',
-        href: '/dashboard',
-        icon: DocumentChartBarIcon,
-        highlight: true
-      },
-      {
-        name: 'Input',
-        description: 'Submit the latest weekend figures and service insights.',
-        href: '/stats',
-        icon: ClipboardDocumentListIcon
-      },
-      {
-        name: isCampusPastor ? 'Campus Heartbeat' : 'Heartbeat',
-        description: isCampusPastor 
-          ? 'Monitor your campus health and engagement metrics.'
-          : 'Track health and engagement across your ministry.',
-        href: '/heartbeat',
-        icon: HeartIcon,
-        highlight: true,
-        hotRodRed: true
-      },
-      {
-        name: 'Settings',
-        description: 'Manage your profile and account settings.',
-        href: '/profile',
-        icon: Cog6ToothIcon
-      },
-    ];
-
-    // Admin-specific actions
-    if (userRole === 'admin') {
-      return [
-        ...baseActions,
-        {
-          name: 'User Management',
-          description: 'Manage users, roles, and permissions across the platform.',
-          href: '/users',
-          icon: UserGroupIcon,
-          highlight: true,
-          adminOnly: true
-        },
-        {
-          name: 'Campus Management',
-          description: 'Configure campuses and their settings.',
-          href: '/campuses',
-          icon: BuildingOfficeIcon,
-          adminOnly: true
-        },
-        {
-          name: 'Resources',
-          description: 'Manage and organize resource categories and files.',
-          href: '/resources',
-          icon: BookOpenIcon,
-          highlight: true,
-          adminOnly: true
-        },
-        {
-          name: 'Finance',
-          description: 'View and manage financial data across all campuses.',
-          href: '/finance',
-          icon: CurrencyDollarIcon,
-          adminOnly: true
-        },
-        {
-          name: 'People',
-          description: 'Access the complete people database and health reports.',
-          href: '/people',
-          icon: UserCircleIcon,
-          adminOnly: true
-        },
-        {
-          name: 'Data Export',
-          description: 'Export data for analysis and reporting.',
-          href: '/export',
-          icon: ChartBarIcon,
-          adminOnly: true
-        },
-      ];
-    }
-
-    // Campus Pastor - special handling
-    if (isCampusPastor) {
-      return [
-        ...baseActions,
-        {
-          name: 'Resources',
-          description: 'Find templates, playbooks, and media to support your teams.',
-          href: '/resources',
-          icon: BookOpenIcon,
-          highlight: true
-        },
-        {
-          name: 'Finance',
-          description: 'Submit tithe data and view financial reports.',
-          href: '/finance',
-          icon: CurrencyDollarIcon
-        },
-        {
-          name: 'People',
-          description: 'View people database and health reports.',
-          href: '/people',
-          icon: UserGroupIcon
-        },
-      ];
-    }
-
-    // Leadership roles
-    if (['senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'].includes(userRole)) {
-      return [
-        ...baseActions,
-        {
-          name: 'Resources',
-          description: 'Find templates, playbooks, and media to support your teams.',
-          href: '/resources',
-          icon: BookOpenIcon,
-          highlight: true
-        },
-        {
-          name: 'Finance',
-          description: 'Submit tithe data and view financial reports.',
-          href: '/finance',
-          icon: CurrencyDollarIcon
-        },
-        {
-          name: 'People',
-          description: 'View people database and health reports.',
-          href: '/people',
-          icon: UserGroupIcon
-        },
-      ];
-    }
-
-    // Default actions for other roles
-    return [
-      ...baseActions,
-      {
-        name: 'Finance',
-        description: 'Submit tithe data and view financial reports.',
-        href: '/finance',
-        icon: CurrencyDollarIcon
-      },
-    ];
-  };
-
-  const quickActions = useMemo(() => getQuickActions(), [session?.role, session?.campus, previewRole]);
 
   const featuredCategories = categories.filter(Boolean);
 
@@ -371,69 +206,12 @@ const Landing = () => {
             </div>
           </header>
 
-          <section className="space-y-5 sm:space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-semibold">Get moving</h2>
-                <p className="text-white/60 text-sm sm:text-base">Jump straight into the actions that matter most today.</p>
-              </div>
-              <span className="text-xs uppercase tracking-[0.2em] text-white/40">Quick links</span>
-            </div>
-            <div className={`grid grid-cols-1 md:grid-cols-2 ${isDisplayingAdmin ? 'xl:grid-cols-3' : 'xl:grid-cols-5'} gap-4 sm:gap-6`}>
-              {quickActions.map((action, index) => (
-                <button
-                  key={action.name}
-                  onClick={() => navigate(action.href)}
-                  className={`
-                    group rounded-2xl border p-5 sm:p-6 transition-all duration-300 text-left
-                    ${action.hotRodRed
-                      ? 'border-red-500/50 bg-gradient-to-br from-red-600/15 to-red-500/10 hover:from-red-600/25 hover:to-red-500/20 shadow-lg shadow-red-500/30'
-                      : action.highlight 
-                        ? 'border-blue-400/40 bg-gradient-to-br from-blue-500/10 to-purple-500/10 hover:from-blue-500/20 hover:to-purple-500/20 shadow-lg shadow-blue-500/20' 
-                        : 'border-white/10 bg-white/5 hover:bg-white/10 shadow-sm shadow-black/10'
-                    }
-                    hover:-translate-y-2 hover:scale-[1.02] hover:shadow-xl
-                    ${action.adminOnly ? 'ring-2 ring-purple-500/30' : ''}
-                  `}
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 ${
-                      action.hotRodRed
-                        ? 'bg-gradient-to-br from-red-600/40 to-red-500/30 text-red-200'
-                        : action.highlight 
-                          ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 text-blue-200' 
-                          : 'bg-blue-500/15 text-blue-200'
-                    }`}>
-                      <action.icon className="h-6 w-6" />
-                    </div>
-                    <ArrowTopRightOnSquareIcon className={`h-4 w-4 text-white/30 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-300 ${
-                      action.hotRodRed 
-                        ? 'group-hover:text-red-300' 
-                        : 'group-hover:text-blue-200'
-                    }`} />
-                  </div>
-                  <div className="mt-4 sm:mt-5 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className={`text-base sm:text-lg font-semibold leading-snug transition-colors ${
-                        action.hotRodRed 
-                          ? 'group-hover:text-red-300' 
-                          : 'group-hover:text-blue-200'
-                      }`}>{action.name}</h3>
-                      {action.adminOnly && (
-                        <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-400/40">
-                          Admin
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-white/60 leading-relaxed group-hover:text-white/80 transition-colors">
-                      {action.description}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
+          {/* Role-Based Metrics Dashboard */}
+          <MetricsDashboard 
+            userRole={actualRole}
+            userCampus={session?.campus || 'all_campuses'}
+            session={session}
+          />
 
           {!isDisplayingAdmin && (
           <section className="space-y-5 sm:space-y-6">
