@@ -21417,11 +21417,46 @@ def get_families():
                     logger.warning(f"Error getting giving data for family {family_key}: {e}")
                 
                 # Count new people and new Christians
-                thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-                two_years_ago = date.today() - timedelta(days=730)
-                
-                new_people = [m for m in family_data['members'] if m.get('created_at') and datetime.fromisoformat(m['created_at'].replace('Z', '+00:00')) >= thirty_days_ago]
-                new_christians = [m for m in family_data['members'] if (m.get('is_new_christian') or (m.get('baptised_on') and date.fromisoformat(m['baptised_on']) >= two_years_ago))]
+                try:
+                    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+                    two_years_ago = date.today() - timedelta(days=730)
+                    
+                    new_people = []
+                    for m in family_data['members']:
+                        try:
+                            if m.get('created_at'):
+                                created_date = m['created_at']
+                                if isinstance(created_date, str):
+                                    # Handle different date formats
+                                    if 'T' in created_date:
+                                        created_date = created_date.split('T')[0]
+                                    created_dt = datetime.strptime(created_date, '%Y-%m-%d')
+                                    if created_dt >= thirty_days_ago:
+                                        new_people.append(m)
+                        except Exception as date_error:
+                            logger.warning(f"Error parsing created_at for member {m.get('id')}: {date_error}")
+                            continue
+                    
+                    new_christians = []
+                    for m in family_data['members']:
+                        try:
+                            if m.get('is_new_christian'):
+                                new_christians.append(m)
+                            elif m.get('baptised_on'):
+                                baptised_date = m['baptised_on']
+                                if isinstance(baptised_date, str):
+                                    if 'T' in baptised_date:
+                                        baptised_date = baptised_date.split('T')[0]
+                                    baptised_d = date.fromisoformat(baptised_date)
+                                    if baptised_d >= two_years_ago:
+                                        new_christians.append(m)
+                        except Exception as date_error:
+                            logger.warning(f"Error parsing new Christian date for member {m.get('id')}: {date_error}")
+                            continue
+                except Exception as e:
+                    logger.warning(f"Error counting new people/Christians for family {family_key}: {e}")
+                    new_people = []
+                    new_christians = []
                 
                 family_data['new_people_count'] = len(new_people)
                 family_data['new_christians_count'] = len(new_christians)
@@ -21561,15 +21596,40 @@ def get_person_family(person_id):
         # Get all family members
         family_members = Person.query.filter_by(family_id=family_id, is_active=True).all()
         
+        # Safely convert members to dict
+        members_list = []
+        for m in family_members:
+            try:
+                members_list.append(m.to_dict())
+            except Exception as member_error:
+                logger.warning(f"Error converting member {m.id} to dict: {member_error}")
+                # Fallback: create basic dict
+                try:
+                    members_list.append({
+                        'id': getattr(m, 'id', None),
+                        'full_name': getattr(m, 'full_name', 'Unknown'),
+                        'preferred_name': getattr(m, 'preferred_name', None),
+                        'email': getattr(m, 'email', None),
+                        'phone': getattr(m, 'phone', None),
+                        'campus': getattr(m, 'campus', None),
+                        'department': getattr(m, 'department', None),
+                    })
+                except Exception as fallback_error:
+                    logger.error(f"Error in fallback dict creation for member {m.id}: {fallback_error}")
+                    continue
+        
         return jsonify({
             'person_id': person_id,
             'family_id': family_id,
-            'members': [m.to_dict() for m in family_members],
+            'members': members_list,
             'has_family': True
         })
     except Exception as e:
         logger.error(f"Error fetching person family: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to fetch family'}), 500
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Full traceback: {error_details}")
+        return jsonify({'error': 'Failed to fetch family', 'details': str(e)}), 500
 
 
 @app.route('/api/persons/<person_id>/family/create', methods=['POST'])

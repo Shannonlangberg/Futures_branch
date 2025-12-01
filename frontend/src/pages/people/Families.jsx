@@ -17,6 +17,7 @@ import {
 const Families = () => {
   const [families, setFamilies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [campusFilter, setCampusFilter] = useState('all_campuses');
   const [healthFilter, setHealthFilter] = useState('all');
@@ -25,6 +26,11 @@ const Families = () => {
   const [campuses, setCampuses] = useState([]);
   const [selectedFamily, setSelectedFamily] = useState(null);
   const [showFamilyDetail, setShowFamilyDetail] = useState(false);
+  const [showCreateFamilyModal, setShowCreateFamilyModal] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [availablePeople, setAvailablePeople] = useState([]);
+  const [searchingPeople, setSearchingPeople] = useState(false);
+  const [peopleSearchTerm, setPeopleSearchTerm] = useState('');
 
   useEffect(() => {
     loadCampuses();
@@ -46,6 +52,7 @@ const Families = () => {
   const loadFamilies = async () => {
     try {
       setLoading(true);
+      setError('');
       const params = new URLSearchParams();
       if (campusFilter && campusFilter !== 'all_campuses') {
         params.append('campus', campusFilter);
@@ -70,9 +77,17 @@ const Families = () => {
       if (response.ok) {
         const data = await response.json();
         setFamilies(data.families || []);
+        if (data.families && data.families.length === 0) {
+          setError('No families found. Create a family by assigning family_id to people in the People section, or use the "Create Family" button below.');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.error || errorData.details || `Failed to load families (${response.status})`);
+        console.error('Error loading families:', errorData);
       }
     } catch (err) {
       console.error('Error loading families:', err);
+      setError(`Failed to connect to server: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -135,12 +150,108 @@ const Families = () => {
     );
   }
 
+  const searchPeople = async (search) => {
+    if (!search || search.length < 2) {
+      setAvailablePeople([]);
+      return;
+    }
+    try {
+      setSearchingPeople(true);
+      const params = new URLSearchParams();
+      params.append('search', search);
+      params.append('limit', '20');
+      const response = await fetch(`/api/persons?${params.toString()}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailablePeople(data.persons || data.people || []);
+      }
+    } catch (err) {
+      console.error('Error searching people:', err);
+    } finally {
+      setSearchingPeople(false);
+    }
+  };
+
+  const createFamilyForPerson = async (personId) => {
+    try {
+      const response = await fetch(`/api/persons/${personId}/family/create`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        await loadFamilies();
+        setShowCreateFamilyModal(false);
+        setPeopleSearchTerm('');
+        setAvailablePeople([]);
+      } else {
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || 'Failed to create family');
+      }
+    } catch (err) {
+      console.error('Error creating family:', err);
+      alert('Failed to create family');
+    }
+  };
+
+  const addMemberToFamily = async (familyPersonId, memberPersonId) => {
+    try {
+      const response = await fetch(`/api/persons/${familyPersonId}/family/add-member`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ member_person_id: memberPersonId })
+      });
+      if (response.ok) {
+        await loadFamilies();
+        setShowAddMemberModal(false);
+        setPeopleSearchTerm('');
+        setAvailablePeople([]);
+        // Refresh detail view if open
+        if (selectedFamily) {
+          const updatedFamily = families.find(f => f.id === selectedFamily.id);
+          if (updatedFamily) setSelectedFamily(updatedFamily);
+        }
+      } else {
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || 'Failed to add member');
+      }
+    } catch (err) {
+      console.error('Error adding member:', err);
+      alert('Failed to add member');
+    }
+  };
+
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-white mb-2">Families</h2>
-        <p className="text-white/60">Household behavior is the #1 pastoral predictor</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-2">Families</h2>
+          <p className="text-white/60">Household behavior is the #1 pastoral predictor</p>
+        </div>
+        <button
+          onClick={() => setShowCreateFamilyModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          <UserPlusIcon className="w-5 h-5" />
+          Create Family
+        </button>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300">
+          <div className="flex items-start gap-2">
+            <ExclamationTriangleIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <div className="font-semibold mb-1">Error Loading Families</div>
+              <div className="text-sm text-red-200/80">{error}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="mb-6 space-y-4">
@@ -202,7 +313,17 @@ const Families = () => {
       {loading ? (
         <div className="text-center py-12 text-white/60">Loading families...</div>
       ) : filteredFamilies.length === 0 ? (
-        <div className="text-center py-12 text-white/60">No families found matching your filters</div>
+        <div className="text-center py-12">
+          <div className="text-white/60 mb-4">No families found matching your filters</div>
+          {!error && (
+            <div className="text-white/40 text-sm">
+              <p className="mb-2">To create families:</p>
+              <p>1. Click "Create Family" above to assign a family_id to a person</p>
+              <p>2. Or edit people in the People section and assign them a family_id</p>
+              <p>3. Families are automatically grouped when people share the same family_id</p>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredFamilies.map((family) => (
@@ -304,6 +425,139 @@ const Families = () => {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Create Family Modal */}
+      {showCreateFamilyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-white">Create Family</h3>
+              <button
+                onClick={() => {
+                  setShowCreateFamilyModal(false);
+                  setPeopleSearchTerm('');
+                  setAvailablePeople([]);
+                }}
+                className="text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-white/60 mb-4">Search for a person to create a family for them:</p>
+            <div className="relative mb-4">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                value={peopleSearchTerm}
+                onChange={(e) => {
+                  setPeopleSearchTerm(e.target.value);
+                  searchPeople(e.target.value);
+                }}
+                placeholder="Search by name or email..."
+                className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {searchingPeople && (
+              <div className="text-center py-4 text-white/60">Searching...</div>
+            )}
+            {availablePeople.length > 0 && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {availablePeople.map((person) => (
+                  <div
+                    key={person.id}
+                    className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+                  >
+                    <div>
+                      <div className="text-white font-medium">{person.full_name}</div>
+                      {person.email && <div className="text-sm text-white/60">{person.email}</div>}
+                      {person.campus && <div className="text-xs text-white/40">{person.campus}</div>}
+                    </div>
+                    <button
+                      onClick={() => createFamilyForPerson(person.id)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                    >
+                      Create Family
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {peopleSearchTerm && !searchingPeople && availablePeople.length === 0 && (
+              <div className="text-center py-4 text-white/60">No people found</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && selectedFamily && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-white">Add Member to {selectedFamily.family_name}</h3>
+              <button
+                onClick={() => {
+                  setShowAddMemberModal(false);
+                  setPeopleSearchTerm('');
+                  setAvailablePeople([]);
+                }}
+                className="text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-white/60 mb-4">Search for a person to add to this family:</p>
+            <div className="relative mb-4">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                value={peopleSearchTerm}
+                onChange={(e) => {
+                  setPeopleSearchTerm(e.target.value);
+                  searchPeople(e.target.value);
+                }}
+                placeholder="Search by name or email..."
+                className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {searchingPeople && (
+              <div className="text-center py-4 text-white/60">Searching...</div>
+            )}
+            {availablePeople.length > 0 && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {availablePeople
+                  .filter(p => !selectedFamily.members.some(m => m.id === p.id))
+                  .map((person) => (
+                    <div
+                      key={person.id}
+                      className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+                    >
+                      <div>
+                        <div className="text-white font-medium">{person.full_name}</div>
+                        {person.email && <div className="text-sm text-white/60">{person.email}</div>}
+                        {person.campus && <div className="text-xs text-white/40">{person.campus}</div>}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const parentMember = selectedFamily.members.find(m => m.role === 'parent') || selectedFamily.members[0];
+                          if (parentMember) {
+                            addMemberToFamily(parentMember.id, person.id);
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                      >
+                        Add to Family
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+            {peopleSearchTerm && !searchingPeople && availablePeople.length === 0 && (
+              <div className="text-center py-4 text-white/60">No people found</div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -561,9 +815,12 @@ const FamilyDetailView = ({ family, onBack }) => {
           <PencilIcon className="h-5 w-5" />
           Add Pastoral Note
         </button>
-        <button className="px-6 py-3 bg-green-600/20 hover:bg-green-600/30 text-green-300 border border-green-500/30 rounded-lg transition-colors flex items-center gap-2">
+        <button 
+          onClick={() => setShowAddMemberModal(true)}
+          className="px-6 py-3 bg-green-600/20 hover:bg-green-600/30 text-green-300 border border-green-500/30 rounded-lg transition-colors flex items-center gap-2"
+        >
           <UserPlusIcon className="h-5 w-5" />
-          Assign Leader
+          Add Member
         </button>
       </div>
     </div>
