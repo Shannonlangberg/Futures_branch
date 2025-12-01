@@ -68,14 +68,34 @@ const Dashboard = () => {
     // Show campus selector for senior leadership or if no campus is selected
     if (userRole && (userRole === 'senior_leader' || userRole === 'admin' || userRole === 'senior_pastor' || userRole === 'lead_pastor')) {
       setShowCampusSelector(true);
-    } else if (userRole && userCampus && userCampus !== 'all_campuses') {
+    } else if (userRole && userCampus && userCampus !== 'all_campuses' && campuses.length > 0) {
       // Auto-select campus for campus pastors and other users with a campus
-      setSelectedCampus({
-        id: userCampus,
-        name: (Array.isArray(campuses) ? campuses.find(c => c.id === userCampus)?.name : userCampus) || userCampus,
-        isRollup: false
+      // Normalize campus ID for matching (lowercase, handle spaces/underscores)
+      const normalizedUserCampus = userCampus.toLowerCase().trim().replace(/\s+/g, '_');
+      
+      // Try to find campus with multiple matching strategies
+      const foundCampus = campuses.find(c => {
+        const campusId = (c.id || '').toLowerCase().trim();
+        const campusName = (c.name || '').toLowerCase().trim();
+        return campusId === normalizedUserCampus || 
+               campusId === userCampus.toLowerCase().trim() ||
+               campusName === userCampus.toLowerCase().trim() ||
+               campusName.includes(userCampus.toLowerCase().trim()) ||
+               campusId.includes(normalizedUserCampus);
       });
-    } else if (userRole && campuses.length > 0) {
+      
+      if (foundCampus) {
+        setSelectedCampus({
+          id: foundCampus.id,
+          name: foundCampus.name || foundCampus.display_name || userCampus,
+          isRollup: false
+        });
+      } else {
+        // If campus not found, log for debugging and show selector
+        console.warn(`[Dashboard] Campus not found for user: ${userCampus}. Available campuses:`, campuses.map(c => c.id));
+        setShowCampusSelector(true);
+      }
+    } else if (userRole && campuses.length > 0 && (!userCampus || userCampus === 'all_campuses')) {
       // If user has no specific campus but campuses are loaded, show selector
       setShowCampusSelector(true);
     }
@@ -137,10 +157,28 @@ const Dashboard = () => {
       
       if (Array.isArray(campusesList)) {
         if (userRole === 'campus_pastor' && userCampus && userCampus !== 'all_campuses') {
-          const userCampusData = campusesList.find(c => c.id === userCampus);
+          // Normalize campus ID for matching
+          const normalizedUserCampus = userCampus.toLowerCase().trim().replace(/\s+/g, '_');
+          
+          // Try multiple matching strategies
+          const userCampusData = campusesList.find(c => {
+            const campusId = (c.id || '').toLowerCase().trim();
+            const campusName = (c.name || '').toLowerCase().trim();
+            return campusId === normalizedUserCampus || 
+                   campusId === userCampus.toLowerCase().trim() ||
+                   campusName === userCampus.toLowerCase().trim() ||
+                   campusName.includes(userCampus.toLowerCase().trim()) ||
+                   campusId.includes(normalizedUserCampus);
+          });
+          
           if (userCampusData) {
             setCampuses([userCampusData]);
-            setCampus(userCampus);
+            setCampus(userCampusData.id); // Use the actual campus ID from the found campus
+          } else {
+            // If campus not found, log for debugging
+            console.warn(`[Dashboard] Campus pastor campus "${userCampus}" not found in campuses list. Available:`, campusesList.map(c => `${c.id} (${c.name})`));
+            // Still set campuses so user can see what's available
+            setCampuses(campusesList);
           }
         } else {
           setCampuses(campusesList);
