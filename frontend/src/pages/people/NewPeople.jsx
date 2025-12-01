@@ -307,22 +307,6 @@ const NewPeople = () => {
                         <ChevronDownIcon className="h-4 w-4 text-white" />
                       </div>
                     </div>
-                    <select
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          updateFollowUpStatus(person.id, e.target.value);
-                          e.target.value = '';
-                        }
-                      }}
-                      disabled={updatingStatus[person.id]}
-                      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-none outline-none"
-                    >
-                      <option value="">Update Status...</option>
-                      <option value="needed">Needed</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="connected">Connected</option>
-                      <option value="joined_events">Joined Events</option>
-                    </select>
                   </div>
 
                   {/* Expanded Details */}
