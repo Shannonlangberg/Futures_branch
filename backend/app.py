@@ -15103,6 +15103,39 @@ def update_person(person_id):
             else:
                 person.birthday = None
         
+        # Update new people tracking fields
+        if 'follow_up_status' in data:
+            # Normalize follow_up_status - convert empty string to None
+            status_value = data['follow_up_status'].strip() if data.get('follow_up_status') else None
+            # Only set if column exists (use getattr to check safely)
+            if hasattr(person, 'follow_up_status'):
+                person.follow_up_status = status_value if status_value else None
+        
+        if 'service_attended' in data:
+            # Normalize service_attended - convert empty string to None
+            service_value = data['service_attended'].strip() if data.get('service_attended') else None
+            if hasattr(person, 'service_attended'):
+                person.service_attended = service_value if service_value else None
+        
+        if 'is_new_christian' in data:
+            if hasattr(person, 'is_new_christian'):
+                person.is_new_christian = bool(data['is_new_christian'])
+        
+        if 'new_christian_date' in data:
+            if hasattr(person, 'new_christian_date'):
+                value = data['new_christian_date']
+                if value == '' or value is None:
+                    person.new_christian_date = None
+                else:
+                    try:
+                        if isinstance(value, str):
+                            parsed_date = datetime.strptime(value, '%Y-%m-%d').date()
+                            person.new_christian_date = parsed_date
+                        else:
+                            person.new_christian_date = value
+                    except ValueError:
+                        return jsonify({'error': 'Invalid date format for new_christian_date'}), 400
+        
         # Update discipleship milestones (convert empty strings to None)
         milestone_fields = [
             'dna_completed', 'baptised_on', 'rise_attended', 
@@ -21925,7 +21958,7 @@ def create_family_for_person(person_id):
             logger.info(f"Decoded person_id from '{person_id}' to '{person_id_decoded}'")
             person_id = person_id_decoded
         
-        # Check if family_id column exists
+        # Check if family_id column exists, and create it if it doesn't
         try:
             table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
             existing_columns = [row[1] for row in table_info]
@@ -21935,12 +21968,35 @@ def create_family_for_person(person_id):
             has_family_id = False
         
         if not has_family_id:
-            logger.error(f"Family feature not available - family_id column missing for person {person_id}")
-            return jsonify({
-                'error': 'Family feature not available',
-                'details': 'The family_id column does not exist in the database. Please run migration 035_add_people_section_fields.sql',
-                'person_id': person_id
-            }), 400
+            logger.warning(f"family_id column missing - attempting to create it automatically")
+            try:
+                # Try to add the column automatically
+                db.session.execute(text("ALTER TABLE persons ADD COLUMN family_id TEXT"))
+                db.session.commit()
+                logger.info("Successfully added family_id column to persons table")
+                has_family_id = True
+            except OperationalError as alter_error:
+                error_msg = str(alter_error).lower()
+                if 'duplicate column' in error_msg or 'already exists' in error_msg:
+                    logger.info("family_id column already exists (race condition)")
+                    has_family_id = True
+                else:
+                    logger.error(f"Failed to add family_id column: {alter_error}")
+                    db.session.rollback()
+                    return jsonify({
+                        'error': 'Family feature not available',
+                        'details': 'The family_id column does not exist and could not be created automatically. Please run migration 035_add_people_section_fields.sql',
+                        'person_id': person_id,
+                        'database_error': str(alter_error)
+                    }), 400
+            except Exception as alter_error:
+                logger.error(f"Unexpected error adding family_id column: {alter_error}")
+                db.session.rollback()
+                return jsonify({
+                    'error': 'Family feature not available',
+                    'details': 'The family_id column does not exist and could not be created. Please run migration 035_add_people_section_fields.sql',
+                    'person_id': person_id
+                }), 400
         
         logger.info(f"Looking up person with id: '{person_id}'")
         person = Person.query.get(person_id)
