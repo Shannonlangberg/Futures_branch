@@ -58,3 +58,4 @@ These are kept for backward compatibility. The main management routes are now ha
 
 **The Beacon Management page should now work!** 🎉
 
+

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import PastoralCare from './PastoralCare';
 import { useSearchParams } from 'react-router-dom';
 
@@ -9,12 +9,13 @@ import { useSearchParams } from 'react-router-dom';
 const PrayerWrapper = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   
-  // Ensure the tab is set to 'prayer' if not already set
-  React.useEffect(() => {
-    if (searchParams.get('tab') !== 'prayer') {
-      setSearchParams({ tab: 'prayer' });
+  // Force the tab to 'prayer' immediately when component mounts
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== 'prayer') {
+      setSearchParams({ tab: 'prayer' }, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, []); // Only run on mount
   
   // Render PastoralCare directly - it will read the tab parameter
   return <PastoralCare />;

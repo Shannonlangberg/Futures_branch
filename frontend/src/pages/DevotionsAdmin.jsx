@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 const DevotionsAdmin = () => {
   const [plans, setPlans] = useState([]);
+  const [campuses, setCampuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -12,7 +13,7 @@ const DevotionsAdmin = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    campus: '',
+    campus: '', // Empty = All Campuses
     total_days: 30, // Add custom length
     start_date: '',
     end_date: '',
@@ -20,8 +21,29 @@ const DevotionsAdmin = () => {
   });
 
   useEffect(() => {
+    fetchCampuses();
     fetchPlans();
   }, []);
+
+  const fetchCampuses = async () => {
+    try {
+      const response = await fetch('/api/campuses/public');
+      if (response.ok) {
+        const data = await response.json();
+        // Filter out "all_campuses" and sort by name
+        const filteredCampuses = (data.campuses || [])
+          .filter(campus => campus.id !== 'all_campuses')
+          .sort((a, b) => {
+            const nameA = (a.name || a.display_name || '').toLowerCase();
+            const nameB = (b.name || b.display_name || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
+        setCampuses(filteredCampuses);
+      }
+    } catch (err) {
+      console.error('Error fetching campuses:', err);
+    }
+  };
 
   const fetchPlans = async () => {
     try {
@@ -104,7 +126,7 @@ const DevotionsAdmin = () => {
     setFormData({
       title: '',
       description: '',
-      campus: '',
+      campus: '', // Empty = All Campuses
       total_days: 30,
       start_date: '',
       end_date: '',
@@ -117,7 +139,7 @@ const DevotionsAdmin = () => {
     setFormData({
       title: plan.title,
       description: plan.description || '',
-      campus: plan.campus || '',
+      campus: plan.campus || '', // Empty/null = All Campuses
       total_days: plan.total_days || 30,
       start_date: plan.start_date ? plan.start_date.split('T')[0] : '',
       end_date: plan.end_date ? plan.end_date.split('T')[0] : '',
@@ -255,13 +277,21 @@ const DevotionsAdmin = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-2">Campus</label>
-                  <input
-                    type="text"
-                    value={formData.campus}
-                    onChange={(e) => setFormData({...formData, campus: e.target.value})}
-                    className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="All Campuses"
-                  />
+                  <select
+                    value={formData.campus || ''}
+                    onChange={(e) => setFormData({...formData, campus: e.target.value || ''})}
+                    className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">All Campuses</option>
+                    {campuses.map((campus) => (
+                      <option key={campus.id} value={campus.id || campus.name}>
+                        {campus.name || campus.display_name || campus.id}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-white/50 mt-1">
+                    {formData.campus ? 'Only visible to people from this campus' : 'Visible to all campuses'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-2">Status</label>
@@ -349,7 +379,11 @@ const DevotionsAdmin = () => {
                       <p className="text-sm text-white/60 mb-3 line-clamp-2">{plan.description}</p>
                     )}
                     <div className="flex flex-wrap gap-2 text-xs text-white/50">
-                      <span>{plan.campus || 'All Campuses'}</span>
+                      <span>
+                        {plan.campus 
+                          ? (campuses.find(c => (c.id || c.name) === plan.campus)?.name || campuses.find(c => (c.id || c.name) === plan.campus)?.display_name || plan.campus)
+                          : 'All Campuses'}
+                      </span>
                       <span>•</span>
                       <span>{plan.content_count || 0} / {plan.total_days || 30} days</span>
                       <span>•</span>

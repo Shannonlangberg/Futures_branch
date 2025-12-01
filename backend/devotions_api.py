@@ -53,8 +53,67 @@ def enforce_positive_response(f):
 def get_devotion_library():
     """Get user's devotion library with assigned, in-progress, completed, and personal plans"""
     try:
-        # This would query the database using the get_devotion_library function
-        # For now, return sample data
+        # Try to import devotions models
+        try:
+            from devotions_models import DevotionPlan
+            from models import db
+        except ImportError:
+            DevotionPlan = None
+        
+        # Get user's campus
+        user_campus = getattr(current_user, 'campus', None) or 'all_campuses'
+        
+        # Query published plans that are visible to this user's campus
+        if DevotionPlan:
+            try:
+                # Get plans where:
+                # 1. Status is 'published'
+                # 2. Campus is None (all campuses) OR matches user's campus
+                query = DevotionPlan.query.filter(
+                    DevotionPlan.status == 'published'
+                )
+                
+                # Filter by campus: show if campus is None/empty (all) or matches user's campus
+                if user_campus and user_campus != 'all_campuses':
+                    # Show plans for all campuses (None or empty) OR user's specific campus
+                    from sqlalchemy import or_
+                    query = query.filter(
+                        or_(
+                            DevotionPlan.campus.is_(None),
+                            DevotionPlan.campus == '',
+                            DevotionPlan.campus == user_campus
+                        )
+                    )
+                # If user has all_campuses access, show all published plans (no filter)
+                
+                plans = query.order_by(DevotionPlan.created_at.desc()).all()
+                
+                # Format plans for library
+                assigned = []
+                for plan in plans:
+                    assigned.append({
+                        'id': plan.id,
+                        'title': plan.title,
+                        'description': plan.description or '',
+                        'cover_url': plan.cover_url,
+                        'campus': plan.campus or 'All Campuses',
+                        'total_days': plan.total_days or 30,
+                        'content_count': plan.content.count() if hasattr(plan, 'content') else 0
+                    })
+                
+                library_data = {
+                    'assigned': assigned,
+                    'in_progress': [],  # TODO: Get from plan_assignments table
+                    'completed': [],   # TODO: Get from plan_assignments with completed status
+                    'personal': []     # TODO: Get personal plans
+                }
+                
+                return jsonify(library_data)
+            except Exception as db_error:
+                logger.warning(f"Error querying devotions: {db_error}")
+                # Fall through to sample data
+        
+        # Fallback to sample data if models not available
         library_data = {
             'assigned': [
                 {
@@ -63,35 +122,11 @@ def get_devotion_library():
                     'description': 'Start your day with God',
                     'cover_url': None,
                     'assigned_at': '2024-08-15T00:00:00Z'
-                },
-                {
-                    'id': '2',
-                    'title': 'Bible Reading Plan',
-                    'description': 'Read through the New Testament',
-                    'cover_url': None,
-                    'assigned_at': '2024-08-10T00:00:00Z'
                 }
             ],
-            'in_progress': [
-                {
-                    'id': '1',
-                    'title': 'Daily Devotional',
-                    'description': 'Start your day with God',
-                    'cover_url': None,
-                    'current_day': 1,
-                    'completed_days': []
-                }
-            ],
+            'in_progress': [],
             'completed': [],
-            'personal': [
-                {
-                    'id': '3',
-                    'title': 'Personal Study',
-                    'description': 'Your personal devotional plan',
-                    'cover_url': None,
-                    'created_at': '2024-08-01T00:00:00Z'
-                }
-            ]
+            'personal': []
         }
         
         return jsonify(library_data)
