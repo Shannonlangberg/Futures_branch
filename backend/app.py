@@ -22136,61 +22136,64 @@ def get_new_christians():
                 elif person.baptised_on and person.baptised_on >= two_years_ago:
                     is_new_christian = True
                     new_christian_date = person.baptised_on.isoformat() if hasattr(person.baptised_on, 'isoformat') else str(person.baptised_on)
-            
-            if is_new_christian:
-                # Get pathway progress
-                pathway_progress = "Not started"
-                try:
-                    pathway = PersonPathwayProgress.query.filter_by(person_id=person.id).first()
-                    if pathway:
-                        completed_steps = PersonPathwayStepCompletion.query.filter_by(
-                            person_id=person.id,
-                            completed=True
-                        ).count()
-                        total_steps = PathwayStep.query.count()
-                        pathway_progress = f"Step {completed_steps} of {total_steps}"
-                except:
-                    pass
                 
-                # Calculate group attendance
-                group_attendance = 0
-                try:
-                    engagement_profile = getattr(person, 'engagement_profile', None)
-                    if engagement_profile:
-                        try:
-                            attendance_log = json.loads(getattr(engagement_profile, 'attendance_log', None) or '[]')
-                            group_attendance = len([a for a in attendance_log if a.get('type') == 'group'])
-                        except:
-                            pass
-                except Exception:
-                    pass
-                
-                # Generate AI analysis
-                ai_analysis = f"This person is progressing well. "
-                if person.baptised_on:
-                    days_since_baptism = (datetime.utcnow().date() - person.baptised_on).days
-                    ai_analysis += f"Baptised {days_since_baptism} days ago. "
-                
-                suggested_next_step = "Continue discipleship"
-                if not pathway_progress or pathway_progress == "Not started":
-                    suggested_next_step = "Start Foundations course"
-                elif group_attendance < 3:
-                    suggested_next_step = "Connect to a group"
-                elif person.first_served_on is None:
-                    suggested_next_step = "Start serving"
-                
-                new_christians.append({
-                    'id': person.id,
-                    'name': person.preferred_name or person.full_name,
-                    'new_christian_date': new_christian_date,
-                    'foundations_progress': '50%',  # TODO: Calculate from pathway
-                    'pathway_progress': pathway_progress,
-                    'attendance_since_decision': group_attendance,
-                    'group_attendance': int((group_attendance / 12) * 100) if group_attendance > 0 else 0,  # Percentage
-                    'pulse_tv_usage': 'Medium',  # TODO: Calculate from engagement
-                    'ai_analysis': ai_analysis,
-                    'suggested_next_step': suggested_next_step
-                })
+                if is_new_christian:
+                    # Get pathway progress
+                    pathway_progress = "Not started"
+                    try:
+                        pathway = PersonPathwayProgress.query.filter_by(person_id=person.id).first()
+                        if pathway:
+                            completed_steps = PersonPathwayStepCompletion.query.filter_by(
+                                person_id=person.id,
+                                completed=True
+                            ).count()
+                            total_steps = PathwayStep.query.count()
+                            pathway_progress = f"Step {completed_steps} of {total_steps}"
+                    except:
+                        pass
+                    
+                    # Calculate group attendance
+                    group_attendance = 0
+                    try:
+                        engagement_profile = getattr(person, 'engagement_profile', None)
+                        if engagement_profile:
+                            try:
+                                attendance_log = json.loads(getattr(engagement_profile, 'attendance_log', None) or '[]')
+                                group_attendance = len([a for a in attendance_log if a.get('type') == 'group'])
+                            except:
+                                pass
+                    except Exception:
+                        pass
+                    
+                    # Generate AI analysis
+                    ai_analysis = f"This person is progressing well. "
+                    if person.baptised_on:
+                        days_since_baptism = (datetime.utcnow().date() - person.baptised_on).days
+                        ai_analysis += f"Baptised {days_since_baptism} days ago. "
+                    
+                    suggested_next_step = "Continue discipleship"
+                    if not pathway_progress or pathway_progress == "Not started":
+                        suggested_next_step = "Start Foundations course"
+                    elif group_attendance < 3:
+                        suggested_next_step = "Connect to a group"
+                    elif person.first_served_on is None:
+                        suggested_next_step = "Start serving"
+                    
+                    new_christians.append({
+                        'id': person.id,
+                        'name': person.preferred_name or person.full_name,
+                        'new_christian_date': new_christian_date,
+                        'foundations_progress': '50%',  # TODO: Calculate from pathway
+                        'pathway_progress': pathway_progress,
+                        'attendance_since_decision': group_attendance,
+                        'group_attendance': int((group_attendance / 12) * 100) if group_attendance > 0 else 0,  # Percentage
+                        'pulse_tv_usage': 'Medium',  # TODO: Calculate from engagement
+                        'ai_analysis': ai_analysis,
+                        'suggested_next_step': suggested_next_step
+                    })
+            except Exception as e:
+                logger.warning(f"Error processing person {getattr(person, 'id', 'unknown')} in new_christians: {e}")
+                continue
         
         return jsonify({
             'new_christians': new_christians,
