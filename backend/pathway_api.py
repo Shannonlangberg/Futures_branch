@@ -485,20 +485,9 @@ def assign_pathway_to_person(person_id):
             logger.error(f"Pathway not found: {pathway_id}")
             return jsonify({'error': f'Pathway not found: {pathway_id}'}), 404
         
-        # Check if this exact pathway is already assigned (prevent duplicates)
-        existing_same = PersonPathwayProgress.query.filter_by(
-            person_id=person_id,
-            pathway_id=pathway_id,
-            is_active=True
-        ).first()
-        
-        if existing_same:
-            logger.info(f"Pathway {pathway_id} already assigned to person {person_id}")
-            return jsonify({'error': 'This journey is already assigned to this person'}), 400
-        
-        # Allow assigning new pathways even if others exist
-        # Optionally, if replace_existing is true, mark old pathways as inactive
-        if data.get('replace_existing', False):
+        # If replace_existing is true, deactivate all existing pathways first
+        replace_existing = data.get('replace_existing', False)
+        if replace_existing:
             existing_all = PersonPathwayProgress.query.filter_by(
                 person_id=person_id,
                 is_active=True
@@ -507,6 +496,19 @@ def assign_pathway_to_person(person_id):
                 old_progress.is_active = False
                 old_progress.updated_at = datetime.utcnow()
             db.session.flush()  # Flush before creating new progress
+        
+        # Check if this exact pathway is already assigned (prevent duplicates)
+        # Skip this check if replace_existing was true (we already deactivated old ones)
+        if not replace_existing:
+            existing_same = PersonPathwayProgress.query.filter_by(
+                person_id=person_id,
+                pathway_id=pathway_id,
+                is_active=True
+            ).first()
+            
+            if existing_same:
+                logger.info(f"Pathway {pathway_id} already assigned to person {person_id}")
+                return jsonify({'error': 'This journey is already assigned to this person'}), 400
         
         # Get first step - handle missing step_actions column gracefully
         first_step = None
