@@ -142,10 +142,10 @@ def get_campus_people(campus_id):
                         setattr(person, key, value)
                     people.append(person)
             else:
-            query = Person.query.filter_by(
-                campus=campus.name,
-                is_active=True
-            )
+                query = Person.query.filter_by(
+                    campus=campus.name,
+                    is_active=True
+                )
             
             # Apply department filter if provided
             if department_filter:
@@ -294,9 +294,9 @@ def get_person_heartbeat(person_id):
             for key, value in person_dict.items():
                 setattr(person, key, value)
         else:
-        person = Person.query.get(person_id)
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+            person = Person.query.get(person_id)
+            if not person:
+                return jsonify({'error': 'Person not found'}), 404
         
         # Refresh person from database to ensure we have latest milestone data and connect_group
         db.session.refresh(person)
@@ -442,14 +442,14 @@ def get_person_heartbeat(person_id):
         # Enrich with group names
         for att in recent_connect:
             try:
-            if att.connect_group:
-                att_dict = att.to_dict()
-                att_dict['connect_group'] = {
-                    'id': att.connect_group.id,
-                    'name': att.connect_group.name
-                }
-                # Replace the to_dict result with enriched version
-                att._enriched_dict = att_dict
+                if att.connect_group:
+                    att_dict = att.to_dict()
+                    att_dict['connect_group'] = {
+                        'id': att.connect_group.id,
+                        'name': att.connect_group.name
+                    }
+                    # Replace the to_dict result with enriched version
+                    att._enriched_dict = att_dict
             except Exception as e:
                 logger.warning(f"Error enriching connect attendance: {e}")
                 # Try to create a basic dict if to_dict fails
@@ -890,9 +890,9 @@ def recalculate_campus(campus_id):
                         setattr(person, key, value)
                     all_people.append(person)
             else:
-            all_people = Person.query.filter_by(is_active=True).all()
-            processed = 0
-            errors = 0
+                all_people = Person.query.filter_by(is_active=True).all()
+                processed = 0
+                errors = 0
             
             for person in all_people:
                 try:
@@ -1049,11 +1049,11 @@ def get_next_steps():
                     setattr(person, key, value)
                 people.append(person)
         else:
-        query = Person.query.filter_by(is_active=True)
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter_by(campus=campus_filter)
-        if department_filter:
-            query = query.filter_by(department=department_filter)
+            query = Person.query.filter_by(is_active=True)
+            if campus_filter and campus_filter != 'all_campuses':
+                query = query.filter_by(campus=campus_filter)
+            if department_filter:
+                query = query.filter_by(department=department_filter)
         
         people = query.all()
         
@@ -1255,10 +1255,10 @@ def get_campus_overview():
                         setattr(person, key, value)
                     people.append(person)
             else:
-            people = Person.query.filter_by(
-                campus=campus.name,
-                is_active=True
-            ).all()
+                people = Person.query.filter_by(
+                    campus=campus.name,
+                    is_active=True
+                ).all()
             
             stats = {
                 'total': len(people),
@@ -1356,10 +1356,10 @@ def get_department_overview():
                         setattr(person, key, value)
                     people.append(person)
             else:
-            query = Person.query.filter_by(
-                department=dept,
-                is_active=True
-            )
+                query = Person.query.filter_by(
+                    department=dept,
+                    is_active=True
+                )
             
             if campus_filter and campus_filter != 'all_campuses':
                 query = query.filter_by(campus=campus_filter)
