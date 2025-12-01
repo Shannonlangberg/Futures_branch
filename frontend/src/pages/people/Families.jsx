@@ -34,6 +34,7 @@ const Families = () => {
   const [availablePeople, setAvailablePeople] = useState([]);
   const [searchingPeople, setSearchingPeople] = useState(false);
   const [peopleSearchTerm, setPeopleSearchTerm] = useState('');
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     loadCampuses();
@@ -211,11 +212,12 @@ const Families = () => {
         setAvailablePeople([]);
         
         if (data.already_exists) {
-          alert('This person already has a family assigned.');
+          setToast({ type: 'info', message: 'This person already has a family assigned.' });
           await loadFamilies();
         } else {
           // Reload families to get the newly created one
           await loadFamilies();
+          setToast({ type: 'success', message: 'Family created successfully!' });
           
           // Wait a moment for state to update, then find and open the family
           setTimeout(async () => {
@@ -244,17 +246,12 @@ const Families = () => {
                     if (familyById) {
                       setSelectedFamily(familyById);
                       setShowFamilyDetail(true);
-                    } else {
-                      alert('Family created successfully! Click on it in the list to add members.');
                     }
-                  } else {
-                    alert('Family created successfully! Click on it in the list to add members.');
                   }
                 }
               }
             } catch (err) {
               console.error('Error loading family detail:', err);
-              alert('Family created successfully! Refresh the page to see it.');
             }
           }, 500);
         }
@@ -267,11 +264,11 @@ const Families = () => {
           data: data,
           personId: personId
         });
-        alert(`${errorMsg}\n\nPerson ID: ${personId}\nStatus: ${response.status}`);
+        setToast({ type: 'error', message: errorMsg });
       }
     } catch (err) {
       console.error('Error creating family:', err);
-      alert(`Failed to create family: ${err.message}\n\nCheck console for details.`);
+      setToast({ type: 'error', message: `Failed to create family: ${err.message}` });
     }
   };
 
@@ -295,11 +292,11 @@ const Families = () => {
         }
       } else {
         const error = await response.json().catch(() => ({}));
-        alert(error.error || 'Failed to add member');
+        setToast({ type: 'error', message: error.error || 'Failed to add member' });
       }
     } catch (err) {
       console.error('Error adding member:', err);
-      alert('Failed to add member');
+      setToast({ type: 'error', message: 'Failed to add member' });
     }
   };
 
