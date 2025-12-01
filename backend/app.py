@@ -6662,62 +6662,62 @@ def get_dashboard_data(campus, date_filter='last_12_months', custom_start_date='
                 prev_year_campuses.add(f"{row_campus} -> {normalize_campus(row_campus)}")
         print(f"[DEBUG PREV YEAR] Unique campuses found: {prev_year_campuses}")
         
-                # Calculate monthly trends for previous year
-                prev_monthly_trends = {}
-                prev_rows_matched_campus = 0
-                for row in prev_filtered_rows:
-                    try:
-                        row_date = None
-                        date_str = row.get("Date", "")
-                        if isinstance(date_str, str):
-                            for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y']:
-                                try:
-                                    row_date = datetime.strptime(date_str, fmt)
-                                    break
-                                except ValueError:
-                                    continue
-                        
-                        if not row_date:
+        # Calculate monthly trends for previous year
+        prev_monthly_trends = {}
+        prev_rows_matched_campus = 0
+        for row in prev_filtered_rows:
+            try:
+                row_date = None
+                date_str = row.get("Date", "")
+                if isinstance(date_str, str):
+                    for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y']:
+                        try:
+                            row_date = datetime.strptime(date_str, fmt)
+                            break
+                        except ValueError:
                             continue
-                        
-                        # Filter by campus if not all_campuses
-                        if campus not in ['all_campuses', 'australia']:
-                            row_campus = normalize_campus(row.get('Campus', ''))
-                            campus_normalized = normalize_campus(campus)
-                            if row_campus != campus_normalized:
-                                continue
-                        
-                        prev_rows_matched_campus += 1
-                        
-                        # Calculate monthly trends
-                        month_key = row_date.strftime('%Y-%m')
-                        if month_key not in prev_monthly_trends:
-                            prev_monthly_trends[month_key] = {
-                                'attendance': 0,
-                                'count': 0,
-                                'new_people': 0,
-                                'new_christians': 0,
-                                'tithe': 0
-                            }
-                        
-                        # Calculate attendance by summing service time columns
-                        service_times = ['9:00 AM', '10:00 AM', '11:00 AM', '5:00 PM', '5:30 PM']
-                        attendance = 0
-                        for service_time in service_times:
-                            value = row.get(service_time, '')
-                            if value is not None and value != '' and str(value).strip() != '':
-                                try:
-                                    attendance += int(str(value).replace(',', '').strip())
-                                except (ValueError, TypeError):
-                                    continue
-                        
-                        # Accept both "First Time" and "First Time Visitors" for flexibility
-                        first_time_visitors = get_stat_value(row, ['First Time', 'First Time Visitors', 'first_time_visitors'])
-                        visitors = get_stat_value(row, ['Visitors', 'visitors'])
-                        new_people = first_time_visitors + visitors
-                        first_time_christians = get_stat_value(row, ['First Time Christians', 'first_time_christians'])
-                        rededications = get_stat_value(row, ['Rededications', 'rededications'])
-                        new_christians = first_time_christians + rededications
+                
+                if not row_date:
+                    continue
+                
+                # Filter by campus if not all_campuses
+                if campus not in ['all_campuses', 'australia']:
+                    row_campus = normalize_campus(row.get('Campus', ''))
+                    campus_normalized = normalize_campus(campus)
+                    if row_campus != campus_normalized:
+                        continue
+                
+                prev_rows_matched_campus += 1
+                
+                # Calculate monthly trends
+                month_key = row_date.strftime('%Y-%m')
+                if month_key not in prev_monthly_trends:
+                    prev_monthly_trends[month_key] = {
+                        'attendance': 0,
+                        'count': 0,
+                        'new_people': 0,
+                        'new_christians': 0,
+                        'tithe': 0
+                    }
+                
+                # Calculate attendance by summing service time columns
+                service_times = ['9:00 AM', '10:00 AM', '11:00 AM', '5:00 PM', '5:30 PM']
+                attendance = 0
+                for service_time in service_times:
+                    value = row.get(service_time, '')
+                    if value is not None and value != '' and str(value).strip() != '':
+                        try:
+                            attendance += int(str(value).replace(',', '').strip())
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Accept both "First Time" and "First Time Visitors" for flexibility
+                first_time_visitors = get_stat_value(row, ['First Time', 'First Time Visitors', 'first_time_visitors'])
+                visitors = get_stat_value(row, ['Visitors', 'visitors'])
+                new_people = first_time_visitors + visitors
+                first_time_christians = get_stat_value(row, ['First Time Christians', 'first_time_christians'])
+                rededications = get_stat_value(row, ['Rededications', 'rededications'])
+                new_christians = first_time_christians + rededications
                 
                 prev_monthly_trends[month_key]['attendance'] += attendance
                 prev_monthly_trends[month_key]['count'] += 1
