@@ -180,15 +180,30 @@ const Families = () => {
 
   const createFamilyForPerson = async (personId) => {
     try {
+      console.log('Creating family for person:', personId);
+      
       // URL encode the person ID to handle special characters (like spaces in PCO IDs)
       const encodedPersonId = encodeURIComponent(personId);
-      const response = await fetch(`/api/persons/${encodedPersonId}/family/create`, {
+      console.log('Encoded person ID:', encodedPersonId);
+      
+      const url = `/api/persons/${encodedPersonId}/family/create`;
+      console.log('Request URL:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
       
-      const data = await response.json().catch(() => ({}));
+      console.log('Response status:', response.status);
+      
+      const data = await response.json().catch(async () => {
+        const text = await response.text().catch(() => 'No response body');
+        console.error('Failed to parse JSON response:', text);
+        return { error: 'Invalid response from server', details: text };
+      });
+      
+      console.log('Response data:', data);
       
       if (response.ok) {
         await loadFamilies();
@@ -203,12 +218,17 @@ const Families = () => {
       } else {
         // Show detailed error message
         const errorMsg = data.error || data.details || `Failed to create family (${response.status})`;
-        console.error('Error creating family:', data);
-        alert(errorMsg);
+        console.error('Error creating family:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data,
+          personId: personId
+        });
+        alert(`${errorMsg}\n\nPerson ID: ${personId}\nStatus: ${response.status}`);
       }
     } catch (err) {
       console.error('Error creating family:', err);
-      alert(`Failed to create family: ${err.message}`);
+      alert(`Failed to create family: ${err.message}\n\nCheck console for details.`);
     }
   };
 

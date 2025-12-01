@@ -21909,15 +21909,21 @@ def get_person_family(person_id):
 def create_family_for_person(person_id):
     """Create a new family and assign person to it"""
     try:
+        logger.info(f"Creating family for person_id: {person_id}")
+        
         if not current_user.has_permission('edit_access'):
+            logger.warning(f"User {current_user.id} does not have edit_access permission")
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         from sqlalchemy import text
         from sqlalchemy.exc import OperationalError
         
-        # URL decode person_id in case it was encoded
+        # URL decode person_id in case it was encoded (Flask should handle this, but be safe)
         from urllib.parse import unquote
-        person_id = unquote(person_id)
+        person_id_decoded = unquote(person_id)
+        if person_id_decoded != person_id:
+            logger.info(f"Decoded person_id from '{person_id}' to '{person_id_decoded}'")
+            person_id = person_id_decoded
         
         # Check if family_id column exists
         try:
@@ -21932,12 +21938,26 @@ def create_family_for_person(person_id):
             logger.error(f"Family feature not available - family_id column missing for person {person_id}")
             return jsonify({
                 'error': 'Family feature not available',
-                'details': 'The family_id column does not exist in the database. Please run migration 035_add_people_section_fields.sql'
+                'details': 'The family_id column does not exist in the database. Please run migration 035_add_people_section_fields.sql',
+                'person_id': person_id
             }), 400
         
+        logger.info(f"Looking up person with id: '{person_id}'")
         person = Person.query.get(person_id)
         if not person:
-            return jsonify({'error': 'Person not found'}), 404
+            # Try to find by exact match or similar
+            logger.warning(f"Person not found with id '{person_id}', trying alternative lookup")
+            # Check if there's a space issue
+            person_with_space = Person.query.filter_by(id=person_id).first()
+            if not person_with_space:
+                # Try without any encoding
+                all_persons = Person.query.limit(5).all()
+                logger.warning(f"Sample person IDs: {[p.id for p in all_persons]}")
+            return jsonify({
+                'error': 'Person not found',
+                'person_id': person_id,
+                'details': f'No person found with ID: {person_id}'
+            }), 404
         
         # Check if person already has a family
         existing_family_id = getattr(person, 'family_id', None)
