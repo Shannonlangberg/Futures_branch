@@ -22185,8 +22185,9 @@ def create_family_for_person(person_id):
                 logger.warning(f"Person not found with id '{person_id}'")
                 return jsonify({'error': 'Person not found'}), 404
             
-            # Get column names from the result
-            column_names = [desc[0] for desc in result.keys()] if hasattr(result, 'keys') else [desc[0] for desc in db.session.execute(text("PRAGMA table_info(persons)")).fetchall()]
+            # Get column names from table info
+            table_info = db.session.execute(text("PRAGMA table_info(persons)")).fetchall()
+            column_names = [row[1] for row in table_info]
             person_dict = dict(zip(column_names, result))
             
             # Create Person object and set attributes
@@ -22197,16 +22198,18 @@ def create_family_for_person(person_id):
         except Exception as query_error:
             logger.error(f"Error querying person with raw SQL: {query_error}", exc_info=True)
             # Fallback to ORM query (might fail if columns missing)
-            person = Person.query.get(person_id)
+            try:
+                person = Person.query.get(person_id)
+            except Exception as orm_error:
+                logger.error(f"ORM query also failed: {orm_error}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to query person',
+                    'details': f'Database query error: {str(orm_error)}',
+                    'person_id': person_id
+                }), 500
+        
         if not person:
-            # Try to find by exact match or similar
-            logger.warning(f"Person not found with id '{person_id}', trying alternative lookup")
-            # Check if there's a space issue
-            person_with_space = Person.query.filter_by(id=person_id).first()
-            if not person_with_space:
-                # Try without any encoding
-                all_persons = Person.query.limit(5).all()
-                logger.warning(f"Sample person IDs: {[p.id for p in all_persons]}")
+            logger.warning(f"Person not found with id '{person_id}'")
             return jsonify({
                 'error': 'Person not found',
                 'person_id': person_id,
