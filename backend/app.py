@@ -1199,14 +1199,14 @@ def run_migrations():
                     logger.warning(f"Migration {migration_file} failed, but continuing startup...")
                     # Don't raise - allow app to start
         
-        conn.close()
-        logger.info("All migrations completed successfully")
-        
-        # Ensure step_actions column exists (critical for pathway assignment)
+        # Ensure step_actions column exists (critical for pathway assignment) before closing
         try:
             ensure_step_actions_column(conn)
         except Exception as e:
             logger.warning(f"Could not ensure step_actions column: {e}")
+        
+        conn.close()
+        logger.info("All migrations completed successfully")
         
     except Exception as e:
         logger.error(f"Migration error: {e}", exc_info=True)
