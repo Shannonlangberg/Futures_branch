@@ -63,7 +63,15 @@ const SeriesCard = ({ series, isLarge = false }) => {
     >
       {/* Badges */}
       {series.is_published && (
-        <div className="absolute top-2 left-3 z-20 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">
+        <div 
+          key={`badge-${series.id}`}
+          className="absolute top-2 left-3 z-20 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg"
+          style={{ 
+            textRendering: 'optimizeLegibility',
+            WebkitFontSmoothing: 'antialiased',
+            MozOsxFontSmoothing: 'grayscale'
+          }}
+        >
           NEW
         </div>
       )}
