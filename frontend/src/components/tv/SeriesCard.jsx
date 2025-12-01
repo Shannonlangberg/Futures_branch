@@ -81,7 +81,20 @@ const SeriesCard = ({ series, isLarge = false }) => {
         </div>
         {/* Badges - positioned outside the image container to prevent clipping */}
         {series.is_published && (
-          <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-red-600 text-white text-[10px] font-bold uppercase tracking-tight rounded-md shadow-lg whitespace-nowrap">
+          <div 
+            className="absolute top-2 left-2 z-10 rounded shadow-lg"
+            style={{
+              backgroundColor: '#dc2626',
+              color: '#ffffff',
+              fontSize: '11px',
+              fontWeight: '700',
+              padding: '4px 8px',
+              lineHeight: '1',
+              letterSpacing: '0.5px',
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap'
+            }}
+          >
             New
           </div>
         )}
