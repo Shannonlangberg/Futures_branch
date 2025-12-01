@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XMarkIcon, CalendarIcon, PencilIcon, UserGroupIcon, PlusIcon, MagnifyingGlassIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon, PencilIcon, UserGroupIcon, PlusIcon, MagnifyingGlassIcon, TrashIcon, UserPlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import ScheduleCatchUpModal from '../components/ScheduleCatchUpModal';
 
 // Status badge component matching Heartbeat dashboard
@@ -148,6 +148,7 @@ const PersonHealthReport = () => {
   const [familyData, setFamilyData] = useState(null);
   const [showFamilyModal, setShowFamilyModal] = useState(false);
   const [familySearchTerm, setFamilySearchTerm] = useState('');
+  const [updatingFlags, setUpdatingFlags] = useState({});
   const [familySearchResults, setFamilySearchResults] = useState([]);
   const [loadingFamilySearch, setLoadingFamilySearch] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -596,6 +597,70 @@ const PersonHealthReport = () => {
     }
   };
 
+  const handleMarkAsNewPerson = async () => {
+    try {
+      setUpdatingFlags({ ...updatingFlags, newPerson: true });
+      const today = new Date().toISOString().split('T')[0];
+      
+      const response = await fetch(`/api/persons/${personId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          is_new_person: true,
+          new_person_date: today
+        })
+      });
+
+      if (response.ok) {
+        alert('Marked as New Person! They will now appear in the New People list.');
+        await fetchPersonData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to mark as new person');
+      }
+    } catch (err) {
+      console.error('Error marking as new person:', err);
+      alert('Failed to mark as new person');
+    } finally {
+      setUpdatingFlags({ ...updatingFlags, newPerson: false });
+    }
+  };
+
+  const handleMarkAsNewChristian = async () => {
+    try {
+      setUpdatingFlags({ ...updatingFlags, newChristian: true });
+      const today = new Date().toISOString().split('T')[0];
+      
+      const response = await fetch(`/api/persons/${personId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          is_new_christian: true,
+          new_christian_date: today
+        })
+      });
+
+      if (response.ok) {
+        alert('Marked as New Christian! They will now appear in the New Christians list.');
+        await fetchPersonData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to mark as new christian');
+      }
+    } catch (err) {
+      console.error('Error marking as new christian:', err);
+      alert('Failed to mark as new christian');
+    } finally {
+      setUpdatingFlags({ ...updatingFlags, newChristian: false });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
@@ -766,6 +831,48 @@ const PersonHealthReport = () => {
                   <div className="flex items-center gap-1">
                     <span className="text-slate-500">📞</span>
                     <span>{person.phone}</span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Quick Actions - Mark as New Person/New Christian */}
+              <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleMarkAsNewPerson}
+                  disabled={updatingFlags.newPerson || person.is_new_person}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 ${
+                    person.is_new_person
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50 cursor-not-allowed'
+                      : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:border-blue-500/50'
+                  } disabled:opacity-50`}
+                  title={person.is_new_person ? 'Already marked as New Person' : 'Mark as New Person (first visit)'}
+                >
+                  <UserPlusIcon className="w-4 h-4" />
+                  {person.is_new_person ? '✓ New Person' : 'Mark as New Person'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMarkAsNewChristian}
+                  disabled={updatingFlags.newChristian || person.is_new_christian}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 ${
+                    person.is_new_christian
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50 cursor-not-allowed'
+                      : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:border-purple-500/50'
+                  } disabled:opacity-50`}
+                  title={person.is_new_christian ? 'Already marked as New Christian' : 'Mark as New Christian (made decision)'}
+                >
+                  <SparklesIcon className="w-4 h-4" />
+                  {person.is_new_christian ? '✓ New Christian' : 'Mark as New Christian'}
+                </button>
+                {(person.is_new_person || person.is_new_christian) && (
+                  <div className="text-xs text-slate-500 ml-2 flex items-center gap-2">
+                    {person.is_new_person && person.new_person_date && (
+                      <span>First visit: {new Date(person.new_person_date).toLocaleDateString()}</span>
+                    )}
+                    {person.is_new_christian && person.new_christian_date && (
+                      <span>Decision: {new Date(person.new_christian_date).toLocaleDateString()}</span>
+                    )}
                   </div>
                 )}
               </div>

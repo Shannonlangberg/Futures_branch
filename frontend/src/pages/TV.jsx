@@ -176,26 +176,26 @@ const TV = () => {
         {/* Most Watched Section */}
         {mostWatched.length > 0 && !selectedCategory && (
           <div className="mb-20 mt-16">
-            <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-3xl font-bold mb-10 text-white flex items-center gap-3">
+            <div className="max-w-7xl mx-auto px-6 mb-10">
+              <h2 className="text-3xl font-bold text-white flex items-center gap-3">
                 <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
                 Most Watched
               </h2>
-              <div className="flex gap-5 overflow-x-auto pb-14 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-                {/* Add some placeholders to show layout */}
-                {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
-                  if (item.isPlaceholder) {
-                    return (
-                      <div key={item.id} className="flex-shrink-0 w-64 h-40 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
-                        <span className="text-slate-400 text-sm">Coming Soon</span>
-                      </div>
-                    );
-                  }
+            </div>
+            <div className="flex gap-5 overflow-x-auto pb-14 scrollbar-hide px-6" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
+              {/* Add some placeholders to show layout */}
+              {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
+                if (item.isPlaceholder) {
                   return (
-                    <SeriesCard key={item.id} series={item} isLarge={true} />
+                    <div key={item.id} className="flex-shrink-0 w-64 h-40 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-lg border border-purple-500/20 flex items-center justify-center">
+                      <span className="text-slate-400 text-sm">Coming Soon</span>
+                    </div>
                   );
-                })}
-              </div>
+                }
+                return (
+                  <SeriesCard key={item.id} series={item} isLarge={true} />
+                );
+              })}
             </div>
           </div>
         )}

@@ -40,6 +40,9 @@ class Person(db.Model):
     new_christian_date = db.Column(db.Date)  # Date of decision (may differ from baptism)
     follow_up_status = db.Column(db.String(50))  # 'contacted', 'connected', 'joined_events', 'needed'
     service_attended = db.Column(db.String(100))  # Service time attended
+    # New person tracking (for manually flagging visitors)
+    is_new_person = db.Column(db.Boolean, default=False)
+    new_person_date = db.Column(db.Date)  # Date of first visit (may differ from created_at)
     
     # Relationship to engagement profile
     engagement_profile = db.relationship('EngagementProfile', backref='person', uselist=False, cascade='all, delete-orphan')
@@ -93,6 +96,8 @@ class Person(db.Model):
             'new_christian_date': safe_date_serialize(getattr(self, 'new_christian_date', None)),
             'follow_up_status': getattr(self, 'follow_up_status', None),
             'service_attended': getattr(self, 'service_attended', None),
+            'is_new_person': getattr(self, 'is_new_person', False),
+            'new_person_date': safe_date_serialize(getattr(self, 'new_person_date', None)),
         }
 
 
