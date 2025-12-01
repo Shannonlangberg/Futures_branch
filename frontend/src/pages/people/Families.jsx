@@ -424,29 +424,112 @@ const Families = () => {
   // Early return for family detail view - must be after all function definitions
   if (showFamilyDetail && selectedFamily) {
     return (
-      <FamilyDetailView 
-        family={selectedFamily} 
-        onBack={() => {
-          setShowFamilyDetail(false);
-          setSelectedFamily(null);
-        }}
-        onAddMember={() => setShowAddMemberModal(true)}
-        onMessageFamily={handleMessageFamily}
-        onAddPastoralNote={handleAddPastoralNote}
-        showMessageModal={showMessageModal}
-        showPastoralNoteModal={showPastoralNoteModal}
-        messageText={messageText}
-        setMessageText={setMessageText}
-        pastoralNoteText={pastoralNoteText}
-        setPastoralNoteText={setPastoralNoteText}
-        sendMessageToFamily={sendMessageToFamily}
-        savePastoralNote={savePastoralNote}
-        setShowMessageModal={setShowMessageModal}
-        setShowPastoralNoteModal={setShowPastoralNoteModal}
-        loadFamilies={loadFamilies}
-        setSelectedFamily={setSelectedFamily}
-        setToast={setToast}
-      />
+      <>
+        <FamilyDetailView 
+          family={selectedFamily} 
+          onBack={() => {
+            setShowFamilyDetail(false);
+            setSelectedFamily(null);
+          }}
+          onAddMember={() => setShowAddMemberModal(true)}
+          onMessageFamily={handleMessageFamily}
+          onAddPastoralNote={handleAddPastoralNote}
+          showMessageModal={showMessageModal}
+          showPastoralNoteModal={showPastoralNoteModal}
+          messageText={messageText}
+          setMessageText={setMessageText}
+          pastoralNoteText={pastoralNoteText}
+          setPastoralNoteText={setPastoralNoteText}
+          sendMessageToFamily={sendMessageToFamily}
+          savePastoralNote={savePastoralNote}
+          setShowMessageModal={setShowMessageModal}
+          setShowPastoralNoteModal={setShowPastoralNoteModal}
+          loadFamilies={loadFamilies}
+          setSelectedFamily={setSelectedFamily}
+          setToast={setToast}
+        />
+        
+        {/* Add Member Modal - rendered here so it's accessible from FamilyDetailView */}
+        {showAddMemberModal && selectedFamily && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-2xl font-bold text-white">Add Member to {selectedFamily.family_name}</h3>
+                <button
+                  onClick={() => {
+                    setShowAddMemberModal(false);
+                    setPeopleSearchTerm('');
+                    setAvailablePeople([]);
+                  }}
+                  className="text-white/60 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-white/60 mb-4">Search for a person to add to this family:</p>
+              <div className="relative mb-4">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  value={peopleSearchTerm}
+                  onChange={(e) => {
+                    setPeopleSearchTerm(e.target.value);
+                    searchPeople(e.target.value);
+                  }}
+                  placeholder="Search by name or email..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {searchingPeople && (
+                <div className="text-center py-4 text-white/60">Searching...</div>
+              )}
+              {availablePeople.length > 0 && (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {availablePeople
+                    .filter(p => !selectedFamily.members.some(m => m.id === p.id))
+                    .map((person) => (
+                      <div
+                        key={person.id}
+                        className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+                      >
+                        <div>
+                          <div className="text-white font-medium">{person.full_name}</div>
+                          {person.email && <div className="text-sm text-white/60">{person.email}</div>}
+                          {person.campus && <div className="text-xs text-white/40">{person.campus}</div>}
+                        </div>
+                        <button
+                          onClick={() => {
+                            const parentMember = selectedFamily.members.find(m => m.role === 'parent') || selectedFamily.members[0];
+                            if (parentMember && parentMember.id) {
+                              console.log('Button clicked - adding member:', {
+                                parentMemberId: parentMember.id,
+                                newMemberId: person.id,
+                                parentMember: parentMember
+                              });
+                              addMemberToFamily(parentMember.id, person.id);
+                            } else {
+                              console.error('No valid parent member found:', {
+                                selectedFamily,
+                                members: selectedFamily.members
+                              });
+                              setToast({ type: 'error', message: 'Could not find a family member to add to. Please refresh the page.' });
+                            }
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                        >
+                          Add to Family
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+              {peopleSearchTerm && !searchingPeople && availablePeople.length === 0 && (
+                <div className="text-center py-4 text-white/60">No people found</div>
+              )}
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
