@@ -22233,15 +22233,29 @@ def create_family_for_person(person_id):
         
         # Assign person to family
         try:
-            person.family_id = family_id
+            # Use raw SQL UPDATE to ensure the change is persisted
+            # This works even if the Person object wasn't loaded via ORM
+            update_sql = "UPDATE persons SET family_id = :family_id WHERE id = :person_id"
+            result = db.session.execute(text(update_sql), {
+                'family_id': family_id,
+                'person_id': person_id
+            })
             db.session.commit()
             
-            logger.info(f"Created family {family_id} for person {person_id}")
+            if result.rowcount == 0:
+                logger.warning(f"No rows updated for person {person_id}")
+                return jsonify({
+                    'error': 'Person not found or update failed',
+                    'person_id': person_id
+                }), 404
+            
+            logger.info(f"Created family {family_id} for person {person_id} (updated {result.rowcount} row(s))")
             
             return jsonify({
                 'success': True,
                 'family_id': family_id,
-                'message': 'Family created successfully'
+                'message': 'Family created successfully',
+                'person_id': person_id
             })
         except OperationalError as db_error:
             logger.error(f"Database error creating family: {db_error}", exc_info=True)
