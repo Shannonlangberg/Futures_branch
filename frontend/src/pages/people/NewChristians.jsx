@@ -246,28 +246,53 @@ const NewChristians = () => {
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     {!hasPathway && (
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            const pathwayId = parseInt(e.target.value);
-                            console.log(`[NewChristians] Selected pathway ${pathwayId} for person ${person.id}`);
-                            assignPathway(person.id, pathwayId);
-                            e.target.value = '';
-                          }
-                        }}
-                        disabled={assigningPathway[person.id] || pathways.length === 0}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-none outline-none"
-                        style={{ minWidth: '250px' }}
-                      >
-                        <option value="">
-                          {pathways.length === 0 ? 'Loading pathways...' : 'Assign Pathway (Recommended: Foundations)...'}
-                        </option>
-                        {pathways.map(pathway => (
-                          <option key={pathway.id} value={pathway.id}>
-                            {pathway.name} {pathway.is_template ? '(Template)' : ''}
+                      <div className="relative">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            console.log('[NewChristians] ===== DROPDOWN CHANGED =====');
+                            console.log('[NewChristians] Selected value:', e.target.value);
+                            if (e.target.value && e.target.value !== '') {
+                              const pathwayId = parseInt(e.target.value);
+                              if (!isNaN(pathwayId)) {
+                                console.log(`[NewChristians] Selected pathway ${pathwayId} for person ${person.id}`);
+                                assignPathway(person.id, pathwayId);
+                              } else {
+                                console.error('[NewChristians] Invalid pathway ID:', e.target.value);
+                              }
+                            }
+                          }}
+                          onFocus={(e) => {
+                            console.log('[NewChristians] ===== DROPDOWN FOCUSED =====');
+                            console.log('[NewChristians] Pathways count:', pathways.length);
+                            console.log('[NewChristians] Options count:', e.target.options.length);
+                          }}
+                          disabled={assigningPathway[person.id] || pathways.length === 0}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer appearance-none"
+                          style={{ minWidth: '250px', paddingRight: '2.5rem' }}
+                        >
+                          <option value="" disabled>
+                            {pathways.length === 0 ? 'Loading pathways...' : 'Select Pathway (Recommended: Foundations)...'}
                           </option>
-                        ))}
-                      </select>
+                          {pathways.length > 0 ? (
+                            pathways.map(pathway => (
+                              <option key={`pathway-${pathway.id}`} value={String(pathway.id)}>
+                                {pathway.name} {pathway.is_template ? '(Template)' : ''}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>No pathways available</option>
+                          )}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <ChevronDownIcon className="h-4 w-4 text-white" />
+                        </div>
+                        {pathways.length > 0 && (
+                          <div className="text-xs text-green-400 mt-1">
+                            ✓ {pathways.length} pathway{pathways.length !== 1 ? 's' : ''} available
+                          </div>
+                        )}
+                      </div>
                     )}
                     {hasPathway && (
                       <div className="px-4 py-2 bg-green-600/20 text-green-300 rounded-lg text-sm font-medium flex items-center gap-2">

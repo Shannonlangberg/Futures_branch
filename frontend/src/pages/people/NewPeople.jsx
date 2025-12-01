@@ -357,16 +357,20 @@ const NewPeople = () => {
                     <div className="relative">
                       <select
                         id={`pathway-select-${person.id}`}
+                        value=""
                         onChange={(e) => {
                           console.log('[NewPeople] ===== DROPDOWN CHANGED =====');
                           console.log('[NewPeople] Selected value:', e.target.value);
                           console.log('[NewPeople] Selected index:', e.target.selectedIndex);
                           console.log('[NewPeople] All options:', Array.from(e.target.options).map(opt => ({ value: opt.value, text: opt.text })));
-                          if (e.target.value) {
+                          if (e.target.value && e.target.value !== '') {
                             const pathwayId = parseInt(e.target.value);
-                            console.log(`[NewPeople] Selected pathway ${pathwayId} for person ${person.id}`);
-                            assignPathway(person.id, pathwayId);
-                            e.target.value = '';
+                            if (!isNaN(pathwayId)) {
+                              console.log(`[NewPeople] Selected pathway ${pathwayId} for person ${person.id}`);
+                              assignPathway(person.id, pathwayId);
+                            } else {
+                              console.error('[NewPeople] Invalid pathway ID:', e.target.value);
+                            }
                           }
                         }}
                         onFocus={(e) => {
@@ -375,19 +379,19 @@ const NewPeople = () => {
                           console.log('[NewPeople] Pathways array:', pathways);
                           console.log('[NewPeople] Select element:', e.target);
                           console.log('[NewPeople] Options count:', e.target.options.length);
+                          console.log('[NewPeople] Options:', Array.from(e.target.options).map((o, i) => `${i}: ${o.value} = ${o.text}`));
                         }}
-                        onClick={(e) => {
-                          console.log('[NewPeople] ===== DROPDOWN CLICKED =====');
+                        onMouseDown={(e) => {
+                          console.log('[NewPeople] ===== DROPDOWN MOUSE DOWN =====');
                           console.log('[NewPeople] Pathways count:', pathways.length);
-                          console.log('[NewPeople] Pathways:', pathways);
-                          console.log('[NewPeople] Select element options:', Array.from(e.target.options).map(o => o.text));
+                          console.log('[NewPeople] Options in DOM:', e.target.options.length);
                         }}
                         disabled={assigningPathway[person.id]}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer"
-                        style={{ minWidth: '200px', paddingRight: '2.5rem', zIndex: 10 }}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-500/50 outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer appearance-none"
+                        style={{ minWidth: '200px', paddingRight: '2.5rem' }}
                       >
                         <option value="" disabled>
-                          {pathways.length === 0 ? 'Loading pathways...' : 'Assign Pathway...'}
+                          {pathways.length === 0 ? 'Loading pathways...' : 'Select Pathway...'}
                         </option>
                         {pathways.length > 0 ? (
                           pathways.map((pathway, idx) => {
@@ -395,21 +399,25 @@ const NewPeople = () => {
                               console.log(`[NewPeople] Rendering first pathway option:`, pathway);
                             }
                             return (
-                              <option key={pathway.id} value={String(pathway.id)}>
+                              <option key={`pathway-${pathway.id}`} value={String(pathway.id)}>
                                 {pathway.name} {pathway.is_template ? '(Template)' : ''}
                               </option>
                             );
                           })
                         ) : (
-                          <option value="" disabled>No pathways - Check console</option>
+                          <option value="" disabled>No pathways available</option>
                         )}
                       </select>
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none z-0">
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                         <ChevronDownIcon className="h-4 w-4 text-white" />
                       </div>
                       {/* Debug info - always visible */}
                       <div className="text-xs text-white/60 mt-1">
-                        {pathways.length} pathway{pathways.length !== 1 ? 's' : ''} loaded | Click dropdown to see options
+                        {pathways.length > 0 ? (
+                          <span className="text-green-400">✓ {pathways.length} pathway{pathways.length !== 1 ? 's' : ''} available</span>
+                        ) : (
+                          <span className="text-yellow-400">⚠ No pathways loaded - Click refresh button</span>
+                        )}
                       </div>
                     </div>
                     <select
