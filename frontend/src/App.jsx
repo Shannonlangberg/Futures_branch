@@ -394,7 +394,7 @@ function App() {
                   <Route path="/connect-groups" element={<ConnectGroups />} />
                   <Route path="/persons/:personId" element={<PersonHealthReport />} />
                   <Route path="/pastoral-care" element={<PastoralCareAppointments />} />
-                  <Route path="/prayer" element={<Prayer />} />
+                  <Route path="/prayer" element={<Navigate to="/people/pastoral-care?tab=prayer" replace />} />
                   <Route path="/campuses" element={<CampusManagement />} />
                   <Route path="/users" element={<UserManagement />} />
                   <Route path="/notifications" element={<NotificationManager />} />

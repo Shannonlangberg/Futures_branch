@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   UserCircleIcon, 
   ExclamationTriangleIcon, 
@@ -21,12 +22,16 @@ const PastoralCare = () => {
   // Debug: Log that component is rendering
   console.log('🔵 PastoralCare component is rendering!');
   
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  
   const [careCases, setCareCases] = useState([]);
   const [prayerRequests, setPrayerRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(null);
-  const [selectedTab, setSelectedTab] = useState('cases'); // 'cases', 'prayer', 'all'
+  // Initialize tab from URL parameter, default to 'cases'
+  const [selectedTab, setSelectedTab] = useState(tabParam && ['cases', 'prayer', 'all'].includes(tabParam) ? tabParam : 'cases');
   const [statusFilter, setStatusFilter] = useState('all'); // 'open', 'resolved', 'all' - Start with 'all' to show everything
   const [priorityFilter, setPriorityFilter] = useState('all'); // 'all', 'high', 'medium', 'low'
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +51,13 @@ const PastoralCare = () => {
     follow_up_date: '',
     ai_summary: ''
   });
+
+  // Update tab when URL parameter changes
+  useEffect(() => {
+    if (tabParam && ['cases', 'prayer', 'all'].includes(tabParam)) {
+      setSelectedTab(tabParam);
+    }
+  }, [tabParam]);
 
   useEffect(() => {
     fetchUserSession();
@@ -442,7 +454,10 @@ const PastoralCare = () => {
         {/* Tabs */}
         <div className="flex gap-2 mb-4 border-b border-white/10">
           <button
-            onClick={() => setSelectedTab('cases')}
+            onClick={() => {
+              setSelectedTab('cases');
+              setSearchParams({ tab: 'cases' });
+            }}
             className={`px-4 py-2 font-medium transition-colors ${
               selectedTab === 'cases'
                 ? 'text-purple-400 border-b-2 border-purple-400'
@@ -452,7 +467,10 @@ const PastoralCare = () => {
             Care Cases ({filteredCases.length})
           </button>
           <button
-            onClick={() => setSelectedTab('prayer')}
+            onClick={() => {
+              setSelectedTab('prayer');
+              setSearchParams({ tab: 'prayer' });
+            }}
             className={`px-4 py-2 font-medium transition-colors ${
               selectedTab === 'prayer'
                 ? 'text-purple-400 border-b-2 border-purple-400'
@@ -462,7 +480,10 @@ const PastoralCare = () => {
             Prayer Requests ({filteredPrayerRequests.length})
           </button>
           <button
-            onClick={() => setSelectedTab('all')}
+            onClick={() => {
+              setSelectedTab('all');
+              setSearchParams({ tab: 'all' });
+            }}
             className={`px-4 py-2 font-medium transition-colors ${
               selectedTab === 'all'
                 ? 'text-purple-400 border-b-2 border-purple-400'
