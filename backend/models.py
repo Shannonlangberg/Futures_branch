@@ -145,6 +145,7 @@ class PastoralCareCase(db.Model):
         assigned_leader_name = None
         if include_leader_name and self.assigned_leader:
             try:
+                from sqlalchemy import text
                 # Query users table directly (it's a plain table, not a model)
                 result = db.session.execute(
                     text("SELECT full_name FROM users WHERE id = :user_id OR CAST(id AS TEXT) = :user_id_str"),

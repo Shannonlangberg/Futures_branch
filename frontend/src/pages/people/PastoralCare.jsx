@@ -806,9 +806,7 @@ const PastoralCare = () => {
                     <div className="bg-white/5 rounded-lg p-4">
                       <div className="text-white/60 text-sm mb-1">Assigned Leader</div>
                       <div className="text-white font-medium">
-                        {case_.assigned_leader ? (
-                          pastors.find(p => p.id === case_.assigned_leader)?.name || case_.assigned_leader_name || case_.assigned_leader
-                        ) : 'Unassigned'}
+                        {case_.assigned_leader_name || (case_.assigned_leader ? pastors.find(p => p.id === case_.assigned_leader || String(p.id) === String(case_.assigned_leader))?.name || case_.assigned_leader : 'Unassigned')}
                       </div>
                     </div>
                     <div className="bg-white/5 rounded-lg p-4">
