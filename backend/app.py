@@ -21502,8 +21502,9 @@ def get_families():
         for person in persons:
             try:
                 # Use family_id if available, otherwise use fallback grouping
+                # Always try to get family_id if the column exists (check dynamically)
                 family_id = None
-                if has_family_id:
+                if has_family_id or 'family_id' in existing_columns:
                     family_id = getattr(person, 'family_id', None)
                 
                 if family_id:
