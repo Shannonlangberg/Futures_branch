@@ -54,7 +54,6 @@ const NAVIGATION_GROUPS = {
       { name: 'Pastoral Care', href: '/people/pastoral-care', icon: HandRaisedIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
       { name: 'New People', href: '/people/new-people', icon: UserPlusIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
       { name: 'New Christians', href: '/people/new-christians', icon: SparklesIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
-      { name: 'Attendance', href: '/people/attendance', icon: CalendarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff'], featureKey: 'people' },
       { name: 'Groups', href: '/connect-groups', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'staff', 'connect_group_leader'], featureKey: 'connect_groups' },
     ]
   },
