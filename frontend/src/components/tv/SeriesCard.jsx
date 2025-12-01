@@ -61,22 +61,17 @@ const SeriesCard = ({ series, isLarge = false }) => {
       onMouseLeave={() => setIsHovered(false)}
       style={{ zIndex: isHovered ? 100 : 'auto' }}
     >
-      {/* Badges - simplified to prevent text duplication */}
+      {/* Badges */}
       {series.is_published && (
         <div 
-          className="absolute top-2 left-3 z-20 pointer-events-none"
+          className="absolute top-2 left-3 z-20 pointer-events-none bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-md"
+          style={{
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            lineHeight: '1.2',
+            letterSpacing: '0.02em'
+          }}
         >
-          <span
-            className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg inline-block"
-            style={{
-              fontFamily: 'system-ui, sans-serif',
-              lineHeight: '1',
-              letterSpacing: '0',
-              textTransform: 'none'
-            }}
-          >
-            NEW
-          </span>
+          {'NEW'}
         </div>
       )}
       
