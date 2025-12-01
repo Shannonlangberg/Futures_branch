@@ -21142,6 +21142,7 @@ def get_families():
         
         from datetime import datetime, timedelta, date
         from sqlalchemy import text
+        from sqlalchemy.exc import OperationalError
         
         # Get query parameters
         campus_filter = request.args.get('campus', None)
@@ -21224,8 +21225,11 @@ def get_families():
                         person_id=person.id
                     ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
                     if snapshot:
-                        heartbeat_score = snapshot.total_score
-                        heartbeat_status = snapshot.status
+                        heartbeat_score = getattr(snapshot, 'total_score', 50)
+                        heartbeat_status = getattr(snapshot, 'status', 'critical')
+                except OperationalError as e:
+                    # Table might not exist
+                    logger.warning(f"HeartbeatSnapshot table may not exist: {e}")
                 except Exception as e:
                     logger.warning(f"Error getting heartbeat snapshot for {person.id}: {e}")
                 
@@ -21333,43 +21337,55 @@ def get_families():
                 
                 # Calculate attendance together
                 try:
-                    # Get attendance events for all family members in last 12 weeks
-                    attendance_events = AttendanceEvent.query.filter(
-                        AttendanceEvent.person_id.in_(family_member_ids),
-                        AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-                    ).order_by(AttendanceEvent.created_at.desc()).all()
+                    # Skip if no family members
+                    if not family_member_ids:
+                        family_data['attendance_together'] = 0
+                        family_data['attendance_timeline'] = []
+                    else:
+                        # Get attendance events for all family members in last 12 weeks
+                        attendance_events = AttendanceEvent.query.filter(
+                            AttendanceEvent.person_id.in_(family_member_ids),
+                            AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+                        ).order_by(AttendanceEvent.created_at.desc()).all()
                     
-                    # Group by date
-                    attendance_by_date = {}
-                    for event in attendance_events:
-                        event_date = event.created_at.date()
-                        if event_date not in attendance_by_date:
-                            attendance_by_date[event_date] = set()
-                        attendance_by_date[event_date].add(event.person_id)
-                    
-                    # Calculate attendance together percentage
-                    total_services = len(attendance_by_date)
-                    together_count = sum(1 for attendees in attendance_by_date.values() if len(attendees) > 1)
-                    family_data['attendance_together'] = int((together_count / total_services * 100)) if total_services > 0 else 0
-                    
-                    # Build attendance timeline
-                    timeline = []
-                    for event_date, attendees in sorted(attendance_by_date.items(), reverse=True)[:20]:  # Last 20 services
-                        timeline.append({
-                            'date': event_date.isoformat(),
-                            'members_present': list(attendees),
-                            'count': len(attendees),
-                            'all_present': len(attendees) == len(family_member_ids)
-                        })
-                    family_data['attendance_timeline'] = timeline
-                    
-                    # Find last attended together
-                    for event_date, attendees in sorted(attendance_by_date.items(), reverse=True):
-                        if len(attendees) > 1:
-                            family_data['last_attended_together'] = event_date.isoformat()
-                            break
+                        # Group by date
+                        attendance_by_date = {}
+                        for event in attendance_events:
+                            if event and hasattr(event, 'created_at') and event.created_at:
+                                event_date = event.created_at.date() if hasattr(event.created_at, 'date') else event.created_at
+                                if event_date not in attendance_by_date:
+                                    attendance_by_date[event_date] = set()
+                                attendance_by_date[event_date].add(event.person_id)
+                        
+                        # Calculate attendance together percentage
+                        total_services = len(attendance_by_date)
+                        together_count = sum(1 for attendees in attendance_by_date.values() if len(attendees) > 1)
+                        family_data['attendance_together'] = int((together_count / total_services * 100)) if total_services > 0 else 0
+                        
+                        # Build attendance timeline
+                        timeline = []
+                        for event_date, attendees in sorted(attendance_by_date.items(), reverse=True)[:20]:  # Last 20 services
+                            timeline.append({
+                                'date': event_date.isoformat() if hasattr(event_date, 'isoformat') else str(event_date),
+                                'members_present': list(attendees),
+                                'count': len(attendees),
+                                'all_present': len(attendees) == len(family_member_ids)
+                            })
+                        family_data['attendance_timeline'] = timeline
+                        
+                        # Find last attended together
+                        for event_date, attendees in sorted(attendance_by_date.items(), reverse=True):
+                            if len(attendees) > 1:
+                                family_data['last_attended_together'] = event_date.isoformat() if hasattr(event_date, 'isoformat') else str(event_date)
+                                break
+                except OperationalError as e:
+                    logger.warning(f"AttendanceEvent table may not exist: {e}")
+                    family_data['attendance_together'] = 0
+                    family_data['attendance_timeline'] = []
                 except Exception as e:
                     logger.warning(f"Error calculating attendance for family {family_key}: {e}")
+                    family_data['attendance_together'] = 0
+                    family_data['attendance_timeline'] = []
                 
                 # Get groups involvement
                 groups = set()
@@ -21380,46 +21396,64 @@ def get_families():
                 
                 # Get serving patterns
                 try:
-                    serving_assignments = ServingAssignment.query.filter(
-                        ServingAssignment.person_id.in_(family_member_ids),
-                        ServingAssignment.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-                    ).order_by(ServingAssignment.created_at.desc()).limit(20).all()
+                    if not family_member_ids:
+                        family_data['serving_patterns'] = []
+                    else:
+                        serving_assignments = ServingAssignment.query.filter(
+                            ServingAssignment.person_id.in_(family_member_ids),
+                            ServingAssignment.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+                        ).order_by(ServingAssignment.created_at.desc()).limit(20).all()
                     
-                    serving_patterns = []
-                    for assignment in serving_assignments:
-                        serving_patterns.append({
-                            'person_id': assignment.person_id,
-                            'person_name': next((m['name'] for m in family_data['members'] if m['id'] == assignment.person_id), 'Unknown'),
-                            'role': assignment.role,
-                            'team_name': assignment.team_name,
-                            'date': assignment.created_at.isoformat() if assignment.created_at else None
-                        })
-                    family_data['serving_patterns'] = serving_patterns
+                        serving_patterns = []
+                        for assignment in serving_assignments:
+                            if assignment:
+                                serving_patterns.append({
+                                    'person_id': getattr(assignment, 'person_id', None),
+                                    'person_name': next((m['name'] for m in family_data['members'] if m['id'] == getattr(assignment, 'person_id', None)), 'Unknown'),
+                                    'role': getattr(assignment, 'role', ''),
+                                    'team_name': getattr(assignment, 'team_name', ''),
+                                    'date': assignment.created_at.isoformat() if hasattr(assignment, 'created_at') and assignment.created_at else None
+                                })
+                        family_data['serving_patterns'] = serving_patterns
+                except OperationalError as e:
+                    logger.warning(f"ServingAssignment table may not exist: {e}")
+                    family_data['serving_patterns'] = []
                 except Exception as e:
                     logger.warning(f"Error getting serving patterns for family {family_key}: {e}")
+                    family_data['serving_patterns'] = []
                 
                 # Get giving rhythm
                 try:
-                    giving_transactions = GivingTransaction.query.filter(
-                        GivingTransaction.person_id.in_(family_member_ids),
-                        GivingTransaction.status == 'completed',
-                        GivingTransaction.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-                    ).order_by(GivingTransaction.created_at.desc()).all()
-                    
-                    if len(giving_transactions) >= 8:
-                        family_data['giving_rhythm'] = 'regular'
-                        family_data['parent_giving'] = True
-                    elif len(giving_transactions) >= 3:
-                        family_data['giving_rhythm'] = 'occasional'
-                        family_data['parent_giving'] = True
-                    elif len(giving_transactions) > 0:
-                        family_data['giving_rhythm'] = 'occasional'
-                        family_data['parent_giving'] = True
-                    else:
+                    if not family_member_ids:
                         family_data['giving_rhythm'] = 'none'
                         family_data['parent_giving'] = False
+                    else:
+                        giving_transactions = GivingTransaction.query.filter(
+                            GivingTransaction.person_id.in_(family_member_ids),
+                            GivingTransaction.status == 'completed',
+                            GivingTransaction.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+                        ).order_by(GivingTransaction.created_at.desc()).all()
+                    
+                        if len(giving_transactions) >= 8:
+                            family_data['giving_rhythm'] = 'regular'
+                            family_data['parent_giving'] = True
+                        elif len(giving_transactions) >= 3:
+                            family_data['giving_rhythm'] = 'occasional'
+                            family_data['parent_giving'] = True
+                        elif len(giving_transactions) > 0:
+                            family_data['giving_rhythm'] = 'occasional'
+                            family_data['parent_giving'] = True
+                        else:
+                            family_data['giving_rhythm'] = 'none'
+                            family_data['parent_giving'] = False
+                except OperationalError as e:
+                    logger.warning(f"GivingTransaction table may not exist: {e}")
+                    family_data['giving_rhythm'] = 'none'
+                    family_data['parent_giving'] = False
                 except Exception as e:
                     logger.warning(f"Error getting giving data for family {family_key}: {e}")
+                    family_data['giving_rhythm'] = 'none'
+                    family_data['parent_giving'] = False
                 
                 # Count new people and new Christians
                 try:
@@ -21468,21 +21502,28 @@ def get_families():
                 
                 # Get care cases
                 try:
-                    care_cases = CareCase.query.filter(
-                        CareCase.person_id.in_(family_member_ids),
-                        CareCase.status.in_(['open', 'in_progress'])
-                    ).all()
+                    if not family_member_ids:
+                        family_data['care_cases'] = []
+                    else:
+                        care_cases = CareCase.query.filter(
+                            CareCase.person_id.in_(family_member_ids),
+                            CareCase.status.in_(['open', 'in_progress'])
+                        ).all()
                     
-                    family_data['care_cases'] = [{
-                        'id': case.id,
-                        'person_id': case.person_id,
-                        'person_name': next((m['name'] for m in family_data['members'] if m['id'] == case.person_id), 'Unknown'),
-                        'priority': case.priority,
-                        'status': case.status,
-                        'notes': case.notes[:100] if case.notes else None
-                    } for case in care_cases]
+                        family_data['care_cases'] = [{
+                            'id': getattr(case, 'id', None),
+                            'person_id': getattr(case, 'person_id', None),
+                            'person_name': next((m['name'] for m in family_data['members'] if m['id'] == getattr(case, 'person_id', None)), 'Unknown'),
+                            'priority': getattr(case, 'priority', 'medium'),
+                            'status': getattr(case, 'status', 'open'),
+                            'notes': (getattr(case, 'notes', '') or '')[:100] if getattr(case, 'notes', None) else None
+                        } for case in care_cases]
+                except OperationalError as e:
+                    logger.warning(f"CareCase table may not exist: {e}")
+                    family_data['care_cases'] = []
                 except Exception as e:
                     logger.warning(f"Error getting care cases for family {family_key}: {e}")
+                    family_data['care_cases'] = []
                 
                 # Collect pastoral notes
                 pastoral_notes = []
