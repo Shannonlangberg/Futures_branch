@@ -265,17 +265,31 @@ const Families = () => {
 
   const addMemberToFamily = async (familyPersonId, memberPersonId) => {
     try {
+      console.log('Adding member to family:', { familyPersonId, memberPersonId });
+      
       // URL encode person IDs to handle special characters
       const encodedFamilyPersonId = encodeURIComponent(familyPersonId);
+      console.log('Encoded family person ID:', encodedFamilyPersonId);
       
-      const response = await fetch(`/api/persons/${encodedFamilyPersonId}/family/add-member`, {
+      const url = `/api/persons/${encodedFamilyPersonId}/family/add-member`;
+      console.log('Request URL:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ member_person_id: memberPersonId })
       });
       
-      const data = await response.json().catch(() => ({}));
+      console.log('Response status:', response.status);
+      
+      const data = await response.json().catch(async () => {
+        const text = await response.text().catch(() => 'No response body');
+        console.error('Failed to parse JSON response:', text);
+        return { error: 'Invalid response from server', details: text };
+      });
+      
+      console.log('Response data:', data);
       
       if (response.ok) {
         setToast({ type: 'success', message: 'Member added to family successfully!' });
