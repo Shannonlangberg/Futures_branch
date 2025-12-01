@@ -6,6 +6,7 @@ import {
   ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import EnhancedNavigation from './EnhancedNavigation';
+import TopNavigation from './TopNavigation';
 
 const MainLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -84,10 +85,16 @@ const MainLayout = ({ children }) => {
         setSettingsOpen={setSettingsOpen}
       />
 
+      {/* Top Navigation Bar */}
+      <TopNavigation
+        userRole={userRole}
+        customPermissions={customPermissions}
+      />
+
       {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Mobile header */}
-          <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-700/50">
+      <div className="lg:pl-64 pt-16">
+        {/* Mobile header - simplified since we have top nav */}
+        <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-700/50 bg-slate-900/95 backdrop-blur-sm">
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800"

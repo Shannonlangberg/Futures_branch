@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   HomeIcon,
@@ -68,6 +68,7 @@ const NAVIGATION_GROUPS = {
       { name: 'Pathways', href: '/journeys', icon: AcademicCapIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: 'pathway_manager' },
       { name: 'Events', href: '/events', icon: CalendarIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: 'events' },
       { name: 'Serving', href: '/serving', icon: UserGroupIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'staff'], featureKey: 'serving' },
+      { name: 'Prayer', href: '/prayer', icon: HeartIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor', 'campus_pastor', 'pastor', 'user', 'staff'], featureKey: null },
       { name: 'Training', href: '#', icon: AcademicCapIcon, roles: ['admin', 'senior_leadership', 'senior_leader', 'senior_pastor', 'lead_pastor'], featureKey: 'training', disabled: true },
     ]
   },
@@ -115,6 +116,34 @@ const EnhancedNavigation = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedGroups, setExpandedGroups] = useState({});
   const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'flat'
+
+  // Auto-expand the group that contains the current page
+  useEffect(() => {
+    const currentPath = location.pathname;
+    
+    // Find which group contains the current page
+    let currentGroupName = null;
+    Object.values(NAVIGATION_GROUPS).forEach(group => {
+      const hasCurrentPage = group.items.some(item => {
+        if (item.href === '/') {
+          return currentPath === '/';
+        }
+        return currentPath === item.href || currentPath.startsWith(item.href + '/');
+      });
+      
+      if (hasCurrentPage) {
+        currentGroupName = group.name;
+      }
+    });
+    
+    // Only expand the current page's group, preserve manually expanded groups
+    if (currentGroupName) {
+      setExpandedGroups(prev => ({
+        ...prev,
+        [currentGroupName]: true
+      }));
+    }
+  }, [location.pathname]);
 
   // Filter and get navigation items
   const getFilteredItems = () => {
@@ -297,7 +326,7 @@ const EnhancedNavigation = ({
               // Grouped View
               Object.entries(groupedItems).map(([groupName, items]) => {
                 const groupInfo = Object.values(NAVIGATION_GROUPS).find(g => g.name === groupName);
-                const isExpanded = expandedGroups[groupName] !== false; // Default to expanded
+                const isExpanded = expandedGroups[groupName] === true; // Default to collapsed, only expand if explicitly set
                 const GroupIcon = groupInfo?.icon || Squares2X2Icon;
                 
                 return (
