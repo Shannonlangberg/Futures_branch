@@ -56,7 +56,7 @@ const SeriesCard = ({ series, isLarge = false }) => {
   return (
     <div
       ref={cardRef}
-      className="relative"
+      className="relative overflow-visible"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{ zIndex: isHovered ? 100 : 'auto' }}

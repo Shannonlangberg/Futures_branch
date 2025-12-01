@@ -182,8 +182,10 @@ const TV = () => {
                 Most Watched
               </h2>
             </div>
-            <div className="w-full overflow-x-auto overflow-y-visible pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', paddingLeft: '32px' }}>
-              <div className="flex gap-5" style={{ paddingRight: '24px', minWidth: 'fit-content' }}>
+            <div className="w-full overflow-x-auto overflow-y-visible pb-10 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="flex gap-5 items-start" style={{ paddingLeft: '24px', paddingRight: '24px', minWidth: 'fit-content' }}>
+                {/* Spacer to ensure first card's badge is never clipped */}
+                <div className="flex-shrink-0" style={{ width: '32px', minWidth: '32px' }}></div>
                 {/* Add some placeholders to show layout */}
                 {[...mostWatched, ...createPlaceholders(2)].map((item, index) => {
                   if (item.isPlaceholder) {
