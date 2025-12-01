@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   UserGroupIcon, 
   HeartIcon, 
@@ -11,7 +12,9 @@ import {
   UserPlusIcon,
   SparklesIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  UserIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
 
 const Families = () => {
@@ -566,6 +569,17 @@ const Families = () => {
 
 // Family Detail View Component
 const FamilyDetailView = ({ family, onBack }) => {
+  const navigate = useNavigate();
+
+  // Get full family name from all members' full names
+  const getFullFamilyName = () => {
+    const parents = family.members.filter(m => m.role === 'parent');
+    if (parents.length > 0) {
+      return parents.map(p => p.full_name || p.name).join(', ');
+    }
+    return family.members.map(m => m.full_name || m.name).join(', ') || family.family_name;
+  };
+
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-y-auto">
       <button
@@ -577,7 +591,7 @@ const FamilyDetailView = ({ family, onBack }) => {
 
       {/* Family Header */}
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-white mb-2">{family.family_name}</h2>
+        <h2 className="text-3xl font-bold text-white mb-2">{getFullFamilyName()}</h2>
         <div className="flex items-center gap-4 text-white/60">
           <span>{family.members.length} {family.members.length === 1 ? 'member' : 'members'}</span>
           {family.campus && <span>{family.campus}</span>}
@@ -617,18 +631,37 @@ const FamilyDetailView = ({ family, onBack }) => {
             {family.members.map((member) => (
               <div key={member.id} className="bg-white/5 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="text-white font-medium">{member.name}</div>
+                  <div className="flex-1">
+                    <div className="text-white font-medium">{member.full_name || member.name}</div>
                     <div className="text-sm text-white/60">{member.role} • {member.department || 'No department'}</div>
+                    {member.email && (
+                      <div className="text-xs text-white/40 mt-1">{member.email}</div>
+                    )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right mr-4">
                     <div className="text-white font-semibold">{member.heartbeat_score}</div>
                     <div className="text-xs text-white/60">Heartbeat</div>
                   </div>
                 </div>
                 {member.connect_group && (
-                  <div className="text-sm text-white/60">Group: {member.connect_group}</div>
+                  <div className="text-sm text-white/60 mb-3">Group: {member.connect_group}</div>
                 )}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => navigate(`/persons/${member.id}`)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-sm transition-colors"
+                  >
+                    <UserIcon className="h-4 w-4" />
+                    View Profile
+                  </button>
+                  <button
+                    onClick={() => navigate(`/people/heartbeat?person=${member.id}`)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-lg text-sm transition-colors"
+                  >
+                    <HeartIcon className="h-4 w-4" />
+                    View Heartbeat
+                  </button>
+                </div>
               </div>
             ))}
           </div>
