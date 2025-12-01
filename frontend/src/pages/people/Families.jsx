@@ -146,34 +146,6 @@ const Families = () => {
     });
   }, [families, searchTerm]);
 
-  if (showFamilyDetail && selectedFamily) {
-    return (
-      <FamilyDetailView 
-        family={selectedFamily} 
-        onBack={() => {
-          setShowFamilyDetail(false);
-          setSelectedFamily(null);
-        }}
-        onAddMember={() => setShowAddMemberModal(true)}
-        onMessageFamily={handleMessageFamily}
-        onAddPastoralNote={handleAddPastoralNote}
-        showMessageModal={showMessageModal}
-        showPastoralNoteModal={showPastoralNoteModal}
-        messageText={messageText}
-        setMessageText={setMessageText}
-        pastoralNoteText={pastoralNoteText}
-        setPastoralNoteText={setPastoralNoteText}
-        sendMessageToFamily={sendMessageToFamily}
-        savePastoralNote={savePastoralNote}
-        setShowMessageModal={setShowMessageModal}
-        setShowPastoralNoteModal={setShowPastoralNoteModal}
-        loadFamilies={loadFamilies}
-        setSelectedFamily={setSelectedFamily}
-        setToast={setToast}
-      />
-    );
-  }
-
   const searchPeople = async (search) => {
     if (!search || search.length < 2) {
       setAvailablePeople([]);
@@ -407,6 +379,35 @@ const Families = () => {
       setToast({ type: 'error', message: 'Failed to save pastoral note' });
     }
   };
+
+  // Early return for family detail view - must be after all function definitions
+  if (showFamilyDetail && selectedFamily) {
+    return (
+      <FamilyDetailView 
+        family={selectedFamily} 
+        onBack={() => {
+          setShowFamilyDetail(false);
+          setSelectedFamily(null);
+        }}
+        onAddMember={() => setShowAddMemberModal(true)}
+        onMessageFamily={handleMessageFamily}
+        onAddPastoralNote={handleAddPastoralNote}
+        showMessageModal={showMessageModal}
+        showPastoralNoteModal={showPastoralNoteModal}
+        messageText={messageText}
+        setMessageText={setMessageText}
+        pastoralNoteText={pastoralNoteText}
+        setPastoralNoteText={setPastoralNoteText}
+        sendMessageToFamily={sendMessageToFamily}
+        savePastoralNote={savePastoralNote}
+        setShowMessageModal={setShowMessageModal}
+        setShowPastoralNoteModal={setShowPastoralNoteModal}
+        loadFamilies={loadFamilies}
+        setSelectedFamily={setSelectedFamily}
+        setToast={setToast}
+      />
+    );
+  }
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
