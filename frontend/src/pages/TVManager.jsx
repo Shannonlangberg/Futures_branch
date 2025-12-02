@@ -1198,6 +1198,11 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
                 onInvalid={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  return false;
+                }}
+                onBlur={(e) => {
+                  // Clear any validation tooltips
+                  e.target.setCustomValidity('');
                 }}
                 className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
                 placeholder="https://... or /api/tv/uploads/tv/... or upload image above"
