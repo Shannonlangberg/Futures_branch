@@ -450,16 +450,25 @@ const DevotionsAdmin = () => {
                 <label className="block text-sm font-medium text-white/80 mb-2">Cover Image (Thumbnail)</label>
                 <div className="space-y-3">
                   {formData.cover_url && (
-                    <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-700/50">
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-700/50 bg-slate-700/50">
                       <img
                         src={formData.cover_url.startsWith('http') ? formData.cover_url : `${window.location.origin}${formData.cover_url}`}
                         alt="Cover preview"
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          console.error('Image preview error:', formData.cover_url);
+                          // Show error message instead of hiding
                           e.target.style.display = 'none';
+                          const errorMsg = e.target.parentElement.querySelector('.image-error');
+                          if (errorMsg) {
+                            errorMsg.style.display = 'flex';
+                          }
                         }}
                       />
+                      <div className="image-error absolute inset-0 bg-slate-800/90 flex flex-col items-center justify-center text-center p-4" style={{ display: 'none' }}>
+                        <BookOpenIcon className="h-12 w-12 text-white/40 mb-2" />
+                        <p className="text-white/60 text-sm">Image not found</p>
+                        <p className="text-white/40 text-xs mt-1">Please re-upload the image</p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setFormData({...formData, cover_url: ''})}
@@ -549,16 +558,23 @@ const DevotionsAdmin = () => {
               >
                 {/* Thumbnail Image */}
                 {plan.cover_url ? (
-                  <div className="w-full h-48 overflow-hidden bg-slate-700/50">
+                  <div className="w-full h-48 overflow-hidden bg-slate-700/50 relative">
                     <img
                       src={plan.cover_url.startsWith('http') ? plan.cover_url : `${window.location.origin}${plan.cover_url}`}
                       alt={plan.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        console.error('Image load error:', plan.cover_url);
-                        e.target.parentElement.style.display = 'none';
+                        // Hide broken image and show placeholder instead
+                        e.target.style.display = 'none';
+                        const placeholder = e.target.parentElement.querySelector('.image-placeholder');
+                        if (placeholder) {
+                          placeholder.style.display = 'flex';
+                        }
                       }}
                     />
+                    <div className="image-placeholder absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center" style={{ display: 'none' }}>
+                      <BookOpenIcon className="h-16 w-16 text-white/30" />
+                    </div>
                   </div>
                 ) : (
                   <div className="w-full h-48 bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
