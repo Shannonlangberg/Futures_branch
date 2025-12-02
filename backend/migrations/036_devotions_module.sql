@@ -59,3 +59,4 @@ BEGIN
     UPDATE devotion_content SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 
+

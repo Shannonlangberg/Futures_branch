@@ -14726,276 +14726,116 @@ def calculate_streaks_and_next_steps(person):
 @app.route('/api/persons/email/<email>', methods=['GET'])
 def get_person_by_email(email):
     """Get person profile by email - public endpoint for mobile app"""
-    # Top-level wrapper to catch ANY error before traceback formatting
-    # Use sys.exc_info() to prevent traceback formatting
-    import sys
+    import sqlite3
+    
+    # Initialize variables
+    conn = None
+    cursor = None
+    
     try:
-        return _get_person_by_email_impl(email)
-    except:
-        # Catch absolutely everything, including traceback formatting errors
-        # Don't let Python format the traceback at all
-        exc_type, exc_value, exc_tb = sys.exc_info()
-        # Clear the traceback to prevent formatting
-        del exc_tb
-        return jsonify({'error': 'Failed to fetch person profile', 'details': 'Internal server error'}), 500
-
-def _get_person_by_email_impl(email):
-    """Implementation of get_person_by_email"""
-    try:
-        # Log which database we're using
-        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        db_path = get_db_path()
-        logger.info(f"=== START get_person_by_email for {email} ===")
-        
-        # Helper functions defined outside try block
+        # Helper functions
         def safe_str(val):
+            """Convert value to string safely"""
             if val is None:
                 return None
-            try:
-                return str(val)
-            except:
-                return None
+            return str(val)
         
         def safe_json_load(val):
+            """Parse JSON string safely"""
             if not val:
                 return []
             try:
-                return json.loads(val) if isinstance(val, str) else val
+                if isinstance(val, str):
+                    return json.loads(val)
+                return val
             except:
                 return []
         
-        # Find person by email (case-insensitive)
-        # Use raw SQL directly to avoid schema mismatch issues
-        person = None
-        person_data = None
-        person_id_from_result = None
+        # Get database path
+        db_path = get_db_path()
+        if not db_path or not os.path.exists(db_path):
+            return jsonify({'error': 'Database not found'}), 500
         
-        # Try raw SQL first to avoid ORM schema mismatch issues
-        # Use raw sqlite3 connection to completely bypass SQLAlchemy serialization
-        row_dict = None
-        person_id_from_result = None
-        try:
-            import sqlite3
-            db_path = get_db_path()
-            if not db_path:
-                logger.error("Database path is None or empty")
-                return jsonify({'error': 'Database configuration error'}), 500
-            
-            conn = sqlite3.connect(db_path)
-            # Don't use Row factory - get plain tuples instead
-            # This completely avoids any Row object serialization issues
-            cursor = conn.cursor()
-            
-            # Execute query
-            cursor.execute("""
-                SELECT id, full_name, preferred_name, email, phone, campus, department,
-                       connect_group, dream_team_roles, birthday, pastoral_notes, tags,
-                       is_active, created_at, updated_at, dna_completed, baptised_on,
-                       filled_holy_spirit, rise_attended, first_served_on
-                FROM persons 
-                WHERE lower(email) = ? AND is_active = 1 
-                LIMIT 1
-            """, (email.lower(),))
-            
-            result = cursor.fetchone()
-            
-            # Convert tuple to dict - result is now a plain tuple, not a Row object
-            if result:
-                row_dict = {}
-                # Hardcoded column names in SELECT order
-                col_names_list = ['id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 'department',
-                                'connect_group', 'dream_team_roles', 'birthday', 'pastoral_notes', 'tags',
-                                'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
-                                'filled_holy_spirit', 'rise_attended', 'first_served_on']
-                
-                # Access tuple by index - completely safe, no Row methods
-                for idx in range(len(col_names_list)):
-                    col = col_names_list[idx]
-                    if idx < len(result):
-                        # Plain tuple access - no Row object involved
-                        row_dict[col] = result[idx]
-                    else:
-                        row_dict[col] = None
-            else:
-                row_dict = None
-                
-            cursor.close()
-            conn.close()
-            
-            if row_dict:
-                # row_dict is already a plain Python dict from sqlite3
-                
-                # Helper function to safely convert dates - ensure everything is a string
-                def safe_date_convert(date_val):
-                    if date_val is None:
-                        return None
-                    if isinstance(date_val, str):
-                        return date_val
-                    try:
-                        return str(date_val) if date_val else None
-                    except:
-                        return None
-                
-                # Helper to safely parse JSON
-                def safe_json_load(val):
-                    try:
-                        return json.loads(val) if val else []
-                    except:
-                        return []
-                
-                # Build person_data dict from row_dict (plain Python values)
-                # Access values by column name or index
-                col_names = ['id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 'department',
-                           'connect_group', 'dream_team_roles', 'birthday', 'pastoral_notes', 'tags',
-                           'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
-                           'filled_holy_spirit', 'rise_attended', 'first_served_on']
-                
-                # Build person_data from row_dict (already a plain Python dict)
-                person_data = {}
-                person_data['id'] = safe_str(row_dict.get('id'))
-                person_data['full_name'] = safe_str(row_dict.get('full_name')) or ''
-                person_data['preferred_name'] = safe_str(row_dict.get('preferred_name'))
-                person_data['email'] = safe_str(row_dict.get('email'))
-                person_data['phone'] = safe_str(row_dict.get('phone'))
-                person_data['campus'] = safe_str(row_dict.get('campus'))
-                person_data['department'] = safe_str(row_dict.get('department'))
-                person_data['connect_group'] = safe_str(row_dict.get('connect_group'))
-                person_data['dream_team_roles'] = safe_json_load(row_dict.get('dream_team_roles'))
-                person_data['birthday'] = safe_date_convert(row_dict.get('birthday'))
-                person_data['pastoral_notes'] = safe_str(row_dict.get('pastoral_notes'))
-                person_data['tags'] = safe_json_load(row_dict.get('tags'))
-                person_data['is_active'] = bool(row_dict.get('is_active')) if row_dict.get('is_active') is not None else True
-                person_data['created_at'] = safe_date_convert(row_dict.get('created_at'))
-                person_data['updated_at'] = safe_date_convert(row_dict.get('updated_at'))
-                person_data['dna_completed'] = safe_date_convert(row_dict.get('dna_completed'))
-                person_data['baptised_on'] = safe_date_convert(row_dict.get('baptised_on'))
-                person_data['filled_holy_spirit'] = safe_date_convert(row_dict.get('filled_holy_spirit'))
-                person_data['rise_attended'] = safe_date_convert(row_dict.get('rise_attended'))
-                person_data['first_served_on'] = safe_date_convert(row_dict.get('first_served_on'))
-                
-                # Set default values for missing columns
-                person_data.setdefault('family_id', None)
-                person_data.setdefault('is_new_christian', False)
-                person_data.setdefault('new_christian_date', None)
-                person_data.setdefault('follow_up_status', None)
-                person_data.setdefault('service_attended', None)
-                person_data.setdefault('is_new_person', False)
-                person_data.setdefault('new_person_date', None)
-                person_data.setdefault('engagement', None)
-                person_data.setdefault('pathway', None)
-                person_data.setdefault('streaks', [])
-                person_data.setdefault('next_steps', [])
-                
-                person_id_from_result = person_data.get('id')
-            else:
-                return jsonify({'error': 'Person not found'}), 404
-        except Exception:
-            # Don't try to serialize exception or log it - just return error
-            # Any logging or exception formatting might trigger isoformat() calls
-            cursor.close()
-            conn.close()
-            return jsonify({'error': 'Failed to fetch person profile', 'details': 'Database query error'}), 500
+        # Connect to database
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         
-        if not person_data:
+        # Query person by email
+        cursor.execute("""
+            SELECT id, full_name, preferred_name, email, phone, campus, department,
+                   connect_group, dream_team_roles, birthday, pastoral_notes, tags,
+                   is_active, created_at, updated_at, dna_completed, baptised_on,
+                   filled_holy_spirit, rise_attended, first_served_on
+            FROM persons 
+            WHERE lower(email) = ? AND is_active = 1 
+            LIMIT 1
+        """, (email.lower(),))
+        
+        result = cursor.fetchone()
+        
+        # Close database connection
+        cursor.close()
+        conn.close()
+        
+        # Check if person was found
+        if not result:
             return jsonify({'error': 'Person not found'}), 404
         
-        # If we used raw SQL (person_id_from_result is set), return immediately to avoid ORM issues
-        if person_id_from_result:
-            logger.info(f"Returning person data from raw SQL for {person_data.get('email', 'unknown')}")
-            # Ensure all values are JSON-serializable (no SQLAlchemy types)
-            # Convert any remaining date/datetime-like objects to strings
-            def make_json_safe(obj):
-                """Recursively convert object to JSON-safe types"""
-                if obj is None:
-                    return None
-                if isinstance(obj, (str, int, float, bool)):
-                    return obj
-                if isinstance(obj, (list, tuple)):
-                    return [make_json_safe(item) for item in obj]
-                if isinstance(obj, dict):
-                    return {k: make_json_safe(v) for k, v in obj.items()}
-                # For any other type (dates, datetimes, SQLAlchemy types), convert to string
-                return str(obj)
-            
-            safe_person_data = make_json_safe(person_data)
-            return jsonify(safe_person_data)
+        # Build person data dictionary
+        person_data = {
+            'id': safe_str(result[0]),
+            'full_name': safe_str(result[1]) or '',
+            'preferred_name': safe_str(result[2]),
+            'email': safe_str(result[3]),
+            'phone': safe_str(result[4]),
+            'campus': safe_str(result[5]),
+            'department': safe_str(result[6]),
+            'connect_group': safe_str(result[7]),
+            'dream_team_roles': safe_json_load(result[8]),
+            'birthday': safe_str(result[9]),
+            'pastoral_notes': safe_str(result[10]),
+            'tags': safe_json_load(result[11]),
+            'is_active': bool(result[12]) if result[12] is not None else True,
+            'created_at': safe_str(result[13]),
+            'updated_at': safe_str(result[14]),
+            'dna_completed': safe_str(result[15]),
+            'baptised_on': safe_str(result[16]),
+            'filled_holy_spirit': safe_str(result[17]),
+            'rise_attended': safe_str(result[18]),
+            'first_served_on': safe_str(result[19]),
+            # Default values for optional fields
+            'family_id': None,
+            'is_new_christian': False,
+            'new_christian_date': None,
+            'follow_up_status': None,
+            'service_attended': None,
+            'is_new_person': False,
+            'new_person_date': None,
+            'engagement': None,
+            'pathway': None,
+            'streaks': [],
+            'next_steps': []
+        }
         
-        # Only do ORM-based queries if we have a Person object (not using raw SQL)
-        # Add engagement profile if it exists (handle schema mismatch gracefully)
-        try:
-            # Skip engagement profile for raw SQL path (already returned above)
-            if person_id_from_result:
-                # Should not reach here, but just in case
-                person_data['engagement'] = None
-            elif person and hasattr(person, 'engagement_profile') and person.engagement_profile:
-                try:
-                    person_data['engagement'] = person.engagement_profile.to_dict()
-                except Exception as e:
-                    logger.warning(f"Error serializing engagement profile: {e}")
-                    person_data['engagement'] = None
-            else:
-                person_data['engagement'] = None
-        except Exception as e:
-            # Schema mismatch - engagement_profiles table structure doesn't match model
-            logger.warning(f"Error accessing engagement profile (schema mismatch): {e}")
-            person_data['engagement'] = None
-        
-        # Add ACTUAL assigned pathway from database (not hardcoded)
-        # Skip pathway lookup when using raw SQL to avoid ORM issues  
-        if person_id_from_result:
-            # Using raw SQL - skip pathway lookup to avoid ORM conflicts
-            person_data['pathway'] = None
-        elif person:
-            try:
-                # Get the person's active pathway progress (assigned by staff) - only if person object exists
-                pathway_progress = PersonPathwayProgress.query.filter_by(
-                    person_id=person.id,
-                    is_active=True
-                ).first()
-                
-                if pathway_progress:
-                    # Person has an assigned pathway - return it!
-                    try:
-                        pathway_dict = pathway_progress.to_dict()
-                        person_data['pathway'] = pathway_dict
-                        email_for_log = person_data.get('email', 'unknown')
-                        logger.info(f"Found assigned pathway for {email_for_log}: {pathway_dict.get('pathway_name')}")
-                    except Exception as to_dict_error:
-                        logger.error(f"Error converting pathway to dict: {to_dict_error}", exc_info=True)
-                        person_data['pathway'] = None
-                else:
-                    person_data['pathway'] = None
-                    
-            except Exception as e:
-                logger.warning(f"Error loading assigned pathway: {e}", exc_info=True)
-                person_data['pathway'] = None
-        else:
-            person_data['pathway'] = None
-        
-        # Add streaks and next steps data (skip if person object not available)
-        # When using raw SQL, person is None, so skip streaks calculation
-        try:
-            if person and hasattr(person, 'engagement_profile'):
-                streaks_data = calculate_streaks_and_next_steps(person)
-                person_data['streaks'] = streaks_data.get('streaks', [])
-                person_data['next_steps'] = streaks_data.get('next_steps', [])
-            else:
-                # Skip streaks calculation if we used raw SQL workaround or no person object
-                person_data['streaks'] = person_data.get('streaks', [])
-                person_data['next_steps'] = person_data.get('next_steps', [])
-        except Exception as e:
-            logger.warning(f"Error calculating streaks: {e}")
-            person_data['streaks'] = person_data.get('streaks', [])
-            person_data['next_steps'] = person_data.get('next_steps', [])
-        
-        return jsonify(person_data)
+        return jsonify(person_data), 200
         
     except Exception as e:
-        import traceback
-        error_traceback = traceback.format_exc()
-        logger.error(f"Error fetching person by email {email}: {e}", exc_info=True)
-        logger.error(f"Full traceback: {error_traceback}")
-        return jsonify({'error': 'Failed to fetch person profile', 'details': str(e)}), 500
+        # Clean up database connection if open
+        if cursor:
+            try:
+                cursor.close()
+            except:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        
+        # Log error (without traceback formatting that might cause issues)
+        print(f"ERROR in get_person_by_email: {type(e).__name__}")
+        
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/people/profile', methods=['PUT'])

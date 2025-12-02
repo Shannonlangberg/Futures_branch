@@ -18,3 +18,4 @@ CREATE INDEX IF NOT EXISTS idx_groups_leader ON groups(leader_id);
 CREATE INDEX IF NOT EXISTS idx_groups_status ON groups(status);
 
 
+

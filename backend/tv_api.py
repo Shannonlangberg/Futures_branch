@@ -109,13 +109,34 @@ def get_video_thumbnail_url(video_url):
 def download_and_save_thumbnail(thumbnail_url, filename):
     """Download thumbnail from URL and save it locally"""
     try:
+        logger.info(f"Downloading thumbnail from: {thumbnail_url}")
         response = requests.get(thumbnail_url, timeout=10, stream=True)
         response.raise_for_status()
+        
+        # Ensure upload folder exists
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        
+        # Also try Railway persistent volume
+        railway_upload_folder = os.path.join('/data', 'uploads', 'tv')
+        if os.path.exists('/data') and os.path.isdir('/data'):
+            os.makedirs(railway_upload_folder, exist_ok=True)
         
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         with open(filepath, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+        
+        logger.info(f"Saved thumbnail to: {filepath}")
+        
+        # Also save to Railway persistent volume if available
+        if os.path.exists('/data') and os.path.isdir('/data'):
+            railway_filepath = os.path.join(railway_upload_folder, filename)
+            try:
+                import shutil
+                shutil.copy2(filepath, railway_filepath)
+                logger.info(f"Also saved thumbnail to Railway volume: {railway_filepath}")
+            except Exception as e:
+                logger.warning(f"Could not copy to Railway volume: {e}")
         
         # Optimize image if PIL is available
         if PIL_AVAILABLE:
@@ -136,12 +157,25 @@ def download_and_save_thumbnail(thumbnail_url, filename):
                 
                 # Save optimized
                 img.save(filepath, 'JPEG', quality=85, optimize=True)
+                
+                # Update Railway copy if it exists
+                if os.path.exists('/data') and os.path.isdir('/data'):
+                    railway_filepath = os.path.join(railway_upload_folder, filename)
+                    if os.path.exists(railway_filepath):
+                        img.save(railway_filepath, 'JPEG', quality=85, optimize=True)
             except Exception as e:
                 logger.warning(f"Could not optimize thumbnail: {e}")
         
+        # Verify file exists before returning
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Thumbnail file was not created: {filepath}")
+        
+        logger.info(f"Thumbnail successfully saved and verified: {filepath}")
         return filepath
     except Exception as e:
         logger.error(f"Error downloading thumbnail: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise
 
 
