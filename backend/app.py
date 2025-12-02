@@ -14808,7 +14808,7 @@ def get_person_by_email(email):
             cursor.close()
             conn.close()
             
-            if result:
+            if row_dict:
                 # row_dict is already a plain Python dict from sqlite3
                 
                 # Helper function to safely convert dates - ensure everything is a string
@@ -14878,13 +14878,20 @@ def get_person_by_email(email):
         except Exception as e:
             # Don't try to serialize exception - just return error
             # Capture error type and message safely without formatting
+            # Avoid any string formatting that might trigger isoformat()
             error_type = type(e).__name__
+            error_msg = "Database query error"
             try:
-                error_msg = str(e)
+                # Try to get error message, but don't format it
+                error_str = str(e)
+                if error_str and len(error_str) < 200:  # Limit length
+                    error_msg = error_str
             except:
-                error_msg = "Unknown error"
-            logger.error(f"Error in raw SQL query: {error_type}: {error_msg}")
-            return jsonify({'error': 'Failed to fetch person profile', 'details': f'{error_type}: {error_msg}'}), 500
+                pass
+            # Log without formatting to avoid issues
+            logger.error("Error in raw SQL query: " + error_type)
+            # Return simple error without complex formatting
+            return jsonify({'error': 'Failed to fetch person profile', 'details': error_msg}), 500
         
         if not person_data:
             return jsonify({'error': 'Person not found'}), 404

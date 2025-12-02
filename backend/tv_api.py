@@ -1012,12 +1012,12 @@ def get_all_series_admin():
         series_data = []
         for s in series_list:
             try:
-                series_data.append(s.to_dict(include_episodes=True, admin_mode=True))
+                series_data.append(s.to_dict(include_episodes=True))
             except Exception as e:
                 logger.warning(f"Error serializing series {s.id}: {e}")
                 # Try without episodes if that's causing the issue
                 try:
-                    series_data.append(s.to_dict(include_episodes=False, admin_mode=True))
+                    series_data.append(s.to_dict(include_episodes=False))
                 except Exception as e2:
                     logger.error(f"Error serializing series {s.id} without episodes: {e2}")
                     # Skip this series if we can't serialize it
