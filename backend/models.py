@@ -2601,7 +2601,36 @@ class TVSeries(db.Model):
         }
         
         if include_episodes:
-            result['episodes'] = [e.to_dict() for e in self.episodes.filter_by(is_published=True).order_by(TVEpisode.order_index).all()]
+            try:
+                # For admin views, show all episodes (not just published)
+                episodes_query = self.episodes.order_by(TVEpisode.order_index)
+                episodes_list = []
+                for e in episodes_query.all():
+                    try:
+                        episodes_list.append(e.to_dict())
+                    except Exception as ep_err:
+                        logger.warning(f"Error serializing episode {e.id}: {ep_err}")
+                        # Try with a minimal dict if full serialization fails
+                        try:
+                            episodes_list.append({
+                                'id': e.id,
+                                'title': getattr(e, 'title', ''),
+                                'description': getattr(e, 'description', ''),
+                                'order_index': getattr(e, 'order_index', 0),
+                                'is_published': getattr(e, 'is_published', False),
+                                'video_url': getattr(e, 'video_url', None),
+                                'duration_seconds': getattr(e, 'duration_seconds', 0),
+                                'thumbnail_url': None  # Set to None if column doesn't exist
+                            })
+                        except Exception as minimal_err:
+                            logger.error(f"Error creating minimal episode dict for {e.id}: {minimal_err}")
+                            continue
+                result['episodes'] = episodes_list
+            except Exception as e:
+                logger.error(f"Error loading episodes for series {self.id}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                result['episodes'] = []
         
         return result
 

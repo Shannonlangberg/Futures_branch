@@ -14865,7 +14865,23 @@ def get_person_by_email(email):
         # If we used raw SQL (person_id_from_result is set), return immediately to avoid ORM issues
         if person_id_from_result:
             logger.info(f"Returning person data from raw SQL for {person_data.get('email', 'unknown')}")
-            return jsonify(person_data)
+            # Ensure all values are JSON-serializable (no SQLAlchemy types)
+            # Convert any remaining date/datetime-like objects to strings
+            def make_json_safe(obj):
+                """Recursively convert object to JSON-safe types"""
+                if obj is None:
+                    return None
+                if isinstance(obj, (str, int, float, bool)):
+                    return obj
+                if isinstance(obj, (list, tuple)):
+                    return [make_json_safe(item) for item in obj]
+                if isinstance(obj, dict):
+                    return {k: make_json_safe(v) for k, v in obj.items()}
+                # For any other type (dates, datetimes, SQLAlchemy types), convert to string
+                return str(obj)
+            
+            safe_person_data = make_json_safe(person_data)
+            return jsonify(safe_person_data)
         
         # Only do ORM-based queries if we have a Person object (not using raw SQL)
         # Add engagement profile if it exists (handle schema mismatch gracefully)

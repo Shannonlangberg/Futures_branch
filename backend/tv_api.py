@@ -955,15 +955,16 @@ def get_all_series_admin():
         series_list = TVSeries.query.order_by(TVSeries.created_at.desc()).all()
         
         # Convert to dict, handling episodes gracefully
+        # Use admin_mode=True to show all episodes (not just published)
         series_data = []
         for s in series_list:
             try:
-                series_data.append(s.to_dict(include_episodes=True))
+                series_data.append(s.to_dict(include_episodes=True, admin_mode=True))
             except Exception as e:
                 logger.warning(f"Error serializing series {s.id}: {e}")
                 # Try without episodes if that's causing the issue
                 try:
-                    series_data.append(s.to_dict(include_episodes=False))
+                    series_data.append(s.to_dict(include_episodes=False, admin_mode=True))
                 except Exception as e2:
                     logger.error(f"Error serializing series {s.id} without episodes: {e2}")
                     # Skip this series if we can't serialize it
