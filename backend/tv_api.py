@@ -33,7 +33,12 @@ logger = logging.getLogger(__name__)
 tv_bp = Blueprint('tv', __name__, url_prefix='/api/tv')
 
 # Image upload configuration
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'tv')
+# Support Railway persistent volumes
+if os.path.exists('/data') and os.path.isdir('/data'):
+    UPLOAD_FOLDER = os.path.join('/data', 'uploads', 'tv')
+else:
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'tv')
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
@@ -181,12 +186,28 @@ def get_series_detail(series_id):
         if not series or not series.is_published:
             return jsonify({'error': 'Series not found'}), 404
         
+        try:
+            series_dict = series.to_dict(include_episodes=True)
+        except Exception as serialization_error:
+            logger.error(f"Error serializing series {series_id}: {serialization_error}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Try without episodes if serialization fails
+            try:
+                series_dict = series.to_dict(include_episodes=False)
+                series_dict['episodes'] = []
+            except Exception as fallback_error:
+                logger.error(f"Error in fallback serialization: {fallback_error}")
+                return jsonify({'error': 'Failed to load series data'}), 500
+        
         return jsonify({
-            'series': series.to_dict(include_episodes=True)
+            'series': series_dict
         }), 200
         
     except Exception as e:
+        import traceback
         logger.error(f"Error getting series detail: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
@@ -545,10 +566,42 @@ def generate_thumbnail():
 def serve_tv_thumbnail(filename):
     """Serve uploaded TV thumbnails"""
     try:
-        return send_from_directory(UPLOAD_FOLDER, filename)
+        # Try persistent volume first (Railway), then fall back to local
+        upload_dirs = []
+        if os.path.exists('/data') and os.path.isdir('/data'):
+            upload_dirs.append(os.path.join('/data', 'uploads', 'tv'))
+        upload_dirs.append(UPLOAD_FOLDER)
+        
+        filepath = None
+        upload_dir = None
+        
+        # Check each possible location
+        for dir_path in upload_dirs:
+            test_path = os.path.join(dir_path, filename)
+            if os.path.exists(test_path):
+                filepath = test_path
+                upload_dir = dir_path
+                logger.info(f"[TV THUMBNAIL] Found image at: {filepath}")
+                break
+        
+        if not filepath or not upload_dir:
+            logger.error(f"[TV THUMBNAIL] File not found: {filename}")
+            logger.error(f"[TV THUMBNAIL] Checked locations: {upload_dirs}")
+            for dir_path in upload_dirs:
+                exists = os.path.exists(dir_path)
+                logger.error(f"[TV THUMBNAIL]   - {dir_path}: exists={exists}")
+                if exists:
+                    try:
+                        files = os.listdir(dir_path)
+                        logger.error(f"[TV THUMBNAIL]     Files in directory: {len(files)} files")
+                    except Exception as e:
+                        logger.error(f"[TV THUMBNAIL]     Cannot list directory: {e}")
+            return jsonify({'error': 'Image not found'}), 404
+        
+        return send_from_directory(upload_dir, filename)
     except Exception as e:
-        logger.error(f"Error serving thumbnail: {e}")
-        return jsonify({'error': 'File not found'}), 404
+        logger.error(f"[TV THUMBNAIL] Error serving thumbnail {filename}: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to serve image: {str(e)}'}), 500
 
 
 @tv_bp.route('/person/<person_id>/watched', methods=['GET'])

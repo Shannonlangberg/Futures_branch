@@ -14776,22 +14776,23 @@ def get_person_by_email(email):
             logger.info(f"Raw SQL query completed, result: {result is not None}")
             
             if result:
-                # Convert Row object to tuple/list immediately to avoid ORM serialization issues
-                # SQLite returns dates as strings, but SQLAlchemy might convert them
-                # Convert to plain Python types immediately
+                # Convert Row to dict using _asdict() to get plain Python values
+                # This avoids SQLAlchemy serialization issues
                 try:
-                    result_list = [None if r is None else r for r in result]
+                    row_dict = result._asdict() if hasattr(result, '_asdict') else dict(result._mapping) if hasattr(result, '_mapping') else {}
                 except:
-                    # If conversion fails, try to get values directly
-                    result_list = list(result) if result else []
+                    # Fallback: access by index
+                    row_dict = {}
+                    for i in range(len(result)):
+                        try:
+                            row_dict[f'col_{i}'] = result[i]
+                        except:
+                            pass
                 
                 # Helper function to safely convert dates - ensure everything is a string
-                # Never call .isoformat() - just use str() which works for all types
                 def safe_date_convert(date_val):
                     if date_val is None:
                         return None
-                    # Always use str() which works for strings, datetime, date, etc.
-                    # Never call .isoformat() as it may fail on strings
                     if isinstance(date_val, str):
                         return date_val
                     try:
@@ -14806,36 +14807,42 @@ def get_person_by_email(email):
                     except:
                         return []
                 
-                # Build person_data dict - convert all values to safe JSON types
-                # Convert each field individually to catch any conversion errors
+                # Build person_data dict from row_dict (plain Python values)
+                # Access values by column name or index
+                col_names = ['id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 'department',
+                           'connect_group', 'dream_team_roles', 'birthday', 'pastoral_notes', 'tags',
+                           'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
+                           'filled_holy_spirit', 'rise_attended', 'first_served_on']
+                
                 person_data = {}
-                try:
-                    person_data['id'] = str(result_list[0]) if result_list[0] is not None else None
-                    person_data['full_name'] = str(result_list[1]) if len(result_list) > 1 and result_list[1] is not None else ''
-                    person_data['preferred_name'] = str(result_list[2]) if len(result_list) > 2 and result_list[2] is not None else None
-                    person_data['email'] = str(result_list[3]) if len(result_list) > 3 and result_list[3] is not None else None
-                    person_data['phone'] = str(result_list[4]) if len(result_list) > 4 and result_list[4] is not None else None
-                    person_data['campus'] = str(result_list[5]) if len(result_list) > 5 and result_list[5] is not None else None
-                    person_data['department'] = str(result_list[6]) if len(result_list) > 6 and result_list[6] is not None else None
-                    person_data['connect_group'] = str(result_list[7]) if len(result_list) > 7 and result_list[7] is not None else None
-                    person_data['dream_team_roles'] = safe_json_load(result_list[8]) if len(result_list) > 8 else []
-                    person_data['birthday'] = safe_date_convert(result_list[9]) if len(result_list) > 9 else None
-                    person_data['pastoral_notes'] = str(result_list[10]) if len(result_list) > 10 and result_list[10] is not None else None
-                    person_data['tags'] = safe_json_load(result_list[11]) if len(result_list) > 11 else []
-                    person_data['is_active'] = bool(result_list[12]) if len(result_list) > 12 and result_list[12] is not None else True
-                    person_data['created_at'] = safe_date_convert(result_list[13]) if len(result_list) > 13 else None
-                    person_data['updated_at'] = safe_date_convert(result_list[14]) if len(result_list) > 14 else None
-                    person_data['dna_completed'] = safe_date_convert(result_list[15]) if len(result_list) > 15 else None
-                    person_data['baptised_on'] = safe_date_convert(result_list[16]) if len(result_list) > 16 else None
-                    person_data['filled_holy_spirit'] = safe_date_convert(result_list[17]) if len(result_list) > 17 else None
-                    person_data['rise_attended'] = safe_date_convert(result_list[18]) if len(result_list) > 18 else None
-                    person_data['first_served_on'] = safe_date_convert(result_list[19]) if len(result_list) > 19 else None
-                except Exception:
-                    # If any field conversion fails, use minimal data
+                if row_dict:
+                    # Use column names if available
+                    person_data['id'] = safe_str(row_dict.get('id') or row_dict.get('col_0'))
+                    person_data['full_name'] = safe_str(row_dict.get('full_name') or row_dict.get('col_1')) or ''
+                    person_data['preferred_name'] = safe_str(row_dict.get('preferred_name') or row_dict.get('col_2'))
+                    person_data['email'] = safe_str(row_dict.get('email') or row_dict.get('col_3'))
+                    person_data['phone'] = safe_str(row_dict.get('phone') or row_dict.get('col_4'))
+                    person_data['campus'] = safe_str(row_dict.get('campus') or row_dict.get('col_5'))
+                    person_data['department'] = safe_str(row_dict.get('department') or row_dict.get('col_6'))
+                    person_data['connect_group'] = safe_str(row_dict.get('connect_group') or row_dict.get('col_7'))
+                    person_data['dream_team_roles'] = safe_json_load(row_dict.get('dream_team_roles') or row_dict.get('col_8'))
+                    person_data['birthday'] = safe_date_convert(row_dict.get('birthday') or row_dict.get('col_9'))
+                    person_data['pastoral_notes'] = safe_str(row_dict.get('pastoral_notes') or row_dict.get('col_10'))
+                    person_data['tags'] = safe_json_load(row_dict.get('tags') or row_dict.get('col_11'))
+                    person_data['is_active'] = bool(row_dict.get('is_active') or row_dict.get('col_12')) if row_dict.get('is_active') or row_dict.get('col_12') is not None else True
+                    person_data['created_at'] = safe_date_convert(row_dict.get('created_at') or row_dict.get('col_13'))
+                    person_data['updated_at'] = safe_date_convert(row_dict.get('updated_at') or row_dict.get('col_14'))
+                    person_data['dna_completed'] = safe_date_convert(row_dict.get('dna_completed') or row_dict.get('col_15'))
+                    person_data['baptised_on'] = safe_date_convert(row_dict.get('baptised_on') or row_dict.get('col_16'))
+                    person_data['filled_holy_spirit'] = safe_date_convert(row_dict.get('filled_holy_spirit') or row_dict.get('col_17'))
+                    person_data['rise_attended'] = safe_date_convert(row_dict.get('rise_attended') or row_dict.get('col_18'))
+                    person_data['first_served_on'] = safe_date_convert(row_dict.get('first_served_on') or row_dict.get('col_19'))
+                else:
+                    # Fallback: access by index directly from result
                     person_data = {
-                        'id': str(result_list[0]) if len(result_list) > 0 and result_list[0] is not None else None,
-                        'full_name': str(result_list[1]) if len(result_list) > 1 and result_list[1] is not None else '',
-                        'email': str(result_list[3]) if len(result_list) > 3 and result_list[3] is not None else None,
+                        'id': safe_str(result[0]) if len(result) > 0 and result[0] is not None else None,
+                        'full_name': safe_str(result[1]) if len(result) > 1 and result[1] is not None else '',
+                        'email': safe_str(result[3]) if len(result) > 3 and result[3] is not None else None,
                         'is_active': True
                     }
                 
