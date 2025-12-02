@@ -14792,20 +14792,33 @@ def _get_person_by_email_impl(email):
             
             result = cursor.fetchone()
             
-            # Convert sqlite3.Row to dict immediately
+            # Convert sqlite3.Row to dict immediately - use tuple unpacking to avoid Row access issues
             if result:
-                # Convert Row to plain dict - this should be safe
+                # Convert Row to tuple first, then to dict
+                # This completely bypasses any Row object serialization
                 row_dict = {}
-                for key in result.keys():
-                    val = result[key]
-                    # Convert to plain Python type immediately
-                    if val is None:
-                        row_dict[key] = None
-                    elif isinstance(val, (str, int, float, bool)):
-                        row_dict[key] = val
-                    else:
-                        # For any other type, convert to string
-                        row_dict[key] = str(val)
+                try:
+                    # Get all values as a tuple first
+                    row_tuple = tuple(result)
+                    col_names = result.keys()
+                    
+                    # Now build dict from tuple values
+                    for i, key in enumerate(col_names):
+                        if i < len(row_tuple):
+                            val = row_tuple[i]
+                            # All values from sqlite3 are already plain Python types
+                            row_dict[key] = val
+                        else:
+                            row_dict[key] = None
+                except Exception:
+                    # If conversion fails, try direct dict conversion
+                    try:
+                        row_dict = dict(zip(result.keys(), result))
+                    except:
+                        # Last resort: return error
+                        cursor.close()
+                        conn.close()
+                        return jsonify({'error': 'Failed to process person data', 'details': 'Data conversion error'}), 500
             else:
                 row_dict = None
                 
@@ -14880,8 +14893,10 @@ def _get_person_by_email_impl(email):
             else:
                 return jsonify({'error': 'Person not found'}), 404
         except Exception:
-            # Don't try to serialize exception - just return error
-            # Return simple error without complex formatting
+            # Don't try to serialize exception or log it - just return error
+            # Any logging or exception formatting might trigger isoformat() calls
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Failed to fetch person profile', 'details': 'Database query error'}), 500
         
         if not person_data:
