@@ -494,8 +494,8 @@ def upload_thumbnail():
         else:
             logger.info("Skipping image optimization - PIL not available")
         
-        # Return URL for the uploaded file (accessible via static route)
-        file_url = f"/uploads/tv/{unique_filename}"
+        # Return URL for the uploaded file (accessible via API route)
+        file_url = f"/api/tv/uploads/tv/{unique_filename}"
         
         return jsonify({
             'url': file_url,

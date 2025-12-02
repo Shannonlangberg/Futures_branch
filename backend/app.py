@@ -14726,11 +14726,17 @@ def calculate_streaks_and_next_steps(person):
 @app.route('/api/persons/email/<email>', methods=['GET'])
 def get_person_by_email(email):
     """Get person profile by email - public endpoint for mobile app"""
-    # Top-level wrapper to catch any errors before traceback formatting
+    # Top-level wrapper to catch ANY error before traceback formatting
+    # Use sys.exc_info() to prevent traceback formatting
+    import sys
     try:
         return _get_person_by_email_impl(email)
-    except Exception:
-        # Catch any error, including traceback formatting errors
+    except:
+        # Catch absolutely everything, including traceback formatting errors
+        # Don't let Python format the traceback at all
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        # Clear the traceback to prevent formatting
+        del exc_tb
         return jsonify({'error': 'Failed to fetch person profile', 'details': 'Internal server error'}), 500
 
 def _get_person_by_email_impl(email):
@@ -14792,23 +14798,26 @@ def _get_person_by_email_impl(email):
             
             result = cursor.fetchone()
             
-            # Convert sqlite3.Row to dict - use direct column access to avoid any Row methods
+            # Convert sqlite3.Row to dict - use hardcoded column names and access by index
+            # This completely avoids calling any Row methods that might trigger isoformat()
             if result:
                 row_dict = {}
-                # Access each column directly by name - this avoids any Row iteration
-                col_names = ['id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 'department',
-                           'connect_group', 'dream_team_roles', 'birthday', 'pastoral_notes', 'tags',
-                           'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
-                           'filled_holy_spirit', 'rise_attended', 'first_served_on']
+                # Hardcoded column names in SELECT order
+                col_names_list = ['id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 'department',
+                                'connect_group', 'dream_team_roles', 'birthday', 'pastoral_notes', 'tags',
+                                'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
+                                'filled_holy_spirit', 'rise_attended', 'first_served_on']
                 
-                for col in col_names:
+                # Access values by index only - no Row methods called
+                for idx in range(len(col_names_list)):
+                    col = col_names_list[idx]
                     try:
-                        # Access by column name directly
-                        val = result[col]
+                        # Access by integer index only - this should be safe
+                        val = result[idx]
                         # All sqlite3 values are already plain Python types (str, int, float, None)
                         row_dict[col] = val
                     except:
-                        # If column doesn't exist or access fails, set to None
+                        # If access fails, set to None
                         row_dict[col] = None
             else:
                 row_dict = None

@@ -1233,7 +1233,7 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
                 Downloadable Notes URL (Optional)
               </label>
               <input
-                type="url"
+                type="text"
                 value={formData.downloadable_notes_url}
                 onChange={(e) => setFormData({ ...formData, downloadable_notes_url: e.target.value })}
                 className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
