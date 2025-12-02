@@ -14726,9 +14726,15 @@ def calculate_streaks_and_next_steps(person):
 @app.route('/api/persons/email/<email>', methods=['GET'])
 def get_person_by_email(email):
     """Get person profile by email - public endpoint for mobile app"""
-    import sys
-    print(f"🔵 FUNCTION CALLED: get_person_by_email({email})", file=sys.stderr)
-    logger.error(f"🔵 FUNCTION CALLED: get_person_by_email({email})")
+    # Top-level wrapper to catch any errors before traceback formatting
+    try:
+        return _get_person_by_email_impl(email)
+    except Exception:
+        # Catch any error, including traceback formatting errors
+        return jsonify({'error': 'Failed to fetch person profile', 'details': 'Internal server error'}), 500
+
+def _get_person_by_email_impl(email):
+    """Implementation of get_person_by_email"""
     try:
         # Log which database we're using
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
@@ -14760,7 +14766,6 @@ def get_person_by_email(email):
         
         # Try raw SQL first to avoid ORM schema mismatch issues
         # Use raw sqlite3 connection to completely bypass SQLAlchemy serialization
-        logger.info(f"Attempting raw SQL query for email: {email}")
         row_dict = None
         person_id_from_result = None
         try:
@@ -14786,7 +14791,6 @@ def get_person_by_email(email):
             """, (email.lower(),))
             
             result = cursor.fetchone()
-            logger.info(f"Raw SQL query completed, result: {result is not None}")
             
             # Convert sqlite3.Row to dict immediately
             if result:
@@ -14875,23 +14879,10 @@ def get_person_by_email(email):
                 person_id_from_result = person_data.get('id')
             else:
                 return jsonify({'error': 'Person not found'}), 404
-        except Exception as e:
+        except Exception:
             # Don't try to serialize exception - just return error
-            # Capture error type and message safely without formatting
-            # Avoid any string formatting that might trigger isoformat()
-            error_type = type(e).__name__
-            error_msg = "Database query error"
-            try:
-                # Try to get error message, but don't format it
-                error_str = str(e)
-                if error_str and len(error_str) < 200:  # Limit length
-                    error_msg = error_str
-            except:
-                pass
-            # Log without formatting to avoid issues
-            logger.error("Error in raw SQL query: " + error_type)
             # Return simple error without complex formatting
-            return jsonify({'error': 'Failed to fetch person profile', 'details': error_msg}), 500
+            return jsonify({'error': 'Failed to fetch person profile', 'details': 'Database query error'}), 500
         
         if not person_data:
             return jsonify({'error': 'Person not found'}), 404

@@ -839,22 +839,66 @@ def create_episode():
             series_id=data['series_id']
         ).scalar() or 0
         
-        episode = TVEpisode(
-            series_id=data['series_id'],
-            title=data['title'],
-            description=data.get('description'),
-            video_url=data.get('video_url'),
-            thumbnail_url=data.get('thumbnail_url'),
-            duration_seconds=data.get('duration_seconds', 0),
-            order_index=data.get('order_index', max_order + 1),
-            is_published=data.get('is_published', False),
-            downloadable_notes_url=data.get('downloadable_notes_url'),
-            create_custom_step=data.get('create_custom_step', False),
-            custom_step_name=data.get('custom_step_name')
-        )
+        # Create episode - use raw SQL if thumbnail_url column doesn't exist
+        use_raw_sql = False
+        try:
+            # Try normal creation first
+            episode = TVEpisode(
+                series_id=data['series_id'],
+                title=data['title'],
+                description=data.get('description'),
+                video_url=data.get('video_url'),
+                thumbnail_url=data.get('thumbnail_url'),
+                duration_seconds=data.get('duration_seconds', 0),
+                order_index=data.get('order_index', max_order + 1),
+                is_published=data.get('is_published', False),
+                downloadable_notes_url=data.get('downloadable_notes_url'),
+                create_custom_step=data.get('create_custom_step', False),
+                custom_step_name=data.get('custom_step_name')
+            )
+            db.session.add(episode)
+            db.session.flush()  # This will trigger the error if column doesn't exist
+        except Exception as flush_err:
+            error_str = str(flush_err).lower()
+            if 'no such column' in error_str or 'thumbnail_url' in error_str:
+                logger.warning(f"thumbnail_url column doesn't exist, using raw SQL fallback: {flush_err}")
+                db.session.rollback()
+                use_raw_sql = True
+            else:
+                raise  # Re-raise if it's a different error
         
-        db.session.add(episode)
-        db.session.flush()
+        if use_raw_sql:
+            # Use raw SQL to insert without thumbnail_url column
+            from sqlalchemy import text
+            result = db.session.execute(
+                text("""
+                    INSERT INTO tv_episodes (series_id, title, description, video_url, duration_seconds,
+                                             order_index, is_published, downloadable_notes_url,
+                                             create_custom_step, custom_step_name, created_at, updated_at)
+                    VALUES (:series_id, :title, :description, :video_url, :duration_seconds,
+                            :order_index, :is_published, :downloadable_notes_url,
+                            :create_custom_step, :custom_step_name, :created_at, :updated_at)
+                """),
+                {
+                    'series_id': data['series_id'],
+                    'title': data['title'],
+                    'description': data.get('description') or '',
+                    'video_url': data.get('video_url') or '',
+                    'duration_seconds': data.get('duration_seconds', 0),
+                    'order_index': data.get('order_index', max_order + 1),
+                    'is_published': 1 if data.get('is_published', False) else 0,
+                    'downloadable_notes_url': data.get('downloadable_notes_url') or '',
+                    'create_custom_step': 1 if data.get('create_custom_step', False) else 0,
+                    'custom_step_name': data.get('custom_step_name') or '',
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow()
+                }
+            )
+            db.session.commit()
+            episode_id = result.lastrowid
+            episode = TVEpisode.query.get(episode_id)
+            if not episode:
+                return jsonify({'error': 'Failed to create episode'}), 500
         
         # Add tags if provided
         if 'tags' in data and isinstance(data['tags'], list):
@@ -879,7 +923,14 @@ def create_episode():
                 )
                 db.session.add(link)
         
-        db.session.commit()
+        # Only commit if we didn't use raw SQL (which already committed)
+        if not use_raw_sql:
+            db.session.commit()
+        else:
+            # If using raw SQL, we need to commit tags and discipleship links
+            if ('tags' in data and isinstance(data['tags'], list) and len(data['tags']) > 0) or \
+               ('discipleship_links' in data and isinstance(data['discipleship_links'], list) and len(data['discipleship_links']) > 0):
+                db.session.commit()
         
         return jsonify({
             'message': 'Episode created successfully',
