@@ -567,7 +567,18 @@ def generate_thumbnail():
         
         # Download and save thumbnail
         filename = f'auto_{uuid.uuid4().hex}.jpg'
-        download_and_save_thumbnail(thumbnail_url, filename)
+        
+        try:
+            filepath = download_and_save_thumbnail(thumbnail_url, filename)
+            logger.info(f"Thumbnail saved successfully to: {filepath}")
+        except Exception as download_error:
+            logger.error(f"Failed to download/save thumbnail: {download_error}")
+            return jsonify({'error': f'Failed to download thumbnail: {str(download_error)}'}), 500
+        
+        # Verify file exists before proceeding
+        if not os.path.exists(filepath):
+            logger.error(f"Thumbnail file not found after download: {filepath}")
+            return jsonify({'error': 'Thumbnail file was not saved successfully'}), 500
         
         # Generate URL for the saved thumbnail
         saved_url = f'/api/tv/uploads/tv/{filename}'
@@ -585,6 +596,7 @@ def generate_thumbnail():
                     series.thumbnail_url = saved_url
                     db.session.commit()
         
+        logger.info(f"Thumbnail generation complete. URL: {saved_url}")
         return jsonify({
             'message': 'Thumbnail generated successfully',
             'thumbnail_url': saved_url
