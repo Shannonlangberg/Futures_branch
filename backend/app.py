@@ -14733,14 +14733,27 @@ def get_person_by_email(email):
         # Log which database we're using
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
         db_path = get_db_path()
-        print(f"🔵 Starting function execution for {email}", file=sys.stderr)
-        logger.error(f"🔵 Starting function execution for {email}")
         logger.info(f"=== START get_person_by_email for {email} ===")
-        logger.info(f"GET /api/persons/email/{email} - Using database: {db_uri}")
-        logger.info(f"GET /api/persons/email/{email} - Database path: {db_path}")
+        
+        # Helper functions defined outside try block
+        def safe_str(val):
+            if val is None:
+                return None
+            try:
+                return str(val)
+            except:
+                return None
+        
+        def safe_json_load(val):
+            if not val:
+                return []
+            try:
+                return json.loads(val) if isinstance(val, str) else val
+            except:
+                return []
         
         # Find person by email (case-insensitive)
-        # Use raw SQL directly to avoid schema mismatch issues (family_id, is_new_christian, etc. may not exist)
+        # Use raw SQL directly to avoid schema mismatch issues
         person = None
         person_data = None
         person_id_from_result = None
@@ -14768,20 +14781,13 @@ def get_person_by_email(email):
                 result_list = list(result)
                 
                 # Helper function to safely convert dates - ensure everything is a string
+                # Never call .isoformat() - just use str() which works for all types
                 def safe_date_convert(date_val):
                     if date_val is None:
                         return None
-                    # If it's already a string, return as-is
-                    if isinstance(date_val, str):
-                        return date_val
-                    # Handle datetime/date objects - use repr() or direct string conversion
-                    # Avoid .isoformat() as it may fail if the object is somehow already a string
+                    # Always use str() which works for strings, datetime, date, etc.
+                    # Never call .isoformat() as it may fail on strings
                     try:
-                        from datetime import datetime, date
-                        if isinstance(date_val, (datetime, date)):
-                            # Use str() to convert datetime/date to string
-                            return str(date_val)
-                        # For anything else, just convert to string
                         return str(date_val) if date_val else None
                     except Exception:
                         return None
@@ -14849,11 +14855,14 @@ def get_person_by_email(email):
             else:
                 return jsonify({'error': 'Person not found'}), 404
         except Exception as raw_error:
-            # Don't use exc_info=True as it may try to serialize datetime objects
-            error_msg = str(raw_error)
-            logger.error(f"Error in raw SQL query: {error_msg}")
-            # Return error immediately - don't try fallback as it may have same issue
-            return jsonify({'error': 'Failed to fetch person profile', 'details': error_msg}), 500
+            # Handle error without trying to serialize exception object
+            error_type_name = type(raw_error).__name__
+            try:
+                error_msg_str = str(raw_error)
+            except:
+                error_msg_str = "Unknown error occurred"
+            logger.error(f"Error in raw SQL query: {error_type_name}")
+            return jsonify({'error': 'Failed to fetch person profile', 'details': f"{error_type_name}: {error_msg_str}"}), 500
         
         if not person_data:
             return jsonify({'error': 'Person not found'}), 404

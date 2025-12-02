@@ -216,9 +216,9 @@ const TV = () => {
                     className="group flex-shrink-0 w-48 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-200 relative"
                   >
                     <div className="relative aspect-video bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40">
-                      {episode.series?.thumbnail_url ? (
+                      {(episode.episode?.thumbnail_url || episode.series?.thumbnail_url) ? (
                         <img
-                          src={episode.series.thumbnail_url}
+                          src={episode.episode?.thumbnail_url || episode.series.thumbnail_url}
                           alt={episode.title}
                           className="w-full h-full object-cover"
                           onError={(e) => {

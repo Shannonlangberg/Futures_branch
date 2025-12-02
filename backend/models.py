@@ -2615,6 +2615,7 @@ class TVEpisode(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     video_url = db.Column(db.String(500))  # YouTube/Vimeo embed URL or S3 link
+    thumbnail_url = db.Column(db.String(500))  # Episode-specific thumbnail (falls back to series thumbnail)
     duration_seconds = db.Column(db.Integer, default=0)
     order_index = db.Column(db.Integer, default=0)
     is_published = db.Column(db.Boolean, default=False)
@@ -2638,6 +2639,7 @@ class TVEpisode(db.Model):
             'title': self.title,
             'description': self.description,
             'video_url': self.video_url,
+            'thumbnail_url': self.thumbnail_url,
             'duration_seconds': self.duration_seconds,
             'duration_formatted': self._format_duration(self.duration_seconds),
             'order_index': self.order_index,

@@ -791,6 +791,7 @@ def create_episode():
             title=data['title'],
             description=data.get('description'),
             video_url=data.get('video_url'),
+            thumbnail_url=data.get('thumbnail_url'),
             duration_seconds=data.get('duration_seconds', 0),
             order_index=data.get('order_index', max_order + 1),
             is_published=data.get('is_published', False),
@@ -858,6 +859,8 @@ def update_episode(episode_id):
             episode.description = data['description']
         if 'video_url' in data:
             episode.video_url = data['video_url']
+        if 'thumbnail_url' in data:
+            episode.thumbnail_url = data['thumbnail_url']
         if 'duration_seconds' in data:
             episode.duration_seconds = int(data['duration_seconds'])
         if 'order_index' in data:

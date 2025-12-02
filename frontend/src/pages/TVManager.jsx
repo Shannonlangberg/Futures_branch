@@ -795,6 +795,7 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
     title: '',
     description: '',
     video_url: '',
+    thumbnail_url: '',
     duration_seconds: 0,
     order_index: 0,
     is_published: false,
@@ -805,6 +806,8 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
   });
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
+  const [thumbnailPreview, setThumbnailPreview] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [youtubeError, setYoutubeError] = useState('');
   
@@ -825,6 +828,7 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
         title: episode.title || '',
         description: episode.description || '',
         video_url: episode.video_url || '',
+        thumbnail_url: episode.thumbnail_url || '',
         duration_seconds: episode.duration_seconds || 0,
         order_index: episode.order_index || 0,
         is_published: episode.is_published || false,
@@ -845,6 +849,8 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
           setYoutubeUrl(episode.video_url);
         }
       }
+      // Set thumbnail preview
+      setThumbnailPreview(episode.thumbnail_url || '');
     } else {
       // Get next order index
       const maxOrder = series.episodes ? Math.max(...series.episodes.map(e => e.order_index || 0), 0) : 0;
@@ -854,6 +860,10 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
       });
     }
   }, [episode, series]);
+
+  useEffect(() => {
+    setThumbnailPreview(formData.thumbnail_url);
+  }, [formData.thumbnail_url]);
 
   const extractYouTubeId = (url) => {
     if (!url) return null;
@@ -1037,7 +1047,7 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
                         return;
                       }
                       try {
-                        setUploadingImage(true);
+                        setGeneratingThumbnail(true);
                         const response = await fetch('/api/tv/generate-thumbnail', {
                           method: 'POST',
                           headers: {
@@ -1052,23 +1062,10 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
                         });
                         const data = await response.json();
                         if (response.ok) {
-                          // Update series thumbnail (episodes use series thumbnail)
-                          if (series?.id) {
-                            // Update the series with the generated thumbnail
-                            await fetch(`/api/tv/admin/series/${series.id}`, {
-                              method: 'PUT',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              credentials: 'include',
-                              body: JSON.stringify({
-                                thumbnail_url: data.thumbnail_url
-                              })
-                            });
-                          }
+                          // Update episode thumbnail_url directly
+                          setFormData({ ...formData, thumbnail_url: data.thumbnail_url });
+                          setThumbnailPreview(data.thumbnail_url);
                           alert('Thumbnail generated successfully!');
-                          if (onClose) onClose();
-                          if (onSave) onSave();
                         } else {
                           alert(data.error || 'Failed to generate thumbnail');
                         }
@@ -1076,14 +1073,14 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
                         console.error('Error generating thumbnail:', err);
                         alert('Failed to generate thumbnail');
                       } finally {
-                        setUploadingImage(false);
+                        setGeneratingThumbnail(false);
                       }
                     }}
-                    disabled={!formData.video_url || uploadingImage}
+                    disabled={!formData.video_url || generatingThumbnail}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     title="Generate thumbnail from video"
                   >
-                    {uploadingImage ? 'Generating...' : '📸 Auto Thumbnail'}
+                    {generatingThumbnail ? 'Generating...' : '📸 Auto Thumbnail'}
                   </button>
                 )}
               </div>
@@ -1098,6 +1095,106 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
                   <p className="text-xs text-green-300">✓ YouTube URL detected and validated</p>
                 </div>
               )}
+            </div>
+
+            {/* Episode Thumbnail */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Episode Thumbnail (Optional - will use series thumbnail if not set)
+              </label>
+              
+              {/* Thumbnail Preview */}
+              {thumbnailPreview && (
+                <div className="mb-3">
+                  <img
+                    src={thumbnailPreview}
+                    alt="Thumbnail preview"
+                    className="w-full max-w-xs h-32 object-cover rounded-lg border border-slate-700"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+              
+              {/* Upload Button */}
+              <div className="mb-3">
+                <label className="flex items-center justify-center w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg cursor-pointer transition-colors">
+                  {uploadingImage ? (
+                    <>
+                      <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload Image
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('File too large. Maximum size is 5MB');
+                        return;
+                      }
+                      
+                      const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+                      if (!validTypes.includes(file.type)) {
+                        alert('Invalid file type. Use PNG, JPG, GIF, or WEBP');
+                        return;
+                      }
+                      
+                      const formDataToSend = new FormData();
+                      formDataToSend.append('file', file);
+                      
+                      try {
+                        setUploadingImage(true);
+                        const response = await fetch('/api/tv/upload-thumbnail', {
+                          method: 'POST',
+                          credentials: 'include',
+                          body: formDataToSend
+                        });
+                        
+                        if (response.ok) {
+                          const data = await response.json();
+                          setFormData({ ...formData, thumbnail_url: data.url });
+                          setThumbnailPreview(data.url);
+                        } else {
+                          const error = await response.json();
+                          alert(error.error || 'Failed to upload image');
+                        }
+                      } catch (err) {
+                        console.error('Error uploading image:', err);
+                        alert('Failed to upload image');
+                      } finally {
+                        setUploadingImage(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              
+              {/* URL Input */}
+              <input
+                type="url"
+                value={formData.thumbnail_url}
+                onChange={(e) => {
+                  setFormData({ ...formData, thumbnail_url: e.target.value });
+                  setThumbnailPreview(e.target.value);
+                }}
+                className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
+                placeholder="https://... or upload image above"
+              />
+              <p className="text-xs text-slate-500 mt-1">Enter a direct image URL or upload an image. If empty, will use series thumbnail.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

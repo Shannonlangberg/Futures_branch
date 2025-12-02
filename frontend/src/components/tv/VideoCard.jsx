@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { PlayIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 const VideoCard = ({ episode, series, showProgress = false, progress = null }) => {
-  const thumbnailUrl = series?.thumbnail_url || episode?.thumbnail_url || null;
+  // Use episode thumbnail if available, otherwise fallback to series thumbnail
+  const thumbnailUrl = episode?.thumbnail_url || series?.thumbnail_url || null;
   const duration = episode?.duration_formatted || '0:00';
   const progressPercent = progress && episode?.duration_seconds 
     ? (progress.last_position_seconds / episode.duration_seconds) * 100 
