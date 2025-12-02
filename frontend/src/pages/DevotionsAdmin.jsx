@@ -450,7 +450,7 @@ const DevotionsAdmin = () => {
                 <label className="block text-sm font-medium text-white/80 mb-2">Cover Image (Thumbnail)</label>
                 <div className="space-y-3">
                   {formData.cover_url && (
-                    <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-700/50 bg-slate-700/50">
+                    <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-slate-700/50 bg-slate-700/50">
                       <img
                         src={formData.cover_url.startsWith('http') ? formData.cover_url : `${window.location.origin}${formData.cover_url}`}
                         alt="Cover preview"
