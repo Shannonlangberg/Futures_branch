@@ -2603,9 +2603,56 @@ class TVSeries(db.Model):
         if include_episodes:
             try:
                 # For admin views, show all episodes (not just published)
-                episodes_query = self.episodes.order_by(TVEpisode.order_index)
+                # Use raw SQL query to avoid SQLAlchemy column issues if thumbnail_url doesn't exist
+                from sqlalchemy import text
+                try:
+                    # Try normal query first
+                    episodes_query = self.episodes.order_by(TVEpisode.order_index)
+                    episodes_raw = episodes_query.all()
+                except Exception as query_err:
+                    logger.warning(f"Error querying episodes with ORM for series {self.id}: {query_err}")
+                    # Fallback to raw SQL query excluding thumbnail_url
+                    try:
+                        episodes_raw = db.session.execute(
+                            text("""
+                                SELECT id, series_id, title, description, video_url, duration_seconds, 
+                                       order_index, is_published, downloadable_notes_url,
+                                       create_custom_step, custom_step_name, created_at, updated_at
+                                FROM tv_episodes 
+                                WHERE series_id = :series_id
+                                ORDER BY order_index
+                            """),
+                            {'series_id': self.id}
+                        ).fetchall()
+                        # Convert to dict format for processing
+                        episodes_list = []
+                        for row in episodes_raw:
+                            episodes_list.append({
+                                'id': row.id,
+                                'series_id': row.series_id,
+                                'title': row.title or '',
+                                'description': row.description or '',
+                                'video_url': row.video_url,
+                                'duration_seconds': row.duration_seconds or 0,
+                                'order_index': row.order_index or 0,
+                                'is_published': bool(row.is_published) if row.is_published is not None else False,
+                                'downloadable_notes_url': row.downloadable_notes_url,
+                                'create_custom_step': bool(row.create_custom_step) if row.create_custom_step is not None else False,
+                                'custom_step_name': row.custom_step_name,
+                                'created_at': row.created_at.isoformat() if row.created_at else None,
+                                'updated_at': row.updated_at.isoformat() if row.updated_at else None,
+                                'thumbnail_url': None  # Column doesn't exist yet
+                            })
+                        result['episodes'] = episodes_list
+                        return result
+                    except Exception as raw_err:
+                        logger.error(f"Error with raw SQL query for episodes: {raw_err}")
+                        result['episodes'] = []
+                        return result
+                
+                # Process episodes normally
                 episodes_list = []
-                for e in episodes_query.all():
+                for e in episodes_raw:
                     try:
                         episodes_list.append(e.to_dict())
                     except Exception as ep_err:

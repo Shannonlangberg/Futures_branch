@@ -14759,35 +14759,57 @@ def get_person_by_email(email):
         person_id_from_result = None
         
         # Try raw SQL first to avoid ORM schema mismatch issues
+        # Use raw sqlite3 connection to completely bypass SQLAlchemy serialization
         logger.info(f"Attempting raw SQL query for email: {email}")
+        row_dict = None
+        person_id_from_result = None
         try:
-            result = db.session.execute(
-                text("""
-                    SELECT id, full_name, preferred_name, email, phone, campus, department,
-                           connect_group, dream_team_roles, birthday, pastoral_notes, tags,
-                           is_active, created_at, updated_at, dna_completed, baptised_on,
-                           filled_holy_spirit, rise_attended, first_served_on
-                    FROM persons 
-                    WHERE lower(email) = :email AND is_active = 1 
-                    LIMIT 1
-                """),
-                {'email': email.lower()}
-            ).fetchone()
+            import sqlite3
+            db_path = get_db_path()
+            if not db_path:
+                logger.error("Database path is None or empty")
+                return jsonify({'error': 'Database configuration error'}), 500
+            
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+            cursor = conn.cursor()
+            
+            # Execute query with proper error handling
+            cursor.execute("""
+                SELECT id, full_name, preferred_name, email, phone, campus, department,
+                       connect_group, dream_team_roles, birthday, pastoral_notes, tags,
+                       is_active, created_at, updated_at, dna_completed, baptised_on,
+                       filled_holy_spirit, rise_attended, first_served_on
+                FROM persons 
+                WHERE lower(email) = ? AND is_active = 1 
+                LIMIT 1
+            """, (email.lower(),))
+            
+            result = cursor.fetchone()
             logger.info(f"Raw SQL query completed, result: {result is not None}")
             
+            # Convert sqlite3.Row to dict immediately
             if result:
-                # Convert Row to dict using _asdict() to get plain Python values
-                # This avoids SQLAlchemy serialization issues
-                try:
-                    row_dict = result._asdict() if hasattr(result, '_asdict') else dict(result._mapping) if hasattr(result, '_mapping') else {}
-                except:
-                    # Fallback: access by index
-                    row_dict = {}
-                    for i in range(len(result)):
-                        try:
-                            row_dict[f'col_{i}'] = result[i]
-                        except:
-                            pass
+                # Convert Row to plain dict - this should be safe
+                row_dict = {}
+                for key in result.keys():
+                    val = result[key]
+                    # Convert to plain Python type immediately
+                    if val is None:
+                        row_dict[key] = None
+                    elif isinstance(val, (str, int, float, bool)):
+                        row_dict[key] = val
+                    else:
+                        # For any other type, convert to string
+                        row_dict[key] = str(val)
+            else:
+                row_dict = None
+                
+            cursor.close()
+            conn.close()
+            
+            if result:
+                # row_dict is already a plain Python dict from sqlite3
                 
                 # Helper function to safely convert dates - ensure everything is a string
                 def safe_date_convert(date_val):
@@ -14814,37 +14836,28 @@ def get_person_by_email(email):
                            'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
                            'filled_holy_spirit', 'rise_attended', 'first_served_on']
                 
+                # Build person_data from row_dict (already a plain Python dict)
                 person_data = {}
-                if row_dict:
-                    # Use column names if available
-                    person_data['id'] = safe_str(row_dict.get('id') or row_dict.get('col_0'))
-                    person_data['full_name'] = safe_str(row_dict.get('full_name') or row_dict.get('col_1')) or ''
-                    person_data['preferred_name'] = safe_str(row_dict.get('preferred_name') or row_dict.get('col_2'))
-                    person_data['email'] = safe_str(row_dict.get('email') or row_dict.get('col_3'))
-                    person_data['phone'] = safe_str(row_dict.get('phone') or row_dict.get('col_4'))
-                    person_data['campus'] = safe_str(row_dict.get('campus') or row_dict.get('col_5'))
-                    person_data['department'] = safe_str(row_dict.get('department') or row_dict.get('col_6'))
-                    person_data['connect_group'] = safe_str(row_dict.get('connect_group') or row_dict.get('col_7'))
-                    person_data['dream_team_roles'] = safe_json_load(row_dict.get('dream_team_roles') or row_dict.get('col_8'))
-                    person_data['birthday'] = safe_date_convert(row_dict.get('birthday') or row_dict.get('col_9'))
-                    person_data['pastoral_notes'] = safe_str(row_dict.get('pastoral_notes') or row_dict.get('col_10'))
-                    person_data['tags'] = safe_json_load(row_dict.get('tags') or row_dict.get('col_11'))
-                    person_data['is_active'] = bool(row_dict.get('is_active') or row_dict.get('col_12')) if row_dict.get('is_active') or row_dict.get('col_12') is not None else True
-                    person_data['created_at'] = safe_date_convert(row_dict.get('created_at') or row_dict.get('col_13'))
-                    person_data['updated_at'] = safe_date_convert(row_dict.get('updated_at') or row_dict.get('col_14'))
-                    person_data['dna_completed'] = safe_date_convert(row_dict.get('dna_completed') or row_dict.get('col_15'))
-                    person_data['baptised_on'] = safe_date_convert(row_dict.get('baptised_on') or row_dict.get('col_16'))
-                    person_data['filled_holy_spirit'] = safe_date_convert(row_dict.get('filled_holy_spirit') or row_dict.get('col_17'))
-                    person_data['rise_attended'] = safe_date_convert(row_dict.get('rise_attended') or row_dict.get('col_18'))
-                    person_data['first_served_on'] = safe_date_convert(row_dict.get('first_served_on') or row_dict.get('col_19'))
-                else:
-                    # Fallback: access by index directly from result
-                    person_data = {
-                        'id': safe_str(result[0]) if len(result) > 0 and result[0] is not None else None,
-                        'full_name': safe_str(result[1]) if len(result) > 1 and result[1] is not None else '',
-                        'email': safe_str(result[3]) if len(result) > 3 and result[3] is not None else None,
-                        'is_active': True
-                    }
+                person_data['id'] = safe_str(row_dict.get('id'))
+                person_data['full_name'] = safe_str(row_dict.get('full_name')) or ''
+                person_data['preferred_name'] = safe_str(row_dict.get('preferred_name'))
+                person_data['email'] = safe_str(row_dict.get('email'))
+                person_data['phone'] = safe_str(row_dict.get('phone'))
+                person_data['campus'] = safe_str(row_dict.get('campus'))
+                person_data['department'] = safe_str(row_dict.get('department'))
+                person_data['connect_group'] = safe_str(row_dict.get('connect_group'))
+                person_data['dream_team_roles'] = safe_json_load(row_dict.get('dream_team_roles'))
+                person_data['birthday'] = safe_date_convert(row_dict.get('birthday'))
+                person_data['pastoral_notes'] = safe_str(row_dict.get('pastoral_notes'))
+                person_data['tags'] = safe_json_load(row_dict.get('tags'))
+                person_data['is_active'] = bool(row_dict.get('is_active')) if row_dict.get('is_active') is not None else True
+                person_data['created_at'] = safe_date_convert(row_dict.get('created_at'))
+                person_data['updated_at'] = safe_date_convert(row_dict.get('updated_at'))
+                person_data['dna_completed'] = safe_date_convert(row_dict.get('dna_completed'))
+                person_data['baptised_on'] = safe_date_convert(row_dict.get('baptised_on'))
+                person_data['filled_holy_spirit'] = safe_date_convert(row_dict.get('filled_holy_spirit'))
+                person_data['rise_attended'] = safe_date_convert(row_dict.get('rise_attended'))
+                person_data['first_served_on'] = safe_date_convert(row_dict.get('first_served_on'))
                 
                 # Set default values for missing columns
                 person_data.setdefault('family_id', None)
@@ -14862,9 +14875,16 @@ def get_person_by_email(email):
                 person_id_from_result = person_data.get('id')
             else:
                 return jsonify({'error': 'Person not found'}), 404
-        except Exception:
+        except Exception as e:
             # Don't try to serialize exception - just return error
-            return jsonify({'error': 'Failed to fetch person profile', 'details': 'Database query error'}), 500
+            # Capture error type and message safely without formatting
+            error_type = type(e).__name__
+            try:
+                error_msg = str(e)
+            except:
+                error_msg = "Unknown error"
+            logger.error(f"Error in raw SQL query: {error_type}: {error_msg}")
+            return jsonify({'error': 'Failed to fetch person profile', 'details': f'{error_type}: {error_msg}'}), 500
         
         if not person_data:
             return jsonify({'error': 'Person not found'}), 404
