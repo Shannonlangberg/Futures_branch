@@ -14792,33 +14792,24 @@ def _get_person_by_email_impl(email):
             
             result = cursor.fetchone()
             
-            # Convert sqlite3.Row to dict immediately - use tuple unpacking to avoid Row access issues
+            # Convert sqlite3.Row to dict - use direct column access to avoid any Row methods
             if result:
-                # Convert Row to tuple first, then to dict
-                # This completely bypasses any Row object serialization
                 row_dict = {}
-                try:
-                    # Get all values as a tuple first
-                    row_tuple = tuple(result)
-                    col_names = result.keys()
-                    
-                    # Now build dict from tuple values
-                    for i, key in enumerate(col_names):
-                        if i < len(row_tuple):
-                            val = row_tuple[i]
-                            # All values from sqlite3 are already plain Python types
-                            row_dict[key] = val
-                        else:
-                            row_dict[key] = None
-                except Exception:
-                    # If conversion fails, try direct dict conversion
+                # Access each column directly by name - this avoids any Row iteration
+                col_names = ['id', 'full_name', 'preferred_name', 'email', 'phone', 'campus', 'department',
+                           'connect_group', 'dream_team_roles', 'birthday', 'pastoral_notes', 'tags',
+                           'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
+                           'filled_holy_spirit', 'rise_attended', 'first_served_on']
+                
+                for col in col_names:
                     try:
-                        row_dict = dict(zip(result.keys(), result))
+                        # Access by column name directly
+                        val = result[col]
+                        # All sqlite3 values are already plain Python types (str, int, float, None)
+                        row_dict[col] = val
                     except:
-                        # Last resort: return error
-                        cursor.close()
-                        conn.close()
-                        return jsonify({'error': 'Failed to process person data', 'details': 'Data conversion error'}), 500
+                        # If column doesn't exist or access fails, set to None
+                        row_dict[col] = None
             else:
                 row_dict = None
                 

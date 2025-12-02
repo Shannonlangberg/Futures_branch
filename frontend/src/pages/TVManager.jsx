@@ -668,14 +668,14 @@ const SeriesModal = ({ series, categories, audiences, onClose, onSave }) => {
               
               {/* URL Input */}
               <input
-                type="url"
+                type="text"
                 value={formData.thumbnail_url}
                 onChange={(e) => {
                   setFormData({ ...formData, thumbnail_url: e.target.value });
                   setThumbnailPreview(e.target.value);
                 }}
                 className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
-                placeholder="https://... or upload image above"
+                placeholder="https://... or /api/tv/uploads/tv/... or upload image above"
               />
               <p className="text-xs text-slate-500 mt-1">Enter a direct image URL or upload an image (JPG, PNG, GIF, WEBP - Max 5MB)</p>
             </div>
