@@ -14763,83 +14763,61 @@ def get_person_by_email(email):
             logger.info(f"Raw SQL query completed, result: {result is not None}")
             
             if result:
-                # Helper function to safely convert dates (handles both date objects and strings)
+                # Convert Row object to tuple/list to avoid ORM serialization issues
+                # SQLite returns dates as strings, but SQLAlchemy might convert them
+                result_list = list(result)
+                
+                # Helper function to safely convert dates - ensure everything is a string
                 def safe_date_convert(date_val):
                     if date_val is None:
                         return None
+                    # If it's already a string, return as-is
                     if isinstance(date_val, str):
-                        return date_val  # Already a string
-                    if hasattr(date_val, 'isoformat'):
-                        return date_val.isoformat()  # Date/datetime object
-                    return str(date_val)  # Fallback
+                        return date_val
+                    # Handle datetime/date objects - use repr() or direct string conversion
+                    # Avoid .isoformat() as it may fail if the object is somehow already a string
+                    try:
+                        from datetime import datetime, date
+                        if isinstance(date_val, (datetime, date)):
+                            # Use str() to convert datetime/date to string
+                            return str(date_val)
+                        # For anything else, just convert to string
+                        return str(date_val) if date_val else None
+                    except Exception:
+                        return None
                 
-                # Build person_data dict manually
-                person_data = {
-                    'id': result[0],
-                    'full_name': result[1],
-                    'preferred_name': result[2],
-                    'email': result[3],
-                    'phone': result[4],
-                    'campus': result[5],
-                    'department': result[6],
-                    'connect_group': result[7],
-                    'dream_team_roles': json.loads(result[8]) if result[8] else [],
-                    'birthday': safe_date_convert(result[9]),
-                    'pastoral_notes': result[10],
-                    'tags': json.loads(result[11]) if result[11] else [],
-                    'is_active': bool(result[12]),
-                    'created_at': safe_date_convert(result[13]),
-                    'updated_at': safe_date_convert(result[14]),
-                    'dna_completed': safe_date_convert(result[15]),
-                    'baptised_on': safe_date_convert(result[16]),
-                    'filled_holy_spirit': safe_date_convert(result[17]),
-                    'rise_attended': safe_date_convert(result[18]),
-                    'first_served_on': safe_date_convert(result[19]),
-                    # Missing columns set to None
-                    'family_id': None,
-                    'is_new_christian': False,
-                    'new_christian_date': None,
-                    'follow_up_status': None,
-                    'service_attended': None,
-                    'is_new_person': False,
-                    'new_person_date': None,
-                    'engagement': None,
-                    'pathway': None,
-                    'streaks': [],
-                    'next_steps': []
-                }
-                person_id_from_result = result[0]
-            else:
-                return jsonify({'error': 'Person not found'}), 404
-        except Exception as raw_error:
-            import traceback
-            logger.error(f"Error in raw SQL query: {raw_error}", exc_info=True)
-            logger.error(f"Full traceback: {traceback.format_exc()}")
-            # Try to get basic person info even if date conversion fails
-            try:
-                if result:
-                    # Fallback: return data with dates as strings
+                # Helper to safely parse JSON
+                def safe_json_load(val):
+                    try:
+                        return json.loads(val) if val else []
+                    except:
+                        return []
+                
+                # Build person_data dict - convert all values to safe JSON types
+                # Use result_list instead of result to avoid ORM Row object issues
+                try:
                     person_data = {
-                        'id': result[0],
-                        'full_name': result[1],
-                        'preferred_name': result[2],
-                        'email': result[3],
-                        'phone': result[4],
-                        'campus': result[5],
-                        'department': result[6],
-                        'connect_group': result[7],
-                        'dream_team_roles': json.loads(result[8]) if result[8] else [],
-                        'birthday': str(result[9]) if result[9] else None,
-                        'pastoral_notes': result[10],
-                        'tags': json.loads(result[11]) if result[11] else [],
-                        'is_active': bool(result[12]),
-                        'created_at': str(result[13]) if result[13] else None,
-                        'updated_at': str(result[14]) if result[14] else None,
-                        'dna_completed': str(result[15]) if result[15] else None,
-                        'baptised_on': str(result[16]) if result[16] else None,
-                        'filled_holy_spirit': str(result[17]) if result[17] else None,
-                        'rise_attended': str(result[18]) if result[18] else None,
-                        'first_served_on': str(result[19]) if result[19] else None,
+                        'id': str(result_list[0]) if result_list[0] is not None else None,
+                        'full_name': str(result_list[1]) if result_list[1] is not None else '',
+                        'preferred_name': str(result_list[2]) if result_list[2] is not None else None,
+                        'email': str(result_list[3]) if result_list[3] is not None else None,
+                        'phone': str(result_list[4]) if result_list[4] is not None else None,
+                        'campus': str(result_list[5]) if result_list[5] is not None else None,
+                        'department': str(result_list[6]) if result_list[6] is not None else None,
+                        'connect_group': str(result_list[7]) if result_list[7] is not None else None,
+                        'dream_team_roles': safe_json_load(result_list[8]) if len(result_list) > 8 else [],
+                        'birthday': safe_date_convert(result_list[9]) if len(result_list) > 9 else None,
+                        'pastoral_notes': str(result_list[10]) if len(result_list) > 10 and result_list[10] is not None else None,
+                        'tags': safe_json_load(result_list[11]) if len(result_list) > 11 else [],
+                        'is_active': bool(result_list[12]) if len(result_list) > 12 and result_list[12] is not None else True,
+                        'created_at': safe_date_convert(result_list[13]) if len(result_list) > 13 else None,
+                        'updated_at': safe_date_convert(result_list[14]) if len(result_list) > 14 else None,
+                        'dna_completed': safe_date_convert(result_list[15]) if len(result_list) > 15 else None,
+                        'baptised_on': safe_date_convert(result_list[16]) if len(result_list) > 16 else None,
+                        'filled_holy_spirit': safe_date_convert(result_list[17]) if len(result_list) > 17 else None,
+                        'rise_attended': safe_date_convert(result_list[18]) if len(result_list) > 18 else None,
+                        'first_served_on': safe_date_convert(result_list[19]) if len(result_list) > 19 else None,
+                        # Missing columns set to None
                         'family_id': None,
                         'is_new_christian': False,
                         'new_christian_date': None,
@@ -14852,20 +14830,45 @@ def get_person_by_email(email):
                         'streaks': [],
                         'next_steps': []
                     }
-                    person_id_from_result = result[0]
-                    logger.info("Using fallback date conversion (strings)")
-            except Exception as fallback_error:
-                logger.error(f"Fallback also failed: {fallback_error}")
-                return jsonify({'error': 'Failed to fetch person profile', 'details': str(raw_error)}), 500
+                    person_id_from_result = str(result_list[0]) if result_list[0] is not None else None
+                except Exception as build_error:
+                    logger.error(f"Error building person_data dict: {build_error}", exc_info=False)  # Don't use exc_info to avoid serialization issues
+                    # Use minimal fallback
+                    person_data = {
+                        'id': str(result_list[0]) if len(result_list) > 0 and result_list[0] is not None else None,
+                        'full_name': str(result_list[1]) if len(result_list) > 1 and result_list[1] is not None else '',
+                        'email': str(result_list[3]) if len(result_list) > 3 and result_list[3] is not None else None,
+                        'campus': str(result_list[5]) if len(result_list) > 5 and result_list[5] is not None else None,
+                        'is_active': True,
+                        'engagement': None,
+                        'pathway': None,
+                        'streaks': [],
+                        'next_steps': []
+                    }
+                    person_id_from_result = str(result_list[0]) if len(result_list) > 0 and result_list[0] is not None else None
+            else:
+                return jsonify({'error': 'Person not found'}), 404
+        except Exception as raw_error:
+            # Don't use exc_info=True as it may try to serialize datetime objects
+            error_msg = str(raw_error)
+            logger.error(f"Error in raw SQL query: {error_msg}")
+            # Return error immediately - don't try fallback as it may have same issue
+            return jsonify({'error': 'Failed to fetch person profile', 'details': error_msg}), 500
         
         if not person_data:
             return jsonify({'error': 'Person not found'}), 404
         
+        # If we used raw SQL (person_id_from_result is set), return immediately to avoid ORM issues
+        if person_id_from_result:
+            logger.info(f"Returning person data from raw SQL for {person_data.get('email', 'unknown')}")
+            return jsonify(person_data)
+        
+        # Only do ORM-based queries if we have a Person object (not using raw SQL)
         # Add engagement profile if it exists (handle schema mismatch gracefully)
         try:
-            # If we used raw SQL (person is None), skip engagement profile for now
+            # Skip engagement profile for raw SQL path (already returned above)
             if person_id_from_result:
-                # Try to query engagement profile with raw SQL if needed
+                # Should not reach here, but just in case
                 person_data['engagement'] = None
             elif person and hasattr(person, 'engagement_profile') and person.engagement_profile:
                 try:
@@ -14881,49 +14884,52 @@ def get_person_by_email(email):
             person_data['engagement'] = None
         
         # Add ACTUAL assigned pathway from database (not hardcoded)
-        try:
-            # Get the person's active pathway progress (assigned by staff)
-            person_id_for_pathway = person.id if person else person_id_from_result
-            pathway_progress = PersonPathwayProgress.query.filter_by(
-                person_id=person_id_for_pathway,
-                is_active=True
-            ).first()
-            
-            if pathway_progress:
-                # Person has an assigned pathway - return it!
-                try:
-                    pathway_dict = pathway_progress.to_dict()
-                    person_data['pathway'] = pathway_dict
-                    email_for_log = person.email if person else (person_data.get('email') if person_data else 'unknown')
-                    logger.info(f"Found assigned pathway for {email_for_log}: {pathway_dict.get('pathway_name')}")
-                except Exception as to_dict_error:
-                    logger.error(f"Error converting pathway to dict: {to_dict_error}", exc_info=True)
-                    person_data['pathway'] = None
-            else:
-                # No pathway assigned - return None (staff needs to assign one)
-                email_for_log = person.email if person else (person_data.get('email') if person_data else 'unknown')
-                logger.info(f"No pathway assigned to {email_for_log}")
-                person_data['pathway'] = None
+        # Skip pathway lookup when using raw SQL to avoid ORM issues  
+        if person_id_from_result:
+            # Using raw SQL - skip pathway lookup to avoid ORM conflicts
+            person_data['pathway'] = None
+        elif person:
+            try:
+                # Get the person's active pathway progress (assigned by staff) - only if person object exists
+                pathway_progress = PersonPathwayProgress.query.filter_by(
+                    person_id=person.id,
+                    is_active=True
+                ).first()
                 
-        except Exception as e:
-            logger.warning(f"Error loading assigned pathway: {e}", exc_info=True)
+                if pathway_progress:
+                    # Person has an assigned pathway - return it!
+                    try:
+                        pathway_dict = pathway_progress.to_dict()
+                        person_data['pathway'] = pathway_dict
+                        email_for_log = person_data.get('email', 'unknown')
+                        logger.info(f"Found assigned pathway for {email_for_log}: {pathway_dict.get('pathway_name')}")
+                    except Exception as to_dict_error:
+                        logger.error(f"Error converting pathway to dict: {to_dict_error}", exc_info=True)
+                        person_data['pathway'] = None
+                else:
+                    person_data['pathway'] = None
+                    
+            except Exception as e:
+                logger.warning(f"Error loading assigned pathway: {e}", exc_info=True)
+                person_data['pathway'] = None
+        else:
             person_data['pathway'] = None
         
         # Add streaks and next steps data (skip if person object not available)
+        # When using raw SQL, person is None, so skip streaks calculation
         try:
-            if person:
+            if person and hasattr(person, 'engagement_profile'):
                 streaks_data = calculate_streaks_and_next_steps(person)
-                person_data['streaks'] = streaks_data['streaks']
-                person_data['next_steps'] = streaks_data['next_steps']
+                person_data['streaks'] = streaks_data.get('streaks', [])
+                person_data['next_steps'] = streaks_data.get('next_steps', [])
             else:
-                # Skip streaks calculation if we used raw SQL workaround
-                person_data['streaks'] = []
-                person_data['next_steps'] = []
+                # Skip streaks calculation if we used raw SQL workaround or no person object
+                person_data['streaks'] = person_data.get('streaks', [])
+                person_data['next_steps'] = person_data.get('next_steps', [])
         except Exception as e:
             logger.warning(f"Error calculating streaks: {e}")
-            if person_data:
-                person_data['streaks'] = []
-                person_data['next_steps'] = []
+            person_data['streaks'] = person_data.get('streaks', [])
+            person_data['next_steps'] = person_data.get('next_steps', [])
         
         return jsonify(person_data)
         
@@ -19460,33 +19466,32 @@ def get_events():
         logger.info(f"[EVENTS] Fetching events - campus: {campus}, upcoming: {upcoming}, status: {status}")
         
         # Build query - handle schema mismatches gracefully
-        # Check if start_time column exists first
+        # Pulse database uses start_datetime/end_datetime, not start_time/end_time
         use_raw_sql = False
         from sqlalchemy import text
         
+        # Always check Pulse schema first (start_datetime exists)
         try:
-            # Test if start_time column exists
-            test_result = db.session.execute(text("SELECT start_time FROM events LIMIT 1"))
+            test_result = db.session.execute(text("SELECT start_datetime FROM events LIMIT 1"))
             test_result.fetchone()
-            logger.info("[EVENTS] start_time column exists, using ORM query")
-        except Exception as schema_test_error:
-            error_str = str(schema_test_error).lower()
-            if 'no such column' in error_str or 'start_time' in error_str:
-                logger.warning(f"[EVENTS] Schema mismatch detected (start_time missing). Using raw SQL fallback.")
-                use_raw_sql = True
-                # Count using raw SQL
-                try:
-                    result = db.session.execute(text("SELECT COUNT(*) FROM events WHERE is_active = 1"))
-                    total_active = result.scalar()
-                    logger.info(f"[EVENTS] Total active events (using raw SQL): {total_active}")
-                except Exception as raw_error:
-                    logger.error(f"[EVENTS] Could not count events: {raw_error}")
-                    total_active = 0
-            else:
-                logger.warning(f"[EVENTS] Schema test failed: {schema_test_error}, using raw SQL")
+            logger.info("[EVENTS] Pulse schema detected (start_datetime exists), using raw SQL")
+            use_raw_sql = True
+            # Count using raw SQL
+            result = db.session.execute(text("SELECT COUNT(*) FROM events WHERE is_active = 1"))
+            total_active = result.scalar()
+            logger.info(f"[EVENTS] Total active events (Pulse schema): {total_active}")
+        except Exception as pulse_schema_error:
+            # Check if old schema (start_time) exists
+            try:
+                test_result = db.session.execute(text("SELECT start_time FROM events LIMIT 1"))
+                test_result.fetchone()
+                logger.info("[EVENTS] Old schema detected (start_time exists), using ORM query")
+                use_raw_sql = False
+            except Exception:
+                logger.warning("[EVENTS] Neither schema detected, defaulting to raw SQL")
                 use_raw_sql = True
         
-        # Build ORM query (only if schema is OK)
+        # Build ORM query (only if old schema with start_time)
         query = None
         if not use_raw_sql:
             try:
@@ -19567,6 +19572,7 @@ def get_events():
                 logger.error(f"[EVENTS] Raw SQL query failed: {raw_sql_error}")
                 return jsonify({'events': [], 'error': 'Failed to fetch events'}), 500
         
+        # If we reach here, we're using ORM queries (schema has start_time column)
         # Filter by campus
         if campus != 'all_campuses':
             query = query.filter(Event.campus.in_(['all_campuses', campus]))

@@ -19,6 +19,8 @@ from heartbeat_engine import HeartbeatEngine
 import logging
 import os
 import uuid
+import re
+import requests
 try:
     from PIL import Image
     PIL_AVAILABLE = True
@@ -41,6 +43,101 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def extract_youtube_video_id(url):
+    """Extract YouTube video ID from various URL formats"""
+    patterns = [
+        r'(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})',
+        r'youtube\.com\/v\/([a-zA-Z0-9_-]{11})'
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+def extract_vimeo_video_id(url):
+    """Extract Vimeo video ID from URL"""
+    patterns = [
+        r'vimeo\.com\/(\d+)',
+        r'player\.vimeo\.com\/video\/(\d+)'
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+def get_video_thumbnail_url(video_url):
+    """Get thumbnail URL from YouTube or Vimeo video URL"""
+    if not video_url:
+        return None
+    
+    # Try YouTube
+    youtube_id = extract_youtube_video_id(video_url)
+    if youtube_id:
+        # YouTube thumbnail URLs: hqdefault (480x360), maxresdefault (1280x720), etc.
+        return f'https://img.youtube.com/vi/{youtube_id}/maxresdefault.jpg'
+    
+    # Try Vimeo
+    vimeo_id = extract_vimeo_video_id(video_url)
+    if vimeo_id:
+        try:
+            # Vimeo API to get thumbnail
+            api_url = f'https://vimeo.com/api/v2/video/{vimeo_id}.json'
+            response = requests.get(api_url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    # Get the largest thumbnail available
+                    thumbnail = data[0].get('thumbnail_large') or data[0].get('thumbnail_medium') or data[0].get('thumbnail_small')
+                    return thumbnail
+        except Exception as e:
+            logger.error(f"Error fetching Vimeo thumbnail: {e}")
+    
+    return None
+
+
+def download_and_save_thumbnail(thumbnail_url, filename):
+    """Download thumbnail from URL and save it locally"""
+    try:
+        response = requests.get(thumbnail_url, timeout=10, stream=True)
+        response.raise_for_status()
+        
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        # Optimize image if PIL is available
+        if PIL_AVAILABLE:
+            try:
+                img = Image.open(filepath)
+                # Convert to RGB if needed
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                    img = rgb_img
+                
+                # Resize if too large (max 1920x1080)
+                max_size = (1920, 1080)
+                if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                
+                # Save optimized
+                img.save(filepath, 'JPEG', quality=85, optimize=True)
+            except Exception as e:
+                logger.warning(f"Could not optimize thumbnail: {e}")
+        
+        return filepath
+    except Exception as e:
+        logger.error(f"Error downloading thumbnail: {e}")
+        raise
 
 
 # ============================================================================
@@ -389,6 +486,58 @@ def upload_thumbnail():
         return jsonify({'error': f'File too large. Maximum size is {MAX_FILE_SIZE // 1024 // 1024}MB'}), 400
     except Exception as e:
         logger.error(f"Error uploading thumbnail: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@tv_bp.route('/generate-thumbnail', methods=['POST'])
+@login_required
+def generate_thumbnail():
+    """Generate thumbnail from video URL (YouTube/Vimeo)"""
+    try:
+        if not _has_tv_admin_permission():
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        data = request.get_json()
+        video_url = data.get('video_url')
+        item_type = data.get('type', 'episode')  # 'episode' or 'series'
+        item_id = data.get('item_id')
+        
+        if not video_url:
+            return jsonify({'error': 'video_url is required'}), 400
+        
+        # Get thumbnail URL from video service
+        thumbnail_url = get_video_thumbnail_url(video_url)
+        if not thumbnail_url:
+            return jsonify({'error': 'Could not extract thumbnail from video URL. Supported: YouTube, Vimeo'}), 400
+        
+        # Download and save thumbnail
+        filename = f'auto_{uuid.uuid4().hex}.jpg'
+        download_and_save_thumbnail(thumbnail_url, filename)
+        
+        # Generate URL for the saved thumbnail
+        saved_url = f'/api/tv/uploads/tv/{filename}'
+        
+        # Optionally update the item in database
+        if item_id:
+            if item_type == 'episode':
+                episode = TVEpisode.query.get(item_id)
+                if episode:
+                    episode.thumbnail_url = saved_url
+                    db.session.commit()
+            elif item_type == 'series':
+                series = TVSeries.query.get(item_id)
+                if series:
+                    series.thumbnail_url = saved_url
+                    db.session.commit()
+        
+        return jsonify({
+            'message': 'Thumbnail generated successfully',
+            'thumbnail_url': saved_url
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error generating thumbnail: {e}")
         return jsonify({'error': str(e)}), 500
 
 

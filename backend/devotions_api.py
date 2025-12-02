@@ -48,7 +48,6 @@ def enforce_positive_response(f):
     return decorated_function
 
 @devotions_bp.route('/library', methods=['GET'])
-@enforce_positive_response
 def get_devotion_library():
     """Get user's devotion library with assigned, in-progress, completed, and personal plans"""
     try:
@@ -69,55 +68,50 @@ def get_devotion_library():
         except:
             user_campus = 'all_campuses'
         
-        # Query published plans that are visible to this user's campus
-        if DevotionPlan:
-            try:
-                # Get plans where:
-                # 1. Status is 'published'
-                # 2. Campus is None (all campuses) OR matches user's campus
-                query = DevotionPlan.query.filter(
-                    DevotionPlan.status == 'published'
-                )
-                
-                # Filter by campus: show if campus is None/empty (all) or matches user's campus
-                if user_campus and user_campus != 'all_campuses':
-                    # Show plans for all campuses (None or empty) OR user's specific campus
-                    from sqlalchemy import or_
-                    query = query.filter(
-                        or_(
-                            DevotionPlan.campus.is_(None),
-                            DevotionPlan.campus == '',
-                            DevotionPlan.campus == user_campus
-                        )
-                    )
-                # If user has all_campuses access, show all published plans (no filter)
-                
-                plans = query.order_by(DevotionPlan.created_at.desc()).all()
-                
-                # Format plans for library
-                assigned = []
-                for plan in plans:
-                    assigned.append({
-                        'id': plan.id,
-                        'title': plan.title,
-                        'description': plan.description or '',
-                        'cover_url': plan.cover_url,
-                        'campus': plan.campus or 'All Campuses',
-                        'total_days': plan.total_days or 30,
-                        'content_count': plan.content.count() if hasattr(plan, 'content') else 0
-                    })
-                
-                library_data = {
-                    'assigned': assigned,
-                    'in_progress': [],  # TODO: Get from plan_assignments table
-                    'completed': [],   # TODO: Get from plan_assignments with completed status
-                    'personal': []     # TODO: Get personal plans
-                }
-                
-                return jsonify(library_data)
-            except Exception as db_error:
-                logger.warning(f"Error querying devotions: {db_error}")
-                # Fall through to sample data
+        # Query published plans from bible_plans table (Pulse database)
+        try:
+            from sqlalchemy import text
+            from models import db
+            
+            # Build raw SQL query for bible_plans table (actual schema: id, title, description, total_days, is_active, created_at, updated_at)
+            sql = """
+                SELECT id, title, description, total_days, is_active, created_at
+                FROM bible_plans 
+                WHERE is_active = 1
+            """
+            params = {}
+            
+            sql += " ORDER BY created_at DESC"
+            
+            # Execute query
+            result = db.session.execute(text(sql), params)
+            rows = result.fetchall()
+            
+            # Format plans for library
+            assigned = []
+            for row in rows:
+                assigned.append({
+                    'id': row[0],
+                    'title': row[1] or 'Untitled Plan',
+                    'description': row[2] or '',
+                    'cover_url': None,  # Not in schema
+                    'campus': 'All Campuses',  # Not in schema
+                    'total_days': row[3] or 30,
+                    'content_count': 0  # TODO: Count actual content/readings
+                })
+            
+            library_data = {
+                'assigned': assigned,
+                'in_progress': [],  # TODO: Get from plan_assignments table
+                'completed': [],   # TODO: Get from plan_assignments with completed status
+                'personal': []     # TODO: Get personal plans
+            }
+            
+            logger.info(f"[DEVOTIONS] Returning {len(assigned)} plans from bible_plans table")
+            return jsonify(library_data)
+        except Exception as db_error:
+            logger.error(f"Error querying bible_plans: {db_error}", exc_info=True)
+            # Fall through to sample data
         
         # Fallback to sample data if models not available
         library_data = {

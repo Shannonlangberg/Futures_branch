@@ -1019,19 +1019,79 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 YouTube URL or Video URL *
               </label>
-              <input
-                type="url"
-                value={youtubeUrl}
-                onChange={(e) => handleYoutubeUrlChange(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
-                placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
-                required
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={youtubeUrl}
+                  onChange={(e) => handleYoutubeUrlChange(e.target.value)}
+                  className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
+                  placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
+                  required
+                />
+                {formData.video_url && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!formData.video_url) {
+                        alert('Please enter a video URL first');
+                        return;
+                      }
+                      try {
+                        setUploadingImage(true);
+                        const response = await fetch('/api/tv/generate-thumbnail', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          credentials: 'include',
+                          body: JSON.stringify({
+                            video_url: formData.video_url,
+                            type: 'episode',
+                            item_id: episode?.id || null
+                          })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                          // Update series thumbnail (episodes use series thumbnail)
+                          if (series?.id) {
+                            // Update the series with the generated thumbnail
+                            await fetch(`/api/tv/admin/series/${series.id}`, {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              credentials: 'include',
+                              body: JSON.stringify({
+                                thumbnail_url: data.thumbnail_url
+                              })
+                            });
+                          }
+                          alert('Thumbnail generated successfully!');
+                          if (onClose) onClose();
+                          if (onSave) onSave();
+                        } else {
+                          alert(data.error || 'Failed to generate thumbnail');
+                        }
+                      } catch (err) {
+                        console.error('Error generating thumbnail:', err);
+                        alert('Failed to generate thumbnail');
+                      } finally {
+                        setUploadingImage(false);
+                      }
+                    }}
+                    disabled={!formData.video_url || uploadingImage}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    title="Generate thumbnail from video"
+                  >
+                    {uploadingImage ? 'Generating...' : '📸 Auto Thumbnail'}
+                  </button>
+                )}
+              </div>
               {youtubeError && (
                 <p className="text-xs text-red-400 mt-1">{youtubeError}</p>
               )}
               <p className="text-xs text-slate-500 mt-1">
-                Supports YouTube (watch or youtu.be), Vimeo, or direct video URLs
+                Supports YouTube (watch or youtu.be), Vimeo, or direct video URLs. Click "Auto Thumbnail" to generate from video.
               </p>
               {formData.video_url && extractYouTubeId(formData.video_url) && (
                 <div className="mt-2 p-3 bg-green-900/20 border border-green-700/30 rounded-lg">

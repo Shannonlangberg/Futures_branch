@@ -190,6 +190,34 @@
       "description": "User logged in successfully",
       "ip_address": "192.168.15.107",
       "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:32:31.489927",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:32:35.830371",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "127.0.0.1",
+      "user_agent": "curl/8.7.1"
+    },
+    {
+      "timestamp": "2025-12-02T10:32:35.888639",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "127.0.0.1",
+      "user_agent": "curl/8.7.1"
+    },
+    {
+      "timestamp": "2025-12-02T10:33:07.731003",
+      "event_type": "login_success",
+      "description": "User logged in successfully",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
     }
   ],
   "unknown": [
@@ -226,6 +254,97 @@
       "event_type": "login_failed",
       "description": "Failed login attempt for username: test@test.com",
       "ip_address": "192.168.15.167",
+      "user_agent": "curl/8.7.1"
+    },
+    {
+      "timestamp": "2025-12-02T10:21:51.287892",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "127.0.0.1",
+      "user_agent": "curl/8.7.1"
+    },
+    {
+      "timestamp": "2025-12-02T10:22:47.611325",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "127.0.0.1",
+      "user_agent": "curl/8.7.1"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:07.752457",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:39.695775",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:40.258396",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:40.528349",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:40.688073",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:40.861772",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:41.048274",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:41.235017",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:41.415303",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "192.168.15.107",
+      "user_agent": "Expo/1017756 CFNetwork/3826.600.41 Darwin/24.6.0"
+    },
+    {
+      "timestamp": "2025-12-02T10:31:56.085301",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "127.0.0.1",
+      "user_agent": "curl/8.7.1"
+    },
+    {
+      "timestamp": "2025-12-02T10:32:20.325919",
+      "event_type": "login_failed",
+      "description": "Failed login attempt for username: shannon.langberg@futures.church",
+      "ip_address": "127.0.0.1",
       "user_agent": "curl/8.7.1"
     }
   ]
