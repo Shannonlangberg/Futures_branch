@@ -954,13 +954,36 @@ def get_all_series_admin():
         
         series_list = TVSeries.query.order_by(TVSeries.created_at.desc()).all()
         
+        # Convert to dict, handling episodes gracefully
+        series_data = []
+        for s in series_list:
+            try:
+                series_data.append(s.to_dict(include_episodes=True))
+            except Exception as e:
+                logger.warning(f"Error serializing series {s.id}: {e}")
+                # Try without episodes if that's causing the issue
+                try:
+                    series_data.append(s.to_dict(include_episodes=False))
+                except Exception as e2:
+                    logger.error(f"Error serializing series {s.id} without episodes: {e2}")
+                    # Skip this series if we can't serialize it
+                    continue
+        
         return jsonify({
-            'series': [s.to_dict(include_episodes=True) for s in series_list],
-            'count': len(series_list)
+            'series': series_data,
+            'count': len(series_data)
         }), 200
         
     except Exception as e:
+        import traceback
         logger.error(f"Error getting all series: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        # Check if it's a database column error
+        error_str = str(e).lower()
+        if 'no such column' in error_str or 'thumbnail_url' in error_str:
+            return jsonify({
+                'error': 'Database migration needed: thumbnail_url column missing. Please run migration 037_add_episode_thumbnails.sql'
+            }), 500
         return jsonify({'error': str(e)}), 500
 
 

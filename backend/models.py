@@ -2632,6 +2632,12 @@ class TVEpisode(db.Model):
     
     def to_dict(self, include_progress=False, person_id=None):
         """Convert episode to dictionary"""
+        # Safely get thumbnail_url - handle case where column doesn't exist yet
+        try:
+            thumbnail_url = getattr(self, 'thumbnail_url', None)
+        except (AttributeError, KeyError):
+            thumbnail_url = None
+        
         result = {
             'id': self.id,
             'series_id': self.series_id,
@@ -2639,7 +2645,7 @@ class TVEpisode(db.Model):
             'title': self.title,
             'description': self.description,
             'video_url': self.video_url,
-            'thumbnail_url': self.thumbnail_url,
+            'thumbnail_url': thumbnail_url,
             'duration_seconds': self.duration_seconds,
             'duration_formatted': self._format_duration(self.duration_seconds),
             'order_index': self.order_index,

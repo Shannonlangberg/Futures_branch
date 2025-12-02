@@ -14776,9 +14776,14 @@ def get_person_by_email(email):
             logger.info(f"Raw SQL query completed, result: {result is not None}")
             
             if result:
-                # Convert Row object to tuple/list to avoid ORM serialization issues
+                # Convert Row object to tuple/list immediately to avoid ORM serialization issues
                 # SQLite returns dates as strings, but SQLAlchemy might convert them
-                result_list = list(result)
+                # Convert to plain Python types immediately
+                try:
+                    result_list = [None if r is None else r for r in result]
+                except:
+                    # If conversion fails, try to get values directly
+                    result_list = list(result) if result else []
                 
                 # Helper function to safely convert dates - ensure everything is a string
                 # Never call .isoformat() - just use str() which works for all types
@@ -14787,9 +14792,11 @@ def get_person_by_email(email):
                         return None
                     # Always use str() which works for strings, datetime, date, etc.
                     # Never call .isoformat() as it may fail on strings
+                    if isinstance(date_val, str):
+                        return date_val
                     try:
                         return str(date_val) if date_val else None
-                    except Exception:
+                    except:
                         return None
                 
                 # Helper to safely parse JSON
@@ -14800,69 +14807,57 @@ def get_person_by_email(email):
                         return []
                 
                 # Build person_data dict - convert all values to safe JSON types
-                # Use result_list instead of result to avoid ORM Row object issues
+                # Convert each field individually to catch any conversion errors
+                person_data = {}
                 try:
-                    person_data = {
-                        'id': str(result_list[0]) if result_list[0] is not None else None,
-                        'full_name': str(result_list[1]) if result_list[1] is not None else '',
-                        'preferred_name': str(result_list[2]) if result_list[2] is not None else None,
-                        'email': str(result_list[3]) if result_list[3] is not None else None,
-                        'phone': str(result_list[4]) if result_list[4] is not None else None,
-                        'campus': str(result_list[5]) if result_list[5] is not None else None,
-                        'department': str(result_list[6]) if result_list[6] is not None else None,
-                        'connect_group': str(result_list[7]) if result_list[7] is not None else None,
-                        'dream_team_roles': safe_json_load(result_list[8]) if len(result_list) > 8 else [],
-                        'birthday': safe_date_convert(result_list[9]) if len(result_list) > 9 else None,
-                        'pastoral_notes': str(result_list[10]) if len(result_list) > 10 and result_list[10] is not None else None,
-                        'tags': safe_json_load(result_list[11]) if len(result_list) > 11 else [],
-                        'is_active': bool(result_list[12]) if len(result_list) > 12 and result_list[12] is not None else True,
-                        'created_at': safe_date_convert(result_list[13]) if len(result_list) > 13 else None,
-                        'updated_at': safe_date_convert(result_list[14]) if len(result_list) > 14 else None,
-                        'dna_completed': safe_date_convert(result_list[15]) if len(result_list) > 15 else None,
-                        'baptised_on': safe_date_convert(result_list[16]) if len(result_list) > 16 else None,
-                        'filled_holy_spirit': safe_date_convert(result_list[17]) if len(result_list) > 17 else None,
-                        'rise_attended': safe_date_convert(result_list[18]) if len(result_list) > 18 else None,
-                        'first_served_on': safe_date_convert(result_list[19]) if len(result_list) > 19 else None,
-                        # Missing columns set to None
-                        'family_id': None,
-                        'is_new_christian': False,
-                        'new_christian_date': None,
-                        'follow_up_status': None,
-                        'service_attended': None,
-                        'is_new_person': False,
-                        'new_person_date': None,
-                        'engagement': None,
-                        'pathway': None,
-                        'streaks': [],
-                        'next_steps': []
-                    }
-                    person_id_from_result = str(result_list[0]) if result_list[0] is not None else None
-                except Exception as build_error:
-                    logger.error(f"Error building person_data dict: {build_error}", exc_info=False)  # Don't use exc_info to avoid serialization issues
-                    # Use minimal fallback
+                    person_data['id'] = str(result_list[0]) if result_list[0] is not None else None
+                    person_data['full_name'] = str(result_list[1]) if len(result_list) > 1 and result_list[1] is not None else ''
+                    person_data['preferred_name'] = str(result_list[2]) if len(result_list) > 2 and result_list[2] is not None else None
+                    person_data['email'] = str(result_list[3]) if len(result_list) > 3 and result_list[3] is not None else None
+                    person_data['phone'] = str(result_list[4]) if len(result_list) > 4 and result_list[4] is not None else None
+                    person_data['campus'] = str(result_list[5]) if len(result_list) > 5 and result_list[5] is not None else None
+                    person_data['department'] = str(result_list[6]) if len(result_list) > 6 and result_list[6] is not None else None
+                    person_data['connect_group'] = str(result_list[7]) if len(result_list) > 7 and result_list[7] is not None else None
+                    person_data['dream_team_roles'] = safe_json_load(result_list[8]) if len(result_list) > 8 else []
+                    person_data['birthday'] = safe_date_convert(result_list[9]) if len(result_list) > 9 else None
+                    person_data['pastoral_notes'] = str(result_list[10]) if len(result_list) > 10 and result_list[10] is not None else None
+                    person_data['tags'] = safe_json_load(result_list[11]) if len(result_list) > 11 else []
+                    person_data['is_active'] = bool(result_list[12]) if len(result_list) > 12 and result_list[12] is not None else True
+                    person_data['created_at'] = safe_date_convert(result_list[13]) if len(result_list) > 13 else None
+                    person_data['updated_at'] = safe_date_convert(result_list[14]) if len(result_list) > 14 else None
+                    person_data['dna_completed'] = safe_date_convert(result_list[15]) if len(result_list) > 15 else None
+                    person_data['baptised_on'] = safe_date_convert(result_list[16]) if len(result_list) > 16 else None
+                    person_data['filled_holy_spirit'] = safe_date_convert(result_list[17]) if len(result_list) > 17 else None
+                    person_data['rise_attended'] = safe_date_convert(result_list[18]) if len(result_list) > 18 else None
+                    person_data['first_served_on'] = safe_date_convert(result_list[19]) if len(result_list) > 19 else None
+                except Exception:
+                    # If any field conversion fails, use minimal data
                     person_data = {
                         'id': str(result_list[0]) if len(result_list) > 0 and result_list[0] is not None else None,
                         'full_name': str(result_list[1]) if len(result_list) > 1 and result_list[1] is not None else '',
                         'email': str(result_list[3]) if len(result_list) > 3 and result_list[3] is not None else None,
-                        'campus': str(result_list[5]) if len(result_list) > 5 and result_list[5] is not None else None,
-                        'is_active': True,
-                        'engagement': None,
-                        'pathway': None,
-                        'streaks': [],
-                        'next_steps': []
+                        'is_active': True
                     }
-                    person_id_from_result = str(result_list[0]) if len(result_list) > 0 and result_list[0] is not None else None
+                
+                # Set default values for missing columns
+                person_data.setdefault('family_id', None)
+                person_data.setdefault('is_new_christian', False)
+                person_data.setdefault('new_christian_date', None)
+                person_data.setdefault('follow_up_status', None)
+                person_data.setdefault('service_attended', None)
+                person_data.setdefault('is_new_person', False)
+                person_data.setdefault('new_person_date', None)
+                person_data.setdefault('engagement', None)
+                person_data.setdefault('pathway', None)
+                person_data.setdefault('streaks', [])
+                person_data.setdefault('next_steps', [])
+                
+                person_id_from_result = person_data.get('id')
             else:
                 return jsonify({'error': 'Person not found'}), 404
-        except Exception as raw_error:
-            # Handle error without trying to serialize exception object
-            error_type_name = type(raw_error).__name__
-            try:
-                error_msg_str = str(raw_error)
-            except:
-                error_msg_str = "Unknown error occurred"
-            logger.error(f"Error in raw SQL query: {error_type_name}")
-            return jsonify({'error': 'Failed to fetch person profile', 'details': f"{error_type_name}: {error_msg_str}"}), 500
+        except Exception:
+            # Don't try to serialize exception - just return error
+            return jsonify({'error': 'Failed to fetch person profile', 'details': 'Database query error'}), 500
         
         if not person_data:
             return jsonify({'error': 'Person not found'}), 404
