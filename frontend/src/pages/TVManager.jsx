@@ -518,7 +518,7 @@ const SeriesModal = ({ series, categories, audiences, onClose, onSave }) => {
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             {/* Thumbnail Preview */}
             {thumbnailPreview && (
               <div className="aspect-video bg-slate-900 rounded-lg overflow-hidden mb-4 border border-slate-700">
@@ -999,7 +999,7 @@ const EpisodeModal = ({ series, episode, onClose, onSave }) => {
             </ul>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Title *

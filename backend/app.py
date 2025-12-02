@@ -14782,10 +14782,11 @@ def _get_person_by_email_impl(email):
                 return jsonify({'error': 'Database configuration error'}), 500
             
             conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+            # Don't use Row factory - get plain tuples instead
+            # This completely avoids any Row object serialization issues
             cursor = conn.cursor()
             
-            # Execute query with proper error handling
+            # Execute query
             cursor.execute("""
                 SELECT id, full_name, preferred_name, email, phone, campus, department,
                        connect_group, dream_team_roles, birthday, pastoral_notes, tags,
@@ -14798,8 +14799,7 @@ def _get_person_by_email_impl(email):
             
             result = cursor.fetchone()
             
-            # Convert sqlite3.Row to dict - use hardcoded column names and access by index
-            # This completely avoids calling any Row methods that might trigger isoformat()
+            # Convert tuple to dict - result is now a plain tuple, not a Row object
             if result:
                 row_dict = {}
                 # Hardcoded column names in SELECT order
@@ -14808,16 +14808,13 @@ def _get_person_by_email_impl(email):
                                 'is_active', 'created_at', 'updated_at', 'dna_completed', 'baptised_on',
                                 'filled_holy_spirit', 'rise_attended', 'first_served_on']
                 
-                # Access values by index only - no Row methods called
+                # Access tuple by index - completely safe, no Row methods
                 for idx in range(len(col_names_list)):
                     col = col_names_list[idx]
-                    try:
-                        # Access by integer index only - this should be safe
-                        val = result[idx]
-                        # All sqlite3 values are already plain Python types (str, int, float, None)
-                        row_dict[col] = val
-                    except:
-                        # If access fails, set to None
+                    if idx < len(result):
+                        # Plain tuple access - no Row object involved
+                        row_dict[col] = result[idx]
+                    else:
                         row_dict[col] = None
             else:
                 row_dict = None
