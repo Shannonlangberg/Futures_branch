@@ -96,6 +96,47 @@ def get_devotion_plans():
             
             plans = query.order_by(DevotionPlan.created_at.desc()).all()
             
+            # Helper function to check if cover image file exists
+            def check_cover_image_exists(cover_url):
+                """Check if cover image file actually exists on disk"""
+                if not cover_url:
+                    return None
+                
+                # Extract filename from URL
+                if cover_url.startswith('/api/devotions/admin/media/'):
+                    filename = cover_url.replace('/api/devotions/admin/media/', '')
+                elif '/' in cover_url:
+                    filename = os.path.basename(cover_url)
+                else:
+                    filename = cover_url
+                
+                # Check all possible locations
+                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                instance_dir = os.path.join(backend_dir, 'instance')
+                data_dir = os.path.join(instance_dir, 'uploads', 'devotions')
+                
+                # Check Railway volume path
+                if os.path.exists('/data'):
+                    upload_dir = os.path.join('/data', 'uploads', 'devotions')
+                    file_path = os.path.join(upload_dir, filename)
+                    if os.path.exists(file_path) and os.path.isfile(file_path):
+                        return cover_url
+                
+                # Check instance directory
+                file_path = os.path.join(data_dir, filename)
+                if os.path.exists(file_path) and os.path.isfile(file_path):
+                    return cover_url
+                
+                # Check old location
+                old_dir = os.path.join(backend_dir, 'uploads', 'devotions')
+                file_path = os.path.join(old_dir, filename)
+                if os.path.exists(file_path) and os.path.isfile(file_path):
+                    return cover_url
+                
+                # File doesn't exist - return None
+                logger.debug(f"Cover image not found: {filename}")
+                return None
+            
             plans_data = []
             for plan in plans:
                 plan_data = plan.to_dict() if hasattr(plan, 'to_dict') else {
@@ -111,6 +152,12 @@ def get_devotion_plans():
                     'updated_at': plan.updated_at.isoformat() if plan.updated_at else None,
                     'content_count': plan.content.count() if hasattr(plan, 'content') else 0
                 }
+                
+                # Verify cover_url file exists, set to None if it doesn't
+                if 'cover_url' in plan_data and plan_data['cover_url']:
+                    verified_url = check_cover_image_exists(plan_data['cover_url'])
+                    plan_data['cover_url'] = verified_url
+                
                 plans_data.append(plan_data)
             
             return jsonify({
