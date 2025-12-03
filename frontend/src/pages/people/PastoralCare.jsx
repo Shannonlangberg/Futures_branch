@@ -232,19 +232,21 @@ const PastoralCare = () => {
         
         console.log('Loaded care cases:', cases.length, cases);
         
-        // Apply campus filter - simplified to avoid blocking
-        if (selectedCampus && selectedCampus.id !== 'all_campuses') {
-          // For now, just filter if we have campus info in the case itself
-          // We'll improve this later with proper person lookup
+        // Apply campus filter
+        if (campusFilter !== 'all') {
           cases = cases.filter(c => {
-            // If case has campus info, use it; otherwise include it (will be filtered later)
-            if (c.campus) {
-              const caseCampus = (c.campus || '').toLowerCase().trim().replace(/\s+/g, '_');
-              const selectedCampusId = (selectedCampus.id || '').toLowerCase().trim();
-              return caseCampus === selectedCampusId;
-            }
-            // Include cases without campus info for now (we can improve this)
-            return true;
+            if (!c.campus) return false;
+            const caseCampus = (c.campus || '').toLowerCase().trim().replace(/\s+/g, '_');
+            const filterCampus = (campusFilter || '').toLowerCase().trim();
+            return caseCampus === filterCampus || caseCampus.includes(filterCampus) || filterCampus.includes(caseCampus);
+          });
+        } else if (selectedCampus && selectedCampus.id !== 'all_campuses') {
+          // Fallback to selectedCampus if campusFilter is 'all' but user has a selected campus
+          const selectedCampusId = (selectedCampus.id || '').toLowerCase().trim();
+          cases = cases.filter(c => {
+            if (!c.campus) return false;
+            const caseCampus = (c.campus || '').toLowerCase().trim().replace(/\s+/g, '_');
+            return caseCampus === selectedCampusId || caseCampus.includes(selectedCampusId) || selectedCampusId.includes(caseCampus);
           });
         }
         
@@ -754,13 +756,27 @@ const PastoralCare = () => {
           {(selectedTab === 'cases' || selectedTab === 'all') && (
             <>
               <select
+                value={campusFilter}
+                onChange={(e) => setCampusFilter(e.target.value)}
+                className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value="all">All Campuses</option>
+                {campuses.map(campus => (
+                  <option key={campus.id || campus.campus_id} value={campus.id || campus.campus_id}>
+                    {campus.name || campus.display_name}
+                  </option>
+                ))}
+              </select>
+              
+              <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-purple-500"
               >
+                <option value="all">All Status</option>
                 <option value="open">Open</option>
                 <option value="resolved">Resolved</option>
-                <option value="all">All Status</option>
+                <option value="closed">Closed</option>
               </select>
               
               <select

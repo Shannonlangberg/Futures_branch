@@ -156,10 +156,16 @@ class PastoralCareCase(db.Model):
             except Exception as e:
                 logger.warning(f"Could not look up assigned leader name for ID {self.assigned_leader}: {e}")
         
+        # Get person's campus
+        person_campus = None
+        if self.person:
+            person_campus = self.person.campus
+        
         return {
             'id': self.id,
             'person_id': self.person_id,
             'person_name': self.person.preferred_name or self.person.full_name if self.person else 'Unknown',
+            'campus': person_campus,  # Include person's campus for filtering
             'priority': self.priority,
             'status': self.status,
             'notes': self.notes,
