@@ -600,6 +600,7 @@ const PersonHealthReport = () => {
   const handleMarkAsNewPerson = async () => {
     try {
       setUpdatingFlags({ ...updatingFlags, newPerson: true });
+      const isCurrentlyMarked = person.is_new_person;
       const today = new Date().toISOString().split('T')[0];
       
       const response = await fetch(`/api/persons/${personId}`, {
@@ -609,21 +610,25 @@ const PersonHealthReport = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          is_new_person: true,
-          new_person_date: today
+          is_new_person: !isCurrentlyMarked,
+          new_person_date: !isCurrentlyMarked ? today : null
         })
       });
 
       if (response.ok) {
-        alert('Marked as New Person! They will now appear in the New People list.');
+        if (!isCurrentlyMarked) {
+          alert('Marked as New Person! They will now appear in the New People list.');
+        } else {
+          alert('Unmarked as New Person. They will no longer appear in the New People list.');
+        }
         await fetchPersonData();
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to mark as new person');
+        alert(error.error || 'Failed to update new person status');
       }
     } catch (err) {
-      console.error('Error marking as new person:', err);
-      alert('Failed to mark as new person');
+      console.error('Error updating new person status:', err);
+      alert('Failed to update new person status');
     } finally {
       setUpdatingFlags({ ...updatingFlags, newPerson: false });
     }
@@ -632,6 +637,7 @@ const PersonHealthReport = () => {
   const handleMarkAsNewChristian = async () => {
     try {
       setUpdatingFlags({ ...updatingFlags, newChristian: true });
+      const isCurrentlyMarked = person.is_new_christian;
       const today = new Date().toISOString().split('T')[0];
       
       const response = await fetch(`/api/persons/${personId}`, {
@@ -641,21 +647,25 @@ const PersonHealthReport = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          is_new_christian: true,
-          new_christian_date: today
+          is_new_christian: !isCurrentlyMarked,
+          new_christian_date: !isCurrentlyMarked ? today : null
         })
       });
 
       if (response.ok) {
-        alert('Marked as New Christian! They will now appear in the New Christians list.');
+        if (!isCurrentlyMarked) {
+          alert('Marked as New Christian! They will now appear in the New Christians list.');
+        } else {
+          alert('Unmarked as New Christian. They will no longer appear in the New Christians list.');
+        }
         await fetchPersonData();
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to mark as new christian');
+        alert(error.error || 'Failed to update new christian status');
       }
     } catch (err) {
-      console.error('Error marking as new christian:', err);
-      alert('Failed to mark as new christian');
+      console.error('Error updating new christian status:', err);
+      alert('Failed to update new christian status');
     } finally {
       setUpdatingFlags({ ...updatingFlags, newChristian: false });
     }
@@ -840,30 +850,30 @@ const PersonHealthReport = () => {
                 <button
                   type="button"
                   onClick={handleMarkAsNewPerson}
-                  disabled={updatingFlags.newPerson || person.is_new_person}
+                  disabled={updatingFlags.newPerson}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 ${
                     person.is_new_person
-                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50 cursor-not-allowed'
+                      ? 'bg-blue-500/30 text-blue-200 border border-blue-500/60 hover:bg-blue-500/40 hover:border-blue-500/80'
                       : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:border-blue-500/50'
                   } disabled:opacity-50`}
-                  title={person.is_new_person ? 'Already marked as New Person' : 'Mark as New Person (first visit)'}
+                  title={person.is_new_person ? 'Click to unmark as New Person' : 'Mark as New Person (first visit)'}
                 >
                   <UserPlusIcon className="w-4 h-4" />
-                  {person.is_new_person ? '✓ New Person' : 'Mark as New Person'}
+                  {person.is_new_person ? '✓ New Person (click to unmark)' : 'Mark as New Person'}
                 </button>
                 <button
                   type="button"
                   onClick={handleMarkAsNewChristian}
-                  disabled={updatingFlags.newChristian || person.is_new_christian}
+                  disabled={updatingFlags.newChristian}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 ${
                     person.is_new_christian
-                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50 cursor-not-allowed'
+                      ? 'bg-purple-500/30 text-purple-200 border border-purple-500/60 hover:bg-purple-500/40 hover:border-purple-500/80'
                       : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:border-purple-500/50'
                   } disabled:opacity-50`}
-                  title={person.is_new_christian ? 'Already marked as New Christian' : 'Mark as New Christian (made decision)'}
+                  title={person.is_new_christian ? 'Click to unmark as New Christian' : 'Mark as New Christian (made decision)'}
                 >
                   <SparklesIcon className="w-4 h-4" />
-                  {person.is_new_christian ? '✓ New Christian' : 'Mark as New Christian'}
+                  {person.is_new_christian ? '✓ New Christian (click to unmark)' : 'Mark as New Christian'}
                 </button>
                 {(person.is_new_person || person.is_new_christian) && (
                   <div className="text-xs text-slate-500 ml-2 flex items-center gap-2">

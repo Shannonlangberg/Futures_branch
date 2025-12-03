@@ -15351,9 +15351,14 @@ def update_person(person_id):
             'filled_holy_spirit', 'first_served_on'
         ]
         
+        # Track if baptism or first serving is being set for the first time
+        baptised_just_set = False
+        first_served_just_set = False
+        
         for field in milestone_fields:
             if field in data:
                 value = data[field]
+                old_value = getattr(person, field, None)
                 if value == '' or value is None:
                     setattr(person, field, None)
                 else:
@@ -15363,10 +15368,34 @@ def update_person(person_id):
                             # Parse date string
                             parsed_date = datetime.strptime(value, '%Y-%m-%d').date()
                             setattr(person, field, parsed_date)
+                            # Check if this is a new milestone (was None, now has a date)
+                            if field == 'baptised_on' and old_value is None:
+                                baptised_just_set = True
+                            elif field == 'first_served_on' and old_value is None:
+                                first_served_just_set = True
                         else:
                             setattr(person, field, value)
+                            # Check if this is a new milestone
+                            if field == 'baptised_on' and old_value is None:
+                                baptised_just_set = True
+                            elif field == 'first_served_on' and old_value is None:
+                                first_served_just_set = True
                     except ValueError:
                         return jsonify({'error': f'Invalid date format for {field}'}), 400
+        
+        # Auto-unmark logic: When milestones are reached, automatically unmark
+        if hasattr(person, 'is_new_christian') and hasattr(person, 'is_new_person'):
+            # If someone gets baptized, they're no longer a "new Christian" (they've progressed)
+            if baptised_just_set and person.is_new_christian:
+                logger.info(f"Auto-unmarking {person.id} as new Christian (baptized)")
+                person.is_new_christian = False
+                person.new_christian_date = None
+            
+            # If someone starts serving, they're no longer a "new person" (they're engaged)
+            if first_served_just_set and person.is_new_person:
+                logger.info(f"Auto-unmarking {person.id} as new person (started serving)")
+                person.is_new_person = False
+                person.new_person_date = None
         
         # Update engagement profile pulse status if attendance/serving changed
         # (Pulse will be recalculated automatically on next access)

@@ -647,10 +647,26 @@ def complete_pathway_step(progress_id):
             progress.started_at = datetime.utcnow()
         
         # Check if pathway is complete
+        pathway_just_completed = False
         if not next_step:
+            pathway_just_completed = progress.completed_at is None  # Only if it wasn't already completed
             progress.completed_at = datetime.utcnow()
         
         progress.updated_at = datetime.utcnow()
+        
+        # Auto-unmark logic: When pathway is completed, unmark as new person/new Christian
+        if pathway_just_completed:
+            person = Person.query.get(progress.person_id)
+            if person and hasattr(person, 'is_new_person') and hasattr(person, 'is_new_christian'):
+                # Completing a pathway means they're no longer "new"
+                if person.is_new_person:
+                    logger.info(f"Auto-unmarking {person.id} as new person (pathway completed)")
+                    person.is_new_person = False
+                    person.new_person_date = None
+                if person.is_new_christian:
+                    logger.info(f"Auto-unmarking {person.id} as new Christian (pathway completed)")
+                    person.is_new_christian = False
+                    person.new_christian_date = None
         
         db.session.commit()
         
