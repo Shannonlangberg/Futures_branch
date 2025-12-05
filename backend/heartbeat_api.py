@@ -80,10 +80,10 @@ def get_campus_people(campus_id):
                         setattr(person, key, value)
                     people.append(person)
             else:
-                query = Person.query.filter_by(is_active=True)
-                if department_filter:
-                    query = query.filter_by(department=department_filter)
-                people = query.all()
+            query = Person.query.filter_by(is_active=True)
+            if department_filter:
+                query = query.filter_by(department=department_filter)
+            people = query.all()
             campus_name = 'All Campuses'
             campus_id_display = 'all_campuses'
         else:
@@ -142,10 +142,10 @@ def get_campus_people(campus_id):
                         setattr(person, key, value)
                     people.append(person)
             else:
-                query = Person.query.filter_by(
-                    campus=campus.name,
-                    is_active=True
-                )
+            query = Person.query.filter_by(
+                campus=campus.name,
+                is_active=True
+            )
             
             # Apply department filter if provided
             if department_filter:
@@ -294,9 +294,9 @@ def get_person_heartbeat(person_id):
             for key, value in person_dict.items():
                 setattr(person, key, value)
         else:
-            person = Person.query.get(person_id)
-            if not person:
-                return jsonify({'error': 'Person not found'}), 404
+        person = Person.query.get(person_id)
+        if not person:
+            return jsonify({'error': 'Person not found'}), 404
         
         # Refresh person from database to ensure we have latest milestone data and connect_group
         try:
@@ -317,10 +317,15 @@ def get_person_heartbeat(person_id):
             logger.warning(f"Error re-querying person {person_id}: {e}")
             # Continue with existing person object
         
-        # Get latest snapshot
+        # Get latest snapshot - wrap in error handling
+        snapshot = None
+        try:
         snapshot = HeartbeatSnapshot.query.filter_by(
             person_id=person_id
         ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+        except Exception as e:
+            logger.error(f"Error querying HeartbeatSnapshot for {person_id}: {e}", exc_info=True)
+            snapshot = None
         
         # Check if we need to recalculate (if snapshot is old or doesn't exist)
         should_recalculate = False
@@ -328,20 +333,29 @@ def get_person_heartbeat(person_id):
             should_recalculate = True
             logger.info(f"No heartbeat snapshot found for {person_id}, will recalculate")
         else:
-            # Recalculate if snapshot is older than 1 day OR if there's new connect attendance
-            snapshot_age = datetime.utcnow() - snapshot.calculated_at
-            if snapshot_age.days > 1:
-                should_recalculate = True
-                logger.info(f"Heartbeat snapshot for {person_id} is {snapshot_age.days} days old, will recalculate")
-            else:
-                # Check if there's new connect attendance since last calculation
-                recent_connect_count = ConnectAttendance.query.filter(
-                    ConnectAttendance.person_id == person_id,
-                    ConnectAttendance.date >= snapshot.calculated_at.date()
-                ).count()
-                if recent_connect_count > 0:
+            try:
+                # Recalculate if snapshot is older than 1 day OR if there's new connect attendance
+                snapshot_age = datetime.utcnow() - snapshot.calculated_at
+                if snapshot_age.days > 1:
                     should_recalculate = True
-                    logger.info(f"Found {recent_connect_count} new connect attendance records for {person_id} since last calculation, will recalculate")
+                    logger.info(f"Heartbeat snapshot for {person_id} is {snapshot_age.days} days old, will recalculate")
+                else:
+                    # Check if there's new connect attendance since last calculation
+                    try:
+                        recent_connect_count = ConnectAttendance.query.filter(
+                            ConnectAttendance.person_id == person_id,
+                            ConnectAttendance.date >= snapshot.calculated_at.date()
+                        ).count()
+                        if recent_connect_count > 0:
+                            should_recalculate = True
+                            logger.info(f"Found {recent_connect_count} new connect attendance records for {person_id} since last calculation, will recalculate")
+                    except Exception as e:
+                        logger.warning(f"Error checking recent connect attendance for {person_id}: {e}")
+                        # Don't force recalculate if we can't check
+            except Exception as e:
+                logger.warning(f"Error checking snapshot age for {person_id}: {e}")
+                # Assume we should recalculate if we can't check age
+                should_recalculate = True
         
         # Auto-recalculate if needed
         if should_recalculate:
@@ -370,12 +384,12 @@ def get_person_heartbeat(person_id):
                             'department': getattr(person, 'department', None),
                             'connect_group': getattr(person, 'connect_group', None),
                         }
-                    return jsonify({
-                        'person_id': person_id,
+            return jsonify({
+                'person_id': person_id,
                         'person': person_dict,
-                        'heartbeat': None,
-                        'message': 'No heartbeat snapshot found. Run recalculation to generate one.'
-                    }), 200
+                'heartbeat': None,
+                'message': 'No heartbeat snapshot found. Run recalculation to generate one.'
+            }), 200
         
         # Get recent events for context
         twelve_weeks_ago = date.today() - timedelta(weeks=12)
@@ -384,9 +398,9 @@ def get_person_heartbeat(person_id):
         recent_attendance_events = []
         try:
             recent_attendance_events = AttendanceEvent.query.filter(
-                AttendanceEvent.person_id == person_id,
-                AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
-            ).order_by(AttendanceEvent.created_at.desc()).limit(10).all()
+            AttendanceEvent.person_id == person_id,
+            AttendanceEvent.created_at >= datetime.combine(twelve_weeks_ago, datetime.min.time())
+        ).order_by(AttendanceEvent.created_at.desc()).limit(10).all()
         except Exception as e:
             logger.warning(f"Error fetching attendance events for person {person_id}: {e}")
             recent_attendance_events = []
@@ -453,9 +467,9 @@ def get_person_heartbeat(person_id):
         # Recent connect attendance (include more to show missed meetings)
         recent_connect = []
         try:
-            recent_connect = ConnectAttendance.query.filter(
-                ConnectAttendance.person_id == person_id,
-                ConnectAttendance.date >= twelve_weeks_ago
+        recent_connect = ConnectAttendance.query.filter(
+            ConnectAttendance.person_id == person_id,
+            ConnectAttendance.date >= twelve_weeks_ago
             ).order_by(ConnectAttendance.date.desc()).limit(20).all()
         except Exception as e:
             logger.warning(f"Error fetching connect attendance for person {person_id}: {e}")
@@ -488,9 +502,9 @@ def get_person_heartbeat(person_id):
         # Recent serving
         recent_serving = []
         try:
-            recent_serving = ServingAssignment.query.filter(
-                ServingAssignment.person_id == person_id
-            ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
+        recent_serving = ServingAssignment.query.filter(
+            ServingAssignment.person_id == person_id
+        ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
         except Exception as e:
             logger.warning(f"Error fetching serving assignments for person {person_id}: {e}")
             recent_serving = []
@@ -499,8 +513,8 @@ def get_person_heartbeat(person_id):
         # Get ALL discipleship steps (not just recent ones) to ensure we capture all milestones
         recent_steps = []
         try:
-            recent_steps = DiscipleshipStep.query.filter(
-                DiscipleshipStep.person_id == person_id
+        recent_steps = DiscipleshipStep.query.filter(
+            DiscipleshipStep.person_id == person_id
             ).order_by(DiscipleshipStep.date.desc()).all()  # Removed limit to get all steps
         except Exception as e:
             logger.warning(f"Error fetching discipleship steps for person {person_id}: {e}")
@@ -753,10 +767,10 @@ def get_person_heartbeat(person_id):
             for case in all_cases_for_person:
                 logger.info(f"   - CareCase {case.id}: type={case.type}, status={case.status}, created={case.created_at}")
             
-            open_cases = CareCase.query.filter(
-                CareCase.person_id == person_id,
-                CareCase.status.in_(['open', 'in_progress'])
-            ).all()
+        open_cases = CareCase.query.filter(
+            CareCase.person_id == person_id,
+            CareCase.status.in_(['open', 'in_progress'])
+        ).all()
             logger.info(f"✅ Found {len(open_cases)} open CareCases for person {person_id}")
         except Exception as e:
             logger.warning(f"Error fetching care cases for person {person_id}: {e}")
@@ -892,16 +906,27 @@ def get_person_heartbeat(person_id):
         logger.error(f"Full traceback for person {person_id}: {error_details}")
         # Return more detailed error in development, but still log full details
         error_message = str(e)
-        if 'isoformat' in error_message.lower():
-            error_message = f"Date serialization error: {error_message}"
+        
+        # Check for specific database errors
+        if 'no such table' in error_message.lower():
+            error_message = f"Database table missing: {error_message}. The heartbeat_snapshots table may not exist yet."
         elif 'no such column' in error_message.lower():
-            error_message = f"Database schema error: {error_message}"
+            error_message = f"Database schema error: {error_message}. The database may need migrations."
+        elif 'operationalerror' in error_message.lower():
+            error_message = f"Database connection error: {error_message}. Check database connectivity."
+        elif 'isoformat' in error_message.lower():
+            error_message = f"Date serialization error: {error_message}"
         elif 'attribute' in error_message.lower():
             error_message = f"Attribute access error: {error_message}"
+        
         return jsonify({
             'error': error_message,
             'person_id': person_id,
-            'details': 'Check server logs for more information'
+            'details': 'Check server logs for more information',
+            'troubleshooting': {
+                'check_health': '/api/heartbeat/health',
+                'check_logs': 'Check Railway logs for detailed error information'
+            }
         }), 500
 
 
@@ -947,9 +972,9 @@ def recalculate_campus(campus_id):
                         setattr(person, key, value)
                     all_people.append(person)
             else:
-                all_people = Person.query.filter_by(is_active=True).all()
-                processed = 0
-                errors = 0
+            all_people = Person.query.filter_by(is_active=True).all()
+            processed = 0
+            errors = 0
             
             for person in all_people:
                 try:
@@ -1106,11 +1131,11 @@ def get_next_steps():
                     setattr(person, key, value)
                 people.append(person)
         else:
-            query = Person.query.filter_by(is_active=True)
-            if campus_filter and campus_filter != 'all_campuses':
-                query = query.filter_by(campus=campus_filter)
-            if department_filter:
-                query = query.filter_by(department=department_filter)
+        query = Person.query.filter_by(is_active=True)
+        if campus_filter and campus_filter != 'all_campuses':
+            query = query.filter_by(campus=campus_filter)
+        if department_filter:
+            query = query.filter_by(department=department_filter)
         
         people = query.all()
         
@@ -1184,10 +1209,10 @@ def get_next_steps():
                     # Find next step in pathway - handle missing step_actions column
                     next_step = None
                     try:
-                        next_step = PathwayStep.query.filter_by(
-                            pathway_id=progress.pathway_id,
+                    next_step = PathwayStep.query.filter_by(
+                        pathway_id=progress.pathway_id,
                             step_order=current_step.step_order + 1
-                        ).first()
+                    ).first()
                     except Exception as e:
                         error_str = str(e).lower()
                         if 'no such column' in error_str and 'step_actions' in error_str:
@@ -1312,10 +1337,10 @@ def get_campus_overview():
                         setattr(person, key, value)
                     people.append(person)
             else:
-                people = Person.query.filter_by(
-                    campus=campus.name,
-                    is_active=True
-                ).all()
+            people = Person.query.filter_by(
+                campus=campus.name,
+                is_active=True
+            ).all()
             
             stats = {
                 'total': len(people),
@@ -1413,10 +1438,10 @@ def get_department_overview():
                         setattr(person, key, value)
                     people.append(person)
             else:
-                query = Person.query.filter_by(
-                    department=dept,
-                    is_active=True
-                )
+            query = Person.query.filter_by(
+                department=dept,
+                is_active=True
+            )
             
             if campus_filter and campus_filter != 'all_campuses':
                 query = query.filter_by(campus=campus_filter)
@@ -1462,6 +1487,78 @@ def get_department_overview():
         }), 200
         
     except Exception as e:
+        logger.error(f"Error getting department overview: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@heartbeat_bp.route('/health', methods=['GET'])
+def heartbeat_health():
+    """
+    Health check endpoint for heartbeat API
+    Checks database connectivity and table existence
+    """
+    try:
+        health_status = {
+            'status': 'healthy',
+            'database': 'connected',
+            'tables': {},
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+        # Check if we can query the database
+        try:
+            db.session.execute(text("SELECT 1"))
+            health_status['database'] = 'connected'
+        except Exception as e:
+            health_status['database'] = f'error: {str(e)}'
+            health_status['status'] = 'unhealthy'
+            return jsonify(health_status), 500
+        
+        # Check key tables exist
+        tables_to_check = [
+            'persons',
+            'heartbeat_snapshots',
+            'attendance_events',
+            'connect_attendance',
+            'serving_assignments',
+            'giving_transactions',
+            'discipleship_steps',
+            'care_cases'
+        ]
+        
+        for table_name in tables_to_check:
+            try:
+                result = db.session.execute(
+                    text(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'")
+                ).fetchone()
+                health_status['tables'][table_name] = 'exists' if result else 'missing'
+            except Exception as e:
+                health_status['tables'][table_name] = f'error: {str(e)}'
+        
+        # Check if we can query persons table
+        try:
+            person_count = db.session.execute(text("SELECT COUNT(*) FROM persons")).scalar()
+            health_status['person_count'] = person_count
+        except Exception as e:
+            health_status['person_count'] = f'error: {str(e)}'
+        
+        # Check if we can query heartbeat_snapshots
+        try:
+            snapshot_count = db.session.execute(text("SELECT COUNT(*) FROM heartbeat_snapshots")).scalar()
+            health_status['snapshot_count'] = snapshot_count
+        except Exception as e:
+            health_status['snapshot_count'] = f'error: {str(e)}'
+            health_status['tables']['heartbeat_snapshots'] = 'error'
+        
+        return jsonify(health_status), 200
+        
+    except Exception as e:
+        logger.error(f"Error in heartbeat health check: {e}", exc_info=True)
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 500
         logger.error(f"Error getting department overview: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
