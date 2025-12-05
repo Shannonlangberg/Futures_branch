@@ -80,10 +80,10 @@ def get_campus_people(campus_id):
                         setattr(person, key, value)
                     people.append(person)
             else:
-            query = Person.query.filter_by(is_active=True)
-            if department_filter:
-                query = query.filter_by(department=department_filter)
-            people = query.all()
+                query = Person.query.filter_by(is_active=True)
+                if department_filter:
+                    query = query.filter_by(department=department_filter)
+                people = query.all()
             campus_name = 'All Campuses'
             campus_id_display = 'all_campuses'
         else:
@@ -142,16 +142,16 @@ def get_campus_people(campus_id):
                         setattr(person, key, value)
                     people.append(person)
             else:
-            query = Person.query.filter_by(
-                campus=campus.name,
-                is_active=True
-            )
-            
-            # Apply department filter if provided
-            if department_filter:
-                query = query.filter_by(department=department_filter)
-            
-            people = query.all()
+                query = Person.query.filter_by(
+                    campus=campus.name,
+                    is_active=True
+                )
+                
+                # Apply department filter if provided
+                if department_filter:
+                    query = query.filter_by(department=department_filter)
+                
+                people = query.all()
             
             # 2. If no results, try normalized name variations
             if not people and not has_new_columns:
@@ -972,24 +972,24 @@ def recalculate_campus(campus_id):
                         setattr(person, key, value)
                     all_people.append(person)
             else:
-            all_people = Person.query.filter_by(is_active=True).all()
-            processed = 0
-            errors = 0
-            
-            for person in all_people:
-                try:
-                    engine.calculate_heartbeat(person.id)
-                    processed += 1
-                except Exception as e:
-                    logger.error(f"Error calculating heartbeat for person {person.id}: {e}")
-                    errors += 1
-            
-            result = {
-                'processed': processed,
-                'errors': errors,
-                'total': len(all_people)
-            }
-            campus_name = 'All Campuses'
+                all_people = Person.query.filter_by(is_active=True).all()
+                processed = 0
+                errors = 0
+                
+                for person in all_people:
+                    try:
+                        engine.calculate_heartbeat(person.id)
+                        processed += 1
+                    except Exception as e:
+                        logger.error(f"Error calculating heartbeat for person {person.id}: {e}")
+                        errors += 1
+                
+                result = {
+                    'processed': processed,
+                    'errors': errors,
+                    'total': len(all_people)
+                }
+                campus_name = 'All Campuses'
         else:
             result = engine.recalculate_campus(campus_id)
             # Get campus name for response
@@ -1337,10 +1337,10 @@ def get_campus_overview():
                         setattr(person, key, value)
                     people.append(person)
             else:
-            people = Person.query.filter_by(
-                campus=campus.name,
-                is_active=True
-            ).all()
+                people = Person.query.filter_by(
+                    campus=campus.name,
+                    is_active=True
+                ).all()
             
             stats = {
                 'total': len(people),
@@ -1438,15 +1438,15 @@ def get_department_overview():
                         setattr(person, key, value)
                     people.append(person)
             else:
-            query = Person.query.filter_by(
-                department=dept,
-                is_active=True
-            )
-            
-            if campus_filter and campus_filter != 'all_campuses':
-                query = query.filter_by(campus=campus_filter)
-            
-            people = query.all()
+                query = Person.query.filter_by(
+                    department=dept,
+                    is_active=True
+                )
+                
+                if campus_filter and campus_filter != 'all_campuses':
+                    query = query.filter_by(campus=campus_filter)
+                
+                people = query.all()
             
             stats = {
                 'total': len(people),

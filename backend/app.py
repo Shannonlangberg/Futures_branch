@@ -22917,7 +22917,28 @@ def get_heartbeat_dashboard():
             return jsonify({'error': 'Insufficient permissions'}), 403
         
         # Get all active persons with engagement profiles
-        persons = Person.query.filter_by(is_active=True).all()
+        persons = []
+        try:
+            persons = Person.query.filter_by(is_active=True).all()
+        except Exception as e:
+            logger.error(f"Error querying persons for heartbeat dashboard: {e}", exc_info=True)
+            # Return empty dashboard data rather than crashing
+            return jsonify({
+                'health_overview': {
+                    'healthy': 0,
+                    'watch': 0,
+                    'at_risk': 0,
+                    'critical': 0,
+                    'new_people': 0,
+                    'new_christians': 0,
+                    'youth_at_risk': 0,
+                    'families_drifting': 0
+                },
+                'ai_analysis': {},
+                'pastor_focus_list': [],
+                'trends': {},
+                'error': 'Unable to load person data'
+            }), 200
         
         # Calculate health overview
         health_overview = {
@@ -22940,26 +22961,33 @@ def get_heartbeat_dashboard():
         
         for person in persons:
             try:
-                # Safely access engagement_profile
-                engagement_profile = None
+                # Get heartbeat snapshot instead of engagement_profile
+                snapshot = None
                 try:
-                    engagement_profile = person.engagement_profile
+                    snapshot = HeartbeatSnapshot.query.filter_by(
+                        person_id=person.id
+                    ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
                 except Exception as e:
-                    logger.debug(f"Could not access engagement_profile for {person.id}: {e}")
-                    engagement_profile = None
+                    logger.debug(f"Could not access HeartbeatSnapshot for {person.id}: {e}")
+                    snapshot = None
                 
-                if not engagement_profile:
+                # If no snapshot, count as no_data/critical
+                if not snapshot:
                     health_overview['critical'] += 1
                     continue
                 
-                pulse_status = getattr(engagement_profile, 'pulse_status', None) or 'red'
+                # Get status from snapshot
+                status = snapshot.status or 'critical'
                 
                 # Count by status
-                if pulse_status == 'green':
+                if status == 'healthy':
                     health_overview['healthy'] += 1
-                elif pulse_status == 'amber':
+                elif status == 'watch':
                     health_overview['watch'] += 1
+                elif status == 'at_risk':
                     health_overview['at_risk'] += 1
+                elif status == 'critical':
+                    health_overview['critical'] += 1
                 else:
                     health_overview['critical'] += 1
                 
@@ -22974,11 +23002,17 @@ def get_heartbeat_dashboard():
                     health_overview['new_christians'] += 1
                 
                 # Check youth at risk
-                if person.department == 'Youth' and pulse_status in ['amber', 'red']:
+                if person.department == 'Youth' and status in ['watch', 'at_risk', 'critical']:
                     health_overview['youth_at_risk'] += 1
                 
-                # Track attendance issues
-                last_seen = getattr(engagement_profile, 'last_seen', None)
+                # Track attendance issues - try to get from engagement_profile if available
+                last_seen = None
+                try:
+                    engagement_profile = getattr(person, 'engagement_profile', None)
+                    if engagement_profile:
+                        last_seen = getattr(engagement_profile, 'last_seen', None)
+                except Exception:
+                    pass
                 if last_seen:
                     try:
                         if isinstance(last_seen, str):
@@ -23001,14 +23035,19 @@ def get_heartbeat_dashboard():
         
         # Generate AI analysis (simplified for now)
         healthy_count = 0
-        for p in persons:
-            try:
-                if hasattr(p, 'engagement_profile') and p.engagement_profile:
-                    pulse = getattr(p.engagement_profile, 'pulse_status', None)
-                    if pulse == 'green':
+        try:
+            for p in persons:
+                try:
+                    snapshot = HeartbeatSnapshot.query.filter_by(
+                        person_id=p.id
+                    ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                    if snapshot and snapshot.status == 'healthy':
                         healthy_count += 1
-            except Exception:
-                continue
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"Error counting healthy people: {e}")
+            healthy_count = health_overview['healthy']
         
         ai_analysis = {
             'positive_shifts': f"{healthy_count} people showing healthy engagement",
@@ -23025,14 +23064,19 @@ def get_heartbeat_dashboard():
         
         # Add people with critical status
         critical_people = []
-        for p in persons:
-            try:
-                if hasattr(p, 'engagement_profile') and p.engagement_profile:
-                    pulse = getattr(p.engagement_profile, 'pulse_status', None)
-                    if pulse == 'red':
+        try:
+            from models import HeartbeatSnapshot
+            for p in persons:
+                try:
+                    snapshot = HeartbeatSnapshot.query.filter_by(
+                        person_id=p.id
+                    ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                    if snapshot and snapshot.status == 'critical':
                         critical_people.append(p)
-            except Exception:
-                continue
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"Error finding critical people: {e}")
         
         for person in critical_people[:5]:  # Top 5
             days_ago = 0
