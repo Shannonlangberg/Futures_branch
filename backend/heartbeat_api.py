@@ -1161,13 +1161,13 @@ def get_next_steps():
                     setattr(person, key, value)
                 people.append(person)
         else:
-        query = Person.query.filter_by(is_active=True)
-        if campus_filter and campus_filter != 'all_campuses':
-            query = query.filter_by(campus=campus_filter)
-        if department_filter:
-            query = query.filter_by(department=department_filter)
-        
-        people = query.all()
+            query = Person.query.filter_by(is_active=True)
+            if campus_filter and campus_filter != 'all_campuses':
+                query = query.filter_by(campus=campus_filter)
+            if department_filter:
+                query = query.filter_by(department=department_filter)
+            
+            people = query.all()
         
         results = []
         for person in people:
