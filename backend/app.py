@@ -15183,7 +15183,19 @@ def update_person(person_id):
             # Normalize connect_group - convert empty string to None
             connect_group_value = data['connect_group'].strip() if data.get('connect_group') else None
             old_connect_group = person.connect_group
+            connect_group_just_assigned = not old_connect_group and connect_group_value  # Newly assigned (was None, now has value)
             person.connect_group = connect_group_value if connect_group_value else None
+            
+            # Auto-unmark logic: When assigned to connect group, unmark as new person/new Christian
+            if connect_group_just_assigned and hasattr(person, 'is_new_person') and hasattr(person, 'is_new_christian'):
+                if person.is_new_person:
+                    logger.info(f"Auto-unmarking {person.id} as new person (assigned to connect group)")
+                    person.is_new_person = False
+                    person.new_person_date = None
+                if person.is_new_christian:
+                    logger.info(f"Auto-unmarking {person.id} as new Christian (assigned to connect group)")
+                    person.is_new_christian = False
+                    person.new_christian_date = None
             
             # Auto-complete the "Joined Connect Group" pathway step if person has a connect group assigned
             # Always check (regardless of old value) to ensure step is completed if person has a group

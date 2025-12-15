@@ -548,6 +548,23 @@ def assign_pathway_to_person(person_id):
         if not first_step:
             logger.warning(f"Pathway {pathway_id} has no steps")
         
+        # Check if this pathway is a "new Christian" or "new people" pathway
+        # If not, auto-unmark the person from those lists
+        pathway_name_lower = pathway.name.lower() if pathway.name else ''
+        is_new_christian_pathway = 'new christian' in pathway_name_lower or 'newchristian' in pathway_name_lower.replace(' ', '')
+        is_new_people_pathway = 'new people' in pathway_name_lower or 'newpeople' in pathway_name_lower.replace(' ', '') or 'new person' in pathway_name_lower or 'newperson' in pathway_name_lower.replace(' ', '')
+        
+        # Auto-unmark logic: If assigning a pathway that's NOT a new Christian/new people pathway, unmark them
+        if hasattr(person, 'is_new_person') and hasattr(person, 'is_new_christian'):
+            if not is_new_people_pathway and person.is_new_person:
+                logger.info(f"Auto-unmarking {person_id} as new person (assigned to pathway: {pathway.name})")
+                person.is_new_person = False
+                person.new_person_date = None
+            if not is_new_christian_pathway and person.is_new_christian:
+                logger.info(f"Auto-unmarking {person_id} as new Christian (assigned to pathway: {pathway.name})")
+                person.is_new_christian = False
+                person.new_christian_date = None
+        
         # Create progress record
         progress = PersonPathwayProgress(
             person_id=person_id,

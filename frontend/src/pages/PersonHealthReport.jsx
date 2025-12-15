@@ -416,7 +416,7 @@ const PersonHealthReport = () => {
     }
 
     try {
-      // Update person's connect group - this will auto-complete the step via backend
+      // Update person's connect group - this will auto-complete the step via backend and auto-unmark
       const response = await fetch(`/api/persons/${data.person.id}`, {
         method: 'PUT',
         headers: {
@@ -431,6 +431,8 @@ const PersonHealthReport = () => {
       const result = await response.json();
 
       if (response.ok) {
+        const selectedGroup = connectGroups.find(g => g.id === groupId);
+        alert(`Assigned to ${selectedGroup?.name || 'connect group'}! They will be removed from New Person/New Christian lists.`);
         setShowConnectGroupModal(false);
         setStepToAssign(null);
         
@@ -874,6 +876,19 @@ const PersonHealthReport = () => {
                 >
                   <SparklesIcon className="w-4 h-4" />
                   {person.is_new_christian ? '✓ New Christian (click to unmark)' : 'Mark as New Christian'}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await loadConnectGroups();
+                    setShowConnectGroupModal(true);
+                  }}
+                  disabled={loadingConnectGroups || !person.campus}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30 hover:border-green-500/50 disabled:opacity-50"
+                  title="Assign to a connect group (will also remove from New Person/New Christian lists)"
+                >
+                  <UserGroupIcon className="w-4 h-4" />
+                  Assign to Connect Group
                 </button>
                 {(person.is_new_person || person.is_new_christian) && (
                   <div className="text-xs text-slate-500 ml-2 flex items-center gap-2">
@@ -2042,7 +2057,10 @@ const PersonHealthReport = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full max-h-[80vh] flex flex-col">
             <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-white">Assign Connect Group</h2>
+              <div>
+                <h2 className="text-2xl font-bold text-white">Assign Connect Group</h2>
+                <p className="text-sm text-slate-400 mt-1">This will also remove them from New Person/New Christian lists</p>
+              </div>
               <button
                 onClick={() => {
                   setShowConnectGroupModal(false);
