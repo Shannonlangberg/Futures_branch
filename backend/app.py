@@ -18748,9 +18748,20 @@ def submit_meeting_attendance(meeting_id):
                 except Exception as e:
                     logger.error(f"Error getting heartbeat snapshot for {person.full_name}: {e}", exc_info=True)
         
+        # Get meeting dict safely
+        try:
+            meeting_dict = meeting.to_dict() if hasattr(meeting, 'to_dict') else {
+                'id': meeting.id,
+                'meeting_date': str(meeting.meeting_date) if hasattr(meeting, 'meeting_date') else None,
+                'group_id': meeting.group_id if hasattr(meeting, 'group_id') else None
+            }
+        except Exception as meeting_dict_error:
+            logger.warning(f"Error getting meeting dict: {meeting_dict_error}")
+            meeting_dict = {'id': meeting.id if hasattr(meeting, 'id') else meeting_id_int}
+        
         return jsonify({
             'message': f'Attendance submitted successfully. Heartbeat recalculated for {len(recalculated_people)} people.',
-            'meeting': meeting.to_dict(),
+            'meeting': meeting_dict,
             'heartbeat_recalculated': len(recalculated_people),
             'people': recalculated_people,
             'heartbeat_scores': heartbeat_results
@@ -18760,11 +18771,16 @@ def submit_meeting_attendance(meeting_id):
         db.session.rollback()
         import traceback
         error_traceback = traceback.format_exc()
-        logger.error(f"Error submitting attendance: {e}")
+        error_type = type(e).__name__
+        error_message = str(e)
+        logger.error(f"Error submitting attendance: {error_type}: {error_message}")
         logger.error(f"Full traceback: {error_traceback}")
+        # Return more detailed error for debugging
         return jsonify({
             'error': 'Failed to submit attendance',
-            'details': str(e)
+            'error_type': error_type,
+            'details': error_message,
+            'meeting_id': meeting_id if 'meeting_id' in locals() else 'unknown'
         }), 500
 
 
