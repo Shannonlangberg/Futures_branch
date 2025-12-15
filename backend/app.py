@@ -18372,8 +18372,14 @@ def submit_meeting_attendance(meeting_id):
                 continue
             
             # Find or create attendance record
+            # Handle meeting_id as both string and integer
+            try:
+                meeting_id_for_query = int(meeting_id)
+            except (ValueError, TypeError):
+                meeting_id_for_query = meeting_id
+            
             attendance = ConnectGroupAttendance.query.filter_by(
-                meeting_id=meeting_id,
+                meeting_id=meeting_id_for_query,
                 person_id=person_id
             ).first()
             
@@ -18383,7 +18389,7 @@ def submit_meeting_attendance(meeting_id):
             else:
                 # Create new attendance record
                 attendance = ConnectGroupAttendance(
-                    meeting_id=meeting_id,
+                    meeting_id=meeting_id_for_query,
                     person_id=person_id,
                     present=present,
                     notes=att_data.get('notes')
@@ -18645,8 +18651,13 @@ def submit_meeting_attendance(meeting_id):
                         logger.error(f"Error updating engagement profile for {person.full_name}: {e}", exc_info=True)
                         # Don't fail the whole operation if engagement profile update fails
                 
-                db.session.commit()
-                logger.info(f"Successfully committed attendance for meeting {meeting_id}")
+                try:
+                    db.session.commit()
+                    logger.info(f"Successfully committed attendance for meeting {meeting_id}")
+                except Exception as commit_error:
+                    logger.error(f"Error committing attendance: {commit_error}", exc_info=True)
+                    db.session.rollback()
+                    raise
         
         # Recalculate heartbeat for ALL affected people (both present and absent - attendance affects engagement)
         recalculated_people = []
