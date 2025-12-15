@@ -18551,7 +18551,17 @@ def submit_meeting_attendance(meeting_id):
                             attendance_date = meeting.meeting_date
                             if isinstance(attendance_date, str):
                                 from datetime import datetime as dt
-                                attendance_date = dt.fromisoformat(attendance_date).date()
+                                # Handle both ISO format and SQLite datetime format
+                                try:
+                                    # Try ISO format first
+                                    attendance_date = dt.fromisoformat(attendance_date.replace('Z', '+00:00')).date()
+                                except ValueError:
+                                    # Try SQLite datetime format: '2025-11-19 00:00:00.000000'
+                                    try:
+                                        attendance_date = dt.strptime(attendance_date.split('.')[0], '%Y-%m-%d %H:%M:%S').date()
+                                    except ValueError:
+                                        # Try just date format
+                                        attendance_date = dt.strptime(attendance_date.split(' ')[0], '%Y-%m-%d').date()
                             elif isinstance(attendance_date, datetime):
                                 attendance_date = attendance_date.date()
                             

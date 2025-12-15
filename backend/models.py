@@ -370,7 +370,13 @@ class EngagementProfile(db.Model):
         
         # Update last_seen to the attendance date (as datetime for consistency)
         attendance_datetime = datetime.combine(attendance_date, datetime.min.time())
-        if not self.last_seen or attendance_datetime > self.last_seen:
+        # Handle date comparison - last_seen is a DATE, attendance_datetime is a DATETIME
+        last_seen_date = self.last_seen
+        if isinstance(last_seen_date, datetime):
+            last_seen_date = last_seen_date.date()
+        attendance_date = attendance_datetime.date() if isinstance(attendance_datetime, datetime) else attendance_datetime
+        
+        if not self.last_seen or attendance_date > last_seen_date:
             old_last_seen = self.last_seen
             self.last_seen = attendance_datetime
             logger.info(f"Updated last_seen from {old_last_seen} to {self.last_seen}")
