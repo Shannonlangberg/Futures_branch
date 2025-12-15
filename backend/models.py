@@ -374,11 +374,12 @@ class EngagementProfile(db.Model):
         last_seen_date = self.last_seen
         if isinstance(last_seen_date, datetime):
             last_seen_date = last_seen_date.date()
-        attendance_date = attendance_datetime.date() if isinstance(attendance_datetime, datetime) else attendance_datetime
+        attendance_date_for_comparison = attendance_date  # Already a date object
         
-        if not self.last_seen or attendance_date > last_seen_date:
+        if not self.last_seen or attendance_date_for_comparison > last_seen_date:
             old_last_seen = self.last_seen
-            self.last_seen = attendance_datetime
+            # Store as date (not datetime) to match column type
+            self.last_seen = attendance_date
             logger.info(f"Updated last_seen from {old_last_seen} to {self.last_seen}")
         
         # Get group attendance from milestones_log
