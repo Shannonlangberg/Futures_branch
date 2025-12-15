@@ -1239,10 +1239,10 @@ def get_next_steps():
                     # Find next step in pathway - handle missing step_actions column
                     next_step = None
                     try:
-                    next_step = PathwayStep.query.filter_by(
-                        pathway_id=progress.pathway_id,
+                        next_step = PathwayStep.query.filter_by(
+                            pathway_id=progress.pathway_id,
                             step_order=current_step.step_order + 1
-                    ).first()
+                        ).first()
                     except Exception as e:
                         error_str = str(e).lower()
                         if 'no such column' in error_str and 'step_actions' in error_str:
