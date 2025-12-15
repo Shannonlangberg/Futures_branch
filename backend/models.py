@@ -368,15 +368,13 @@ class EngagementProfile(db.Model):
         
         logger.info(f"add_group_attendance called - person_id: {self.person_id}, group_id: {group_id}, date: {attendance_date}, present: {present}")
         
-        # Update last_seen to the attendance date (as datetime for consistency)
-        attendance_datetime = datetime.combine(attendance_date, datetime.min.time())
-        # Handle date comparison - last_seen is a DATE, attendance_datetime is a DATETIME
+        # Handle date comparison - last_seen is a DATE column, attendance_date is already a date
         last_seen_date = self.last_seen
         if isinstance(last_seen_date, datetime):
             last_seen_date = last_seen_date.date()
-        attendance_date_for_comparison = attendance_date  # Already a date object
         
-        if not self.last_seen or attendance_date_for_comparison > last_seen_date:
+        # attendance_date is already a date object from the conversion above
+        if not self.last_seen or attendance_date > last_seen_date:
             old_last_seen = self.last_seen
             # Store as date (not datetime) to match column type
             self.last_seen = attendance_date
