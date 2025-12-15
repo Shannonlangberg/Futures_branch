@@ -767,10 +767,10 @@ def get_person_heartbeat(person_id):
             for case in all_cases_for_person:
                 logger.info(f"   - CareCase {case.id}: type={case.type}, status={case.status}, created={case.created_at}")
             
-        open_cases = CareCase.query.filter(
-            CareCase.person_id == person_id,
-            CareCase.status.in_(['open', 'in_progress'])
-        ).all()
+            open_cases = CareCase.query.filter(
+                CareCase.person_id == person_id,
+                CareCase.status.in_(['open', 'in_progress'])
+            ).all()
             logger.info(f"✅ Found {len(open_cases)} open CareCases for person {person_id}")
         except Exception as e:
             logger.warning(f"Error fetching care cases for person {person_id}: {e}")
