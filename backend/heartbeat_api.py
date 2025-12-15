@@ -825,7 +825,36 @@ def get_person_heartbeat(person_id):
             logger.warning(f"Error fetching prayer submissions for person {person_id}: {e}")
             recent_prayers = []
         
-        logger.info(f"📊 NEW DATA: app_opens={len(recent_app_opens)}, tv_completions={len(recent_tv)}, prayers={len(recent_prayers)}")
+        # Event registrations (engagement tracking)
+        recent_event_registrations = []
+        try:
+            from models import EventRegistration, Event
+            registrations = EventRegistration.query.filter(
+                EventRegistration.person_id == person_id
+            ).order_by(EventRegistration.created_at.desc()).limit(20).all()
+            
+            # Enrich with event details
+            for reg in registrations:
+                try:
+                    reg_dict = reg.to_dict()
+                    # Get event details
+                    event = Event.query.get(reg.event_id)
+                    if event:
+                        reg_dict['event'] = {
+                            'id': event.id,
+                            'title': event.title,
+                            'start_time': event.start_time.isoformat() if event.start_time else None,
+                            'end_time': event.end_time.isoformat() if event.end_time else None,
+                            'campus': event.campus if hasattr(event, 'campus') else None
+                        }
+                    recent_event_registrations.append(reg_dict)
+                except Exception as e:
+                    logger.warning(f"Error processing event registration {reg.id}: {e}")
+        except Exception as e:
+            logger.warning(f"Error fetching event registrations for person {person_id}: {e}")
+            recent_event_registrations = []
+        
+        logger.info(f"📊 NEW DATA: app_opens={len(recent_app_opens)}, tv_completions={len(recent_tv)}, prayers={len(recent_prayers)}, event_registrations={len(recent_event_registrations)}")
         
         # Log what we're returning
         heartbeat_dict = snapshot.to_dict() if snapshot else None
@@ -895,7 +924,8 @@ def get_person_heartbeat(person_id):
                 'prayer_submissions': [
                     p.to_dict() for p in recent_prayers 
                     if p is not None and hasattr(p, 'to_dict')
-                ] if recent_prayers else []
+                ] if recent_prayers else [],
+                'event_registrations': recent_event_registrations if recent_event_registrations else []
             }
         }), 200
         
