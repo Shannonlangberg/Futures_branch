@@ -4,3 +4,11 @@ npx expo start --host lan --port 8081
 
 
 
+
+
+
+
+
+
+
+
