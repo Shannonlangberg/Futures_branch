@@ -421,6 +421,86 @@ def detect_beacon():
             )
             db.session.add(attendance)
         
+        # Check if this beacon zone is linked to an event and mark event attendance
+        try:
+            from models import Event, EventRegistration
+            from sqlalchemy import text
+            
+            # Check if beacon_zone_id column exists in events table
+            # Use raw SQL to check for events linked to this beacon zone
+            try:
+                # Try to find events linked to this beacon zone
+                # First check if beacon_zone_id column exists
+                result = db.session.execute(text("""
+                    SELECT name FROM pragma_table_info('events') WHERE name = 'beacon_zone_id'
+                """))
+                has_beacon_column = result.fetchone() is not None
+                
+                if has_beacon_column:
+                    # Find events linked to this beacon zone that are happening around this time
+                    event_window_start = detection_time - timedelta(hours=2)
+                    event_window_end = detection_time + timedelta(hours=2)
+                    
+                    events = db.session.execute(text("""
+                        SELECT id, title, start_time, end_time 
+                        FROM events 
+                        WHERE beacon_zone_id = :zone_id
+                        AND start_time <= :window_end
+                        AND (end_time IS NULL OR end_time >= :window_start)
+                        AND is_active = 1
+                    """), {
+                        'zone_id': zone.id,
+                        'window_start': event_window_start,
+                        'window_end': event_window_end
+                    }).fetchall()
+                    
+                    for event_row in events:
+                        event_id = event_row[0]
+                        event_title = event_row[1]
+                        
+                        # Check if registration already exists
+                        existing_reg = db.session.execute(text("""
+                            SELECT id, status FROM event_registrations 
+                            WHERE event_id = :event_id AND person_id = :person_id
+                        """), {
+                            'event_id': event_id,
+                            'person_id': person.id
+                        }).fetchone()
+                        
+                        if existing_reg:
+                            # Update existing registration to 'attended'
+                            reg_id = existing_reg[0]
+                            db.session.execute(text("""
+                                UPDATE event_registrations 
+                                SET status = 'attended', updated_at = :now
+                                WHERE id = :reg_id
+                            """), {
+                                'reg_id': reg_id,
+                                'now': detection_time
+                            })
+                            logger.info(f"Updated event registration {reg_id} to 'attended' for event {event_id} ({event_title})")
+                        else:
+                            # Create new registration with 'attended' status
+                            db.session.execute(text("""
+                                INSERT INTO event_registrations 
+                                (event_id, person_id, email, name, phone, status, created_at, updated_at)
+                                VALUES (:event_id, :person_id, :email, :name, :phone, 'attended', :now, :now)
+                            """), {
+                                'event_id': event_id,
+                                'person_id': person.id,
+                                'email': person.email or '',
+                                'name': person.full_name or '',
+                                'phone': person.phone or '',
+                                'now': detection_time
+                            })
+                            logger.info(f"Created event registration with 'attended' status for event {event_id} ({event_title})")
+            except Exception as event_error:
+                # If beacon_zone_id column doesn't exist or query fails, just log and continue
+                logger.debug(f"Could not check for event registrations (beacon_zone_id may not exist): {event_error}")
+        except Exception as e:
+            # Don't fail beacon detection if event registration fails
+            logger.warning(f"Error checking/creating event registration: {e}")
+        
         # Also update engagement profile (legacy system)
         engagement = person.engagement_profile
         if not engagement:
