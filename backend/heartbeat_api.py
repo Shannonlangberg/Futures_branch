@@ -502,9 +502,9 @@ def get_person_heartbeat(person_id):
         # Recent serving
         recent_serving = []
         try:
-        recent_serving = ServingAssignment.query.filter(
-            ServingAssignment.person_id == person_id
-        ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
+            recent_serving = ServingAssignment.query.filter(
+                ServingAssignment.person_id == person_id
+            ).order_by(ServingAssignment.created_at.desc()).limit(10).all()
         except Exception as e:
             logger.warning(f"Error fetching serving assignments for person {person_id}: {e}")
             recent_serving = []
@@ -513,8 +513,8 @@ def get_person_heartbeat(person_id):
         # Get ALL discipleship steps (not just recent ones) to ensure we capture all milestones
         recent_steps = []
         try:
-        recent_steps = DiscipleshipStep.query.filter(
-            DiscipleshipStep.person_id == person_id
+            recent_steps = DiscipleshipStep.query.filter(
+                DiscipleshipStep.person_id == person_id
             ).order_by(DiscipleshipStep.date.desc()).all()  # Removed limit to get all steps
         except Exception as e:
             logger.warning(f"Error fetching discipleship steps for person {person_id}: {e}")
