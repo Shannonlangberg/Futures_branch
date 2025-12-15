@@ -467,9 +467,9 @@ def get_person_heartbeat(person_id):
         # Recent connect attendance (include more to show missed meetings)
         recent_connect = []
         try:
-        recent_connect = ConnectAttendance.query.filter(
-            ConnectAttendance.person_id == person_id,
-            ConnectAttendance.date >= twelve_weeks_ago
+            recent_connect = ConnectAttendance.query.filter(
+                ConnectAttendance.person_id == person_id,
+                ConnectAttendance.date >= twelve_weeks_ago
             ).order_by(ConnectAttendance.date.desc()).limit(20).all()
         except Exception as e:
             logger.warning(f"Error fetching connect attendance for person {person_id}: {e}")
