@@ -18095,6 +18095,31 @@ def mark_leader_attendance(group_id):
             logger.error(f"Commit traceback: {traceback.format_exc()}")
             return jsonify({'error': f'Failed to save attendance: {str(commit_error)}'}), 500
         
+        # Recalculate heartbeat for all people whose attendance was updated
+        # This ensures engagement scores are updated immediately
+        try:
+            from heartbeat_engine import HeartbeatEngine
+            engine = HeartbeatEngine()
+            
+            # Get unique person IDs from attendance list
+            person_ids_updated = set([a.get('person_id') for a in attendance_list if a.get('person_id')])
+            
+            for person_id in person_ids_updated:
+                try:
+                    snapshot = engine.calculate_heartbeat(person_id)
+                    logger.info(f"✅ Heartbeat recalculated for person {person_id} after group attendance: "
+                              f"engagement={snapshot.engagement_score}, total={snapshot.total_score}")
+                except Exception as hb_error:
+                    logger.warning(f"⚠️ Could not recalculate heartbeat for person {person_id}: {hb_error}", exc_info=True)
+                    # Don't fail the whole request if heartbeat recalculation fails for one person
+                    continue
+            
+            db.session.commit()  # Commit heartbeat snapshots
+            logger.info(f"✅ Heartbeat recalculated for {len(person_ids_updated)} people after group attendance")
+        except Exception as hb_batch_error:
+            logger.warning(f"⚠️ Error during batch heartbeat recalculation: {hb_batch_error}", exc_info=True)
+            # Don't fail the request if heartbeat recalculation fails - attendance is already saved
+        
         # Get updated meeting with attendance
         try:
             meeting_dict = meeting.to_dict()
@@ -18106,7 +18131,7 @@ def mark_leader_attendance(group_id):
             meeting_dict = {'id': meeting.id, 'meeting_date': meeting_date_obj.isoformat()}
         
         return jsonify({
-            'message': 'Attendance marked successfully',
+            'message': 'Attendance marked successfully. Heartbeat scores updated.',
             'meeting': meeting_dict
         }), 200
         
@@ -18467,16 +18492,16 @@ def submit_meeting_attendance(meeting_id):
                         db.session.flush()
                         logger.info(f"Created ConnectAttendance record for {person.full_name} - Status: {attendance_status}, Date: {attendance_date}")
                     
-                    # Recalculate heartbeat if present (only recalc on present to avoid spam)
-                    if present:
-                        try:
-                            from heartbeat_engine import HeartbeatEngine
-                            HeartbeatEngine().calculate_heartbeat(person_id)
-                            logger.info(f"Recalculated heartbeat for {person.full_name} after attendance update")
-                        except ImportError as import_error:
-                            logger.error(f"Cannot import HeartbeatEngine - {import_error}")
-                        except Exception as hb_recalc_error:
-                            logger.error(f"Error recalculating heartbeat for {person.full_name}: {hb_recalc_error}", exc_info=True)
+                    # Recalculate heartbeat for both present and absent (attendance affects engagement)
+                    try:
+                        from heartbeat_engine import HeartbeatEngine
+                        engine = HeartbeatEngine()
+                        snapshot = engine.calculate_heartbeat(person_id)
+                        logger.info(f"✅ Recalculated heartbeat for {person.full_name} after attendance update (status: {attendance_status}) - engagement={snapshot.engagement_score if snapshot else 'N/A'}")
+                    except ImportError as import_error:
+                        logger.error(f"Cannot import HeartbeatEngine - {import_error}")
+                    except Exception as hb_recalc_error:
+                        logger.error(f"Error recalculating heartbeat for {person.full_name}: {hb_recalc_error}", exc_info=True)
                 
                 except Exception as heartbeat_error:
                     logger.error(f"Error updating Heartbeat system for {person.full_name}: {heartbeat_error}", exc_info=True)
@@ -18502,12 +18527,14 @@ def submit_meeting_attendance(meeting_id):
                             elif isinstance(attendance_date, datetime):
                                 attendance_date = attendance_date.date()
                             
-                            # CRITICAL FIX: If meeting date is in the future, use today's date instead
+                            # CRITICAL FIX: If meeting date is in the future, use today's date in local timezone instead
                             # Heartbeat calculation only looks at past dates, so future dates won't be counted
-                            today = datetime.utcnow().date()
-                            if attendance_date > today:
-                                logger.warning(f"Meeting date {attendance_date} is in the future. Using today's date {today} for attendance record.")
-                                attendance_date = today
+                            from zoneinfo import ZoneInfo
+                            adelaide_tz = ZoneInfo('Australia/Adelaide')
+                            today_local = datetime.now(adelaide_tz).date()
+                            if attendance_date > today_local:
+                                logger.warning(f"Meeting date {attendance_date} is in the future. Using today's local date {today_local} for attendance record.")
+                                attendance_date = today_local
                             
                             logger.info(f"Adding group attendance for {person.full_name} (ID: {person_id}) - Group: {group.id}, Date: {attendance_date}, Type: {type(attendance_date)}")
                             
@@ -18621,44 +18648,50 @@ def submit_meeting_attendance(meeting_id):
                 db.session.commit()
                 logger.info(f"Successfully committed attendance for meeting {meeting_id}")
         
-        # Refresh engagement profiles and recalculate heartbeat for affected people
+        # Recalculate heartbeat for ALL affected people (both present and absent - attendance affects engagement)
         recalculated_people = []
-        for att_data in attendance_list:
-            if att_data.get('present', False):
-                person_id = att_data.get('person_id')
-                if person_id:
-                    person = Person.query.filter_by(id=person_id, is_active=True).first()
-                    if person:
-                        if person.engagement_profile:
-                            db.session.refresh(person.engagement_profile)
-                            logger.info(f"Refreshed engagement profile for {person.full_name} - engagement: {person.engagement_profile.overall_engagement}, pulse: {person.engagement_profile.pulse_status}")
-                        
-                        # Recalculate Heartbeat snapshot for this person
-                        try:
-                            from heartbeat_engine import HeartbeatEngine
-                            engine = HeartbeatEngine()
-                            logger.info(f"Starting Heartbeat recalculation for {person.full_name} (ID: {person_id})")
-                            snapshot = engine.calculate_heartbeat(person_id)
-                            recalculated_people.append(person.full_name)
-                            logger.info(f"✓ Successfully recalculated Heartbeat for {person.full_name} - Score: {snapshot.total_score}, Status: {snapshot.status}, Engagement: {snapshot.engagement_score}")
-                        except ImportError as import_error:
-                            logger.error(f"CRITICAL: Cannot import HeartbeatEngine - {import_error}. Heartbeat system may not be available.")
-                        except Exception as hb_recalc_error:
-                            logger.error(f"Error recalculating heartbeat for {person.full_name}: {hb_recalc_error}", exc_info=True)
-                            # Don't fail the whole operation if recalculation fails
+        person_ids_updated = set([att.get('person_id') for att in attendance_list if att.get('person_id')])
+        
+        for person_id in person_ids_updated:
+            person = Person.query.filter_by(id=person_id, is_active=True).first()
+            if person:
+                try:
+                    # Refresh engagement profile if it exists
+                    if person.engagement_profile:
+                        db.session.refresh(person.engagement_profile)
+                        logger.info(f"Refreshed engagement profile for {person.full_name} - engagement: {person.engagement_profile.overall_engagement}, pulse: {person.engagement_profile.pulse_status}")
+                    
+                    # Recalculate Heartbeat snapshot for this person (for both present and absent)
+                    from heartbeat_engine import HeartbeatEngine
+                    engine = HeartbeatEngine()
+                    logger.info(f"Starting Heartbeat recalculation for {person.full_name} (ID: {person_id})")
+                    snapshot = engine.calculate_heartbeat(person_id)
+                    recalculated_people.append(person.full_name)
+                    logger.info(f"✅ Successfully recalculated Heartbeat for {person.full_name} - Score: {snapshot.total_score}, Status: {snapshot.status}, Engagement: {snapshot.engagement_score}")
+                except ImportError as import_error:
+                    logger.error(f"CRITICAL: Cannot import HeartbeatEngine - {import_error}. Heartbeat system may not be available.")
+                except Exception as hb_recalc_error:
+                    logger.error(f"Error recalculating heartbeat for {person.full_name}: {hb_recalc_error}", exc_info=True)
+                    # Don't fail the whole operation if recalculation fails
+        
+        # Commit heartbeat recalculations
+        try:
+            db.session.commit()
+            logger.info(f"✅ Committed heartbeat recalculations for {len(recalculated_people)} people")
+        except Exception as commit_error:
+            logger.error(f"Error committing heartbeat recalculations: {commit_error}", exc_info=True)
+            db.session.rollback()
         
         if recalculated_people:
-            logger.info(f"Successfully recalculated heartbeat for {len(recalculated_people)} people: {', '.join(recalculated_people)}")
+            logger.info(f"✅ Successfully recalculated heartbeat for {len(recalculated_people)} people: {', '.join(recalculated_people)}")
         
         # Get the latest heartbeat scores for the recalculated people to show in response
         heartbeat_results = []
         recalculated_person_ids = set()  # Track person IDs that were recalculated
-        for att_data in attendance_list:
-            if att_data.get('present', False):
-                person_id = att_data.get('person_id')
-                person = Person.query.filter_by(id=person_id, is_active=True).first()
-                if person and person.full_name in recalculated_people:
-                    recalculated_person_ids.add(person_id)
+        for person_id in person_ids_updated:
+            person = Person.query.filter_by(id=person_id, is_active=True).first()
+            if person and person.full_name in recalculated_people:
+                recalculated_person_ids.add(person_id)
                     try:
                         from models import HeartbeatSnapshot
                         snapshot = HeartbeatSnapshot.query.filter_by(
@@ -18683,7 +18716,7 @@ def submit_meeting_attendance(meeting_id):
                         logger.error(f"Error getting heartbeat snapshot for {person.full_name}: {e}", exc_info=True)
         
         return jsonify({
-            'message': 'Attendance submitted successfully',
+            'message': f'Attendance submitted successfully. Heartbeat recalculated for {len(recalculated_people)} people.',
             'meeting': meeting.to_dict(),
             'heartbeat_recalculated': len(recalculated_people),
             'people': recalculated_people,
