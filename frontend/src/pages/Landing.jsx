@@ -22,7 +22,6 @@ import {
   BoltIcon,
   UserCircleIcon
 } from '@heroicons/react/24/outline';
-import MetricsDashboard from '../components/MetricsDashboard';
 
 const gradientBackground = 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950';
 
@@ -317,13 +316,6 @@ const Landing = () => {
               </div>
             </section>
           )}
-
-          {/* Metrics Dashboard */}
-          <MetricsDashboard 
-            userRole={actualRole}
-            userCampus={session?.campus || 'all_campuses'}
-            session={session}
-          />
 
           {/* Resource Spotlight - Only for non-admin */}
           {!isAdmin && (
