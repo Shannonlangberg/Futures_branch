@@ -449,7 +449,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                   {sundayCombinedAttendance.toLocaleString()}
                 </div>
                 <p className="text-purple-200/80 text-sm">
-                  Adults + Kids + Saints = Total
+                  Adults + Kids (incl. leaders) + Saints = Total
                 </p>
                 <p className="text-purple-200/60 text-xs mt-1">
                   {services.length > 1 ? `${services.length} services • Average per service` : 'Average per service'}
@@ -461,7 +461,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
             <div 
               className="group relative bg-gradient-to-br from-red-500/20 to-red-600/20 backdrop-blur-sm rounded-2xl p-6 border border-red-400/20 shadow-2xl hover:shadow-red-500/25 transition-all duration-500 hover:scale-105 cursor-pointer"
               onClick={() => openModal('souls', { 
-                total: (data.stats?.first_time_christians || 0) + (data.stats?.youth_salvations || 0) + (data.stats?.new_kids_salvations || 0),
+                total: (data.stats?.first_time_christians || 0) + (data.stats?.youth_salvations || 0) + (data.stats?.new_kids_salvations || 0) + (data.stats?.rededications || 0),
                 youth: data.stats?.youth_salvations || 0,
                 adults: data.stats?.first_time_christians || 0,
                 rededications: data.stats?.rededications || 0,
@@ -481,7 +481,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                 </div>
                 <h3 className="text-white/80 text-sm font-medium mb-2">Souls Saved</h3>
                 <div className="text-4xl font-bold text-white mb-2">
-                  {((data.stats?.first_time_christians || 0) + (data.stats?.youth_salvations || 0) + (data.stats?.new_kids_salvations || 0)).toLocaleString()}
+                  {((data.stats?.first_time_christians || 0) + (data.stats?.youth_salvations || 0) + (data.stats?.new_kids_salvations || 0) + (data.stats?.rededications || 0)).toLocaleString()}
                 </div>
                 <p className="text-red-200/80 text-sm">
                   All spiritual decisions
@@ -948,8 +948,8 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                     </div>
                     <p className="text-white/60">
                       {isRollup 
-                        ? 'Average attendance across all campuses (adults + kids + saints, excluding youth)' 
-                        : 'Average per service: Adults + Kids + Saints'}
+                        ? 'Average attendance across all campuses (adults + kids + kids leaders + saints, excluding youth)' 
+                        : 'Average per service: Adults + Kids (incl. leaders) + Saints'}
                     </p>
                     <p className="text-white/50 text-sm mt-2">
                       Adults: {(modalData?.adults ?? sundayAdultAttendance).toLocaleString()} • Kids (incl. leaders): {(modalData?.kids ?? kidsTotalForSunday).toLocaleString()} • Saints: {(modalData?.saints ?? saintsAttendance).toLocaleString()}
@@ -971,7 +971,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                     if (allServiceTimes.size > 0) {
                       return (
                         <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                          <h3 className="text-xl font-bold text-white mb-4">Service Breakdown (Adults + Kids)</h3>
+                          <h3 className="text-xl font-bold text-white mb-4">Service Breakdown (Adults + Kids incl. leaders)</h3>
                           <div className="space-y-4">
                             {Array.from(allServiceTimes).sort((a, b) => parseServiceTime(a) - parseServiceTime(b)).map((serviceTime, index) => {
                               const adultData = adultBreakdown[serviceTime] || { average: 0, count: 0 };
@@ -998,7 +998,7 @@ const CampusDashboard = ({ campusId, campusName, isRollup = false, onBackToSelec
                                       <div className="text-lg font-semibold text-blue-400">{adultAvg.toLocaleString()}</div>
                                     </div>
                                     <div className="text-center">
-                                      <div className="text-xs text-white/50 mb-1">Kids</div>
+                                      <div className="text-xs text-white/50 mb-1">Kids (incl. leaders)</div>
                                       <div className="text-lg font-semibold text-pink-400">{kidsAvg.toLocaleString()}</div>
                                     </div>
                                     <div className="text-center">
