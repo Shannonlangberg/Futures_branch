@@ -18372,14 +18372,9 @@ def submit_meeting_attendance(meeting_id):
                 continue
             
             # Find or create attendance record
-            # Handle meeting_id as both string and integer
-            try:
-                meeting_id_for_query = int(meeting_id)
-            except (ValueError, TypeError):
-                meeting_id_for_query = meeting_id
-            
+            # Use the same meeting_id_int we found earlier
             attendance = ConnectGroupAttendance.query.filter_by(
-                meeting_id=meeting_id_for_query,
+                meeting_id=meeting_id_int,
                 person_id=person_id
             ).first()
             
@@ -18389,7 +18384,7 @@ def submit_meeting_attendance(meeting_id):
             else:
                 # Create new attendance record
                 attendance = ConnectGroupAttendance(
-                    meeting_id=meeting_id_for_query,
+                    meeting_id=meeting_id_int,
                     person_id=person_id,
                     present=present,
                     notes=att_data.get('notes')
