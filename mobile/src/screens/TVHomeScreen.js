@@ -287,24 +287,26 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Spacing.lg,
     paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#ffffff',
     letterSpacing: -0.5,
+    textAlign: 'left',
   },
   section: {
     marginBottom: Spacing.xl,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#ffffff',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
     paddingHorizontal: Spacing.md,
     letterSpacing: -0.3,
+    textAlign: 'left',
   },
   horizontalScroll: {
     paddingLeft: Spacing.md,

@@ -77,10 +77,10 @@ const TV = () => {
 
   // Helper Components
   const SectionHeader = ({ title, capitalize = false }) => (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-4">
-      <h2 className={`text-xl font-bold text-white flex items-center gap-2 ${capitalize ? 'capitalize' : ''}`}>
-        <span className="w-0.5 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
-        {title}
+    <div className="w-full px-4 sm:px-6 lg:px-8 mb-4 sm:mb-5">
+      <h2 className={`text-lg sm:text-xl md:text-2xl font-bold text-white flex items-center gap-2 sm:gap-3 ${capitalize ? 'capitalize' : ''}`}>
+        <span className="w-0.5 h-5 sm:h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full flex-shrink-0"></span>
+        <span className="text-left">{title}</span>
       </h2>
     </div>
   );
@@ -103,9 +103,9 @@ const TV = () => {
   };
 
   const HorizontalScrollSection = ({ children, className = '' }) => (
-    <div className={`w-full overflow-x-auto pb-6 scrollbar-hide ${className}`} 
+    <div className={`w-full overflow-x-auto pb-4 sm:pb-6 scrollbar-hide ${className}`} 
          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-      <div className="flex gap-4" style={{ paddingLeft: '16px', paddingRight: '16px', minWidth: 'fit-content' }}>
+      <div className="flex gap-3 sm:gap-4" style={{ paddingLeft: '16px', paddingRight: '16px', minWidth: 'fit-content' }}>
         {children}
       </div>
     </div>
@@ -115,7 +115,7 @@ const TV = () => {
     if (categorySeries.length === 0) return null;
 
     return (
-      <div className="mb-10">
+      <div className="mb-8 sm:mb-10 md:mb-12">
         <SectionHeader title={category.replace(/_/g, ' ')} capitalize />
         <HorizontalScrollSection>
           {categorySeries.map((s) => (
@@ -262,7 +262,7 @@ const TV = () => {
       <div className="pb-12 relative pt-6 z-10">
         {/* Most Watched Section */}
         {mostWatched.length > 0 && !selectedCategory && (
-          <div className="mb-10">
+          <div className="mb-8 sm:mb-10 md:mb-12">
             <SectionHeader title="Most Watched" />
             <HorizontalScrollSection>
               {mostWatched.map((s) => (
@@ -275,7 +275,7 @@ const TV = () => {
 
         {/* Continue Watching Section */}
         {continueWatching.length > 0 && !selectedCategory && (
-          <div className="mb-10">
+          <div className="mb-8 sm:mb-10 md:mb-12">
             <SectionHeader title="Continue Watching" />
             <HorizontalScrollSection>
               {continueWatching.slice(0, 8).map((episode) => (
@@ -297,7 +297,7 @@ const TV = () => {
 
         {/* New This Week Section */}
         {!selectedCategory && (
-          <div className="mb-10">
+          <div className="mb-8 sm:mb-10 md:mb-12">
             <SectionHeader title="New This Week" />
             <HorizontalScrollSection>
               <PlaceholderCard count={6} variant="new" />
