@@ -18692,28 +18692,28 @@ def submit_meeting_attendance(meeting_id):
             person = Person.query.filter_by(id=person_id, is_active=True).first()
             if person and person.full_name in recalculated_people:
                 recalculated_person_ids.add(person_id)
-                    try:
-                        from models import HeartbeatSnapshot
-                        snapshot = HeartbeatSnapshot.query.filter_by(
-                            person_id=person_id
-                        ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
-                        if snapshot:
-                            heartbeat_results.append({
-                                'person_id': person_id,
-                                'person_name': person.full_name,
-                                'total_score': snapshot.total_score,
-                                'engagement_score': snapshot.engagement_score,
-                                'gather_score': snapshot.gather_score,
-                                'spiritual_score': snapshot.spiritual_score,
-                                'care_score': snapshot.care_score,
-                                'status': snapshot.status,
-                                'calculated_at': snapshot.calculated_at.isoformat() if snapshot.calculated_at else None
-                            })
-                            logger.info(f"Added heartbeat result for {person.full_name}: engagement={snapshot.engagement_score}, total={snapshot.total_score}")
-                        else:
-                            logger.warning(f"No HeartbeatSnapshot found for {person.full_name} after recalculation")
-                    except Exception as e:
-                        logger.error(f"Error getting heartbeat snapshot for {person.full_name}: {e}", exc_info=True)
+                try:
+                    from models import HeartbeatSnapshot
+                    snapshot = HeartbeatSnapshot.query.filter_by(
+                        person_id=person_id
+                    ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+                    if snapshot:
+                        heartbeat_results.append({
+                            'person_id': person_id,
+                            'person_name': person.full_name,
+                            'total_score': snapshot.total_score,
+                            'engagement_score': snapshot.engagement_score,
+                            'gather_score': snapshot.gather_score,
+                            'spiritual_score': snapshot.spiritual_score,
+                            'care_score': snapshot.care_score,
+                            'status': snapshot.status,
+                            'calculated_at': snapshot.calculated_at.isoformat() if snapshot.calculated_at else None
+                        })
+                        logger.info(f"Added heartbeat result for {person.full_name}: engagement={snapshot.engagement_score}, total={snapshot.total_score}")
+                    else:
+                        logger.warning(f"No HeartbeatSnapshot found for {person.full_name} after recalculation")
+                except Exception as e:
+                    logger.error(f"Error getting heartbeat snapshot for {person.full_name}: {e}", exc_info=True)
         
         return jsonify({
             'message': f'Attendance submitted successfully. Heartbeat recalculated for {len(recalculated_people)} people.',
