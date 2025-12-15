@@ -320,9 +320,9 @@ def get_person_heartbeat(person_id):
         # Get latest snapshot - wrap in error handling
         snapshot = None
         try:
-        snapshot = HeartbeatSnapshot.query.filter_by(
-            person_id=person_id
-        ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
+            snapshot = HeartbeatSnapshot.query.filter_by(
+                person_id=person_id
+            ).order_by(HeartbeatSnapshot.calculated_at.desc()).first()
         except Exception as e:
             logger.error(f"Error querying HeartbeatSnapshot for {person_id}: {e}", exc_info=True)
             snapshot = None
