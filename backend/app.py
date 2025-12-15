@@ -18332,10 +18332,13 @@ def delete_group(group_id):
 def submit_meeting_attendance(meeting_id):
     """Submit attendance for a meeting (allows leader access via email + access code)"""
     try:
-        meeting = ConnectGroupMeeting.query.filter_by(id=meeting_id).first()
-        if not meeting:
-            return jsonify({'error': 'Meeting not found'}), 404
+        # Handle meeting_id as both string and integer
+        try:
+            meeting_id_int = int(meeting_id)
+        except (ValueError, TypeError):
+            meeting_id_int = meeting_id
         
+        meeting = ConnectGroupMeeting.query.filter_by(id=meeting_id_int).first()
         if not meeting:
             logger.error(f"Meeting not found: {meeting_id} (tried as int: {meeting_id_int})")
             return jsonify({'error': 'Meeting not found'}), 404
