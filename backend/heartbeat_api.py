@@ -294,9 +294,9 @@ def get_person_heartbeat(person_id):
             for key, value in person_dict.items():
                 setattr(person, key, value)
         else:
-        person = Person.query.get(person_id)
-        if not person:
-            return jsonify({'error': 'Person not found'}), 404
+            person = Person.query.get(person_id)
+            if not person:
+                return jsonify({'error': 'Person not found'}), 404
         
         # Refresh person from database to ensure we have latest milestone data and connect_group
         try:

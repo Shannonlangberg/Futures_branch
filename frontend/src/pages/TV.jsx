@@ -76,10 +76,10 @@ const TV = () => {
   }, [filteredSeriesByCategory]);
 
   // Helper Components
-  const SectionHeader = ({ title }) => (
-    <div className="max-w-7xl mx-auto px-6 mb-6">
-      <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-        <span className="w-1 h-8 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
+  const SectionHeader = ({ title, capitalize = false }) => (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-4">
+      <h2 className={`text-xl font-bold text-white flex items-center gap-2 ${capitalize ? 'capitalize' : ''}`}>
+        <span className="w-0.5 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
         {title}
       </h2>
     </div>
@@ -92,20 +92,20 @@ const TV = () => {
         className={`flex-shrink-0 w-48 aspect-video rounded-lg border flex items-center justify-center ${
           variant === 'new' 
             ? 'bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-pink-900/30 border-purple-500/30 flex-col'
-            : 'bg-gradient-to-br from-slate-800/60 to-slate-900/60 border-purple-500/20'
+            : 'bg-gradient-to-br from-slate-800/40 to-slate-900/40 border-purple-500/10'
         }`}
       >
-        {variant === 'new' && <span className="text-slate-400 text-xs mb-2">📺</span>}
-        <span className="text-slate-400 text-xs">Coming Soon</span>
+        {variant === 'new' && <span className="text-slate-500 text-xs mb-2">📺</span>}
+        <span className="text-slate-500 text-xs">Coming Soon</span>
       </div>
     ));
     return <>{placeholders}</>;
   };
 
   const HorizontalScrollSection = ({ children, className = '' }) => (
-    <div className={`w-full overflow-x-auto pb-10 scrollbar-hide ${className}`} 
+    <div className={`w-full overflow-x-auto pb-6 scrollbar-hide ${className}`} 
          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-      <div className="flex gap-5" style={{ paddingLeft: '32px', paddingRight: '24px', minWidth: 'fit-content' }}>
+      <div className="flex gap-4" style={{ paddingLeft: '16px', paddingRight: '16px', minWidth: 'fit-content' }}>
         {children}
       </div>
     </div>
@@ -115,14 +115,14 @@ const TV = () => {
     if (categorySeries.length === 0) return null;
 
     return (
-      <div className="mb-16">
-        <SectionHeader title={category.replace(/_/g, ' ')} />
+      <div className="mb-10">
+        <SectionHeader title={category.replace(/_/g, ' ')} capitalize />
         <HorizontalScrollSection>
           {categorySeries.map((s) => (
             <SeriesCard key={s.id} series={s} />
           ))}
           {!selectedCategory && (
-            <PlaceholderCard count={Math.min(3, 6 - categorySeries.length)} />
+            <PlaceholderCard count={Math.min(2, 5 - categorySeries.length)} />
           )}
         </HorizontalScrollSection>
       </div>
@@ -193,181 +193,120 @@ const TV = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
-      {/* Animated Background Elements - More Subtle */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-10">
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-pulse delay-500"></div>
       </div>
 
-      {/* Top Navigation Bar - More Compact */}
-      <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-900/98 via-slate-800/98 to-slate-900/98 backdrop-blur-md border-b border-purple-500/10 shadow-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between py-3">
-            {/* Left Side - Pulse TV Logo */}
-            <Link to="/tv" onClick={() => setSelectedCategory(null)} className="flex items-center gap-2">
-              <div className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-pink-400 bg-clip-text text-transparent">
-                Pulse TV
-              </div>
-            </Link>
+      {/* Top Navigation Bar */}
+      <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col gap-4">
+            {/* Top Row - Logo and Actions */}
+            <div className="flex items-center justify-between">
+              <Link 
+                to="/tv" 
+                onClick={() => setSelectedCategory(null)} 
+                className="flex items-center gap-3"
+              >
+                <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-pink-400 bg-clip-text text-transparent drop-shadow-lg">
+                  Pulse TV
+                </div>
+              </Link>
 
-            {/* Right Side - Actions */}
-            {selectedCategory && (
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className="px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-white rounded-lg transition-colors text-xs"
-              >
-                Clear Filter
-              </button>
-            )}
-          </div>
-          
-          {/* Category Navigation - Compact Horizontal Scroll */}
-          {allCategories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg font-medium transition-all text-xs ${
-                  selectedCategory === null
-                    ? 'bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 text-white shadow-md'
-                    : 'bg-slate-700/40 text-gray-300 hover:bg-slate-700/60 hover:text-white'
-                }`}
-              >
-                All
-              </button>
-              {allCategories.map((category) => (
+              {selectedCategory && (
                 <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg font-medium transition-all text-xs capitalize ${
-                    selectedCategory === category
-                      ? 'bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 text-white shadow-md'
-                      : 'bg-slate-700/40 text-gray-300 hover:bg-slate-700/60 hover:text-white'
+                  onClick={() => setSelectedCategory(null)}
+                  className="px-4 py-2 bg-slate-700/50 hover:bg-slate-700 text-white rounded-lg transition-colors text-xs"
+                >
+                  Clear Filter
+                </button>
+              )}
+            </div>
+            
+            {/* Category Navigation - Horizontal Scroll */}
+            {allCategories.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" 
+                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                    selectedCategory === null
+                      ? 'bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 text-white shadow-lg scale-105'
+                      : 'bg-slate-700/50 text-gray-300 hover:bg-slate-700 hover:text-white'
                   }`}
                 >
-                  {category.replace(/_/g, ' ')}
+                  All
                 </button>
-              ))}
-            </div>
-          )}
+                {allCategories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`flex-shrink-0 px-4 py-2 rounded-lg font-medium transition-all text-sm capitalize ${
+                      selectedCategory === category
+                        ? 'bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 text-white shadow-lg scale-105'
+                        : 'bg-slate-700/50 text-gray-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {category.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="pb-12 relative pt-6" style={{ zIndex: 1 }}>
+      <div className="pb-12 relative pt-6 z-10">
         {/* Most Watched Section */}
         {mostWatched.length > 0 && !selectedCategory && (
           <div className="mb-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <span className="w-0.5 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
-                Most Watched
-              </h2>
-            </div>
-            <div className="w-full overflow-x-auto pb-6 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-              <div className="flex gap-4" style={{ paddingLeft: '16px', paddingRight: '16px', minWidth: 'fit-content' }}>
-                {mostWatched.map((s) => (
-                  <SeriesCard key={s.id} series={s} />
-                ))}
-                {createPlaceholders(2).map((item) => (
-                  <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/40 to-slate-900/40 rounded-lg border border-purple-500/10 flex items-center justify-center">
-                    <span className="text-slate-500 text-xs">Coming Soon</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <SectionHeader title="Most Watched" />
+            <HorizontalScrollSection>
+              {mostWatched.map((s) => (
+                <SeriesCard key={s.id} series={s} />
+              ))}
+              <PlaceholderCard count={2} />
+            </HorizontalScrollSection>
           </div>
         )}
 
         {/* Continue Watching Section */}
         {continueWatching.length > 0 && !selectedCategory && (
           <div className="mb-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <span className="w-0.5 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
-                Continue Watching
-              </h2>
-            </div>
-            <div className="w-full overflow-x-auto pb-6 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-              <div className="flex gap-4" style={{ paddingLeft: '16px', paddingRight: '16px', minWidth: 'fit-content' }}>
-                {continueWatching.slice(0, 8).map((episode) => (
-                  <Link
-                    key={episode.id}
-                    to={`/tv/watch/${episode.episode_id}`}
-                    className="group flex-shrink-0 w-48 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-200 relative"
-                  >
-                    <div className="relative aspect-video bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-pink-900/40 rounded-lg overflow-hidden">
-                      {(episode.episode?.thumbnail_url || episode.series?.thumbnail_url) ? (
-                        <img
-                          src={episode.episode?.thumbnail_url || episode.series.thumbnail_url}
-                          alt={episode.title}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      ) : null}
-                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-                      {/* Progress bar */}
-                      {episode.progress?.last_position_seconds > 0 && episode.episode?.duration_seconds > 0 && (
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700/80">
-                          <div
-                            className="h-full bg-gradient-to-r from-purple-500 via-blue-500 to-pink-500"
-                            style={{
-                              width: `${(episode.progress.last_position_seconds / episode.episode.duration_seconds) * 100}%`
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <div className="mt-2">
-                      <h3 className="text-white font-medium text-sm line-clamp-1 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-purple-400 group-hover:via-blue-400 group-hover:to-pink-400 group-hover:bg-clip-text transition-all">
-                        {episode.title}
-                      </h3>
-                      <p className="text-xs text-gray-400 mt-1">{episode.series?.title}</p>
-                    </div>
-                  </Link>
-                ))}
-                {createPlaceholders(2).map((item) => (
-                  <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/40 to-slate-900/40 rounded-lg border border-purple-500/10 flex items-center justify-center">
-                    <span className="text-slate-500 text-xs">Coming Soon</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <SectionHeader title="Continue Watching" />
+            <HorizontalScrollSection>
+              {continueWatching.slice(0, 8).map((episode) => (
+                <ContinueWatchingCard key={episode.id} episode={episode} />
+              ))}
+              <PlaceholderCard count={2} />
+            </HorizontalScrollSection>
           </div>
         )}
 
-        {/* Category Rows - Horizontal Scrolling */}
-        {displayCategories.map((category) => {
-          const categorySeries = filteredSeriesByCategory[category] || [];
-          if (categorySeries.length === 0) return null;
+        {/* Category Rows */}
+        {displayCategories.map((category) => (
+          <CategoryRow
+            key={category}
+            category={category}
+            series={filteredSeriesByCategory[category] || []}
+          />
+        ))}
 
-          return (
-            <div key={category} className="mb-10">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-4">
-                <h2 className="text-xl font-bold text-white capitalize flex items-center gap-2">
-                  <span className="w-0.5 h-6 bg-gradient-to-b from-purple-500 via-blue-500 to-pink-500 rounded-full"></span>
-                  {category.replace(/_/g, ' ')}
-                </h2>
-              </div>
-              <div className="w-full overflow-x-auto pb-6 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overflowY: 'visible' }}>
-                <div className="flex gap-4" style={{ paddingLeft: '16px', paddingRight: '16px', minWidth: 'fit-content' }}>
-                  {categorySeries.map((s) => (
-                    <SeriesCard key={s.id} series={s} />
-                  ))}
-                  {!selectedCategory && createPlaceholders(Math.min(2, 5 - categorySeries.length)).map((item) => (
-                    <div key={item.id} className="flex-shrink-0 w-48 aspect-video bg-gradient-to-br from-slate-800/40 to-slate-900/40 rounded-lg border border-purple-500/10 flex items-center justify-center">
-                      <span className="text-slate-500 text-xs">Coming Soon</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {/* New This Week Section */}
+        {!selectedCategory && (
+          <div className="mb-10">
+            <SectionHeader title="New This Week" />
+            <HorizontalScrollSection>
+              <PlaceholderCard count={6} variant="new" />
+            </HorizontalScrollSection>
+          </div>
+        )}
 
         {/* Empty State */}
-        {filteredSeries.length === 0 && !loading && (
+        {!hasContent && !loading && (
           <div className="text-center py-16">
             {selectedCategory ? (
               <>
