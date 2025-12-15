@@ -18336,8 +18336,19 @@ def submit_meeting_attendance(meeting_id):
         if not meeting:
             return jsonify({'error': 'Meeting not found'}), 404
         
+        if not meeting:
+            logger.error(f"Meeting not found: {meeting_id} (tried as int: {meeting_id_int})")
+            return jsonify({'error': 'Meeting not found'}), 404
+        
         group = meeting.group
+        if not group:
+            logger.error(f"Group not found for meeting {meeting_id}")
+            return jsonify({'error': 'Group not found for this meeting'}), 404
+        
         data = request.get_json()
+        if not data:
+            logger.error("No JSON data provided in request")
+            return jsonify({'error': 'No data provided'}), 400
         
         # Check permissions - either logged-in admin/staff OR leader via email + access code
         is_leader = False
@@ -18349,7 +18360,8 @@ def submit_meeting_attendance(meeting_id):
                 all_leader_emails = group.get_leader_emails()
                 is_leader = current_user.email.lower() in all_leader_emails
                 is_authenticated_user = current_user.has_permission('groups', 'edit')
-        except:
+        except Exception as auth_error:
+            logger.debug(f"Auth check failed (expected for leader portal): {auth_error}")
             pass  # Not logged in, check email + access code
         
         # If not authenticated user, check email + access code
