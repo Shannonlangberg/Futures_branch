@@ -18725,8 +18725,14 @@ def submit_meeting_attendance(meeting_id):
         
     except Exception as e:
         db.session.rollback()
+        import traceback
+        error_traceback = traceback.format_exc()
         logger.error(f"Error submitting attendance: {e}")
-        return jsonify({'error': 'Failed to submit attendance'}), 500
+        logger.error(f"Full traceback: {error_traceback}")
+        return jsonify({
+            'error': 'Failed to submit attendance',
+            'details': str(e)
+        }), 500
 
 
 @app.route('/api/pulse/<person_id>', methods=['GET'])
